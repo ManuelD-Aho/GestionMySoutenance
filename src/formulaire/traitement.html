@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <H2>ETUDIANTS</H2>
+    <textarea name="matEtudiant" id="">Matricule</textarea>
+    <textarea name="nomEtudiant" id="">Nom</textarea>
+    <textarea name="prenomEtudiant" id="">Prenom</textarea>
+    <textarea name="dateNaissanceEtudiant" id="">Date de Naissance</textarea>
+    <textarea name="adresseEtudiant" id="">Adresse</textarea>
+    <textarea name="telephoneEtudiant" id="">Telephone</textarea>
+    <textarea name="emailEtudiant" id="">Email</textarea>
+    <button onclick="addStudent()">Ajouter</button>
+    <button onclick="deleteStudent()">Supprimer</button>
+    <button onclick="updateStudent()">Modifier</button>
+    <button onclick="searchStudent()">Rechercher</button>
+    <button onclick="displayStudents()">Afficher</button>
+    <button onclick="clearFields()">Vider</button>
+    <button onclick="sortStudents()">Trier</button>
+    <table>
+        <thead>
+            <tr>
+                <th onclick="sortTable(0)">Matricule</th>
+                <th onclick="sortTable(1)">Nom</th>
+                <th onclick="sortTable(2)">Prenom</th>
+                <th onclick="sortTable(3)">Date de Naissance</th>
+                <th onclick="sortTable(4)">Adresse</th>
+                <th onclick="sortTable(5)">Telephone</th>
+                <th onclick="sortTable(6)">Email</th>
+            </tr>
+        </thead>
+        <tbody id="studentTableBody">
+        </tbody>
+    </table>
+</body>
+</html>
