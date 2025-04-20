@@ -1,108 +1,149 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Styled HTML Example</title>
+    <title>Page de Connexion</title>
     <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            line-height: 1.6;
+        * {
+            box-sizing: border-box;
             margin: 0;
             padding: 0;
-            background-color: #f5f5f5;
-            color: #333;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #6e8efb, #a777e3);
         }
 
         .container {
-            width: 80%;
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-
-        header {
-            background-color: #4a6fa5;
-            color: white;
-            padding: 2rem;
-            text-align: center;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-        }
-
-        header h1 {
-            margin: 0;
-            font-size: 2.5rem;
-        }
-
-        .card {
             background-color: white;
-            border-radius: 8px;
-            padding: 20px;
-            margin-top: 20px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            transition: transform 0.3s ease;
+            border-radius: 10px;
+            box-shadow: 0 14px 28px rgba(0,0,0,0.25), 0 10px 10px rgba(0,0,0,0.22);
+            padding: 40px;
+            width: 400px;
         }
 
-        .card:hover {
-            transform: translateY(-5px);
-        }
-
-        button {
-            background-color: #4a6fa5;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 1rem;
-            transition: background-color 0.3s;
-        }
-
-        button:hover {
-            background-color: #3a5a8a;
-        }
-
-        footer {
+        h1 {
             text-align: center;
-            padding: 20px;
-            margin-top: 30px;
-            color: #666;
+            color: #333;
+            margin-bottom: 30px;
+        }
+
+        .form-group {
+            position: relative;
+            margin-bottom: 30px;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 10px 0;
+            font-size: 16px;
+            border: none;
+            border-bottom: 1px solid #ddd;
+            outline: none;
+            background: transparent;
+        }
+
+        .form-label {
+            position: absolute;
+            top: 10px;
+            left: 0;
+            font-size: 16px;
+            color: #999;
+            pointer-events: none;
+            transition: 0.3s ease all;
+        }
+
+        .form-input:focus ~ .form-label,
+        .form-input:not(:placeholder-shown) ~ .form-label {
+            top: -20px;
+            font-size: 12px;
+            color: #6e8efb;
+        }
+
+        .form-input:focus ~ .form-underline:before {
+            transform: scaleX(1);
+        }
+
+        .form-underline {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            height: 2px;
+            width: 100%;
+        }
+
+        .form-underline:before {
+            content: "";
+            position: absolute;
+            height: 100%;
+            width: 100%;
+            background: #6e8efb;
+            transform: scaleX(0);
+            transition: 0.3s ease all;
+        }
+
+        .btn {
+            display: block;
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, #6e8efb, #a777e3);
+            border: none;
+            border-radius: 25px;
+            color: white;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.3s ease all;
+        }
+
+        .btn:hover {
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        .forgot-password {
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .forgot-password a {
+            color: #6e8efb;
+            text-decoration: none;
+            font-size: 14px;
+        }
+
+        .forgot-password a:hover {
+            text-decoration: underline;
         }
     </style>
 </head>
 <body>
-<<<<<<< HEAD
-<header>
-    <h1>Welcome to My Styled Page</h1>
-    <p>This is an HTML document with embedded CSS styles</p>
-</header>
-
 <div class="container">
-    <div class="card">
-        <h2>About This Example</h2>
-        <p>This page demonstrates how to include CSS directly in an HTML document using the &lt;style&gt; tag in the head section.</p>
-        <p>The styling includes colors, fonts, spacing, shadows, and even some simple animations on hover.</p>
-        <button>Learn More</button>
-    </div>
+    <h1>Connexion</h1>
+    <form>
+        <div class="form-group">
+            <input type="email" class="form-input" id="email" placeholder=" ">
+            <div class="form-underline"></div>
+            <label class="form-label" for="email">Adresse e-mail</label>
+        </div>
 
-    <div class="card">
-        <h2>Benefits of Embedded CSS</h2>
-        <p>Embedding CSS directly in your HTML document is useful for:</p>
-        <ul>
-            <li>Simple projects where you don't need separate files</li>
-            <li>Quick prototyping and testing</li>
-            <li>Single-page applications with limited styles</li>
-            <li>Ensuring styles load immediately with the page</li>
-        </ul>
-        <button>See Examples</button>
-    </div>
+        <div class="form-group">
+            <input type="password" class="form-input" id="password" placeholder=" ">
+            <div class="form-underline"></div>
+            <label class="form-label" for="password">Mot de passe</label>
+        </div>
+
+        <button type="submit" class="btn">Se connecter</button>
+
+        <div class="forgot-password">
+            <a href="#">Mot de passe oublié ?</a>
+        </div>
+    </form>
 </div>
-
-<footer>
-    &copy; 2025 My Styled Page | Created with HTML and CSS
-</footer>
-=======
-<p>BONHHHHHGHGH</p>
->>>>>>> 0b88a00568bfe6cdf6b17af86a04483efc002e9c
 </body>
 </html>
