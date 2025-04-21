@@ -1,68 +1,136 @@
 @echo off
-REM Script de démarrage pour Windows adapté à la région
-echo -----------------------------------------------------
-echo Démarrage de l'environnement Docker pour la plateforme
-echo de gestion des soutenances MIAGE - UFHB Cocody
-echo -----------------------------------------------------
+setlocal enabledelayedexpansion
 
-REM Vérifier si Docker est installé
-where docker >nul 2>nul
-if %errorlevel% neq 0 (
-    echo Docker n'est pas installé ou n'est pas dans le PATH
-    echo Veuillez installer Docker Desktop pour Windows
-    pause
-    exit /b 1
+REM Script de gestion Docker pour l'application MIAGE Soutenances
+REM Université Félix Houphouët-Boigny - Côte d'Ivoire
+REM Date: 2025-04-19 19:28
+
+echo ============================================================
+echo   Plateforme de Gestion des Soutenances MIAGE
+echo   Université Félix Houphouët-Boigny - Côte d'Ivoire
+echo ============================================================
+echo.
+
+REM Vérification de Docker
+echo Vérification de Docker...
+docker info >nul 2>&1
+if %ERRORLEVEL% NEQ 0 (
+    echo Docker n'est pas en cours d'exécution.
+    echo Tentative de démarrage de Docker Desktop...
+
+    if exist "C:\Program Files\Docker\Docker\Docker Desktop.exe" (
+        start "" "C:\Program Files\Docker\Docker\Docker Desktop.exe"
+    ) else if exist "C:\Program Files\Docker Desktop\Docker Desktop.exe" (
+        start "" "C:\Program Files\Docker Desktop\Docker Desktop.exe"
+    ) else (
+        echo ERREUR: Impossible de trouver Docker Desktop.
+        echo Veuillez le démarrer manuellement.
+        goto fin
+    )
+
+    echo Attente du démarrage de Docker (30 secondes max)...
+    for /L %%i in (1,1,30) do (
+        timeout /t 1 /nobreak >nul
+        docker info >nul 2>&1
+        if !ERRORLEVEL! EQU 0 (
+            echo Docker est maintenant démarré.
+            goto docker_ok
+        )
+    )
+
+    echo ERREUR: Docker n'a pas démarré dans le temps imparti.
+    goto fin
 )
 
-REM Vérifier si Docker est en cours d'exécution
-docker info >nul 2>nul
-if %errorlevel% neq 0 (
-    echo Docker n'est pas en cours d'exécution
-    echo Veuillez démarrer Docker Desktop
-    pause
-    exit /b 1
-)
+:docker_ok
+echo Docker est prêt.
 
-REM Créer le fichier .env s'il n'existe pas
-if not exist .env (
-    echo Création du fichier .env...
-    echo APP_ENV=dev> .env
-    echo APP_DEBUG=true>> .env
-    echo DB_NAME=universite>> .env
-    echo DB_USER=miage_user>> .env
-    echo DB_PASSWORD=miage_password>> .env
-    echo DB_ROOT_PASSWORD=root_password>> .env
-    echo TIMEZONE=Africa/Abidjan>> .env
-    echo APP_NAME=Plateforme de Gestion des Soutenances MIAGE - UFHB>> .env
+REM Vérification de docker-compose
+echo Vérification de docker-compose...
+if exist "%LOCALAPPDATA%\Docker\wsl\data\ext4.vhdx" (
+    echo Version Docker avec WSL2 détectée.
+    set COMPOSE_CMD=docker compose
 ) else (
-    echo Fichier .env trouvé
+    docker compose version >nul 2>&1
+    if !ERRORLEVEL! EQU 0 (
+        set COMPOSE_CMD=docker compose
+    ) else (
+        docker-compose version >nul 2>&1
+        if !ERRORLEVEL! EQU 0 (
+            set COMPOSE_CMD=docker-compose
+        ) else (
+            echo ERREUR: Docker Compose n'est pas disponible.
+            goto fin
+        )
+    )
 )
 
-REM Vérifier si les répertoires nécessaires existent
-if not exist var\logs mkdir var\logs
-if not exist var\logs\mysql mkdir var\logs\mysql
-if not exist var\logs\nginx mkdir var\logs\nginx
-if not exist var\logs\php mkdir var\logs\php
-if not exist var\sessions mkdir var\sessions
+echo Utilisation de la commande: %COMPOSE_CMD%
 
-REM Démarrer les conteneurs avec détection des pannes de courant
-echo Démarrage des conteneurs Docker avec protection contre les coupures...
-echo Les données sont persistantes même en cas de coupure électrique.
-docker-compose up -d
+REM Création des répertoires
+echo Création des répertoires nécessaires...
+if not exist "public\uploads\rapports" mkdir "public\uploads\rapports" 2>nul
+if not exist "public\uploads\documents" mkdir "public\uploads\documents" 2>nul
+if not exist "public\uploads\temp" mkdir "public\uploads\temp" 2>nul
+if not exist "var\logs" mkdir "var\logs" 2>nul
+if not exist "var\sessions" mkdir "var\sessions" 2>nul
 
-REM Vérifier le statut des conteneurs
-docker-compose ps
+REM Vérification ou création du fichier .env
+if not exist ".env" (
+    echo Création du fichier .env...
+    (
+        echo APP_ENV=dev
+        echo APP_DEBUG=true
+        echo DB_HOST=db
+        echo DB_PORT=3306
+        echo DB_NAME=universite
+        echo DB_USER=miage_user
+        echo DB_PASSWORD=miage_password
+        echo DB_ROOT_PASSWORD=root_password
+        echo TIMEZONE=Africa/Abidjan
+    ) > .env
+)
 
-REM Afficher les URLs d'accès
+REM Démarrage des conteneurs
+echo Démarrage des conteneurs Docker...
+%COMPOSE_CMD% up -d
+
+if %ERRORLEVEL% NEQ 0 (
+    echo ERREUR: Impossible de démarrer les conteneurs.
+    %COMPOSE_CMD% logs
+    goto fin
+)
+
+echo Attente du démarrage complet des services (20 secondes)...
+timeout /t 20 /nobreak >nul
+
+REM Vérification des conteneurs
+echo Vérification des conteneurs...
+%COMPOSE_CMD% ps
+
 echo.
-echo Application accessible à l'adresse : http://localhost:8080
-echo PHPMyAdmin accessible à l'adresse : http://localhost:8081
+echo ============================================================
+echo   APPLICATION PRÊTE À L'EMPLOI
+echo ============================================================
 echo.
-echo -----------------------------------------------------
-echo IMPORTANT: En cas de coupure électrique, redémarrez
-echo simplement ce script quand le courant revient.
-echo -----------------------------------------------------
+echo   Application Web:    http://localhost:8080
+echo   PHPMyAdmin:         http://localhost:8081
+echo.
+echo ============================================================
 echo.
 
-REM Attendre avant de fermer
+REM Ouverture automatique du navigateur
+echo Ouverture de l'application dans le navigateur...
+start "" http://localhost:8080
+
+echo.
+echo Commandes utiles:
+echo - Pour arrêter les services:    %COMPOSE_CMD% down
+echo - Pour voir les journaux:       %COMPOSE_CMD% logs -f
+echo - Pour redémarrer les services: %COMPOSE_CMD% restart
+echo.
+
+:fin
+echo.
 pause
+endlocal

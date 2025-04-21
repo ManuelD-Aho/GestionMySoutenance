@@ -1,4 +1,76 @@
 # Paramètres spécifiques à l'environnement
 
-# Configuration ici
+# Paramètres de l'application
+application:
+  name: "Plateforme de Gestion des Soutenances MIAGE"
+  version: "1.0.0"
+  environment: "%env(APP_ENV)%"
+  debug: "%env(bool:APP_DEBUG)%"
+  maintenance_mode: false
+  contact_email: "support.miage@univ-fhb.ci"
 
+# Paramètres de l'université
+university:
+  name: "Université Félix Houphouët-Boigny"
+  short_name: "UFHB"
+  faculty: "UFR Mathématiques et Informatique"
+  department: "MIAGE"
+  address: "Abidjan, Côte d'Ivoire"
+  website: "https://www.univ-fhb.edu.ci"
+  logo: "images/logo_ufhb.png"
+
+# Paramètres de la plateforme de soutenance
+soutenance:
+  max_file_size: "20M"
+  allowed_file_types: ["pdf", "doc", "docx", "ppt", "pptx"]
+  report_deadline_days: 15
+  jury_min_members: 3
+  jury_max_members: 5
+  default_session_duration: 60 # en minutes
+  grading_system:
+    min_passing_grade: 10
+    max_grade: 20
+    excellent_threshold: 16
+  academic_levels: ["Licence 3", "Master 1", "Master 2"]
+
+# Paramètres de notification
+notification:
+  email:
+    sender: "no-reply@miage-ufhb.ci"
+    admin_emails: ["admin.miage@univ-fhb.ci"]
+    send_reminders: true
+    reminder_days_before: 7
+  sms:
+    enabled: false
+    api_key: ~
+    sender_id: "MIAGE-UFHB"
+
+# Paramètres d'interface utilisateur
+ui:
+  theme: "default"
+  items_per_page: 20
+  date_format: "d/m/Y"
+  time_format: "H:i"
+  time_zone: "Africa/Abidjan"
+  default_language: "fr"
+  available_languages: ["fr", "en"]
+  dashboard:
+    recent_items_limit: 5
+    stats_refresh_interval: 3600 # en secondes
+
+# Paramètres de sécurité
+security:
+  password_min_length: 8
+  password_requires_special_chars: true
+  password_requires_numbers: true
+  password_requires_uppercase: true
+  session_lifetime: 3600 # en secondes
+  login_max_attempts: 5
+  lockout_duration: 1800 # en secondes
+  jwt:
+    secret: "%env(JWT_SECRET)%"
+    expiration: 86400 # en secondes (24 heures)
+  cors:
+    allow_origins: ["*"]
+    allow_methods: ["GET", "POST", "PUT", "DELETE"]
+    allow_headers: ["Content-Type", "Authorization"]
