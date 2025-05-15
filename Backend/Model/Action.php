@@ -1,5 +1,5 @@
 <?php
-class Specialite {
+class Action {
     private $pdo;
 
     public function __construct(PDO $pdo) {
@@ -7,21 +7,21 @@ class Specialite {
     }
 
     public function getAll() {
-        $stmt = $this->pdo->prepare("SELECT * FROM specialite");
+        $stmt = $this->pdo->prepare("SELECT * FROM action");
         $stmt->execute();
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     public function getById($id) {
-        $stmt = $this->pdo->prepare("SELECT * FROM specialite WHERE id_specialite = :id");
+        $stmt = $this->pdo->prepare("SELECT * FROM action WHERE id_action = :id");
         $stmt->execute(['id' => $id]);
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 
     public function create($data) {
         $stmt = $this->pdo->prepare("
-            INSERT INTO specialite (lib_specialite)
-            VALUES (:lib_specialite)
+            INSERT INTO action (lib_action)
+            VALUES (:lib_action)
         ");
         return $stmt->execute($data);
     }
@@ -29,15 +29,15 @@ class Specialite {
     public function update($id, $data) {
         $data['id'] = $id;
         $stmt = $this->pdo->prepare("
-            UPDATE specialite
-            SET lib_specialite = :lib_specialite
-            WHERE id_specialite = :id
+            UPDATE action
+            SET lib_action = :lib_action
+            WHERE id_action = :id
         ");
         return $stmt->execute($data);
     }
 
     public function delete($id) {
-        $stmt = $this->pdo->prepare("DELETE FROM specialite WHERE id_specialite = :id");
+        $stmt = $this->pdo->prepare("DELETE FROM action WHERE id_action = :id");
         return $stmt->execute(['id' => $id]);
     }
 }
