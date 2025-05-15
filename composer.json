@@ -5,7 +5,8 @@
   "require": {
     "php": "^8.1",
     "ext-pdo": "*",
-    "ext-mysqli": "*"
+    "ext-mysqli": "*",
+    "vlucas/phpdotenv": "^5.5"
   },
   "autoload": {
     "psr-4": {
@@ -16,6 +17,11 @@
     }
   },
   "scripts": {
-    "serve": "php -S localhost:8000 -t src/Public"
-  }
+    "serve": "php -S localhost:8000 -t src/Public",
+    "post-install-cmd": [
+      "@composer dump-autoload"
+    ]
+  },
+  "minimum-stability": "stable",
+  "prefer-stable": true
 }
