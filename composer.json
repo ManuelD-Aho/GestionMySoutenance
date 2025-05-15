@@ -9,13 +9,13 @@
   },
   "autoload": {
     "psr-4": {
-      "Backend\\": "Backend/",
-      "Frontend\\": "Frontend/",
-      "Service\\": "Service/",
-      "Util\\": "Util/"
+      "Backend\\": "src/Backend/",
+      "Frontend\\": "src/Frontend/",
+      "Service\\": "src/Service/",
+      "Util\\": "src/Util/"
     }
   },
   "scripts": {
-    "serve": "php -S localhost:8000 -t Public"
+    "serve": "php -S localhost:8000 -t src/Public"
   }
 }
