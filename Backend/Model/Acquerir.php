@@ -35,7 +35,7 @@ class Acquerir {
         ");
         return $stmt->execute($data);
     }
-
+//Test
     public function delete($id) {
         $stmt = $this->pdo->prepare("DELETE FROM acquerir WHERE id_grade = :id");
         return $stmt->execute(['id' => $id]);
