@@ -15,7 +15,8 @@
       "Backend\\": "src/Backend/",
       "Frontend\\": "src/Frontend/",
       "Service\\": "src/Service/",
-      "Util\\": "src/Util/"
+      "Util\\": "src/Util/",
+      "Config\\": "src/Config/"
     }
   },
   "scripts": {

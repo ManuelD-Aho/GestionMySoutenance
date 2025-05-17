@@ -3,6 +3,7 @@
 namespace Backend\Model;
 
 use PDO;
+use Backend\Model\BaseModel;
 
 class Utilisateur extends BaseModel {
 
@@ -12,7 +13,6 @@ class Utilisateur extends BaseModel {
     // Le constructeur est hérité de BaseModel, mais si on veut être explicite :
     public function __construct(PDO $pdo) {
         parent::__construct($pdo); // Appel du constructeur parent
-        // $this->table et $this->primaryKey sont déjà définis ci-dessus
     }
 
     public function authenticate($login_utilisateur, $mot_de_passe) {

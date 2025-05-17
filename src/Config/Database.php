@@ -1,5 +1,6 @@
 <?php
-
+namespace Config;
+use PDO;
 class Database {
     private static $instance = null;
     private $pdo;
@@ -8,7 +9,7 @@ class Database {
         $host = getenv('DB_HOST') ?: 'localhost';
         $db   = getenv('DB_DATABASE') ?: 'mysoutenance';
         $user = 'root';
-        $pass = getenv('MYSQL_ROOT_PASSWORD') ?: '';
+        $pass = getenv('DB_PASSWORD') ?: ''; // Utilise DB_PASSWORD
         $charset = 'utf8mb4';
 
         $dsn = "mysql:host=$host;dbname=$db;charset=$charset";

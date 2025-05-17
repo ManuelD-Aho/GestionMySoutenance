@@ -1,6 +1,6 @@
 <?php
 namespace Backend\Controller;
-use Database;
+use Config\Database;
 use Backend\Model\Utilisateur;
 
 class AuthentificationController extends BaseController
@@ -24,7 +24,7 @@ class AuthentificationController extends BaseController
 
         $login = $_POST['login_utilisateur'] ?? '';
         $password = $_POST['mot_de_passe'] ?? '';
-        $pdo = Database::getInstance()->getConnection();
+        $pdo = \Config\Database::getInstance()->getConnection();
         $userModel = new Utilisateur($pdo); // Utilisation du modèle refactorisé
         $user = $userModel->authenticate($login, $password);
 
