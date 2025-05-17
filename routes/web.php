@@ -1,18 +1,16 @@
 <?php
+
 use FastRoute\RouteCollector;
+use Backend\Controller\authentification;
+use Backend\Controller\BaseController; // Un contrôleur d'exemple
 
-/** @var RouteCollector $r */
+return function(RouteCollector $r) {
+    // Route pour la page d'accueil
+    $r->addRoute('GET', '/', [BaseController::class, 'home']);
 
-// … tes autres routes …
+    // Routes pour l'authentification
+    $r->addRoute('GET', '/login', [authentification::class, 'showLoginForm']);
+    $r->addRoute('POST', '/login', [authentification::class, 'login']);
+    $r->addRoute('GET', '/logout', [authentification::class, 'logout']);
 
-// Afficher le formulaire de login (GET /login)
-$r->addRoute('GET', '/login', [
-    App\Backend\Controller\Authentification::class,
-    'showForm'
-]);
-
-// Traiter la soumission du formulaire (POST /login)
-$r->addRoute('POST', '/login', [
-    App\Backend\Controller\Authentification::class,
-    'authenticate'
-]);
+};
