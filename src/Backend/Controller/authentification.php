@@ -1,9 +1,17 @@
 <?php
+
+namespace App\Backend\Controller;  // ou Backend\Controller
 require_once __DIR__ . '/../../Config/Database.php';
 require_once __DIR__ . '/../Model/Utilisateurs.php';
 
 class authentification {
     private $model;
+
+    public function showForm(): void
+    {
+        // c’est ici qu’on va inclure ton login.php
+        include __DIR__ . '/../../Frontend/views/Auth/login.php';
+    }
 
     public function __construct() {
         $pdo = Database::getInstance()->getConnection();
