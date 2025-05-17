@@ -7,7 +7,6 @@ use FastRoute\RouteCollector;
 use FastRoute\Dispatcher as FastRouteDispatcher;
 
 define('ROOT_PATH', dirname(__DIR__));
-
 if (!file_exists(ROOT_PATH . '/vendor/autoload.php')) {
     http_response_code(500);
     echo "<h1>Erreur Critique</h1>";
@@ -129,5 +128,3 @@ if (isset($_SESSION['error_message'])) {
 if (isset($_SESSION['success_message'])) {
     unset($_SESSION['success_message']);
 }
-
-?>

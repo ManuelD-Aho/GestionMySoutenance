@@ -1,6 +1,6 @@
 <?php
-// src/Models/BaseModel.php
-namespace App\Models;
+// src/Backend/Model/BaseModel.php
+namespace Backend\Model; // Changement de namespace
 
 use PDO;
 use PDOException;
@@ -18,7 +18,6 @@ abstract class BaseModel
     {
         $this->db = $db;
     }
-
     public function findAll(): array
     {
         $stmt = $this->db->query("SELECT * FROM {$this->table}");
@@ -47,15 +46,17 @@ abstract class BaseModel
 
     public function update(int $id, array $data): bool
     {
-        $cols   = array_keys($data);
-        $sets   = implode(' = ?, ', $cols) . ' = ?';
+        $updateFields = [];
+        foreach (array_keys($data) as $col) {
+            $updateFields[] = "{$col} = :{$col}";
+        }
+        $setString = implode(', ', $updateFields);
 
-        $sql    = "UPDATE {$this->table} SET {$sets} WHERE {$this->primaryKey} = ?";
+        $sql    = "UPDATE {$this->table} SET {$setString} WHERE {$this->primaryKey} = :primary_key_id";
         $stmt   = $this->db->prepare($sql);
-        $values = array_values($data);
-        $values[] = $id;
 
-        return $stmt->execute($values);
+        $data['primary_key_id'] = $id; // Ajouter l'ID pour le binding
+        return $stmt->execute($data);
     }
 
     public function delete(int $id): bool
@@ -65,44 +66,3 @@ abstract class BaseModel
         return $stmt->execute(['id' => $id]);
     }
 }
-
-
-// src/Models/EtudiantModel.php
-namespace App\Models;
-
-class EtudiantModel extends BaseModel
-{
-    protected string $table      = 'etudiants';
-    protected string $primaryKey = 'num_etd';
-}
-
-
-// src/Models/RapportEtudiantModel.php
-namespace App\Models;
-
-class RapportEtudiantModel extends BaseModel
-{
-    protected string $table      = 'rapport_etudiant';
-    protected string $primaryKey = 'id_rapport_etd';
-
-    /**
-     * Récupère les rapports n'ayant pas encore reçu de validation.
-     */
-    public function findPending(): array
-    {
-        $sql  = "SELECT * FROM {$this->table} WHERE {$this->primaryKey} NOT IN (SELECT {$this->primaryKey} FROM valider)";
-        $stmt = $this->db->query($sql);
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
-    }
-}
-
-
-// src/Models/EnseignantModel.php
-namespace App\Models;
-
-class EnseignantModel extends BaseModel
-{
-    protected string $table      = 'enseignants';
-    protected string $primaryKey = 'id_ens';
-}
-

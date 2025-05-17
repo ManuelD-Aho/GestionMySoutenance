@@ -1,43 +1,29 @@
 <?php
-class Action {
-    private $pdo;
 
+namespace Backend\Model; // Ajout du namespace
+
+use PDO; // Ajout de use PDO
+use Backend\Model\BaseModel; // Ajout de use BaseModel
+
+class Action extends BaseModel { // Renommer la classe avec suffixe "Model" et hériter de BaseModel
+
+    protected string $table = 'action'; // Nom de la table
+    protected string $primaryKey = 'id_action'; // Clé primaire de la table
+
+    // Le constructeur qui appelle le parent est automatiquement hérité
+    // si aucune logique spécifique n'est ajoutée ici.
+    // Si tu as besoin d'initialiser quelque chose de spécifique à ActionModel :
     public function __construct(PDO $pdo) {
-        $this->pdo = $pdo;
+        parent::__construct($pdo);
+        // Logique spécifique au constructeur de ActionModel si nécessaire
     }
 
-    public function getAll() {
-        $stmt = $this->pdo->prepare("SELECT * FROM action");
-        $stmt->execute();
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
-    }
+    // Les méthodes getAll, getById (qui devient find), create, update, delete
+    // sont maintenant héritées de BaseModel.
+    // Tu n'as plus besoin de les redéfinir ici sauf si tu as une logique spécifique.
 
-    public function getById($id) {
-        $stmt = $this->pdo->prepare("SELECT * FROM action WHERE id_action = :id");
-        $stmt->execute(['id' => $id]);
-        return $stmt->fetch(PDO::FETCH_ASSOC);
-    }
-
-    public function create($data) {
-        $stmt = $this->pdo->prepare("
-            INSERT INTO action (lib_action)
-            VALUES (:lib_action)
-        ");
-        return $stmt->execute($data);
-    }
-
-    public function update($id, $data) {
-        $data['id'] = $id;
-        $stmt = $this->pdo->prepare("
-            UPDATE action
-            SET lib_action = :lib_action
-            WHERE id_action = :id
-        ");
-        return $stmt->execute($data);
-    }
-
-    public function delete($id) {
-        $stmt = $this->pdo->prepare("DELETE FROM action WHERE id_action = :id");
-        return $stmt->execute(['id' => $id]);
-    }
+    // Par exemple, si la méthode getById avait une logique particulière non couverte par find(int $id),
+    // tu devrais l'adapter ou la conserver.
+    // Dans ce cas, les méthodes originales de Action.php sont des CRUD standard
+    // et sont donc bien couvertes par BaseModel.
 }

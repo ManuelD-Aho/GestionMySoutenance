@@ -1,7 +1,5 @@
 <?php
-
 namespace Backend\Controller;
-
 class BaseController
 {
     public function home(): void
@@ -9,13 +7,10 @@ class BaseController
         header('Location: /login');
         exit;
     }
-
-    // Méthode de rendu basique (à améliorer ou remplacer par un moteur de template)
     protected function render(string $viewPath, array $data = []): void
     {
         extract($data);
-        // Assumer que les vues sont relatives à la racine du projet
-        $fullViewPath = dirname(__DIR__, 3) . '/' . $viewPath; // Ajuster le nombre de __DIR__ si nécessaire
+        $fullViewPath = dirname(__DIR__, 3) . '/' . $viewPath;
 
         if (file_exists($fullViewPath)) {
             ob_start();
