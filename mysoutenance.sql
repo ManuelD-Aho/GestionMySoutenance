@@ -1,11 +1,11 @@
 -- phpMyAdmin SQL Dump
--- version 5.2.1
+-- version 5.2.2
 -- https://www.phpmyadmin.net/
 --
--- Hôte : 127.0.0.1:3306
--- Généré le : sam. 10 mai 2025 à 18:11
--- Version du serveur : 9.1.0
--- Version de PHP : 8.3.14
+-- Hôte : db:3306
+-- Généré le : jeu. 15 mai 2025 à 00:23
+-- Version du serveur : 8.3.0
+-- Version de PHP : 8.2.27
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 START TRANSACTION;
@@ -27,14 +27,11 @@ SET time_zone = "+00:00";
 -- Structure de la table `acquerir`
 --
 
-DROP TABLE IF EXISTS `acquerir`;
-CREATE TABLE IF NOT EXISTS `acquerir` (
-                                          `id_grade` int NOT NULL,
-                                          `id_enseignant` int NOT NULL,
-                                          `date_acquisition` date NOT NULL,
-                                          PRIMARY KEY (`id_grade`,`id_enseignant`),
-    KEY `id_enseignant` (`id_enseignant`)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+CREATE TABLE `acquerir` (
+                            `id_grade` int NOT NULL,
+                            `id_enseignant` int NOT NULL,
+                            `date_acquisition` date NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -42,12 +39,10 @@ CREATE TABLE IF NOT EXISTS `acquerir` (
 -- Structure de la table `action`
 --
 
-DROP TABLE IF EXISTS `action`;
-CREATE TABLE IF NOT EXISTS `action` (
-                                        `id_action` int NOT NULL,
-                                        `lib_action` varchar(100) COLLATE utf8mb4_general_ci NOT NULL,
-    PRIMARY KEY (`id_action`)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+CREATE TABLE `action` (
+                          `id_action` int NOT NULL,
+                          `lib_action` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -55,18 +50,14 @@ CREATE TABLE IF NOT EXISTS `action` (
 -- Structure de la table `affecter`
 --
 
-DROP TABLE IF EXISTS `affecter`;
-CREATE TABLE IF NOT EXISTS `affecter` (
-                                          `id_enseignant` int NOT NULL,
-                                          `id_rapport_etudiant` int NOT NULL,
-                                          `id_statut_jury` int NOT NULL,
-                                          `oui` tinyint(1) NOT NULL,
-    `directeur_memoire` tinyint(1) NOT NULL,
-    `date_affectation` datetime NOT NULL,
-    PRIMARY KEY (`id_enseignant`,`id_rapport_etudiant`,`id_statut_jury`),
-    KEY `id_rapport_etudiant` (`id_rapport_etudiant`),
-    KEY `id_statut_jury` (`id_statut_jury`)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+CREATE TABLE `affecter` (
+                            `id_enseignant` int NOT NULL,
+                            `id_rapport_etudiant` int NOT NULL,
+                            `id_statut_jury` int NOT NULL,
+                            `oui` tinyint(1) NOT NULL,
+                            `directeur_memoire` tinyint(1) NOT NULL,
+                            `date_affectation` datetime NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -74,12 +65,10 @@ CREATE TABLE IF NOT EXISTS `affecter` (
 -- Structure de la table `annee_academique`
 --
 
-DROP TABLE IF EXISTS `annee_academique`;
-CREATE TABLE IF NOT EXISTS `annee_academique` (
-                                                  `id_annee_academique` int NOT NULL,
-                                                  `lib_annee_academique` varchar(50) COLLATE utf8mb4_general_ci NOT NULL,
-    PRIMARY KEY (`id_annee_academique`)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+CREATE TABLE `annee_academique` (
+                                    `id_annee_academique` int NOT NULL,
+                                    `lib_annee_academique` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -87,14 +76,11 @@ CREATE TABLE IF NOT EXISTS `annee_academique` (
 -- Structure de la table `approuver`
 --
 
-DROP TABLE IF EXISTS `approuver`;
-CREATE TABLE IF NOT EXISTS `approuver` (
-                                           `id_personnel_administratif` int NOT NULL,
-                                           `id_rapport_etudiant` int NOT NULL,
-                                           `date_approbation` date NOT NULL,
-                                           PRIMARY KEY (`id_personnel_administratif`,`id_rapport_etudiant`),
-    KEY `id_rapport_etudiant` (`id_rapport_etudiant`)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+CREATE TABLE `approuver` (
+                             `id_personnel_administratif` int NOT NULL,
+                             `id_rapport_etudiant` int NOT NULL,
+                             `date_approbation` date NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -102,13 +88,10 @@ CREATE TABLE IF NOT EXISTS `approuver` (
 -- Structure de la table `attribuer`
 --
 
-DROP TABLE IF EXISTS `attribuer`;
-CREATE TABLE IF NOT EXISTS `attribuer` (
-                                           `id_enseignant` int NOT NULL,
-                                           `id_specialite` int NOT NULL,
-                                           PRIMARY KEY (`id_enseignant`,`id_specialite`),
-    KEY `id_specialite` (`id_specialite`)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+CREATE TABLE `attribuer` (
+                             `id_enseignant` int NOT NULL,
+                             `id_specialite` int NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -116,12 +99,10 @@ CREATE TABLE IF NOT EXISTS `attribuer` (
 -- Structure de la table `compte_rendu`
 --
 
-DROP TABLE IF EXISTS `compte_rendu`;
-CREATE TABLE IF NOT EXISTS `compte_rendu` (
-                                              `id_compte_rendu` int NOT NULL,
-                                              `lib_compte_rendu` text COLLATE utf8mb4_general_ci NOT NULL,
-                                              PRIMARY KEY (`id_compte_rendu`)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+CREATE TABLE `compte_rendu` (
+                                `id_compte_rendu` int NOT NULL,
+                                `lib_compte_rendu` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -129,13 +110,10 @@ CREATE TABLE IF NOT EXISTS `compte_rendu` (
 -- Structure de la table `donner`
 --
 
-DROP TABLE IF EXISTS `donner`;
-CREATE TABLE IF NOT EXISTS `donner` (
-                                        `id_enseignant` int NOT NULL,
-                                        `id_niveau_approbation` int NOT NULL,
-                                        PRIMARY KEY (`id_enseignant`,`id_niveau_approbation`),
-    KEY `id_niveau_approbation` (`id_niveau_approbation`)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+CREATE TABLE `donner` (
+                          `id_enseignant` int NOT NULL,
+                          `id_niveau_approbation` int NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -143,14 +121,11 @@ CREATE TABLE IF NOT EXISTS `donner` (
 -- Structure de la table `ecue`
 --
 
-DROP TABLE IF EXISTS `ecue`;
-CREATE TABLE IF NOT EXISTS `ecue` (
-                                      `id_ecue` int NOT NULL,
-                                      `lib_ecue` varchar(100) COLLATE utf8mb4_general_ci NOT NULL,
-    `id_ue` int NOT NULL,
-    PRIMARY KEY (`id_ecue`),
-    KEY `id_ue` (`id_ue`)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+CREATE TABLE `ecue` (
+                        `id_ecue` int NOT NULL,
+                        `lib_ecue` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+                        `id_ue` int NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -158,14 +133,11 @@ CREATE TABLE IF NOT EXISTS `ecue` (
 -- Structure de la table `enregistrer`
 --
 
-DROP TABLE IF EXISTS `enregistrer`;
-CREATE TABLE IF NOT EXISTS `enregistrer` (
-                                             `id_utilisateur` int NOT NULL,
-                                             `id_action` int NOT NULL,
-                                             `date_action` datetime NOT NULL,
-                                             PRIMARY KEY (`id_utilisateur`,`id_action`,`date_action`),
-    KEY `id_action` (`id_action`)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+CREATE TABLE `enregistrer` (
+                               `id_utilisateur` int NOT NULL,
+                               `id_action` int NOT NULL,
+                               `date_action` datetime NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -173,17 +145,14 @@ CREATE TABLE IF NOT EXISTS `enregistrer` (
 -- Structure de la table `enseignant`
 --
 
-DROP TABLE IF EXISTS `enseignant`;
-CREATE TABLE IF NOT EXISTS `enseignant` (
-                                            `id_enseignant` int NOT NULL,
-                                            `nom` varchar(100) COLLATE utf8mb4_general_ci NOT NULL,
-    `prenom` varchar(100) COLLATE utf8mb4_general_ci NOT NULL,
-    `age` int DEFAULT NULL,
-    `telephone` varchar(20) COLLATE utf8mb4_general_ci DEFAULT NULL,
-    `id_utilisateur` int NOT NULL,
-    PRIMARY KEY (`id_enseignant`),
-    UNIQUE KEY `id_utilisateur` (`id_utilisateur`)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+CREATE TABLE `enseignant` (
+                              `id_enseignant` int NOT NULL,
+                              `nom` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+                              `prenom` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+                              `age` int DEFAULT NULL,
+                              `telephone` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
+                              `id_utilisateur` int NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -191,12 +160,10 @@ CREATE TABLE IF NOT EXISTS `enseignant` (
 -- Structure de la table `entreprise`
 --
 
-DROP TABLE IF EXISTS `entreprise`;
-CREATE TABLE IF NOT EXISTS `entreprise` (
-                                            `id_entreprise` int NOT NULL,
-                                            `lib_entreprise` varchar(200) COLLATE utf8mb4_general_ci NOT NULL,
-    PRIMARY KEY (`id_entreprise`)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+CREATE TABLE `entreprise` (
+                              `id_entreprise` int NOT NULL,
+                              `lib_entreprise` varchar(200) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -204,18 +171,15 @@ CREATE TABLE IF NOT EXISTS `entreprise` (
 -- Structure de la table `etudiant`
 --
 
-DROP TABLE IF EXISTS `etudiant`;
-CREATE TABLE IF NOT EXISTS `etudiant` (
-                                          `id_etudiant` int NOT NULL,
-                                          `nom` varchar(100) COLLATE utf8mb4_general_ci NOT NULL,
-    `prenom` varchar(100) COLLATE utf8mb4_general_ci NOT NULL,
-    `age` int DEFAULT NULL,
-    `telephone` varchar(20) COLLATE utf8mb4_general_ci DEFAULT NULL,
-    `email` varchar(255) COLLATE utf8mb4_general_ci DEFAULT NULL,
-    `id_utilisateur` int NOT NULL,
-    PRIMARY KEY (`id_etudiant`),
-    UNIQUE KEY `id_utilisateur` (`id_utilisateur`)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+CREATE TABLE `etudiant` (
+                            `id_etudiant` int NOT NULL,
+                            `nom` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+                            `prenom` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+                            `age` int DEFAULT NULL,
+                            `telephone` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
+                            `email` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
+                            `id_utilisateur` int NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -223,17 +187,13 @@ CREATE TABLE IF NOT EXISTS `etudiant` (
 -- Structure de la table `evaluer`
 --
 
-DROP TABLE IF EXISTS `evaluer`;
-CREATE TABLE IF NOT EXISTS `evaluer` (
-                                         `id_etudiant` int NOT NULL,
-                                         `id_enseignant` int NOT NULL,
-                                         `id_ecue` int NOT NULL,
-                                         `date_evaluation` date NOT NULL,
-                                         `note` decimal(5,2) DEFAULT NULL,
-    PRIMARY KEY (`id_etudiant`,`id_enseignant`,`id_ecue`),
-    KEY `id_enseignant` (`id_enseignant`),
-    KEY `id_ecue` (`id_ecue`)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+CREATE TABLE `evaluer` (
+                           `id_etudiant` int NOT NULL,
+                           `id_enseignant` int NOT NULL,
+                           `id_ecue` int NOT NULL,
+                           `date_evaluation` date NOT NULL,
+                           `note` decimal(5,2) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -241,14 +201,11 @@ CREATE TABLE IF NOT EXISTS `evaluer` (
 -- Structure de la table `faire_stage`
 --
 
-DROP TABLE IF EXISTS `faire_stage`;
-CREATE TABLE IF NOT EXISTS `faire_stage` (
-                                             `id_entreprise` int NOT NULL,
-                                             `id_etudiant` int NOT NULL,
-                                             `date_stage` date NOT NULL,
-                                             PRIMARY KEY (`id_entreprise`,`id_etudiant`),
-    KEY `id_etudiant` (`id_etudiant`)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+CREATE TABLE `faire_stage` (
+                               `id_entreprise` int NOT NULL,
+                               `id_etudiant` int NOT NULL,
+                               `date_stage` date NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -256,12 +213,10 @@ CREATE TABLE IF NOT EXISTS `faire_stage` (
 -- Structure de la table `fonction`
 --
 
-DROP TABLE IF EXISTS `fonction`;
-CREATE TABLE IF NOT EXISTS `fonction` (
-                                          `id_fonction` int NOT NULL,
-                                          `lib_fonction` varchar(100) COLLATE utf8mb4_general_ci NOT NULL,
-    PRIMARY KEY (`id_fonction`)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+CREATE TABLE `fonction` (
+                            `id_fonction` int NOT NULL,
+                            `lib_fonction` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -269,12 +224,10 @@ CREATE TABLE IF NOT EXISTS `fonction` (
 -- Structure de la table `grade`
 --
 
-DROP TABLE IF EXISTS `grade`;
-CREATE TABLE IF NOT EXISTS `grade` (
-                                       `id_grade` int NOT NULL,
-                                       `lib_grade` varchar(50) COLLATE utf8mb4_general_ci NOT NULL,
-    PRIMARY KEY (`id_grade`)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+CREATE TABLE `grade` (
+                         `id_grade` int NOT NULL,
+                         `lib_grade` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -282,12 +235,17 @@ CREATE TABLE IF NOT EXISTS `grade` (
 -- Structure de la table `groupe_utilisateur`
 --
 
-DROP TABLE IF EXISTS `groupe_utilisateur`;
-CREATE TABLE IF NOT EXISTS `groupe_utilisateur` (
-                                                    `id_groupe_utilisateur` int NOT NULL,
-                                                    `lib_groupe_utilisateur` varchar(100) COLLATE utf8mb4_general_ci NOT NULL,
-    PRIMARY KEY (`id_groupe_utilisateur`)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+CREATE TABLE `groupe_utilisateur` (
+                                      `id_groupe_utilisateur` int NOT NULL,
+                                      `lib_groupe_utilisateur` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Déchargement des données de la table `groupe_utilisateur`
+--
+
+INSERT INTO `groupe_utilisateur` (`id_groupe_utilisateur`, `lib_groupe_utilisateur`) VALUES
+    (1, 'Adminstrateur_systeme');
 
 -- --------------------------------------------------------
 
@@ -295,17 +253,13 @@ CREATE TABLE IF NOT EXISTS `groupe_utilisateur` (
 -- Structure de la table `inscrire`
 --
 
-DROP TABLE IF EXISTS `inscrire`;
-CREATE TABLE IF NOT EXISTS `inscrire` (
-                                          `id_etudiant` int NOT NULL,
-                                          `id_niveau_etude` int NOT NULL,
-                                          `id_annee_academique` int NOT NULL,
-                                          `montant_inscription` decimal(10,2) NOT NULL,
-    `date_inscription` date NOT NULL,
-    PRIMARY KEY (`id_etudiant`,`id_niveau_etude`,`id_annee_academique`),
-    KEY `id_niveau_etude` (`id_niveau_etude`),
-    KEY `id_annee_academique` (`id_annee_academique`)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+CREATE TABLE `inscrire` (
+                            `id_etudiant` int NOT NULL,
+                            `id_niveau_etude` int NOT NULL,
+                            `id_annee_academique` int NOT NULL,
+                            `montant_inscription` decimal(10,2) NOT NULL,
+                            `date_inscription` date NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -313,12 +267,10 @@ CREATE TABLE IF NOT EXISTS `inscrire` (
 -- Structure de la table `message`
 --
 
-DROP TABLE IF EXISTS `message`;
-CREATE TABLE IF NOT EXISTS `message` (
-                                         `id_message` int NOT NULL,
-                                         `lib_message` text COLLATE utf8mb4_general_ci NOT NULL,
-                                         PRIMARY KEY (`id_message`)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+CREATE TABLE `message` (
+                           `id_message` int NOT NULL,
+                           `lib_message` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -326,12 +278,17 @@ CREATE TABLE IF NOT EXISTS `message` (
 -- Structure de la table `niveau_acces_donne`
 --
 
-DROP TABLE IF EXISTS `niveau_acces_donne`;
-CREATE TABLE IF NOT EXISTS `niveau_acces_donne` (
-                                                    `id_niveau_acces_donne` int NOT NULL,
-                                                    `lib_niveau_acces_donne` varchar(100) COLLATE utf8mb4_general_ci NOT NULL,
-    PRIMARY KEY (`id_niveau_acces_donne`)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+CREATE TABLE `niveau_acces_donne` (
+                                      `id_niveau_acces_donne` int NOT NULL,
+                                      `lib_niveau_acces_donne` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Déchargement des données de la table `niveau_acces_donne`
+--
+
+INSERT INTO `niveau_acces_donne` (`id_niveau_acces_donne`, `lib_niveau_acces_donne`) VALUES
+    (1, '1');
 
 -- --------------------------------------------------------
 
@@ -339,12 +296,10 @@ CREATE TABLE IF NOT EXISTS `niveau_acces_donne` (
 -- Structure de la table `niveau_approbation`
 --
 
-DROP TABLE IF EXISTS `niveau_approbation`;
-CREATE TABLE IF NOT EXISTS `niveau_approbation` (
-                                                    `id_niveau_approbation` int NOT NULL,
-                                                    `lib_niveau_approbation` varchar(100) COLLATE utf8mb4_general_ci NOT NULL,
-    PRIMARY KEY (`id_niveau_approbation`)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+CREATE TABLE `niveau_approbation` (
+                                      `id_niveau_approbation` int NOT NULL,
+                                      `lib_niveau_approbation` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -352,12 +307,10 @@ CREATE TABLE IF NOT EXISTS `niveau_approbation` (
 -- Structure de la table `niveau_etude`
 --
 
-DROP TABLE IF EXISTS `niveau_etude`;
-CREATE TABLE IF NOT EXISTS `niveau_etude` (
-                                              `id_niveau_etude` int NOT NULL,
-                                              `lib_niveau_etude` varchar(100) COLLATE utf8mb4_general_ci NOT NULL,
-    PRIMARY KEY (`id_niveau_etude`)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+CREATE TABLE `niveau_etude` (
+                                `id_niveau_etude` int NOT NULL,
+                                `lib_niveau_etude` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -365,12 +318,10 @@ CREATE TABLE IF NOT EXISTS `niveau_etude` (
 -- Structure de la table `notification`
 --
 
-DROP TABLE IF EXISTS `notification`;
-CREATE TABLE IF NOT EXISTS `notification` (
-                                              `id_notification` int NOT NULL,
-                                              `lib_notification` varchar(100) COLLATE utf8mb4_general_ci NOT NULL,
-    PRIMARY KEY (`id_notification`)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+CREATE TABLE `notification` (
+                                `id_notification` int NOT NULL,
+                                `lib_notification` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -378,14 +329,11 @@ CREATE TABLE IF NOT EXISTS `notification` (
 -- Structure de la table `occuper`
 --
 
-DROP TABLE IF EXISTS `occuper`;
-CREATE TABLE IF NOT EXISTS `occuper` (
-                                         `id_fonction` int NOT NULL,
-                                         `id_enseignant` int NOT NULL,
-                                         `date_occupation` date NOT NULL,
-                                         PRIMARY KEY (`id_fonction`,`id_enseignant`),
-    KEY `id_enseignant` (`id_enseignant`)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+CREATE TABLE `occuper` (
+                           `id_fonction` int NOT NULL,
+                           `id_enseignant` int NOT NULL,
+                           `date_occupation` date NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -393,17 +341,14 @@ CREATE TABLE IF NOT EXISTS `occuper` (
 -- Structure de la table `personnel_administratif`
 --
 
-DROP TABLE IF EXISTS `personnel_administratif`;
-CREATE TABLE IF NOT EXISTS `personnel_administratif` (
-                                                         `id_personnel_administratif` int NOT NULL,
-                                                         `nom` varchar(100) COLLATE utf8mb4_general_ci NOT NULL,
-    `prenom` varchar(100) COLLATE utf8mb4_general_ci NOT NULL,
-    `age` int DEFAULT NULL,
-    `telephone` varchar(20) COLLATE utf8mb4_general_ci DEFAULT NULL,
-    `id_utilisateur` int NOT NULL,
-    PRIMARY KEY (`id_personnel_administratif`),
-    UNIQUE KEY `id_utilisateur` (`id_utilisateur`)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+CREATE TABLE `personnel_administratif` (
+                                           `id_personnel_administratif` int NOT NULL,
+                                           `nom` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+                                           `prenom` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+                                           `age` int DEFAULT NULL,
+                                           `telephone` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
+                                           `id_utilisateur` int NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -411,15 +356,12 @@ CREATE TABLE IF NOT EXISTS `personnel_administratif` (
 -- Structure de la table `pister`
 --
 
-DROP TABLE IF EXISTS `pister`;
-CREATE TABLE IF NOT EXISTS `pister` (
-                                        `id_utilisateur` int NOT NULL,
-                                        `id_traitement` int NOT NULL,
-                                        `date_pister` datetime NOT NULL,
-                                        `acceder` tinyint(1) NOT NULL,
-    PRIMARY KEY (`id_utilisateur`,`id_traitement`,`date_pister`),
-    KEY `id_traitement` (`id_traitement`)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+CREATE TABLE `pister` (
+                          `id_utilisateur` int NOT NULL,
+                          `id_traitement` int NOT NULL,
+                          `date_pister` datetime NOT NULL,
+                          `acceder` tinyint(1) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -427,14 +369,11 @@ CREATE TABLE IF NOT EXISTS `pister` (
 -- Structure de la table `rapport_etudiant`
 --
 
-DROP TABLE IF EXISTS `rapport_etudiant`;
-CREATE TABLE IF NOT EXISTS `rapport_etudiant` (
-                                                  `id_rapport_etudiant` int NOT NULL,
-                                                  `libelle_rapport_etudiant` text COLLATE utf8mb4_general_ci NOT NULL,
-                                                  `id_etudiant` int NOT NULL,
-                                                  PRIMARY KEY (`id_rapport_etudiant`),
-    KEY `id_etudiant` (`id_etudiant`)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+CREATE TABLE `rapport_etudiant` (
+                                    `id_rapport_etudiant` int NOT NULL,
+                                    `libelle_rapport_etudiant` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+                                    `id_etudiant` int NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -442,13 +381,10 @@ CREATE TABLE IF NOT EXISTS `rapport_etudiant` (
 -- Structure de la table `rattacher`
 --
 
-DROP TABLE IF EXISTS `rattacher`;
-CREATE TABLE IF NOT EXISTS `rattacher` (
-                                           `id_groupe_utilisateur` int NOT NULL,
-                                           `id_traitement` int NOT NULL,
-                                           PRIMARY KEY (`id_groupe_utilisateur`,`id_traitement`),
-    KEY `id_traitement` (`id_traitement`)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+CREATE TABLE `rattacher` (
+                             `id_groupe_utilisateur` int NOT NULL,
+                             `id_traitement` int NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -456,14 +392,11 @@ CREATE TABLE IF NOT EXISTS `rattacher` (
 -- Structure de la table `recevoir`
 --
 
-DROP TABLE IF EXISTS `recevoir`;
-CREATE TABLE IF NOT EXISTS `recevoir` (
-                                          `id_utilisateur` int NOT NULL,
-                                          `id_notification` int NOT NULL,
-                                          `date_reception` datetime NOT NULL,
-                                          PRIMARY KEY (`id_utilisateur`,`id_notification`,`date_reception`),
-    KEY `id_notification` (`id_notification`)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+CREATE TABLE `recevoir` (
+                            `id_utilisateur` int NOT NULL,
+                            `id_notification` int NOT NULL,
+                            `date_reception` datetime NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -471,13 +404,10 @@ CREATE TABLE IF NOT EXISTS `recevoir` (
 -- Structure de la table `rendre`
 --
 
-DROP TABLE IF EXISTS `rendre`;
-CREATE TABLE IF NOT EXISTS `rendre` (
-                                        `id_enseignant` int NOT NULL,
-                                        `id_compte_rendu` int NOT NULL,
-                                        PRIMARY KEY (`id_enseignant`,`id_compte_rendu`),
-    KEY `id_compte_rendu` (`id_compte_rendu`)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+CREATE TABLE `rendre` (
+                          `id_enseignant` int NOT NULL,
+                          `id_compte_rendu` int NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -485,12 +415,10 @@ CREATE TABLE IF NOT EXISTS `rendre` (
 -- Structure de la table `specialite`
 --
 
-DROP TABLE IF EXISTS `specialite`;
-CREATE TABLE IF NOT EXISTS `specialite` (
-                                            `id_specialite` int NOT NULL,
-                                            `lib_specialite` varchar(100) COLLATE utf8mb4_general_ci NOT NULL,
-    PRIMARY KEY (`id_specialite`)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+CREATE TABLE `specialite` (
+                              `id_specialite` int NOT NULL,
+                              `lib_specialite` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -498,12 +426,10 @@ CREATE TABLE IF NOT EXISTS `specialite` (
 -- Structure de la table `statut_jury`
 --
 
-DROP TABLE IF EXISTS `statut_jury`;
-CREATE TABLE IF NOT EXISTS `statut_jury` (
-                                             `id_statut_jury` int NOT NULL,
-                                             `lib_statut_jury` varchar(100) COLLATE utf8mb4_general_ci NOT NULL,
-    PRIMARY KEY (`id_statut_jury`)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+CREATE TABLE `statut_jury` (
+                               `id_statut_jury` int NOT NULL,
+                               `lib_statut_jury` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -511,12 +437,10 @@ CREATE TABLE IF NOT EXISTS `statut_jury` (
 -- Structure de la table `traitement`
 --
 
-DROP TABLE IF EXISTS `traitement`;
-CREATE TABLE IF NOT EXISTS `traitement` (
-                                            `id_traitement` int NOT NULL,
-                                            `lib_trait` varchar(100) COLLATE utf8mb4_general_ci NOT NULL,
-    PRIMARY KEY (`id_traitement`)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+CREATE TABLE `traitement` (
+                              `id_traitement` int NOT NULL,
+                              `lib_trait` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -524,12 +448,17 @@ CREATE TABLE IF NOT EXISTS `traitement` (
 -- Structure de la table `type_utilisateur`
 --
 
-DROP TABLE IF EXISTS `type_utilisateur`;
-CREATE TABLE IF NOT EXISTS `type_utilisateur` (
-                                                  `id_type_utilisateur` int NOT NULL,
-                                                  `lib_type_utilisateur` varchar(100) COLLATE utf8mb4_general_ci NOT NULL,
-    PRIMARY KEY (`id_type_utilisateur`)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+CREATE TABLE `type_utilisateur` (
+                                    `id_type_utilisateur` int NOT NULL,
+                                    `lib_type_utilisateur` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Déchargement des données de la table `type_utilisateur`
+--
+
+INSERT INTO `type_utilisateur` (`id_type_utilisateur`, `lib_type_utilisateur`) VALUES
+    (1, 'administrateur');
 
 -- --------------------------------------------------------
 
@@ -537,12 +466,10 @@ CREATE TABLE IF NOT EXISTS `type_utilisateur` (
 -- Structure de la table `ue`
 --
 
-DROP TABLE IF EXISTS `ue`;
-CREATE TABLE IF NOT EXISTS `ue` (
-                                    `id_ue` int NOT NULL,
-                                    `lib_ue` varchar(100) COLLATE utf8mb4_general_ci NOT NULL,
-    PRIMARY KEY (`id_ue`)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+CREATE TABLE `ue` (
+                      `id_ue` int NOT NULL,
+                      `lib_ue` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -550,22 +477,23 @@ CREATE TABLE IF NOT EXISTS `ue` (
 -- Structure de la table `utilisateur`
 --
 
-DROP TABLE IF EXISTS `utilisateur`;
-CREATE TABLE IF NOT EXISTS `utilisateur` (
-                                             `id_utilisateur` int NOT NULL,
-                                             `login_utilisateur` varchar(100) COLLATE utf8mb4_general_ci NOT NULL,
-    `mot_de_passe` varchar(255) COLLATE utf8mb4_general_ci NOT NULL,
-    `date_creation` datetime NOT NULL,
-    `actif` tinyint(1) NOT NULL DEFAULT '1',
-    `id_niveau_acces_donne` int NOT NULL,
-    `id_groupe_utilisateur` int NOT NULL,
-    `id_type_utilisateur` int NOT NULL,
-    PRIMARY KEY (`id_utilisateur`),
-    UNIQUE KEY `login_utilisateur` (`login_utilisateur`),
-    KEY `id_niveau_acces_donne` (`id_niveau_acces_donne`),
-    KEY `id_groupe_utilisateur` (`id_groupe_utilisateur`),
-    KEY `id_type_utilisateur` (`id_type_utilisateur`)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+CREATE TABLE `utilisateur` (
+                               `id_utilisateur` int NOT NULL,
+                               `login_utilisateur` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+                               `mot_de_passe` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+                               `date_creation` datetime NOT NULL,
+                               `actif` tinyint(1) NOT NULL DEFAULT '1',
+                               `id_niveau_acces_donne` int NOT NULL,
+                               `id_groupe_utilisateur` int NOT NULL,
+                               `id_type_utilisateur` int NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Déchargement des données de la table `utilisateur`
+--
+
+INSERT INTO `utilisateur` (`id_utilisateur`, `login_utilisateur`, `mot_de_passe`, `date_creation`, `actif`, `id_niveau_acces_donne`, `id_groupe_utilisateur`, `id_type_utilisateur`) VALUES
+    (1, 'Admin', 'admin111', '2025-05-14 22:53:29', 1, 1, 1, 1);
 
 -- --------------------------------------------------------
 
@@ -573,15 +501,271 @@ CREATE TABLE IF NOT EXISTS `utilisateur` (
 -- Structure de la table `valider`
 --
 
-DROP TABLE IF EXISTS `valider`;
-CREATE TABLE IF NOT EXISTS `valider` (
-                                         `id_enseignant` int NOT NULL,
-                                         `id_rapport_etudiant` int NOT NULL,
-                                         `date_validation` date NOT NULL,
-                                         `commentaire_validation` text COLLATE utf8mb4_general_ci,
-                                         PRIMARY KEY (`id_enseignant`,`id_rapport_etudiant`),
-    KEY `id_rapport_etudiant` (`id_rapport_etudiant`)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+CREATE TABLE `valider` (
+                           `id_enseignant` int NOT NULL,
+                           `id_rapport_etudiant` int NOT NULL,
+                           `date_validation` date NOT NULL,
+                           `commentaire_validation` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Index pour les tables déchargées
+--
+
+--
+-- Index pour la table `acquerir`
+--
+ALTER TABLE `acquerir`
+    ADD PRIMARY KEY (`id_grade`,`id_enseignant`),
+  ADD KEY `id_enseignant` (`id_enseignant`);
+
+--
+-- Index pour la table `action`
+--
+ALTER TABLE `action`
+    ADD PRIMARY KEY (`id_action`);
+
+--
+-- Index pour la table `affecter`
+--
+ALTER TABLE `affecter`
+    ADD PRIMARY KEY (`id_enseignant`,`id_rapport_etudiant`,`id_statut_jury`),
+  ADD KEY `id_rapport_etudiant` (`id_rapport_etudiant`),
+  ADD KEY `id_statut_jury` (`id_statut_jury`);
+
+--
+-- Index pour la table `annee_academique`
+--
+ALTER TABLE `annee_academique`
+    ADD PRIMARY KEY (`id_annee_academique`);
+
+--
+-- Index pour la table `approuver`
+--
+ALTER TABLE `approuver`
+    ADD PRIMARY KEY (`id_personnel_administratif`,`id_rapport_etudiant`),
+  ADD KEY `id_rapport_etudiant` (`id_rapport_etudiant`);
+
+--
+-- Index pour la table `attribuer`
+--
+ALTER TABLE `attribuer`
+    ADD PRIMARY KEY (`id_enseignant`,`id_specialite`),
+  ADD KEY `id_specialite` (`id_specialite`);
+
+--
+-- Index pour la table `compte_rendu`
+--
+ALTER TABLE `compte_rendu`
+    ADD PRIMARY KEY (`id_compte_rendu`);
+
+--
+-- Index pour la table `donner`
+--
+ALTER TABLE `donner`
+    ADD PRIMARY KEY (`id_enseignant`,`id_niveau_approbation`),
+  ADD KEY `id_niveau_approbation` (`id_niveau_approbation`);
+
+--
+-- Index pour la table `ecue`
+--
+ALTER TABLE `ecue`
+    ADD PRIMARY KEY (`id_ecue`),
+  ADD KEY `id_ue` (`id_ue`);
+
+--
+-- Index pour la table `enregistrer`
+--
+ALTER TABLE `enregistrer`
+    ADD PRIMARY KEY (`id_utilisateur`,`id_action`,`date_action`),
+  ADD KEY `id_action` (`id_action`);
+
+--
+-- Index pour la table `enseignant`
+--
+ALTER TABLE `enseignant`
+    ADD PRIMARY KEY (`id_enseignant`),
+  ADD UNIQUE KEY `id_utilisateur` (`id_utilisateur`);
+
+--
+-- Index pour la table `entreprise`
+--
+ALTER TABLE `entreprise`
+    ADD PRIMARY KEY (`id_entreprise`);
+
+--
+-- Index pour la table `etudiant`
+--
+ALTER TABLE `etudiant`
+    ADD PRIMARY KEY (`id_etudiant`),
+  ADD UNIQUE KEY `id_utilisateur` (`id_utilisateur`);
+
+--
+-- Index pour la table `evaluer`
+--
+ALTER TABLE `evaluer`
+    ADD PRIMARY KEY (`id_etudiant`,`id_enseignant`,`id_ecue`),
+  ADD KEY `id_enseignant` (`id_enseignant`),
+  ADD KEY `id_ecue` (`id_ecue`);
+
+--
+-- Index pour la table `faire_stage`
+--
+ALTER TABLE `faire_stage`
+    ADD PRIMARY KEY (`id_entreprise`,`id_etudiant`),
+  ADD KEY `id_etudiant` (`id_etudiant`);
+
+--
+-- Index pour la table `fonction`
+--
+ALTER TABLE `fonction`
+    ADD PRIMARY KEY (`id_fonction`);
+
+--
+-- Index pour la table `grade`
+--
+ALTER TABLE `grade`
+    ADD PRIMARY KEY (`id_grade`);
+
+--
+-- Index pour la table `groupe_utilisateur`
+--
+ALTER TABLE `groupe_utilisateur`
+    ADD PRIMARY KEY (`id_groupe_utilisateur`);
+
+--
+-- Index pour la table `inscrire`
+--
+ALTER TABLE `inscrire`
+    ADD PRIMARY KEY (`id_etudiant`,`id_niveau_etude`,`id_annee_academique`),
+  ADD KEY `id_niveau_etude` (`id_niveau_etude`),
+  ADD KEY `id_annee_academique` (`id_annee_academique`);
+
+--
+-- Index pour la table `message`
+--
+ALTER TABLE `message`
+    ADD PRIMARY KEY (`id_message`);
+
+--
+-- Index pour la table `niveau_acces_donne`
+--
+ALTER TABLE `niveau_acces_donne`
+    ADD PRIMARY KEY (`id_niveau_acces_donne`);
+
+--
+-- Index pour la table `niveau_approbation`
+--
+ALTER TABLE `niveau_approbation`
+    ADD PRIMARY KEY (`id_niveau_approbation`);
+
+--
+-- Index pour la table `niveau_etude`
+--
+ALTER TABLE `niveau_etude`
+    ADD PRIMARY KEY (`id_niveau_etude`);
+
+--
+-- Index pour la table `notification`
+--
+ALTER TABLE `notification`
+    ADD PRIMARY KEY (`id_notification`);
+
+--
+-- Index pour la table `occuper`
+--
+ALTER TABLE `occuper`
+    ADD PRIMARY KEY (`id_fonction`,`id_enseignant`),
+  ADD KEY `id_enseignant` (`id_enseignant`);
+
+--
+-- Index pour la table `personnel_administratif`
+--
+ALTER TABLE `personnel_administratif`
+    ADD PRIMARY KEY (`id_personnel_administratif`),
+  ADD UNIQUE KEY `id_utilisateur` (`id_utilisateur`);
+
+--
+-- Index pour la table `pister`
+--
+ALTER TABLE `pister`
+    ADD PRIMARY KEY (`id_utilisateur`,`id_traitement`,`date_pister`),
+  ADD KEY `id_traitement` (`id_traitement`);
+
+--
+-- Index pour la table `rapport_etudiant`
+--
+ALTER TABLE `rapport_etudiant`
+    ADD PRIMARY KEY (`id_rapport_etudiant`),
+  ADD KEY `id_etudiant` (`id_etudiant`);
+
+--
+-- Index pour la table `rattacher`
+--
+ALTER TABLE `rattacher`
+    ADD PRIMARY KEY (`id_groupe_utilisateur`,`id_traitement`),
+  ADD KEY `id_traitement` (`id_traitement`);
+
+--
+-- Index pour la table `recevoir`
+--
+ALTER TABLE `recevoir`
+    ADD PRIMARY KEY (`id_utilisateur`,`id_notification`,`date_reception`),
+  ADD KEY `id_notification` (`id_notification`);
+
+--
+-- Index pour la table `rendre`
+--
+ALTER TABLE `rendre`
+    ADD PRIMARY KEY (`id_enseignant`,`id_compte_rendu`),
+  ADD KEY `id_compte_rendu` (`id_compte_rendu`);
+
+--
+-- Index pour la table `specialite`
+--
+ALTER TABLE `specialite`
+    ADD PRIMARY KEY (`id_specialite`);
+
+--
+-- Index pour la table `statut_jury`
+--
+ALTER TABLE `statut_jury`
+    ADD PRIMARY KEY (`id_statut_jury`);
+
+--
+-- Index pour la table `traitement`
+--
+ALTER TABLE `traitement`
+    ADD PRIMARY KEY (`id_traitement`);
+
+--
+-- Index pour la table `type_utilisateur`
+--
+ALTER TABLE `type_utilisateur`
+    ADD PRIMARY KEY (`id_type_utilisateur`);
+
+--
+-- Index pour la table `ue`
+--
+ALTER TABLE `ue`
+    ADD PRIMARY KEY (`id_ue`);
+
+--
+-- Index pour la table `utilisateur`
+--
+ALTER TABLE `utilisateur`
+    ADD PRIMARY KEY (`id_utilisateur`),
+  ADD UNIQUE KEY `login_utilisateur` (`login_utilisateur`),
+  ADD KEY `id_niveau_acces_donne` (`id_niveau_acces_donne`),
+  ADD KEY `id_groupe_utilisateur` (`id_groupe_utilisateur`),
+  ADD KEY `id_type_utilisateur` (`id_type_utilisateur`);
+
+--
+-- Index pour la table `valider`
+--
+ALTER TABLE `valider`
+    ADD PRIMARY KEY (`id_enseignant`,`id_rapport_etudiant`),
+  ADD KEY `id_rapport_etudiant` (`id_rapport_etudiant`);
 
 --
 -- Contraintes pour les tables déchargées

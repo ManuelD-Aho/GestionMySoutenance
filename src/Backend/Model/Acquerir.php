@@ -43,7 +43,7 @@ class Acquerir extends BaseModel {
         $sql = "UPDATE {$this->table} SET {$setString} WHERE id_grade = :pk_id_grade AND id_enseignant = :pk_id_enseignant";
         $stmt = $this->db->prepare($sql);
 
-        $data['pk_id_grade'] = $id_grade; // Ajouter les clés primaires pour le binding
+        $data['pk_id_grad'] = $id_grade; // Ajouter les clés primaires pour le binding
         $data['pk_id_enseignant'] = $id_enseignant;
 
         return $stmt->execute($data);
