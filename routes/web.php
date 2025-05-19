@@ -11,8 +11,6 @@ return function(RouteCollector $r) {
     $r->addRoute('GET', '/login', [AuthentificationController::class, 'showLoginForm']);
     $r->addRoute('POST', '/login', [AuthentificationController::class, 'login']);
     $r->addRoute('GET', '/logout', [AuthentificationController::class, 'logout']);
+    $r->addRoute('GET', '/admin/users', ['Backend\Controller\Admin\UserController','index']);
 
-    // Tu ajouteras d'autres routes ici, par exemple pour le dashboard:
-    // $r->addRoute('GET', '/dashboard', [DashboardController::class, 'index']);
-    // N'oublie pas de créer DashboardController si tu utilises cette route.
 };

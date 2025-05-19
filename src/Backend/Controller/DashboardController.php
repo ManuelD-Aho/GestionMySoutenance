@@ -47,7 +47,7 @@ class DashboardController extends BaseController // Assurez-vous que BaseControl
 
         // La méthode render est héritée de BaseController
         // Elle devrait prendre le chemin vers le layout principal
-        $this->render('src/Frontend/views/layouts/app.php', $renderData);
+        $this->render('src/Frontend/views/layout/app.php', $renderData);
     }
 
     /**

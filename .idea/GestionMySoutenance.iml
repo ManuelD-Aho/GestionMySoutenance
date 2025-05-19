@@ -7,6 +7,7 @@
       <sourceFolder url="file://$MODULE_DIR$/src/Service" isTestSource="false" packagePrefix="Service\" />
       <sourceFolder url="file://$MODULE_DIR$/src/Util" isTestSource="false" packagePrefix="Util\" />
       <sourceFolder url="file://$MODULE_DIR$/src/Config" isTestSource="false" packagePrefix="Config\" />
+      <sourceFolder url="file://$MODULE_DIR$/src" isTestSource="false" packagePrefix="App\" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/composer" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/graham-campbell/result-type" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/nikic/fast-route" />
