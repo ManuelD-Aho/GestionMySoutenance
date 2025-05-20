@@ -1,5 +1,6 @@
 <?php
 
+use Backend\Controller\DashboardController;
 use FastRoute\RouteCollector;
 use Backend\Controller\AuthentificationController;
 use Backend\Controller\BaseController;
@@ -12,5 +13,5 @@ return function(RouteCollector $r) {
     $r->addRoute('POST', '/login', [AuthentificationController::class, 'login']);
     $r->addRoute('GET', '/logout', [AuthentificationController::class, 'logout']);
     $r->addRoute('GET', '/admin/users', ['Backend\Controller\Admin\UserController','index']);
-
+    $r->addRoute('GET', '/dashboard', [DashboardController::class, 'index']);
 };
