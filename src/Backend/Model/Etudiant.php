@@ -1,43 +1,53 @@
 <?php
-class Etudiant {
-    private $pdo;
+namespace Backend\Model;
 
-    public function __construct(PDO $pdo) {
-        $this->pdo = $pdo;
+use Backend\Model\BaseModel; // Added use statement for BaseModel
+
+class Etudiant extends BaseModel { // Extends BaseModel
+    protected string $table = 'etudiant'; // Define table name
+    protected string $primaryKey = 'id_etudiant'; // Define primary key
+
+    // Constructor and $pdo property are removed, handled by BaseModel
+
+    // getAll() method is removed, functionality covered by findAll() from BaseModel
+    // getById($id) method is removed, functionality covered by find($id) from BaseModel
+
+    /**
+     * Creates a new etudiant record.
+     *
+     * @param array $data Data for the new record. 
+     *                    Expected keys can include: 'nom', 'prenom', 'date_naissance', 'id_utilisateur'.
+     * @return string|false The ID of the newly created record on success, false on failure.
+     */
+    public function create(array $data): string|false // Signature updated
+    {
+        // Logic for preparing SQL and executing is now in BaseModel's create method
+        return parent::create($data);
     }
 
-    public function getAll() {
-        $stmt = $this->pdo->prepare("SELECT * FROM etudiant");
-        $stmt->execute();
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    /**
+     * Updates an existing etudiant record.
+     *
+     * @param int $id The ID of the record to update.
+     * @param array $data Data to update the record with. 
+     *                    Expected keys can match any column in 'etudiant'.
+     * @return bool True on success, false on failure.
+     */
+    public function update(int $id, array $data): bool // Signature updated
+    {
+        // Logic for preparing SQL and executing is now in BaseModel's update method
+        return parent::update($id, $data);
     }
 
-    public function getById($id) {
-        $stmt = $this->pdo->prepare("SELECT * FROM etudiant WHERE id_etudiant = :id");
-        $stmt->execute(['id' => $id]);
-        return $stmt->fetch(PDO::FETCH_ASSOC);
-    }
-
-    public function create($data) {
-        $stmt = $this->pdo->prepare("
-            INSERT INTO etudiant (nom)
-            VALUES (:nom)
-        ");
-        return $stmt->execute($data);
-    }
-
-    public function update($id, $data) {
-        $data['id'] = $id;
-        $stmt = $this->pdo->prepare("
-            UPDATE etudiant
-            SET nom = :nom
-            WHERE id_etudiant = :id
-        ");
-        return $stmt->execute($data);
-    }
-
-    public function delete($id) {
-        $stmt = $this->pdo->prepare("DELETE FROM etudiant WHERE id_etudiant = :id");
-        return $stmt->execute(['id' => $id]);
+    /**
+     * Deletes an etudiant record.
+     *
+     * @param int $id The ID of the record to delete.
+     * @return bool True on success, false on failure.
+     */
+    public function delete(int $id): bool // Signature updated
+    {
+        // Logic for preparing SQL and executing is now in BaseModel's delete method
+        return parent::delete($id);
     }
 }

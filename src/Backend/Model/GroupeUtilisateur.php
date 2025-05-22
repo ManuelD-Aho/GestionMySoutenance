@@ -1,43 +1,13 @@
 <?php
-class GroupeUtilisateur {
-    private $pdo;
 
-    public function __construct(PDO $pdo) {
-        $this->pdo = $pdo;
-    }
+namespace Backend\Model;
 
-    public function getAll() {
-        $stmt = $this->pdo->prepare("SELECT * FROM groupe_utilisateur");
-        $stmt->execute();
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
-    }
+use Backend\Model\BaseModel;
 
-    public function getById($id) {
-        $stmt = $this->pdo->prepare("SELECT * FROM groupe_utilisateur WHERE id_groupe_utilisateur = :id");
-        $stmt->execute(['id' => $id]);
-        return $stmt->fetch(PDO::FETCH_ASSOC);
-    }
+class GroupeUtilisateur extends BaseModel {
 
-    public function create($data) {
-        $stmt = $this->pdo->prepare("
-            INSERT INTO groupe_utilisateur (lib_groupe_utilisateur)
-            VALUES (:lib_groupe_utilisateur)
-        ");
-        return $stmt->execute($data);
-    }
+    protected string $table = 'groupe_utilisateur';
+    protected string $primaryKey = 'id_groupe_utilisateur';
 
-    public function update($id, $data) {
-        $data['id'] = $id;
-        $stmt = $this->pdo->prepare("
-            UPDATE groupe_utilisateur
-            SET lib_groupe_utilisateur = :lib_groupe_utilisateur
-            WHERE id_groupe_utilisateur = :id
-        ");
-        return $stmt->execute($data);
-    }
-
-    public function delete($id) {
-        $stmt = $this->pdo->prepare("DELETE FROM groupe_utilisateur WHERE id_groupe_utilisateur = :id");
-        return $stmt->execute(['id' => $id]);
-    }
+    // Constructor and basic CRUD methods are inherited from BaseModel.
 }

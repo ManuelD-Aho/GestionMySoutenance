@@ -85,7 +85,8 @@ CREATE TABLE `approuver` (
                              `id_personnel_administratif` int NOT NULL,
                              `id_rapport_etudiant` int NOT NULL,
                              `statut_conformite` enum('Conforme','Non Conforme') COLLATE utf8mb4_general_ci NOT NULL,
-                             `date_verification_conformite` datetime NOT NULL
+                             `date_verification_conformite` datetime NOT NULL,
+                             `commentaire_conformite` TEXT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -428,7 +429,50 @@ CREATE TABLE `rapport_etudiant` (
                                     `id_rapport_etudiant` int NOT NULL,
                                     `libelle_rapport_etudiant` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
                                     `id_etudiant` int NOT NULL,
-                                    `nombre_pages` int DEFAULT NULL
+                                    `nombre_pages` int DEFAULT NULL,
+                                    `contenu_rapport` LONGTEXT NULL,
+                                    `statut_rapport` VARCHAR(50) DEFAULT 'BROUILLON',
+                                    `date_soumission` DATETIME NULL,
+                                    `date_creation` DATETIME DEFAULT CURRENT_TIMESTAMP,
+                                    `date_derniere_modification` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Structure de la table `soutenance`
+--
+
+CREATE TABLE `soutenance` (
+  `id_soutenance` int NOT NULL AUTO_INCREMENT,
+  `id_rapport_etudiant` int NOT NULL,
+  `date_soutenance` datetime DEFAULT NULL,
+  `salle` varchar(100) COLLATE utf8mb4_general_ci DEFAULT NULL,
+  `statut_soutenance` varchar(50) COLLATE utf8mb4_general_ci DEFAULT NULL,
+  PRIMARY KEY (`id_soutenance`),
+  KEY `idx_soutenance_rapport_etudiant` (`id_rapport_etudiant`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Structure de la table `reclamation`
+--
+
+CREATE TABLE `reclamation` (
+  `id_reclamation` int NOT NULL AUTO_INCREMENT,
+  `id_etudiant` int NOT NULL,
+  `id_compte_rendu` int NOT NULL,
+  `motif_reclamation` text COLLATE utf8mb4_general_ci NOT NULL,
+  `date_reclamation` datetime DEFAULT CURRENT_TIMESTAMP,
+  `statut_reclamation` varchar(50) COLLATE utf8mb4_general_ci DEFAULT 'SOUMISE',
+  `reponse_reclamation` text COLLATE utf8mb4_general_ci DEFAULT NULL,
+  `date_reponse` datetime DEFAULT NULL,
+  `id_personnel_traitant` int DEFAULT NULL,
+  PRIMARY KEY (`id_reclamation`),
+  KEY `idx_reclamation_etudiant` (`id_etudiant`),
+  KEY `idx_reclamation_compte_rendu` (`id_compte_rendu`),
+  KEY `idx_reclamation_personnel_traitant` (`id_personnel_traitant`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -771,6 +815,15 @@ ALTER TABLE `rapport_etudiant`
   ADD KEY `idx_rapport_etudiant_etudiant` (`id_etudiant`);
 
 --
+-- Index pour la table `reclamation`
+--
+ALTER TABLE `reclamation`
+  ADD PRIMARY KEY (`id_reclamation`),
+  ADD KEY `idx_reclamation_etudiant` (`id_etudiant`),
+  ADD KEY `idx_reclamation_compte_rendu` (`id_compte_rendu`),
+  ADD KEY `idx_reclamation_personnel_traitant` (`id_personnel_traitant`);
+
+--
 -- Index pour la table `rattacher`
 --
 ALTER TABLE `rattacher`
@@ -790,6 +843,13 @@ ALTER TABLE `recevoir`
 ALTER TABLE `rendre`
     ADD PRIMARY KEY (`id_enseignant`,`id_compte_rendu`),
   ADD KEY `idx_rendre_compte_rendu` (`id_compte_rendu`);
+
+--
+-- Index pour la table `soutenance`
+--
+ALTER TABLE `soutenance`
+  ADD PRIMARY KEY (`id_soutenance`),
+  ADD KEY `idx_soutenance_rapport_etudiant` (`id_rapport_etudiant`);
 
 --
 -- Index pour la table `specialite`
@@ -839,6 +899,161 @@ ALTER TABLE `utilisateur`
 ALTER TABLE `valider`
     ADD PRIMARY KEY (`id_enseignant`,`id_rapport_etudiant`),
   ADD KEY `idx_valider_rapport_etudiant` (`id_rapport_etudiant`);
+
+--
+-- AUTO_INCREMENT pour les tables déchargées
+--
+
+--
+-- AUTO_INCREMENT pour la table `action`
+--
+ALTER TABLE `action`
+  MODIFY `id_action` int NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT pour la table `annee_academique`
+--
+ALTER TABLE `annee_academique`
+  MODIFY `id_annee_academique` int NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT pour la table `compte_rendu`
+--
+ALTER TABLE `compte_rendu`
+  MODIFY `id_compte_rendu` int NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT pour la table `ecue`
+--
+ALTER TABLE `ecue`
+  MODIFY `id_ecue` int NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT pour la table `enseignant`
+--
+ALTER TABLE `enseignant`
+  MODIFY `id_enseignant` int NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT pour la table `entreprise`
+--
+ALTER TABLE `entreprise`
+  MODIFY `id_entreprise` int NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT pour la table `etudiant`
+--
+ALTER TABLE `etudiant`
+  MODIFY `id_etudiant` int NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT pour la table `fonction`
+--
+ALTER TABLE `fonction`
+  MODIFY `id_fonction` int NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT pour la table `grade`
+--
+ALTER TABLE `grade`
+  MODIFY `id_grade` int NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT pour la table `groupe_utilisateur`
+--
+ALTER TABLE `groupe_utilisateur`
+  MODIFY `id_groupe_utilisateur` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+
+--
+-- AUTO_INCREMENT pour la table `message`
+--
+ALTER TABLE `message`
+  MODIFY `id_message` int NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT pour la table `niveau_acces_donne`
+--
+ALTER TABLE `niveau_acces_donne`
+  MODIFY `id_niveau_acces_donne` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+
+--
+-- AUTO_INCREMENT pour la table `niveau_approbation`
+--
+ALTER TABLE `niveau_approbation`
+  MODIFY `id_niveau_approbation` int NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT pour la table `niveau_etude`
+--
+ALTER TABLE `niveau_etude`
+  MODIFY `id_niveau_etude` int NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT pour la table `notification`
+--
+ALTER TABLE `notification`
+  MODIFY `id_notification` int NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT pour la table `personnel_administratif`
+--
+ALTER TABLE `personnel_administratif`
+  MODIFY `id_personnel_administratif` int NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT pour la table `rapport_etudiant`
+--
+ALTER TABLE `rapport_etudiant`
+  MODIFY `id_rapport_etudiant` int NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT pour la table `reclamation`
+--
+ALTER TABLE `reclamation`
+  MODIFY `id_reclamation` int NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT pour la table `soutenance`
+--
+ALTER TABLE `soutenance`
+  MODIFY `id_soutenance` int NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT pour la table `specialite`
+--
+ALTER TABLE `specialite`
+  MODIFY `id_specialite` int NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT pour la table `statut_jury`
+--
+ALTER TABLE `statut_jury`
+  MODIFY `id_statut_jury` int NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT pour la table `traitement`
+--
+ALTER TABLE `traitement`
+  MODIFY `id_traitement` int NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT pour la table `type_utilisateur`
+--
+ALTER TABLE `type_utilisateur`
+  MODIFY `id_type_utilisateur` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+
+--
+-- AUTO_INCREMENT pour la table `ue`
+--
+ALTER TABLE `ue`
+  MODIFY `id_ue` int NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT pour la table `utilisateur`
+--
+ALTER TABLE `utilisateur`
+  MODIFY `id_utilisateur` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+
 
 --
 -- Contraintes pour les tables déchargées
@@ -961,6 +1176,14 @@ ALTER TABLE `rapport_etudiant`
     ADD CONSTRAINT `fk_rapport_etudiant_etudiant` FOREIGN KEY (`id_etudiant`) REFERENCES `etudiant` (`id_etudiant`);
 
 --
+-- Contraintes pour la table `reclamation`
+--
+ALTER TABLE `reclamation`
+  ADD CONSTRAINT `fk_reclamation_etudiant` FOREIGN KEY (`id_etudiant`) REFERENCES `etudiant` (`id_etudiant`),
+  ADD CONSTRAINT `fk_reclamation_compte_rendu` FOREIGN KEY (`id_compte_rendu`) REFERENCES `compte_rendu` (`id_compte_rendu`),
+  ADD CONSTRAINT `fk_reclamation_personnel_traitant` FOREIGN KEY (`id_personnel_traitant`) REFERENCES `personnel_administratif` (`id_personnel_administratif`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+--
 -- Contraintes pour la table `rattacher`
 --
 ALTER TABLE `rattacher`
@@ -980,6 +1203,12 @@ ALTER TABLE `recevoir`
 ALTER TABLE `rendre`
     ADD CONSTRAINT `fk_rendre_compte_rendu` FOREIGN KEY (`id_compte_rendu`) REFERENCES `compte_rendu` (`id_compte_rendu`),
   ADD CONSTRAINT `fk_rendre_enseignant` FOREIGN KEY (`id_enseignant`) REFERENCES `enseignant` (`id_enseignant`);
+
+--
+-- Contraintes pour la table `soutenance`
+--
+ALTER TABLE `soutenance`
+  ADD CONSTRAINT `fk_soutenance_rapport_etudiant` FOREIGN KEY (`id_rapport_etudiant`) REFERENCES `rapport_etudiant` (`id_rapport_etudiant`);
 
 --
 -- Contraintes pour la table `specialite`

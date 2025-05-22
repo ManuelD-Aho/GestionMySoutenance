@@ -2,22 +2,19 @@
 
 namespace Backend\Model;
 
-use PDO;
+use PDO; // Keep PDO for type hinting in custom methods if needed
 use Backend\Model\BaseModel;
 
 class Acquerir extends BaseModel {
 
     protected string $table = 'acquerir';
-    // Pour les clés composites, $primaryKey de BaseModel n'est pas directement utilisable
-    // pour find, update, delete. On peut la laisser ou la commenter.
-    // protected string $primaryKey = 'id_grade'; // Ou une autre partie, mais avec prudence
+    protected string $primaryKey = 'id_grade'; // First part of composite key
 
-    public function __construct(PDO $pdo) {
-        parent::__construct($pdo);
-    }
+    // Constructor is removed, parent::__construct is called by BaseModel's constructor implicitly
 
-    // findAll() est hérité et fonctionne.
-    // create($data) est hérité. $data devrait contenir id_grade, id_enseignant, date_acquisition.
+    // findAll() is inherited.
+    // create($data) is inherited. $data should contain id_grade, id_enseignant, date_acquisition.
+    // find($id), update($id, $data), delete($id) from BaseModel might not work as expected due to composite key.
 
     /**
      * Récupère un enregistrement par sa clé composite.
@@ -33,7 +30,7 @@ class Acquerir extends BaseModel {
 
     /**
      * Met à jour un enregistrement basé sur sa clé composite.
-     * $data devrait contenir les champs à mettre à jour, par exemple ['date_acquisition' => 'nouvelle_date']
+     * $data dovrebbe contenere i campi da aggiornare, ad esempio ['date_acquisition' => 'nouvelle_date']
      */
     public function updateByCompositeKey(int $id_grade, int $id_enseignant, array $data): bool
     {
@@ -41,11 +38,12 @@ class Acquerir extends BaseModel {
         $setString = implode(', ', array_map(fn($col) => "{$col} = :{$col}", $cols));
 
         $sql = "UPDATE {$this->table} SET {$setString} WHERE id_grade = :pk_id_grade AND id_enseignant = :pk_id_enseignant";
-        $stmt = $this->db->prepare($sql);
-
-        $data['pk_id_grad'] = $id_grade; // Ajouter les clés primaires pour le binding
+        
+        // Add composite keys to data array for binding
+        $data['pk_id_grade'] = $id_grade; 
         $data['pk_id_enseignant'] = $id_enseignant;
-
+        
+        $stmt = $this->db->prepare($sql);
         return $stmt->execute($data);
     }
 
