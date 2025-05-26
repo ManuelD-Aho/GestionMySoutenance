@@ -1,43 +1,35 @@
 <?php
+
+/**
+ * PersonnelAdministratif
+ * Modèle pour la gestion des données de personneladministratif
+ * 
+ * @author Votre Nom
+ * @version 1.0
+ */
+
 class PersonnelAdministratif {
-    private $pdo;
-
-    public function __construct(PDO $pdo) {
-        $this->pdo = $pdo;
+    
+    protected $table = 'personneladministratif';
+    protected $primaryKey = 'id';
+    
+    public function __construct() {
+        // Initialisation du modèle
     }
-
-    public function getAll() {
-        $stmt = $this->pdo->prepare("SELECT * FROM personnel_administratif");
-        $stmt->execute();
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    public function find($id) {
+        // Trouver un enregistrement par ID
     }
-
-    public function getById($id) {
-        $stmt = $this->pdo->prepare("SELECT * FROM personnel_administratif WHERE id_personnel_administratif = :id");
-        $stmt->execute(['id' => $id]);
-        return $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    public function findAll() {
+        // Récupérer tous les enregistrements
     }
-
-    public function create($data) {
-        $stmt = $this->pdo->prepare("
-            INSERT INTO personnel_administratif (nom)
-            VALUES (:nom)
-        ");
-        return $stmt->execute($data);
+    
+    public function save($data) {
+        // Sauvegarder les données
     }
-
-    public function update($id, $data) {
-        $data['id'] = $id;
-        $stmt = $this->pdo->prepare("
-            UPDATE personnel_administratif
-            SET nom = :nom
-            WHERE id_personnel_administratif = :id
-        ");
-        return $stmt->execute($data);
-    }
-
+    
     public function delete($id) {
-        $stmt = $this->pdo->prepare("DELETE FROM personnel_administratif WHERE id_personnel_administratif = :id");
-        return $stmt->execute(['id' => $id]);
+        // Supprimer un enregistrement
     }
 }

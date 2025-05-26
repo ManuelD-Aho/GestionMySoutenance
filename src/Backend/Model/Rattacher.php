@@ -1,43 +1,35 @@
 <?php
+
+/**
+ * Rattacher
+ * Modèle pour la gestion des données de rattacher
+ * 
+ * @author Votre Nom
+ * @version 1.0
+ */
+
 class Rattacher {
-    private $pdo;
-
-    public function __construct(PDO $pdo) {
-        $this->pdo = $pdo;
+    
+    protected $table = 'rattacher';
+    protected $primaryKey = 'id';
+    
+    public function __construct() {
+        // Initialisation du modèle
     }
-
-    public function getAll() {
-        $stmt = $this->pdo->prepare("SELECT * FROM rattacher");
-        $stmt->execute();
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    public function find($id) {
+        // Trouver un enregistrement par ID
     }
-
-    public function getById($id) {
-        $stmt = $this->pdo->prepare("SELECT * FROM rattacher WHERE id_groupe_utilisateur = :id");
-        $stmt->execute(['id' => $id]);
-        return $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    public function findAll() {
+        // Récupérer tous les enregistrements
     }
-
-    public function create($data) {
-        $stmt = $this->pdo->prepare("
-            INSERT INTO rattacher (id_traitement)
-            VALUES (:id_traitement)
-        ");
-        return $stmt->execute($data);
+    
+    public function save($data) {
+        // Sauvegarder les données
     }
-
-    public function update($id, $data) {
-        $data['id'] = $id;
-        $stmt = $this->pdo->prepare("
-            UPDATE rattacher
-            SET id_traitement = :id_traitement
-            WHERE id_groupe_utilisateur = :id
-        ");
-        return $stmt->execute($data);
-    }
-
+    
     public function delete($id) {
-        $stmt = $this->pdo->prepare("DELETE FROM rattacher WHERE id_groupe_utilisateur = :id");
-        return $stmt->execute(['id' => $id]);
+        // Supprimer un enregistrement
     }
 }

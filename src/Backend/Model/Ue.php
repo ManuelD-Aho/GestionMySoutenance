@@ -1,43 +1,35 @@
 <?php
+
+/**
+ * Ue
+ * Modèle pour la gestion des données de ue
+ * 
+ * @author Votre Nom
+ * @version 1.0
+ */
+
 class Ue {
-    private $pdo;
-
-    public function __construct(PDO $pdo) {
-        $this->pdo = $pdo;
+    
+    protected $table = 'ue';
+    protected $primaryKey = 'id';
+    
+    public function __construct() {
+        // Initialisation du modèle
     }
-
-    public function getAll() {
-        $stmt = $this->pdo->prepare("SELECT * FROM ue");
-        $stmt->execute();
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    public function find($id) {
+        // Trouver un enregistrement par ID
     }
-
-    public function getById($id) {
-        $stmt = $this->pdo->prepare("SELECT * FROM ue WHERE id_ue = :id");
-        $stmt->execute(['id' => $id]);
-        return $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    public function findAll() {
+        // Récupérer tous les enregistrements
     }
-
-    public function create($data) {
-        $stmt = $this->pdo->prepare("
-            INSERT INTO ue (lib_ue)
-            VALUES (:lib_ue)
-        ");
-        return $stmt->execute($data);
+    
+    public function save($data) {
+        // Sauvegarder les données
     }
-
-    public function update($id, $data) {
-        $data['id'] = $id;
-        $stmt = $this->pdo->prepare("
-            UPDATE ue
-            SET lib_ue = :lib_ue
-            WHERE id_ue = :id
-        ");
-        return $stmt->execute($data);
-    }
-
+    
     public function delete($id) {
-        $stmt = $this->pdo->prepare("DELETE FROM ue WHERE id_ue = :id");
-        return $stmt->execute(['id' => $id]);
+        // Supprimer un enregistrement
     }
 }

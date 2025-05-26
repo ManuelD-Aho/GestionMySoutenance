@@ -1,43 +1,35 @@
 <?php
+
+/**
+ * RapportEtudiant
+ * Modèle pour la gestion des données de rapportetudiant
+ * 
+ * @author Votre Nom
+ * @version 1.0
+ */
+
 class RapportEtudiant {
-    private $pdo;
-
-    public function __construct(PDO $pdo) {
-        $this->pdo = $pdo;
+    
+    protected $table = 'rapportetudiant';
+    protected $primaryKey = 'id';
+    
+    public function __construct() {
+        // Initialisation du modèle
     }
-
-    public function getAll() {
-        $stmt = $this->pdo->prepare("SELECT * FROM rapport_etudiant");
-        $stmt->execute();
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    public function find($id) {
+        // Trouver un enregistrement par ID
     }
-
-    public function getById($id) {
-        $stmt = $this->pdo->prepare("SELECT * FROM rapport_etudiant WHERE id_rapport_etudiant = :id");
-        $stmt->execute(['id' => $id]);
-        return $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    public function findAll() {
+        // Récupérer tous les enregistrements
     }
-
-    public function create($data) {
-        $stmt = $this->pdo->prepare("
-            INSERT INTO rapport_etudiant (libelle_rapport_etudiant, id_etudiant)
-            VALUES (:libelle_rapport_etudiant, :id_etudiant)
-        ");
-        return $stmt->execute($data);
+    
+    public function save($data) {
+        // Sauvegarder les données
     }
-
-    public function update($id, $data) {
-        $data['id'] = $id;
-        $stmt = $this->pdo->prepare("
-            UPDATE rapport_etudiant
-            SET libelle_rapport_etudiant = :libelle_rapport_etudiant, id_etudiant = :id_etudiant
-            WHERE id_rapport_etudiant = :id
-        ");
-        return $stmt->execute($data);
-    }
-
+    
     public function delete($id) {
-        $stmt = $this->pdo->prepare("DELETE FROM rapport_etudiant WHERE id_rapport_etudiant = :id");
-        return $stmt->execute(['id' => $id]);
+        // Supprimer un enregistrement
     }
 }

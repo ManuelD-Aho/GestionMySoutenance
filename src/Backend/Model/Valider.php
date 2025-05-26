@@ -1,43 +1,35 @@
 <?php
+
+/**
+ * Valider
+ * Modèle pour la gestion des données de valider
+ * 
+ * @author Votre Nom
+ * @version 1.0
+ */
+
 class Valider {
-    private $pdo;
-
-    public function __construct(PDO $pdo) {
-        $this->pdo = $pdo;
+    
+    protected $table = 'valider';
+    protected $primaryKey = 'id';
+    
+    public function __construct() {
+        // Initialisation du modèle
     }
-
-    public function getAll() {
-        $stmt = $this->pdo->prepare("SELECT * FROM valider");
-        $stmt->execute();
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    public function find($id) {
+        // Trouver un enregistrement par ID
     }
-
-    public function getById($id) {
-        $stmt = $this->pdo->prepare("SELECT * FROM valider WHERE id_enseignant = :id");
-        $stmt->execute(['id' => $id]);
-        return $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    public function findAll() {
+        // Récupérer tous les enregistrements
     }
-
-    public function create($data) {
-        $stmt = $this->pdo->prepare("
-            INSERT INTO valider (id_rapport_etudiant, date_validation, commentaire_validation)
-            VALUES (:id_rapport_etudiant, :date_validation, :commentaire_validation)
-        ");
-        return $stmt->execute($data);
+    
+    public function save($data) {
+        // Sauvegarder les données
     }
-
-    public function update($id, $data) {
-        $data['id'] = $id;
-        $stmt = $this->pdo->prepare("
-            UPDATE valider
-            SET id_rapport_etudiant = :id_rapport_etudiant, date_validation = :date_validation, commentaire_validation = :commentaire_validation
-            WHERE id_enseignant = :id
-        ");
-        return $stmt->execute($data);
-    }
-
+    
     public function delete($id) {
-        $stmt = $this->pdo->prepare("DELETE FROM valider WHERE id_enseignant = :id");
-        return $stmt->execute(['id' => $id]);
+        // Supprimer un enregistrement
     }
 }

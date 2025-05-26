@@ -4,7 +4,6 @@
 namespace Backend\Model;
 
 use PDO;
-use Backend\Model\BaseModel;
 
 class Utilisateur extends BaseModel {
 

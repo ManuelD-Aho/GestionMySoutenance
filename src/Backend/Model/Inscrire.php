@@ -1,43 +1,35 @@
 <?php
+
+/**
+ * Inscrire
+ * Modèle pour la gestion des données de inscrire
+ * 
+ * @author Votre Nom
+ * @version 1.0
+ */
+
 class Inscrire {
-    private $pdo;
-
-    public function __construct(PDO $pdo) {
-        $this->pdo = $pdo;
+    
+    protected $table = 'inscrire';
+    protected $primaryKey = 'id';
+    
+    public function __construct() {
+        // Initialisation du modèle
     }
-
-    public function getAll() {
-        $stmt = $this->pdo->prepare("SELECT * FROM inscrire");
-        $stmt->execute();
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    public function find($id) {
+        // Trouver un enregistrement par ID
     }
-
-    public function getById($id) {
-        $stmt = $this->pdo->prepare("SELECT * FROM inscrire WHERE id_etudiant = :id");
-        $stmt->execute(['id' => $id]);
-        return $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    public function findAll() {
+        // Récupérer tous les enregistrements
     }
-
-    public function create($data) {
-        $stmt = $this->pdo->prepare("
-            INSERT INTO inscrire (id_niveau_etude, id_annee_academique, montant_inscription)
-            VALUES (:id_niveau_etude, :id_annee_academique, :montant_inscription)
-        ");
-        return $stmt->execute($data);
+    
+    public function save($data) {
+        // Sauvegarder les données
     }
-
-    public function update($id, $data) {
-        $data['id'] = $id;
-        $stmt = $this->pdo->prepare("
-            UPDATE inscrire
-            SET id_niveau_etude = :id_niveau_etude, id_annee_academique = :id_annee_academique, montant_inscription = :montant_inscription
-            WHERE id_etudiant = :id
-        ");
-        return $stmt->execute($data);
-    }
-
+    
     public function delete($id) {
-        $stmt = $this->pdo->prepare("DELETE FROM inscrire WHERE id_etudiant = :id");
-        return $stmt->execute(['id' => $id]);
+        // Supprimer un enregistrement
     }
 }

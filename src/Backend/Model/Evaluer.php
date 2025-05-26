@@ -1,43 +1,35 @@
 <?php
+
+/**
+ * Evaluer
+ * Modèle pour la gestion des données de evaluer
+ * 
+ * @author Votre Nom
+ * @version 1.0
+ */
+
 class Evaluer {
-    private $pdo;
-
-    public function __construct(PDO $pdo) {
-        $this->pdo = $pdo;
+    
+    protected $table = 'evaluer';
+    protected $primaryKey = 'id';
+    
+    public function __construct() {
+        // Initialisation du modèle
     }
-
-    public function getAll() {
-        $stmt = $this->pdo->prepare("SELECT * FROM evaluer");
-        $stmt->execute();
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    public function find($id) {
+        // Trouver un enregistrement par ID
     }
-
-    public function getById($id) {
-        $stmt = $this->pdo->prepare("SELECT * FROM evaluer WHERE id_etudiant = :id");
-        $stmt->execute(['id' => $id]);
-        return $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    public function findAll() {
+        // Récupérer tous les enregistrements
     }
-
-    public function create($data) {
-        $stmt = $this->pdo->prepare("
-            INSERT INTO evaluer (id_enseignant, id_ecue, date_evaluation, note)
-            VALUES (:id_enseignant, :id_ecue, :date_evaluation, :note)
-        ");
-        return $stmt->execute($data);
+    
+    public function save($data) {
+        // Sauvegarder les données
     }
-
-    public function update($id, $data) {
-        $data['id'] = $id;
-        $stmt = $this->pdo->prepare("
-            UPDATE evaluer
-            SET id_enseignant = :id_enseignant, id_ecue = :id_ecue, date_evaluation = :date_evaluation, note = :note
-            WHERE id_etudiant = :id
-        ");
-        return $stmt->execute($data);
-    }
-
+    
     public function delete($id) {
-        $stmt = $this->pdo->prepare("DELETE FROM evaluer WHERE id_etudiant = :id");
-        return $stmt->execute(['id' => $id]);
+        // Supprimer un enregistrement
     }
 }
