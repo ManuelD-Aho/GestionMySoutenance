@@ -1,35 +1,13 @@
 <?php
 
-/**
- * AnneeAcademique
- * Modèle pour la gestion des données de anneeacademique
- * 
- * @author Votre Nom
- * @version 1.0
- */
+namespace Backend\Model;
 
-class AnneeAcademique {
-    
-    protected $table = 'anneeacademique';
-    protected $primaryKey = 'id';
-    
-    public function __construct() {
-        // Initialisation du modèle
-    }
-    
-    public function find($id) {
-        // Trouver un enregistrement par ID
-    }
-    
-    public function findAll() {
-        // Récupérer tous les enregistrements
-    }
-    
-    public function save($data) {
-        // Sauvegarder les données
-    }
-    
-    public function delete($id) {
-        // Supprimer un enregistrement
-    }
+use Backend\Model\BaseModel;
+
+class AnneeAcademique extends BaseModel {
+
+    protected string $table = 'annee_academique';
+    protected string $primaryKey = 'id_annee_academique';
+
+    // Constructor and basic CRUD methods are inherited from BaseModel.
 }

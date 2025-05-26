@@ -1,5 +1,6 @@
 <?php
 
+<<<<<<< HEAD
 /**
  * Ecue
  * Modèle pour la gestion des données de ecue
@@ -32,4 +33,16 @@ class Ecue {
     public function delete($id) {
         // Supprimer un enregistrement
     }
+=======
+namespace Backend\Model;
+
+use Backend\Model\BaseModel;
+
+class Ecue extends BaseModel {
+
+    protected string $table = 'ecue';
+    protected string $primaryKey = 'id_ecue';
+
+    // Constructor and basic CRUD methods are inherited from BaseModel.
+>>>>>>> origin/refactor-core-and-features-phase1
 }

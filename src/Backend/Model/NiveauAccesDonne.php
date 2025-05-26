@@ -1,5 +1,6 @@
 <?php
 
+<<<<<<< HEAD
 /**
  * NiveauAccesDonne
  * Modèle pour la gestion des données de niveauaccesdonne
@@ -32,4 +33,16 @@ class NiveauAccesDonne {
     public function delete($id) {
         // Supprimer un enregistrement
     }
+=======
+namespace Backend\Model;
+
+use Backend\Model\BaseModel;
+
+class NiveauAccesDonne extends BaseModel {
+
+    protected string $table = 'niveau_acces_donne';
+    protected string $primaryKey = 'id_niveau_acces_donne';
+
+    // Constructor and basic CRUD methods are inherited from BaseModel.
+>>>>>>> origin/refactor-core-and-features-phase1
 }

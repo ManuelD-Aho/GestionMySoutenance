@@ -22,30 +22,21 @@ class Utilisateur extends BaseModel {
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if ($user) {
-            // --- MODIFICATION IMPORTANTE ICI ---
-            // Comparaison directe du mot de passe fourni avec celui en base de données
-            // Assurez-vous que la colonne dans votre base de données s'appelle bien 'mot_de_passe'
-            // et qu'elle contient les mots de passe en clair.
-            if ($mot_de_passe_fourni === $user['mot_de_passe']) {
-                // Le mot de passe en clair correspond
+            // Vérifier le mot de passe fourni avec le mot de passe haché en base de données
+            if (password_verify($mot_de_passe_fourni, $user['mot_de_passe'])) {
+                // Le mot de passe est correct
                 return $user;
             }
-            // --- FIN DE LA MODIFICATION ---
         }
         return false; // L'utilisateur n'a pas été trouvé ou le mot de passe ne correspond pas
     }
 
-    // Si vous aviez une méthode create qui hachait le mot de passe,
-    // vous devrez également la modifier pour enregistrer le mot de passe en clair.
-    // Par exemple, si vous activez la méthode create commentée :
-    /*
-    public function create(array $data): bool|string // Modifié pour correspondre à la signature de BaseModel
+    public function create(array $data): string|false
     {
-        // NE PAS HACHER LE MOT DE PASSE SI VOUS LE VOULEZ EN CLAIR
-        // if (isset($data['mot_de_passe'])) {
-        //     $data['mot_de_passe'] = password_hash($data['mot_de_passe'], PASSWORD_DEFAULT);
-        // }
+        // Hacher le mot de passe avant de l'enregistrer
+        if (isset($data['mot_de_passe'])) {
+            $data['mot_de_passe'] = password_hash($data['mot_de_passe'], PASSWORD_DEFAULT);
+        }
         return parent::create($data); // Appelle la méthode create de BaseModel
     }
-    */
 }

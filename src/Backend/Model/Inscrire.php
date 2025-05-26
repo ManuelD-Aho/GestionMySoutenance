@@ -1,5 +1,6 @@
 <?php
 
+<<<<<<< HEAD
 /**
  * Inscrire
  * Modèle pour la gestion des données de inscrire
@@ -32,4 +33,17 @@ class Inscrire {
     public function delete($id) {
         // Supprimer un enregistrement
     }
+=======
+namespace Backend\Model;
+
+use Backend\Model\BaseModel;
+
+class Inscrire extends BaseModel {
+
+    protected string $table = 'inscrire';
+    protected string $primaryKey = 'id_etudiant'; // First part of composite key
+
+    // Constructor and basic CRUD methods are inherited from BaseModel.
+    // Custom methods for composite key operations might be needed.
+>>>>>>> origin/refactor-core-and-features-phase1
 }

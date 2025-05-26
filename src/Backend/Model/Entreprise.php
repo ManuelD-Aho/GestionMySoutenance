@@ -1,5 +1,6 @@
 <?php
 
+<<<<<<< HEAD
 /**
  * Entreprise
  * Modèle pour la gestion des données de entreprise
@@ -32,4 +33,16 @@ class Entreprise {
     public function delete($id) {
         // Supprimer un enregistrement
     }
+=======
+namespace Backend\Model;
+
+use Backend\Model\BaseModel;
+
+class Entreprise extends BaseModel {
+
+    protected string $table = 'entreprise';
+    protected string $primaryKey = 'id_entreprise';
+
+    // Constructor and basic CRUD methods are inherited from BaseModel.
+>>>>>>> origin/refactor-core-and-features-phase1
 }

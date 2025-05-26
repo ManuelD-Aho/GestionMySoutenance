@@ -1,5 +1,6 @@
 <?php
 
+<<<<<<< HEAD
 /**
  * Ue
  * Modèle pour la gestion des données de ue
@@ -32,4 +33,16 @@ class Ue {
     public function delete($id) {
         // Supprimer un enregistrement
     }
+=======
+namespace Backend\Model;
+
+use Backend\Model\BaseModel;
+
+class Ue extends BaseModel {
+
+    protected string $table = 'ue';
+    protected string $primaryKey = 'id_ue';
+
+    // Constructor and basic CRUD methods are inherited from BaseModel.
+>>>>>>> origin/refactor-core-and-features-phase1
 }

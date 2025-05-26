@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Promage Dashboard</title>
+    <link rel="stylesheet" href="promage-dashboard-base.css">
+</head>
+<body>
+<!-- Mobile Sidebar Toggle -->
+<button class="mobile-sidebar-toggle" onclick="toggleMobileSidebar()">
+    <span class="material-icons">menu</span>
+</button>
+
+<div class="app-layout">
+    <!-- Sidebar -->
+    <aside class="promage-sidebar" id="sidebar">
+        <div>
+            <div class="sidebar-brand">
+                <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuAWCEar7qkL5fzYgmfsCgNATkpPVtG2s4KHV7ws_nxY9totC-Lyq_PdyyaLAO_tiI7_7NLRPSB91Ay3pCgo_d1_fArlzbBxGbdK5QNK-dgiN3QJJ9boRuLX4gzrkK5XrHawzW8vs0zvsK7t_E57psU20mMQ3tfnIBUB0EpjSzG5Yi-zGyNgc0r2iuY8p0O1BOOUuVDvcgwpkO8heVAhfOxaR7jsRQRKNh59yWn-SEH6nPUD6qA8v2nZYywdA-GBfNjvNGHakGtcx4E"
+                     alt="Promage logo" class="brand-logo">
+                <span class="brand-text">Promage</span>
+            </div>
+
+            <button class="create-project-btn">
+                <span class="material-icons">add</span>
+                <span>Create new project</span>
+            </button>
+
+            <nav class="sidebar-nav">
+                <div class="nav-section">
+                    <div class="nav-items">
+                        <a href="#" class="nav-item active">
+                            <span class="material-icons">dashboard</span>
+                            <span>Dashboard</span>
+                        </a>
+                        <a href="#" class="nav-item">
+                            <span class="material-icons">folder_open</span>
+                            <span>Projects</span>
+                        </a>
+                        <a href="#" class="nav-item">
+                            <span class="material-icons">assignment</span>
+                            <span>Tasks</span>
+                        </a>
+                    </div>
+                </div>
+
+                <div class="nav-section">
+                    <div class="nav-section-title">Analytics</div>
+                    <div class="nav-items">
+                        <a href="#" class="nav-item">
+                            <span class="material-icons">bar_chart</span>
+                            <span>Dashboard</span>
+                        </a>
+                        <a href="#" class="nav-item">
+                            <span class="material-icons">schedule</span>
+                            <span>Time log</span>
+                        </a>
+                        <a href="#" class="nav-item">
+                            <span class="material-icons">assessment</span>
+                            <span>Resource mgnt</span>
+                        </a>
+                        <a href="#" class="nav-item">
+                            <span class="material-icons">group</span>
+                            <span>Users</span>
+                        </a>
+                    </div>
+                </div>
+
+                <div class="nav-section">
+                    <div class="nav-section-title">Support</div>
+                    <div class="nav-items">
+                        <a href="#" class="nav-item">
+                            <span class="material-icons">description</span>
+                            <span>Project template</span>
+                        </a>
+                        <a href="#" class="nav-item">
+                            <span class="material-icons">settings</span>
+                            <span>Menu settings</span>
+                        </a>
+                    </div>
+                </div>
+            </nav>
+        </div>
+
+        <button class="sidebar-logout">
+            <span class="material-icons">logout</span>
+        </button>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Header -->
+        <header class="main-header">
+            <div class="header-left">
+                <button class="header-back-btn">
+                    <span class="material-icons">chevron_left</span>
+                </button>
+                <h1 class="header-title">Dashboard</h1>
+            </div>
+
+            <div class="header-right">
+                <div class="header-search">
+                    <span class="material-icons">search</span>
+                    <input type="text" placeholder="Search for anything...">
+                </div>
+
+                <div class="header-actions">
+                    <button class="notification-btn">
+                        <span class="material-icons">notifications_none</span>
+                    </button>
+
+                    <div class="user-profile">
+                        <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuCgJZEbJtNL10NhwqMZjG2xZ5NM5NIUwqWMmggRVzKEHBSjeAdl_pV97QpkzXvztBuVbyCfpXzE6RGyeiEurjBnPUFaVcY0BHilaQQgAC0ALiQqFZY6ZPY270M7SdU2msZrgPuk7TO6wEKgy4AKFYYlADTkVzDP79jKobJUg1cFCJiQRnX6yhknU0w9LllpJ-2yhTDlHBAdcnYj6etRB9QVFcoiEJCT0MGAvAn1LJeLGEQlMZ_-wi6cY3XwNoS6Vj8Ai--e28tab1Q"
+                             alt="Alex Melain avatar" class="user-avatar">
+                        <div class="user-info">
+                            <p class="user-name">Alex melain</p>
+                            <p class="user-role">Product manager</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Overview Section -->
+        <section class="overview-section">
+            <div class="section-header">
+                <h2 class="section-title">Overview</h2>
+                <button class="period-selector">
+                    <span>Last 30 days</span>
+                    <span class="material-icons">expand_more</span>
+                </button>
+            </div>
+
+            <div class="stats-grid">
+                <div class="dashboard-card stat-card">
+                    <div class="stat-header">
+                        <h3 class="stat-label">Total revenue</h3>
+                        <div class="stat-icon pink">
+                            <span class="material-icons">account_balance_wallet</span>
+                        </div>
+                    </div>
+                    <p class="stat-value">$53,00989</p>
+                    <p class="stat-change positive">
+                        <span class="material-icons">arrow_upward</span>
+                        12% increase from last month
+                    </p>
+                </div>
+
+                <div class="dashboard-card stat-card">
+                    <div class="stat-header">
+                        <h3 class="stat-label">Projects</h3>
+                        <div class="stat-icon orange">
+                            <span class="material-icons">business_center</span>
+                        </div>
+                    </div>
+                    <p class="stat-value">95 <span class="stat-unit">/100</span></p>
+                    <p class="stat-change negative">
+                        <span class="material-icons">arrow_downward</span>
+                        10% decrease from last month
+                    </p>
+                </div>
+
+                <div class="dashboard-card stat-card">
+                    <div class="stat-header">
+                        <h3 class="stat-label">Time spent</h3>
+                        <div class="stat-icon blue">
+                            <span class="material-icons">timer</span>
+                        </div>
+                    </div>
+                    <p class="stat-value">1022 <span class="stat-unit">/1300 Hrs</span></p>
+                    <p class="stat-change positive">
+                        <span class="material-icons">arrow_upward</span>
+                        8% increase from last month
+                    </p>
+                </div>
+
+                <div class="dashboard-card stat-card">
+                    <div class="stat-header">
+                        <h3 class="stat-label">Resources</h3>
+                        <div class="stat-icon yellow">
+                            <span class="material-icons">people_alt</span>
+                        </div>
+                    </div>
+                    <p class="stat-value">101 <span class="stat-unit">/120</span></p>
+                    <p class="stat-change positive">
+                        <span class="material-icons">arrow_upward</span>
+                        2% increase from last month
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Project Summary Section -->
+        <section class="content-grid">
+            <div class="dashboard-card table-card">
+                <div class="table-header">
+                    <h3 class="section-title">Project summary</h3>
+                    <div class="table-filters">
+                        <div class="filter-item">
+                            <span>Project manager</span>
+                            <span class="material-icons">expand_more</span>
+                        </div>
+                        <div class="filter-item">
+                            <span>Status</span>
+                            <span class="material-icons">expand_more</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <table class="project-table">
+                        <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Project manager</th>
+                            <th>Due date</th>
+                            <th>Status</th>
+                            <th>Progress</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr>
+                            <td>Nelsa web developement</td>
+                            <td>Om prakash sao</td>
+                            <td>May 25, 2023</td>
+                            <td><span class="status-badge badge-green">Completed</span></td>
+                            <td>
+                                <div class="progress-container">
+                                    <div class="progress-bar-bg">
+                                        <div class="progress-bar-fill progress-green" style="width: 80%;"></div>
+                                    </div>
+                                    <span class="progress-text">80%</span>
+                                </div>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Datascale AI app</td>
+                            <td>Neleah mando</td>
+                            <td>Jun 20, 2023</td>
+                            <td><span class="status-badge badge-yellow">Delayed</span></td>
+                            <td>
+                                <div class="progress-container">
+                                    <div class="progress-bar-bg">
+                                        <div class="progress-bar-fill progress-yellow" style="width: 30%;"></div>
+                                    </div>
+                                    <span class="progress-text">30%</span>
+                                </div>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Media channel branding</td>
+                            <td>Truvelly priya</td>
+                            <td>July 13, 2023</td>
+                            <td><span class="status-badge badge-red">At risk</span></td>
+                            <td>
+                                <div class="progress-container">
+                                    <div class="progress-bar-bg">
+                                        <div class="progress-bar-fill progress-red" style="width: 70%;"></div>
+                                    </div>
+                                    <span class="progress-text">70%</span>
+                                </div>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Corfax iOS app developement</td>
+                            <td>Matte hannery</td>
+                            <td>Dec 20, 2023</td>
+                            <td><span class="status-badge badge-green">Completed</span></td>
+                            <td>
+                                <div class="progress-container">
+                                    <div class="progress-bar-bg">
+                                        <div class="progress-bar-fill progress-green" style="width: 65%;"></div>
+                                    </div>
+                                    <span class="progress-text">65%</span>
+                                </div>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Website builder developement</td>
+                            <td>Sukumar rao</td>
+                            <td>Mar 15, 2024</td>
+                            <td><span class="status-badge badge-blue">On going</span></td>
+                            <td>
+                                <div class="progress-container">
+                                    <div class="progress-bar-bg">
+                                        <div class="progress-bar-fill progress-blue" style="width: 70%;"></div>
+                                    </div>
+                                    <span class="progress-text">70%</span>
+                                </div>
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="dashboard-card progress-card">
+                <div class="table-header">
+                    <h3 class="section-title">Overall Progress</h3>
+                    <button class="timeline-filter">
+                        All <span class="material-icons">expand_more</span>
+                    </button>
+                </div>
+
+                <div class="progress-circle-container">
+                    <div class="progress-circle">
+                        <svg>
+                            <circle class="progress-circle-bg" cx="60" cy="60" r="50"></circle>
+                            <circle class="progress-circle-fill progress-circle-green"
+                                    cx="60" cy="60" r="50"
+                                    stroke-dasharray="78.5 314.16"
+                                    stroke-dashoffset="0"></circle>
+                            <circle class="progress-circle-fill progress-circle-orange"
+                                    cx="60" cy="60" r="50"
+                                    stroke-dasharray="109.9 314.16"
+                                    stroke-dashoffset="-78.5"></circle>
+                            <circle class="progress-circle-fill progress-circle-red"
+                                    cx="60" cy="60" r="50"
+                                    stroke-dasharray="109.9 314.16"
+                                    stroke-dashoffset="-188.4"></circle>
+                        </svg>
+                        <div class="progress-text-center">
+                            <div class="progress-percentage">72%</div>
+                            <div class="progress-label">Completed</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="progress-stats">
+                    <div class="progress-stat-item">
+                        <p class="progress-stat-number">95</p>
+                        <p class="progress-stat-label">Total projects</p>
+                    </div>
+                    <div class="progress-stat-item">
+                        <p class="progress-stat-number green">26</p>
+                        <p class="progress-stat-label">Completed</p>
+                    </div>
+                    <div class="progress-stat-item">
+                        <p class="progress-stat-number yellow">35</p>
+                        <p class="progress-stat-label">Delayed</p>
+                    </div>
+                    <div class="progress-stat-item">
+                        <p class="progress-stat-number orange">35</p>
+                        <p class="progress-stat-label">On going</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Tasks and Workload Section -->
+        <section class="tasks-grid">
+            <div class="dashboard-card tasks-card">
+                <h3 class="section-title">Today task</h3>
+
+                <div class="task-tabs">
+                    <button class="task-tab active">
+                        All <span class="task-count">10</span>
+                    </button>
+                    <button class="task-tab">
+                        Important <span class="task-count">05</span>
+                    </button>
+                    <button class="task-tab">
+                        Notes <span class="task-count">08</span>
+                    </button>
+                    <button class="task-tab">
+                        Links <span class="task-count">01</span>
+                    </button>
+                </div>
+
+                <div class="task-list">
+                    <div class="task-item">
+                        <div class="task-content">
+                            <span class="task-dot"></span>
+                            <p class="task-text">Create a user flow of social application design</p>
+                        </div>
+                        <span class="status-badge badge-green">Approved</span>
+                    </div>
+
+                    <div class="task-item">
+                        <div class="task-content">
+                            <span class="task-dot"></span>
+                            <p class="task-text">Create a user flow of social application design</p>
+                        </div>
+                        <span class="status-badge badge-yellow">In review</span>
+                    </div>
+
+                    <div class="task-item">
+                        <div class="task-content">
+                            <span class="task-dot"></span>
+                            <p class="task-text">Landing page design for Fintech project of singapore</p>
+                        </div>
+                        <span class="status-badge badge-red">In review</span>
+                    </div>
+
+                    <div class="task-item">
+                        <div class="task-content">
+                            <span class="task-dot"></span>
+                            <p class="task-text">Interactive prototype for app screens of deltamine project</p>
+                        </div>
+                        <span class="status-badge badge-blue">On going</span>
+                    </div>
+
+                    <div class="task-item">
+                        <div class="task-content">
+                            <span class="task-dot"></span>
+                            <p class="task-text">Interactive prototype for app screens of deltamine project</p>
+                        </div>
+                        <span class="status-badge badge-green">Approved</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="dashboard-card timeline-card">
+                <div class="timeline-header">
+                    <h3 class="section-title">Projects Workload</h3>
+                    <button class="timeline-filter">
+                        Last 3 months <span class="material-icons">expand_more</span>
+                    </button>
+                </div>
+
+                <div class="timeline-container">
+                    <div class="timeline-item">
+                        <div class="timeline-dots">
+                            <div class="timeline-dot"></div>
+                            <div class="timeline-dot"></div>
+                            <div class="timeline-dot"></div>
+                            <div class="timeline-dot"></div>
+                            <div class="timeline-dot active">
+                                <span class="timeline-badge">08</span>
+                            </div>
+                        </div>
+                        <p class="timeline-name">Sam</p>
+                    </div>
+
+                    <div class="timeline-item">
+                        <div class="timeline-dots">
+                            <div class="timeline-dot"></div>
+                            <div class="timeline-dot"></div>
+                            <div class="timeline-dot"></div>
+                            <div class="timeline-dot active">
+                                <span class="timeline-badge">07</span>
+                            </div>
+                        </div>
+                        <p class="timeline-name">Meldy</p>
+                    </div>
+
+                    <div class="timeline-item">
+                        <div class="timeline-dots">
+                            <div class="timeline-dot"></div>
+                            <div class="timeline-dot active">
+                                <span class="timeline-badge">02</span>
+                            </div>
+                        </div>
+                        <p class="timeline-name">Kan</p>
+                    </div>
+
+                    <div class="timeline-item">
+                        <div class="timeline-dots">
+                            <div class="timeline-dot"></div>
+                            <div class="timeline-dot"></div>
+                            <div class="timeline-dot"></div>
+                            <div class="timeline-dot active">
+                                <span class="timeline-badge">08</span>
+                            </div>
+                        </div>
+                        <p class="timeline-name">Dmitry</p>
+                    </div>
+
+                    <div class="timeline-item">
+                        <div class="timeline-dots">
+                            <div class="timeline-dot"></div>
+                            <div class="timeline-dot"></div>
+                            <div class="timeline-dot"></div>
+                            <div class="timeline-dot"></div>
+                            <div class="timeline-dot active">
+                                <span class="timeline-badge">06</span>
+                            </div>
+                        </div>
+                        <p class="timeline-name">Vega</p>
+                    </div>
+
+                    <div class="timeline-item">
+                        <div class="timeline-dots">
+                            <div class="timeline-dot"></div>
+                            <div class="timeline-dot active">
+                                <span class="timeline-badge">02</span>
+                            </div>
+                        </div>
+                        <p class="timeline-name">Kaelin</p>
+                    </div>
+
+                    <div class="timeline-item">
+                        <div class="timeline-dots">
+                            <div class="timeline-dot"></div>
+                            <div class="timeline-dot"></div>
+                            <div class="timeline-dot"></div>
+                            <div class="timeline-dot active">
+                                <span class="timeline-badge">04</span>
+                            </div>
+                        </div>
+                        <p class="timeline-name">Malm</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+</div>
+
+<script>
+    // Mobile sidebar toggle
+    function toggleMobileSidebar() {
+        const sidebar = document.getElementById('sidebar');
+        sidebar.classList.toggle('mobile-open');
+    }
+
+    // Close mobile sidebar when clicking outside
+    document.addEventListener('click', function(event) {
+        const sidebar = document.getElementById('sidebar');
+        const toggleBtn = document.querySelector('.mobile-sidebar-toggle');
+
+        if (window.innerWidth <= 768 &&
+            !sidebar.contains(event.target) &&
+            !toggleBtn.contains(event.target) &&
+            sidebar.classList.contains('mobile-open')) {
+            sidebar.classList.remove('mobile-open');
+        }
+    });
+
+    // Task tabs functionality
+    document.querySelectorAll('.task-tab').forEach(tab => {
+        tab.addEventListener('click', function() {
+            // Remove active class from all tabs
+            document.querySelectorAll('.task-tab').forEach(t => t.classList.remove('active'));
+            // Add active class to clicked tab
+            this.classList.add('active');
+        });
+    });
+
+    // Responsive handling
+    function handleResize() {
+        const sidebar = document.getElementById('sidebar');
+        if (window.innerWidth > 768) {
+            sidebar.classList.remove('mobile-open');
+        }
+    }
+
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('load', handleResize);
+</script>
+</body>
+</html>

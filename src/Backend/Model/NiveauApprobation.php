@@ -1,5 +1,6 @@
 <?php
 
+<<<<<<< HEAD
 /**
  * NiveauApprobation
  * Modèle pour la gestion des données de niveauapprobation
@@ -32,4 +33,16 @@ class NiveauApprobation {
     public function delete($id) {
         // Supprimer un enregistrement
     }
+=======
+namespace Backend\Model;
+
+use Backend\Model\BaseModel;
+
+class NiveauApprobation extends BaseModel {
+
+    protected string $table = 'niveau_approbation';
+    protected string $primaryKey = 'id_niveau_approbation';
+
+    // Constructor and basic CRUD methods are inherited from BaseModel.
+>>>>>>> origin/refactor-core-and-features-phase1
 }
