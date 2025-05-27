@@ -3,7 +3,7 @@
 namespace Backend\Controller\Admin;
 
 use Backend\Controller\BaseController;
-use Backend\Model\AnneeAcademique;
+use App\Backend\Model\AnneeAcademique;
 use Config\Database;
 
 class AnneeAcademiqueController extends BaseController

@@ -1,35 +1,31 @@
 <?php
 
-/**
- * ParticipantConversation
- * Modèle pour la gestion des données de participantconversation
- * 
- * @author Votre Nom
- * @version 1.0
- */
+namespace Backend\Model;
 
-class ParticipantConversation {
-    
-    protected $table = 'participantconversation';
-    protected $primaryKey = 'id';
-    
-    public function __construct() {
-        // Initialisation du modèle
+use PDO;
+
+class ParticipantConversation extends BaseModel
+{
+    protected string $table = 'participant_conversation';
+
+    public function trouverParCleComposite(int $idConversation, string $numeroUtilisateur, array $colonnes = ['*']): ?array
+    {
+        $listeColonnes = implode(', ', $colonnes);
+        $sql = "SELECT {$listeColonnes} FROM {$this->table} WHERE id_conversation = :id_conversation AND numero_utilisateur = :numero_utilisateur";
+        $declaration = $this->db->prepare($sql);
+        $declaration->bindParam(':id_conversation', $idConversation, PDO::PARAM_INT);
+        $declaration->bindParam(':numero_utilisateur', $numeroUtilisateur, PDO::PARAM_STR);
+        $declaration->execute();
+        $resultat = $declaration->fetch(PDO::FETCH_ASSOC);
+        return $resultat ?: null;
     }
-    
-    public function find($id) {
-        // Trouver un enregistrement par ID
-    }
-    
-    public function findAll() {
-        // Récupérer tous les enregistrements
-    }
-    
-    public function save($data) {
-        // Sauvegarder les données
-    }
-    
-    public function delete($id) {
-        // Supprimer un enregistrement
+
+    public function supprimerParCleComposite(int $idConversation, string $numeroUtilisateur): bool
+    {
+        $sql = "DELETE FROM {$this->table} WHERE id_conversation = :id_conversation AND numero_utilisateur = :numero_utilisateur";
+        $declaration = $this->db->prepare($sql);
+        $declaration->bindParam(':id_conversation', $idConversation, PDO::PARAM_INT);
+        $declaration->bindParam(':numero_utilisateur', $numeroUtilisateur, PDO::PARAM_STR);
+        return $declaration->execute();
     }
 }

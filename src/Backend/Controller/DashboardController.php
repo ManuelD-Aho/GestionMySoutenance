@@ -2,9 +2,9 @@
 // File: src/Backend/Controller/DashboardController.php
 namespace Backend\Controller;
 
-use Backend\Model\TypeUtilisateur;
-use Backend\Model\Utilisateur;
-use Backend\Model\RapportEtudiant;
+use App\Backend\Model\TypeUtilisateur;
+use App\Backend\Model\Utilisateur;
+use App\Backend\Model\RapportEtudiant;
 // TODO: Add other necessary models like CompteRendu, Soutenance, etc. as needed for stats
 use Config\Database;
 

@@ -1,13 +1,10 @@
 <?php
 
-namespace Backend\Model;
+namespace App\Backend\Model;
+use PDO;
 
-use Backend\Model\BaseModel;
-
-class AnneeAcademique extends BaseModel {
-
+class AnneeAcademique extends BaseModel
+{
     protected string $table = 'annee_academique';
-    protected string $primaryKey = 'id_annee_academique';
-
-    // Constructor and basic CRUD methods are inherited from BaseModel.
+    protected string $clePrimaire = 'id_annee_academique';
 }

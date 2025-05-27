@@ -1,49 +1,51 @@
 <?php
 
-<<<<<<< HEAD
-/**
- * FaireStage
- * Modèle pour la gestion des données de fairestage
- * 
- * @author Votre Nom
- * @version 1.0
- */
-
-class FaireStage {
-    
-    protected $table = 'fairestage';
-    protected $primaryKey = 'id';
-    
-    public function __construct() {
-        // Initialisation du modèle
-    }
-    
-    public function find($id) {
-        // Trouver un enregistrement par ID
-    }
-    
-    public function findAll() {
-        // Récupérer tous les enregistrements
-    }
-    
-    public function save($data) {
-        // Sauvegarder les données
-    }
-    
-    public function delete($id) {
-        // Supprimer un enregistrement
-    }
-=======
 namespace Backend\Model;
 
-use Backend\Model\BaseModel;
+use PDO;
 
-class FaireStage extends BaseModel {
-
+class FaireStage extends BaseModel
+{
     protected string $table = 'faire_stage';
-    protected string $primaryKey = 'id_entreprise'; // First part of composite key
 
-    // Constructor and basic CRUD methods are inherited from BaseModel.
-    // Custom methods for composite key operations might be needed.
->>>>>>> origin/refactor-core-and-features-phase1
+    public function trouverParCleComposite(int $idEntreprise, string $numeroCarteEtudiant, array $colonnes = ['*']): ?array
+    {
+        $listeColonnes = implode(', ', $colonnes);
+        $sql = "SELECT {$listeColonnes} FROM {$this->table} WHERE id_entreprise = :id_entreprise AND numero_carte_etudiant = :numero_carte_etudiant";
+        $declaration = $this->db->prepare($sql);
+        $declaration->bindParam(':id_entreprise', $idEntreprise, PDO::PARAM_INT);
+        $declaration->bindParam(':numero_carte_etudiant', $numeroCarteEtudiant, PDO::PARAM_STR);
+        $declaration->execute();
+        $resultat = $declaration->fetch(PDO::FETCH_ASSOC);
+        return $resultat ?: null;
+    }
+
+    public function mettreAJourParCleComposite(int $idEntreprise, string $numeroCarteEtudiant, array $donnees): bool
+    {
+        if (empty($donnees)) {
+            return false;
+        }
+        $setClause = [];
+        foreach (array_keys($donnees) as $colonne) {
+            $setClause[] = "{$colonne} = :{$colonne}";
+        }
+        $setString = implode(', ', $setClause);
+        $sql = "UPDATE {$this->table} SET {$setString} WHERE id_entreprise = :id_entreprise_condition AND numero_carte_etudiant = :numero_carte_etudiant_condition";
+        $declaration = $this->db->prepare($sql);
+
+        $parametres = $donnees;
+        $parametres['id_entreprise_condition'] = $idEntreprise;
+        $parametres['numero_carte_etudiant_condition'] = $numeroCarteEtudiant;
+
+        return $declaration->execute($parametres);
+    }
+
+    public function supprimerParCleComposite(int $idEntreprise, string $numeroCarteEtudiant): bool
+    {
+        $sql = "DELETE FROM {$this->table} WHERE id_entreprise = :id_entreprise AND numero_carte_etudiant = :numero_carte_etudiant";
+        $declaration = $this->db->prepare($sql);
+        $declaration->bindParam(':id_entreprise', $idEntreprise, PDO::PARAM_INT);
+        $declaration->bindParam(':numero_carte_etudiant', $numeroCarteEtudiant, PDO::PARAM_STR);
+        return $declaration->execute();
+    }
 }

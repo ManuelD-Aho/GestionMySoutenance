@@ -4,7 +4,7 @@
 namespace Backend\Controller;
 
 use Config\Database; // Assurez-vous que cette ligne est présente et correcte
-use Backend\Model\Utilisateur;
+use App\Backend\Model\Utilisateur;
 // Si votre classe TypeUtilisateur n'est pas (encore) namespacée et gérée par Composer,
 // vous pourriez avoir besoin de l'inclure manuellement.
 // Cependant, la meilleure approche est de la namespacer (ex: Backend\Model\TypeUtilisateur)
@@ -72,7 +72,7 @@ class AuthentificationController extends BaseController // Assurez-vous que Base
                 try {
                     // Assurez-vous que TypeUtilisateurModel est correctement instancié.
                     // Le namespace Backend\Model\TypeUtilisateur est une supposition, adaptez si besoin.
-                    $typeUserModel = new \Backend\Model\TypeUtilisateur($pdo);
+                    $typeUserModel = new \App\Backend\Model\TypeUtilisateur($pdo);
                     $typeInfo = $typeUserModel->find($userTypeId); // find() vient de BaseModel
 
                     if ($typeInfo && isset($typeInfo['lib_type_utilisateur'])) {

@@ -1,35 +1,11 @@
 <?php
 
-/**
- * DecisionVoteRef
- * Modèle pour la gestion des données de decisionvoteref
- * 
- * @author Votre Nom
- * @version 1.0
- */
+namespace Backend\Model;
 
-class DecisionVoteRef {
-    
-    protected $table = 'decisionvoteref';
-    protected $primaryKey = 'id';
-    
-    public function __construct() {
-        // Initialisation du modèle
-    }
-    
-    public function find($id) {
-        // Trouver un enregistrement par ID
-    }
-    
-    public function findAll() {
-        // Récupérer tous les enregistrements
-    }
-    
-    public function save($data) {
-        // Sauvegarder les données
-    }
-    
-    public function delete($id) {
-        // Supprimer un enregistrement
-    }
+use PDO;
+
+class DecisionVoteRef extends BaseModel
+{
+    protected string $table = 'decision_vote_ref';
+    protected string $clePrimaire = 'id_decision_vote';
 }

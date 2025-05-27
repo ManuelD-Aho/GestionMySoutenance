@@ -2,13 +2,50 @@
 
 namespace Backend\Model;
 
-use Backend\Model\BaseModel;
+use PDO;
 
-class Donner extends BaseModel {
-
+class Donner extends BaseModel
+{
     protected string $table = 'donner';
-    protected string $primaryKey = 'id_enseignant'; // First part of composite key
 
-    // Constructor and basic CRUD methods are inherited from BaseModel.
-    // Custom methods for composite key operations might be needed.
+    public function trouverParCleComposite(string $numeroEnseignant, int $idNiveauApprobation, array $colonnes = ['*']): ?array
+    {
+        $listeColonnes = implode(', ', $colonnes);
+        $sql = "SELECT {$listeColonnes} FROM {$this->table} WHERE numero_enseignant = :numero_enseignant AND id_niveau_approbation = :id_niveau_approbation";
+        $declaration = $this->db->prepare($sql);
+        $declaration->bindParam(':numero_enseignant', $numeroEnseignant, PDO::PARAM_STR);
+        $declaration->bindParam(':id_niveau_approbation', $idNiveauApprobation, PDO::PARAM_INT);
+        $declaration->execute();
+        $resultat = $declaration->fetch(PDO::FETCH_ASSOC);
+        return $resultat ?: null;
+    }
+
+    public function mettreAJourParCleComposite(string $numeroEnseignant, int $idNiveauApprobation, array $donnees): bool
+    {
+        if (empty($donnees)) {
+            return false;
+        }
+        $setClause = [];
+        foreach (array_keys($donnees) as $colonne) {
+            $setClause[] = "{$colonne} = :{$colonne}";
+        }
+        $setString = implode(', ', $setClause);
+        $sql = "UPDATE {$this->table} SET {$setString} WHERE numero_enseignant = :numero_enseignant_condition AND id_niveau_approbation = :id_niveau_approbation_condition";
+        $declaration = $this->db->prepare($sql);
+
+        $parametres = $donnees;
+        $parametres['numero_enseignant_condition'] = $numeroEnseignant;
+        $parametres['id_niveau_approbation_condition'] = $idNiveauApprobation;
+
+        return $declaration->execute($parametres);
+    }
+
+    public function supprimerParCleComposite(string $numeroEnseignant, int $idNiveauApprobation): bool
+    {
+        $sql = "DELETE FROM {$this->table} WHERE numero_enseignant = :numero_enseignant AND id_niveau_approbation = :id_niveau_approbation";
+        $declaration = $this->db->prepare($sql);
+        $declaration->bindParam(':numero_enseignant', $numeroEnseignant, PDO::PARAM_STR);
+        $declaration->bindParam(':id_niveau_approbation', $idNiveauApprobation, PDO::PARAM_INT);
+        return $declaration->execute();
+    }
 }

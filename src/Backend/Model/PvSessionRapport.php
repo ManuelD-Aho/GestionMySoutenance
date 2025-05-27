@@ -1,35 +1,31 @@
 <?php
 
-/**
- * PvSessionRapport
- * Modèle pour la gestion des données de pvsessionrapport
- * 
- * @author Votre Nom
- * @version 1.0
- */
+namespace Backend\Model;
 
-class PvSessionRapport {
-    
-    protected $table = 'pvsessionrapport';
-    protected $primaryKey = 'id';
-    
-    public function __construct() {
-        // Initialisation du modèle
+use PDO;
+
+class PvSessionRapport extends BaseModel
+{
+    protected string $table = 'pv_session_rapport';
+
+    public function trouverParCleComposite(int $idCompteRendu, int $idRapportEtudiant, array $colonnes = ['*']): ?array
+    {
+        $listeColonnes = implode(', ', $colonnes);
+        $sql = "SELECT {$listeColonnes} FROM {$this->table} WHERE id_compte_rendu = :id_compte_rendu AND id_rapport_etudiant = :id_rapport_etudiant";
+        $declaration = $this->db->prepare($sql);
+        $declaration->bindParam(':id_compte_rendu', $idCompteRendu, PDO::PARAM_INT);
+        $declaration->bindParam(':id_rapport_etudiant', $idRapportEtudiant, PDO::PARAM_INT);
+        $declaration->execute();
+        $resultat = $declaration->fetch(PDO::FETCH_ASSOC);
+        return $resultat ?: null;
     }
-    
-    public function find($id) {
-        // Trouver un enregistrement par ID
-    }
-    
-    public function findAll() {
-        // Récupérer tous les enregistrements
-    }
-    
-    public function save($data) {
-        // Sauvegarder les données
-    }
-    
-    public function delete($id) {
-        // Supprimer un enregistrement
+
+    public function supprimerParCleComposite(int $idCompteRendu, int $idRapportEtudiant): bool
+    {
+        $sql = "DELETE FROM {$this->table} WHERE id_compte_rendu = :id_compte_rendu AND id_rapport_etudiant = :id_rapport_etudiant";
+        $declaration = $this->db->prepare($sql);
+        $declaration->bindParam(':id_compte_rendu', $idCompteRendu, PDO::PARAM_INT);
+        $declaration->bindParam(':id_rapport_etudiant', $idRapportEtudiant, PDO::PARAM_INT);
+        return $declaration->execute();
     }
 }

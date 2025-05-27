@@ -1,49 +1,41 @@
 <?php
 
-<<<<<<< HEAD
-/**
- * Rattacher
- * Modèle pour la gestion des données de rattacher
- * 
- * @author Votre Nom
- * @version 1.0
- */
-
-class Rattacher {
-    
-    protected $table = 'rattacher';
-    protected $primaryKey = 'id';
-    
-    public function __construct() {
-        // Initialisation du modèle
-    }
-    
-    public function find($id) {
-        // Trouver un enregistrement par ID
-    }
-    
-    public function findAll() {
-        // Récupérer tous les enregistrements
-    }
-    
-    public function save($data) {
-        // Sauvegarder les données
-    }
-    
-    public function delete($id) {
-        // Supprimer un enregistrement
-    }
-=======
 namespace Backend\Model;
 
-use Backend\Model\BaseModel;
+use PDO;
 
-class Rattacher extends BaseModel {
-
+class Rattacher extends BaseModel
+{
     protected string $table = 'rattacher';
-    protected string $primaryKey = 'id_groupe_utilisateur'; // First part of composite key
 
-    // Constructor and basic CRUD methods are inherited from BaseModel.
-    // Custom methods for composite key operations might be needed.
->>>>>>> origin/refactor-core-and-features-phase1
+    public function trouverParCleComposite(int $idGroupeUtilisateur, int $idTraitement, array $colonnes = ['*']): ?array
+    {
+        $listeColonnes = implode(', ', $colonnes);
+        $sql = "SELECT {$listeColonnes} FROM {$this->table} WHERE id_groupe_utilisateur = :id_groupe_utilisateur AND id_traitement = :id_traitement";
+        $declaration = $this->db->prepare($sql);
+        $declaration->bindParam(':id_groupe_utilisateur', $idGroupeUtilisateur, PDO::PARAM_INT);
+        $declaration->bindParam(':id_traitement', $idTraitement, PDO::PARAM_INT);
+        $declaration->execute();
+        $resultat = $declaration->fetch(PDO::FETCH_ASSOC);
+        return $resultat ?: null;
+    }
+
+    public function supprimerParCleComposite(int $idGroupeUtilisateur, int $idTraitement): bool
+    {
+        $sql = "DELETE FROM {$this->table} WHERE id_groupe_utilisateur = :id_groupe_utilisateur AND id_traitement = :id_traitement";
+        $declaration = $this->db->prepare($sql);
+        $declaration->bindParam(':id_groupe_utilisateur', $idGroupeUtilisateur, PDO::PARAM_INT);
+        $declaration->bindParam(':id_traitement', $idTraitement, PDO::PARAM_INT);
+        return $declaration->execute();
+    }
+
+    public function trouverTraitementsParIdGroupe(int $idGroupeUtilisateur, array $colonnes = ['id_traitement']): array
+    {
+        $listeColonnes = implode(', ', $colonnes);
+        $sql = "SELECT {$listeColonnes} FROM {$this->table} WHERE id_groupe_utilisateur = :id_groupe_utilisateur";
+        $declaration = $this->db->prepare($sql);
+        $declaration->bindParam(':id_groupe_utilisateur', $idGroupeUtilisateur, PDO::PARAM_INT);
+        $declaration->execute();
+        return $declaration->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
 }

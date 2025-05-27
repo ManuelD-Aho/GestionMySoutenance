@@ -2,12 +2,10 @@
 
 namespace Backend\Model;
 
-use Backend\Model\BaseModel;
+use PDO;
 
-class Notification extends BaseModel {
-
+class Notification extends BaseModel
+{
     protected string $table = 'notification';
-    protected string $primaryKey = 'id_notification';
-
-    // Constructor and basic CRUD methods are inherited from BaseModel.
+    protected string $clePrimaire = 'id_notification';
 }
