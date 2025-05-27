@@ -3,6 +3,7 @@
 namespace App\Backend\Model;
 
 use PDO;
+use App\Backend\Model\BaseModel;
 
 class Acquerir extends BaseModel
 {

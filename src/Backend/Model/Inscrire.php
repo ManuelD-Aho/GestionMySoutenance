@@ -1,7 +1,5 @@
 <?php
-
-namespace Backend\Model;
-
+namespace App\Backend\Model;
 use PDO;
 
 class Inscrire extends BaseModel

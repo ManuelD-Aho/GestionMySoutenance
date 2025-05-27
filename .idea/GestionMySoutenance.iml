@@ -2,14 +2,20 @@
 <module type="WEB_MODULE" version="4">
   <component name="NewModuleRootManager">
     <content url="file://$MODULE_DIR$">
-      <sourceFolder url="file://$MODULE_DIR$/src/Backend" isTestSource="false" packagePrefix="Backend\" />
-      <sourceFolder url="file://$MODULE_DIR$/src/Frontend" isTestSource="false" packagePrefix="Frontend\" />
-      <sourceFolder url="file://$MODULE_DIR$/src/Service" isTestSource="false" packagePrefix="Service\" />
-      <sourceFolder url="file://$MODULE_DIR$/src/Util" isTestSource="false" packagePrefix="Util\" />
-      <sourceFolder url="file://$MODULE_DIR$/src/Config" isTestSource="false" packagePrefix="Config\" />
+      <sourceFolder url="file://$MODULE_DIR$/src/Config" isTestSource="false" packagePrefix="App\Config\" />
       <sourceFolder url="file://$MODULE_DIR$/src" isTestSource="false" packagePrefix="App\" />
       <sourceFolder url="file://$MODULE_DIR$/spec" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/tests" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/src/Backend/Controller" isTestSource="false" packagePrefix="App\Backend\Controller\" />
+      <sourceFolder url="file://$MODULE_DIR$/src/Backend/Controller/Administration" isTestSource="false" packagePrefix="App\Backend\Controller\Administration\" />
+      <sourceFolder url="file://$MODULE_DIR$/src/Backend/Controller/Commission" isTestSource="false" packagePrefix="App\Backend\Controller\Commission\" />
+      <sourceFolder url="file://$MODULE_DIR$/src/Backend/Controller/Common" isTestSource="false" packagePrefix="App\Backend\Controller\Common\" />
+      <sourceFolder url="file://$MODULE_DIR$/src/Backend/Controller/Etudiant" isTestSource="false" packagePrefix="App\Backend\Controller\Etudiant\" />
+      <sourceFolder url="file://$MODULE_DIR$/src/Backend/Controller/PersonnelAdministratif" isTestSource="false" packagePrefix="App\Backend\Controller\PersonnelAdministratif\" />
+      <sourceFolder url="file://$MODULE_DIR$/src/Backend/Model" isTestSource="false" packagePrefix="App\Backend\Model\" />
+      <sourceFolder url="file://$MODULE_DIR$/src/Backend/Service" isTestSource="false" packagePrefix="App\Backend\Service\" />
+      <sourceFolder url="file://$MODULE_DIR$/src/Backend/Util" isTestSource="false" packagePrefix="App\Backend\Util\" />
+      <sourceFolder url="file://$MODULE_DIR$/src/Frontend/views" isTestSource="false" packagePrefix="App\Frontend\View\" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/composer" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/graham-campbell/result-type" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/nikic/fast-route" />
@@ -18,6 +24,7 @@
       <excludeFolder url="file://$MODULE_DIR$/vendor/symfony/polyfill-mbstring" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/symfony/polyfill-php80" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/vlucas/phpdotenv" />
+      <excludeFolder url="file://$MODULE_DIR$/vendor/phpmailer/phpmailer" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />

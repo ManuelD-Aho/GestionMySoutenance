@@ -1,14 +1,15 @@
 <?php
 
-namespace Backend\Model;
+namespace App\Backend\Model;
 
 use PDO;
+use App\Backend\Model\BaseModel;
 
 class PvSessionRapport extends BaseModel
 {
     protected string $table = 'pv_session_rapport';
 
-    public function trouverParCleComposite(int $idCompteRendu, int $idRapportEtudiant, array $colonnes = ['*']): ?array
+    public function trouverLiaisonPvSessionRapportParCles(int $idCompteRendu, int $idRapportEtudiant, array $colonnes = ['*']): ?array
     {
         $listeColonnes = implode(', ', $colonnes);
         $sql = "SELECT {$listeColonnes} FROM {$this->table} WHERE id_compte_rendu = :id_compte_rendu AND id_rapport_etudiant = :id_rapport_etudiant";
@@ -20,7 +21,7 @@ class PvSessionRapport extends BaseModel
         return $resultat ?: null;
     }
 
-    public function supprimerParCleComposite(int $idCompteRendu, int $idRapportEtudiant): bool
+    public function supprimerLiaisonPvSessionRapportParCles(int $idCompteRendu, int $idRapportEtudiant): bool
     {
         $sql = "DELETE FROM {$this->table} WHERE id_compte_rendu = :id_compte_rendu AND id_rapport_etudiant = :id_rapport_etudiant";
         $declaration = $this->db->prepare($sql);

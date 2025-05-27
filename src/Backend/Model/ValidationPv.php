@@ -1,14 +1,15 @@
 <?php
 
-namespace Backend\Model;
+namespace App\Backend\Model;
 
 use PDO;
+use App\Backend\Model\BaseModel;
 
 class ValidationPv extends BaseModel
 {
     protected string $table = 'validation_pv';
 
-    public function trouverParCleComposite(int $idCompteRendu, string $numeroEnseignant, array $colonnes = ['*']): ?array
+    public function trouverValidationPvParCles(int $idCompteRendu, string $numeroEnseignant, array $colonnes = ['*']): ?array
     {
         $listeColonnes = implode(', ', $colonnes);
         $sql = "SELECT {$listeColonnes} FROM {$this->table} WHERE id_compte_rendu = :id_compte_rendu AND numero_enseignant = :numero_enseignant";
@@ -20,7 +21,7 @@ class ValidationPv extends BaseModel
         return $resultat ?: null;
     }
 
-    public function mettreAJourParCleComposite(int $idCompteRendu, string $numeroEnseignant, array $donnees): bool
+    public function mettreAJourValidationPvParCles(int $idCompteRendu, string $numeroEnseignant, array $donnees): bool
     {
         if (empty($donnees)) {
             return false;
@@ -40,7 +41,7 @@ class ValidationPv extends BaseModel
         return $declaration->execute($parametres);
     }
 
-    public function supprimerParCleComposite(int $idCompteRendu, string $numeroEnseignant): bool
+    public function supprimerValidationPvParCles(int $idCompteRendu, string $numeroEnseignant): bool
     {
         $sql = "DELETE FROM {$this->table} WHERE id_compte_rendu = :id_compte_rendu AND numero_enseignant = :numero_enseignant";
         $declaration = $this->db->prepare($sql);

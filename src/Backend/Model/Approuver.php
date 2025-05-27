@@ -1,12 +1,15 @@
 <?php
+
 namespace App\Backend\Model;
+
 use PDO;
+use App\Backend\Model\BaseModel;
 
 class Approuver extends BaseModel
 {
     protected string $table = 'approuver';
 
-    public function trouverParCleComposite(string $numeroPersonnelAdministratif, int $idRapportEtudiant, array $colonnes = ['*']): ?array
+    public function trouverApprobationParCles(string $numeroPersonnelAdministratif, int $idRapportEtudiant, array $colonnes = ['*']): ?array
     {
         $listeColonnes = implode(', ', $colonnes);
         $sql = "SELECT {$listeColonnes} FROM {$this->table} WHERE numero_personnel_administratif = :numero_personnel_administratif AND id_rapport_etudiant = :id_rapport_etudiant";
@@ -18,7 +21,7 @@ class Approuver extends BaseModel
         return $resultat ?: null;
     }
 
-    public function mettreAJourParCleComposite(string $numeroPersonnelAdministratif, int $idRapportEtudiant, array $donnees): bool
+    public function mettreAJourApprobationParCles(string $numeroPersonnelAdministratif, int $idRapportEtudiant, array $donnees): bool
     {
         if (empty($donnees)) {
             return false;
@@ -38,7 +41,7 @@ class Approuver extends BaseModel
         return $declaration->execute($parametres);
     }
 
-    public function supprimerParCleComposite(string $numeroPersonnelAdministratif, int $idRapportEtudiant): bool
+    public function supprimerApprobationParCles(string $numeroPersonnelAdministratif, int $idRapportEtudiant): bool
     {
         $sql = "DELETE FROM {$this->table} WHERE numero_personnel_administratif = :numero_personnel_administratif AND id_rapport_etudiant = :id_rapport_etudiant";
         $declaration = $this->db->prepare($sql);

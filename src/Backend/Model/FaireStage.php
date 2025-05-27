@@ -1,14 +1,15 @@
 <?php
 
-namespace Backend\Model;
+namespace App\Backend\Model;
 
 use PDO;
+use App\Backend\Model\BaseModel;
 
 class FaireStage extends BaseModel
 {
     protected string $table = 'faire_stage';
 
-    public function trouverParCleComposite(int $idEntreprise, string $numeroCarteEtudiant, array $colonnes = ['*']): ?array
+    public function trouverStageParCles(int $idEntreprise, string $numeroCarteEtudiant, array $colonnes = ['*']): ?array
     {
         $listeColonnes = implode(', ', $colonnes);
         $sql = "SELECT {$listeColonnes} FROM {$this->table} WHERE id_entreprise = :id_entreprise AND numero_carte_etudiant = :numero_carte_etudiant";
@@ -20,7 +21,7 @@ class FaireStage extends BaseModel
         return $resultat ?: null;
     }
 
-    public function mettreAJourParCleComposite(int $idEntreprise, string $numeroCarteEtudiant, array $donnees): bool
+    public function mettreAJourStageParCles(int $idEntreprise, string $numeroCarteEtudiant, array $donnees): bool
     {
         if (empty($donnees)) {
             return false;
@@ -40,7 +41,7 @@ class FaireStage extends BaseModel
         return $declaration->execute($parametres);
     }
 
-    public function supprimerParCleComposite(int $idEntreprise, string $numeroCarteEtudiant): bool
+    public function supprimerStageParCles(int $idEntreprise, string $numeroCarteEtudiant): bool
     {
         $sql = "DELETE FROM {$this->table} WHERE id_entreprise = :id_entreprise AND numero_carte_etudiant = :numero_carte_etudiant";
         $declaration = $this->db->prepare($sql);

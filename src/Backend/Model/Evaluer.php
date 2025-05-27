@@ -1,14 +1,15 @@
 <?php
 
-namespace Backend\Model;
+namespace App\Backend\Model;
 
 use PDO;
+use App\Backend\Model\BaseModel;
 
 class Evaluer extends BaseModel
 {
     protected string $table = 'evaluer';
 
-    public function trouverParCleComposite(string $numeroCarteEtudiant, string $numeroEnseignant, int $idEcue, array $colonnes = ['*']): ?array
+    public function trouverEvaluationParCles(string $numeroCarteEtudiant, string $numeroEnseignant, int $idEcue, array $colonnes = ['*']): ?array
     {
         $listeColonnes = implode(', ', $colonnes);
         $sql = "SELECT {$listeColonnes} FROM {$this->table} WHERE numero_carte_etudiant = :numero_carte_etudiant AND numero_enseignant = :numero_enseignant AND id_ecue = :id_ecue";
@@ -21,7 +22,7 @@ class Evaluer extends BaseModel
         return $resultat ?: null;
     }
 
-    public function mettreAJourParCleComposite(string $numeroCarteEtudiant, string $numeroEnseignant, int $idEcue, array $donnees): bool
+    public function mettreAJourEvaluationParCles(string $numeroCarteEtudiant, string $numeroEnseignant, int $idEcue, array $donnees): bool
     {
         if (empty($donnees)) {
             return false;
@@ -42,7 +43,7 @@ class Evaluer extends BaseModel
         return $declaration->execute($parametres);
     }
 
-    public function supprimerParCleComposite(string $numeroCarteEtudiant, string $numeroEnseignant, int $idEcue): bool
+    public function supprimerEvaluationParCles(string $numeroCarteEtudiant, string $numeroEnseignant, int $idEcue): bool
     {
         $sql = "DELETE FROM {$this->table} WHERE numero_carte_etudiant = :numero_carte_etudiant AND numero_enseignant = :numero_enseignant AND id_ecue = :id_ecue";
         $declaration = $this->db->prepare($sql);

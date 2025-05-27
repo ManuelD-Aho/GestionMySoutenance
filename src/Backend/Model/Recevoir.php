@@ -1,14 +1,15 @@
 <?php
 
-namespace Backend\Model;
+namespace App\Backend\Model;
 
 use PDO;
+use App\Backend\Model\BaseModel;
 
 class Recevoir extends BaseModel
 {
     protected string $table = 'recevoir';
 
-    public function trouverParCleComposite(string $numeroUtilisateur, int $idNotification, string $dateReception, array $colonnes = ['*']): ?array
+    public function trouverReceptionParCles(string $numeroUtilisateur, int $idNotification, string $dateReception, array $colonnes = ['*']): ?array
     {
         $listeColonnes = implode(', ', $colonnes);
         $sql = "SELECT {$listeColonnes} FROM {$this->table} WHERE numero_utilisateur = :numero_utilisateur AND id_notification = :id_notification AND date_reception = :date_reception";
@@ -21,7 +22,7 @@ class Recevoir extends BaseModel
         return $resultat ?: null;
     }
 
-    public function mettreAJourParCleComposite(string $numeroUtilisateur, int $idNotification, string $dateReception, array $donnees): bool
+    public function mettreAJourReceptionParCles(string $numeroUtilisateur, int $idNotification, string $dateReception, array $donnees): bool
     {
         if (empty($donnees)) {
             return false;
@@ -42,7 +43,7 @@ class Recevoir extends BaseModel
         return $declaration->execute($parametres);
     }
 
-    public function supprimerParCleComposite(string $numeroUtilisateur, int $idNotification, string $dateReception): bool
+    public function supprimerReceptionParCles(string $numeroUtilisateur, int $idNotification, string $dateReception): bool
     {
         $sql = "DELETE FROM {$this->table} WHERE numero_utilisateur = :numero_utilisateur AND id_notification = :id_notification AND date_reception = :date_reception";
         $declaration = $this->db->prepare($sql);

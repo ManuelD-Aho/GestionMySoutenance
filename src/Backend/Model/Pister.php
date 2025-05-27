@@ -1,14 +1,15 @@
 <?php
 
-namespace Backend\Model;
+namespace App\Backend\Model;
 
 use PDO;
+use App\Backend\Model\BaseModel;
 
 class Pister extends BaseModel
 {
     protected string $table = 'pister';
 
-    public function trouverParCleComposite(string $numeroUtilisateur, int $idTraitement, string $datePister, array $colonnes = ['*']): ?array
+    public function trouverPisteParCles(string $numeroUtilisateur, int $idTraitement, string $datePister, array $colonnes = ['*']): ?array
     {
         $listeColonnes = implode(', ', $colonnes);
         $sql = "SELECT {$listeColonnes} FROM {$this->table} WHERE numero_utilisateur = :numero_utilisateur AND id_traitement = :id_traitement AND date_pister = :date_pister";
@@ -21,7 +22,7 @@ class Pister extends BaseModel
         return $resultat ?: null;
     }
 
-    public function mettreAJourParCleComposite(string $numeroUtilisateur, int $idTraitement, string $datePister, array $donnees): bool
+    public function mettreAJourPisteParCles(string $numeroUtilisateur, int $idTraitement, string $datePister, array $donnees): bool
     {
         if (empty($donnees)) {
             return false;
@@ -42,7 +43,7 @@ class Pister extends BaseModel
         return $declaration->execute($parametres);
     }
 
-    public function supprimerParCleComposite(string $numeroUtilisateur, int $idTraitement, string $datePister): bool
+    public function supprimerPisteParCles(string $numeroUtilisateur, int $idTraitement, string $datePister): bool
     {
         $sql = "DELETE FROM {$this->table} WHERE numero_utilisateur = :numero_utilisateur AND id_traitement = :id_traitement AND date_pister = :date_pister";
         $declaration = $this->db->prepare($sql);

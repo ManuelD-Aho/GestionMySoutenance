@@ -1,14 +1,15 @@
 <?php
 
-namespace Backend\Model;
+namespace App\Backend\Model;
 
 use PDO;
+use App\Backend\Model\BaseModel;
 
 class Enregistrer extends BaseModel
 {
     protected string $table = 'enregistrer';
 
-    public function trouverParCleComposite(string $numeroUtilisateur, int $idAction, string $dateAction, array $colonnes = ['*']): ?array
+    public function trouverEnregistrementParCles(string $numeroUtilisateur, int $idAction, string $dateAction, array $colonnes = ['*']): ?array
     {
         $listeColonnes = implode(', ', $colonnes);
         $sql = "SELECT {$listeColonnes} FROM {$this->table} WHERE numero_utilisateur = :numero_utilisateur AND id_action = :id_action AND date_action = :date_action";
@@ -21,7 +22,7 @@ class Enregistrer extends BaseModel
         return $resultat ?: null;
     }
 
-    public function mettreAJourParCleComposite(string $numeroUtilisateur, int $idAction, string $dateAction, array $donnees): bool
+    public function mettreAJourEnregistrementParCles(string $numeroUtilisateur, int $idAction, string $dateAction, array $donnees): bool
     {
         if (empty($donnees)) {
             return false;
@@ -42,7 +43,7 @@ class Enregistrer extends BaseModel
         return $declaration->execute($parametres);
     }
 
-    public function supprimerParCleComposite(string $numeroUtilisateur, int $idAction, string $dateAction): bool
+    public function supprimerEnregistrementParCles(string $numeroUtilisateur, int $idAction, string $dateAction): bool
     {
         $sql = "DELETE FROM {$this->table} WHERE numero_utilisateur = :numero_utilisateur AND id_action = :id_action AND date_action = :date_action";
         $declaration = $this->db->prepare($sql);

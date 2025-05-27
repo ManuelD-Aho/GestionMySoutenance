@@ -1,14 +1,15 @@
 <?php
 
-namespace Backend\Model;
+namespace App\Backend\Model;
 
 use PDO;
+use App\Backend\Model\BaseModel;
 
 class ParticipantConversation extends BaseModel
 {
     protected string $table = 'participant_conversation';
 
-    public function trouverParCleComposite(int $idConversation, string $numeroUtilisateur, array $colonnes = ['*']): ?array
+    public function trouverParticipantParCles(int $idConversation, string $numeroUtilisateur, array $colonnes = ['*']): ?array
     {
         $listeColonnes = implode(', ', $colonnes);
         $sql = "SELECT {$listeColonnes} FROM {$this->table} WHERE id_conversation = :id_conversation AND numero_utilisateur = :numero_utilisateur";
@@ -20,7 +21,7 @@ class ParticipantConversation extends BaseModel
         return $resultat ?: null;
     }
 
-    public function supprimerParCleComposite(int $idConversation, string $numeroUtilisateur): bool
+    public function supprimerParticipantParCles(int $idConversation, string $numeroUtilisateur): bool
     {
         $sql = "DELETE FROM {$this->table} WHERE id_conversation = :id_conversation AND numero_utilisateur = :numero_utilisateur";
         $declaration = $this->db->prepare($sql);

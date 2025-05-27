@@ -1,14 +1,15 @@
 <?php
 
-namespace Backend\Model;
+namespace App\Backend\Model;
 
 use PDO;
+use App\Backend\Model\BaseModel;
 
 class Occuper extends BaseModel
 {
     protected string $table = 'occuper';
 
-    public function trouverParCleComposite(int $idFonction, string $numeroEnseignant, array $colonnes = ['*']): ?array
+    public function trouverOccupationParCles(int $idFonction, string $numeroEnseignant, array $colonnes = ['*']): ?array
     {
         $listeColonnes = implode(', ', $colonnes);
         $sql = "SELECT {$listeColonnes} FROM {$this->table} WHERE id_fonction = :id_fonction AND numero_enseignant = :numero_enseignant";
@@ -20,7 +21,7 @@ class Occuper extends BaseModel
         return $resultat ?: null;
     }
 
-    public function mettreAJourParCleComposite(int $idFonction, string $numeroEnseignant, array $donnees): bool
+    public function mettreAJourOccupationParCles(int $idFonction, string $numeroEnseignant, array $donnees): bool
     {
         if (empty($donnees)) {
             return false;
@@ -40,7 +41,7 @@ class Occuper extends BaseModel
         return $declaration->execute($parametres);
     }
 
-    public function supprimerParCleComposite(int $idFonction, string $numeroEnseignant): bool
+    public function supprimerOccupationParCles(int $idFonction, string $numeroEnseignant): bool
     {
         $sql = "DELETE FROM {$this->table} WHERE id_fonction = :id_fonction AND numero_enseignant = :numero_enseignant";
         $declaration = $this->db->prepare($sql);

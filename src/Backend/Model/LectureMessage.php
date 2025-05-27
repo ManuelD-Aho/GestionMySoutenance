@@ -1,14 +1,15 @@
 <?php
 
-namespace Backend\Model;
+namespace App\Backend\Model;
 
 use PDO;
+use App\Backend\Model\BaseModel;
 
 class LectureMessage extends BaseModel
 {
     protected string $table = 'lecture_message';
 
-    public function trouverParCleComposite(int $idMessageChat, string $numeroUtilisateur, array $colonnes = ['*']): ?array
+    public function trouverLectureParCles(int $idMessageChat, string $numeroUtilisateur, array $colonnes = ['*']): ?array
     {
         $listeColonnes = implode(', ', $colonnes);
         $sql = "SELECT {$listeColonnes} FROM {$this->table} WHERE id_message_chat = :id_message_chat AND numero_utilisateur = :numero_utilisateur";
@@ -20,7 +21,7 @@ class LectureMessage extends BaseModel
         return $resultat ?: null;
     }
 
-    public function mettreAJourParCleComposite(int $idMessageChat, string $numeroUtilisateur, array $donnees): bool
+    public function mettreAJourLectureParCles(int $idMessageChat, string $numeroUtilisateur, array $donnees): bool
     {
         if (empty($donnees)) {
             return false;
@@ -40,7 +41,7 @@ class LectureMessage extends BaseModel
         return $declaration->execute($parametres);
     }
 
-    public function supprimerParCleComposite(int $idMessageChat, string $numeroUtilisateur): bool
+    public function supprimerLectureParCles(int $idMessageChat, string $numeroUtilisateur): bool
     {
         $sql = "DELETE FROM {$this->table} WHERE id_message_chat = :id_message_chat AND numero_utilisateur = :numero_utilisateur";
         $declaration = $this->db->prepare($sql);

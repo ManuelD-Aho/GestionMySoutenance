@@ -1,13 +1,15 @@
 <?php
 
 namespace App\Backend\Model;
+
 use PDO;
+use App\Backend\Model\BaseModel;
 
 class Attribuer extends BaseModel
 {
     protected string $table = 'attribuer';
 
-    public function trouverParCleComposite(string $numeroEnseignant, int $idSpecialite, array $colonnes = ['*']): ?array
+    public function trouverAttributionParCles(string $numeroEnseignant, int $idSpecialite, array $colonnes = ['*']): ?array
     {
         $listeColonnes = implode(', ', $colonnes);
         $sql = "SELECT {$listeColonnes} FROM {$this->table} WHERE numero_enseignant = :numero_enseignant AND id_specialite = :id_specialite";
@@ -19,7 +21,7 @@ class Attribuer extends BaseModel
         return $resultat ?: null;
     }
 
-    public function mettreAJourParCleComposite(string $numeroEnseignant, int $idSpecialite, array $donnees): bool
+    public function mettreAJourAttributionParCles(string $numeroEnseignant, int $idSpecialite, array $donnees): bool
     {
         if (empty($donnees)) {
             return false;
@@ -39,7 +41,7 @@ class Attribuer extends BaseModel
         return $declaration->execute($parametres);
     }
 
-    public function supprimerParCleComposite(string $numeroEnseignant, int $idSpecialite): bool
+    public function supprimerAttributionParCles(string $numeroEnseignant, int $idSpecialite): bool
     {
         $sql = "DELETE FROM {$this->table} WHERE numero_enseignant = :numero_enseignant AND id_specialite = :id_specialite";
         $declaration = $this->db->prepare($sql);

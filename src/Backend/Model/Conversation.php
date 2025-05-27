@@ -1,8 +1,9 @@
 <?php
 
 namespace App\Backend\Model;
-use App\Backend\Model\BaseModel;
+
 use PDO;
+use App\Backend\Model\BaseModel;
 
 class Conversation extends BaseModel
 {

@@ -1,6 +1,7 @@
 <?php
 
 namespace App\Backend\Model;
+
 use PDO;
 use PDOStatement;
 use PDOException;

@@ -1,13 +1,15 @@
 <?php
 
 namespace App\Backend\Model;
+
 use PDO;
+use App\Backend\Model\BaseModel;
 
 class Affecter extends BaseModel
 {
     protected string $table = 'affecter';
 
-    public function trouverParCleComposite(string $numeroEnseignant, int $idRapportEtudiant, int $idStatutJury, array $colonnes = ['*']): ?array
+    public function trouverAffectationParCles(string $numeroEnseignant, int $idRapportEtudiant, int $idStatutJury, array $colonnes = ['*']): ?array
     {
         $listeColonnes = implode(', ', $colonnes);
         $sql = "SELECT {$listeColonnes} FROM {$this->table} WHERE numero_enseignant = :numero_enseignant AND id_rapport_etudiant = :id_rapport_etudiant AND id_statut_jury = :id_statut_jury";
@@ -20,7 +22,7 @@ class Affecter extends BaseModel
         return $resultat ?: null;
     }
 
-    public function mettreAJourParCleComposite(string $numeroEnseignant, int $idRapportEtudiant, int $idStatutJury, array $donnees): bool
+    public function mettreAJourAffectationParCles(string $numeroEnseignant, int $idRapportEtudiant, int $idStatutJury, array $donnees): bool
     {
         if (empty($donnees)) {
             return false;
@@ -41,7 +43,7 @@ class Affecter extends BaseModel
         return $declaration->execute($parametres);
     }
 
-    public function supprimerParCleComposite(string $numeroEnseignant, int $idRapportEtudiant, int $idStatutJury): bool
+    public function supprimerAffectationParCles(string $numeroEnseignant, int $idRapportEtudiant, int $idStatutJury): bool
     {
         $sql = "DELETE FROM {$this->table} WHERE numero_enseignant = :numero_enseignant AND id_rapport_etudiant = :id_rapport_etudiant AND id_statut_jury = :id_statut_jury";
         $declaration = $this->db->prepare($sql);
