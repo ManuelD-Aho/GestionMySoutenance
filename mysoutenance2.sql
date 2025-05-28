@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Hôte : db:3306
--- Généré le : lun. 26 mai 2025 à 09:49
+-- Généré le : mer. 28 mai 2025 à 01:35
 -- Version du serveur : 8.3.0
 -- Version de PHP : 8.2.27
 
@@ -397,6 +397,19 @@ INSERT INTO `groupe_utilisateur` (`id_groupe_utilisateur`, `lib_groupe_utilisate
                                                                                                                (3, 'Personnel_Admin', 'Groupe pour le personnel administratif'),
                                                                                                                (4, 'Enseignants', 'Groupe pour tous les enseignants'),
                                                                                                                (5, 'Commission_Membres', 'Groupe pour les membres de la commission');
+
+-- --------------------------------------------------------
+
+--
+-- Structure de la table `historique_mot_de_passe`
+--
+
+CREATE TABLE `historique_mot_de_passe` (
+                                           `id_historique_mdp` int NOT NULL,
+                                           `numero_utilisateur` varchar(50) COLLATE utf8mb4_general_ci NOT NULL,
+                                           `mot_de_passe_hache` varchar(255) COLLATE utf8mb4_general_ci NOT NULL,
+                                           `date_changement` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -875,9 +888,20 @@ CREATE TABLE `ue` (
 CREATE TABLE `utilisateur` (
                                `numero_utilisateur` varchar(50) COLLATE utf8mb4_general_ci NOT NULL,
                                `login_utilisateur` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+                               `email_principal` varchar(255) COLLATE utf8mb4_general_ci DEFAULT NULL,
                                `mot_de_passe` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
                                `date_creation` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                               `derniere_connexion` datetime DEFAULT NULL,
+                               `token_reset_mdp` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL,
+                               `date_expiration_token_reset` datetime DEFAULT NULL,
+                               `token_validation_email` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL,
+                               `email_valide` tinyint(1) NOT NULL DEFAULT '0',
+                               `tentatives_connexion_echouees` int UNSIGNED NOT NULL DEFAULT '0',
+                               `compte_bloque_jusqua` datetime DEFAULT NULL,
+                               `preferences_2fa_active` tinyint(1) NOT NULL DEFAULT '0',
+                               `secret_2fa` varchar(255) COLLATE utf8mb4_general_ci DEFAULT NULL,
                                `photo_profil` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
+                               `statut_compte` enum('actif','inactif','bloque','en_attente_validation','archive') COLLATE utf8mb4_general_ci NOT NULL DEFAULT 'en_attente_validation',
                                `actif` tinyint(1) NOT NULL DEFAULT '1',
                                `id_niveau_acces_donne` int NOT NULL,
                                `id_groupe_utilisateur` int NOT NULL,
@@ -888,8 +912,8 @@ CREATE TABLE `utilisateur` (
 -- Déchargement des données de la table `utilisateur`
 --
 
-INSERT INTO `utilisateur` (`numero_utilisateur`, `login_utilisateur`, `mot_de_passe`, `date_creation`, `photo_profil`, `actif`, `id_niveau_acces_donne`, `id_groupe_utilisateur`, `id_type_utilisateur`) VALUES
-    ('USER_ADMIN_001', 'Admin', 'admin111', '2025-05-14 22:53:29', NULL, 1, 1, 1, 1);
+INSERT INTO `utilisateur` (`numero_utilisateur`, `login_utilisateur`, `email_principal`, `mot_de_passe`, `date_creation`, `derniere_connexion`, `token_reset_mdp`, `date_expiration_token_reset`, `token_validation_email`, `email_valide`, `tentatives_connexion_echouees`, `compte_bloque_jusqua`, `preferences_2fa_active`, `secret_2fa`, `photo_profil`, `statut_compte`, `actif`, `id_niveau_acces_donne`, `id_groupe_utilisateur`, `id_type_utilisateur`) VALUES
+    ('USER_ADMIN_001', 'Admin', NULL, 'admin111', '2025-05-14 22:53:29', NULL, NULL, NULL, NULL, 0, 0, NULL, 0, NULL, NULL, 'en_attente_validation', 1, 1, 1, 1);
 
 -- --------------------------------------------------------
 
@@ -1097,6 +1121,13 @@ ALTER TABLE `groupe_utilisateur`
     ADD PRIMARY KEY (`id_groupe_utilisateur`);
 
 --
+-- Index pour la table `historique_mot_de_passe`
+--
+ALTER TABLE `historique_mot_de_passe`
+    ADD PRIMARY KEY (`id_historique_mdp`),
+  ADD KEY `idx_hist_user_mdp` (`numero_utilisateur`);
+
+--
 -- Index pour la table `inscrire`
 --
 ALTER TABLE `inscrire`
@@ -1301,9 +1332,13 @@ ALTER TABLE `ue`
 ALTER TABLE `utilisateur`
     ADD PRIMARY KEY (`numero_utilisateur`),
   ADD UNIQUE KEY `uq_utilisateur_login` (`login_utilisateur`),
+  ADD UNIQUE KEY `email_principal` (`email_principal`),
   ADD KEY `idx_utilisateur_niveau_acces` (`id_niveau_acces_donne`),
   ADD KEY `idx_utilisateur_groupe` (`id_groupe_utilisateur`),
-  ADD KEY `idx_utilisateur_type` (`id_type_utilisateur`);
+  ADD KEY `idx_utilisateur_type` (`id_type_utilisateur`),
+  ADD KEY `idx_email_principal` (`email_principal`),
+  ADD KEY `idx_token_reset_mdp` (`token_reset_mdp`),
+  ADD KEY `idx_token_validation_email` (`token_validation_email`);
 
 --
 -- Index pour la table `validation_pv`
@@ -1404,6 +1439,12 @@ ALTER TABLE `grade`
 --
 ALTER TABLE `groupe_utilisateur`
     MODIFY `id_groupe_utilisateur` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+
+--
+-- AUTO_INCREMENT pour la table `historique_mot_de_passe`
+--
+ALTER TABLE `historique_mot_de_passe`
+    MODIFY `id_historique_mdp` int NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT pour la table `message`
@@ -1621,6 +1662,12 @@ ALTER TABLE `evaluer`
 ALTER TABLE `faire_stage`
     ADD CONSTRAINT `fk_faire_stage_entreprise` FOREIGN KEY (`id_entreprise`) REFERENCES `entreprise` (`id_entreprise`) ON DELETE RESTRICT ON UPDATE CASCADE,
   ADD CONSTRAINT `fk_faire_stage_etudiant` FOREIGN KEY (`numero_carte_etudiant`) REFERENCES `etudiant` (`numero_carte_etudiant`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+--
+-- Contraintes pour la table `historique_mot_de_passe`
+--
+ALTER TABLE `historique_mot_de_passe`
+    ADD CONSTRAINT `fk_hist_utilisateur_mdp` FOREIGN KEY (`numero_utilisateur`) REFERENCES `utilisateur` (`numero_utilisateur`) ON DELETE CASCADE;
 
 --
 -- Contraintes pour la table `inscrire`
