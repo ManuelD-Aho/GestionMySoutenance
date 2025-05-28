@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Hôte : db:3306
--- Généré le : mer. 28 mai 2025 à 01:35
+-- Généré le : mer. 28 mai 2025 à 02:01
 -- Version du serveur : 8.3.0
 -- Version de PHP : 8.2.27
 
@@ -384,19 +384,20 @@ CREATE TABLE `grade` (
 CREATE TABLE `groupe_utilisateur` (
                                       `id_groupe_utilisateur` int NOT NULL,
                                       `lib_groupe_utilisateur` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
-                                      `description_groupe` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+                                      `description_groupe_utilisateur` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci,
+                                      `code_groupe_utilisateur` varchar(50) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT 'Code unique optionnel pour référence programmatique du groupe'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Déchargement des données de la table `groupe_utilisateur`
 --
 
-INSERT INTO `groupe_utilisateur` (`id_groupe_utilisateur`, `lib_groupe_utilisateur`, `description_groupe`) VALUES
-                                                                                                               (1, 'Adminstrateur_systeme', NULL),
-                                                                                                               (2, 'Etudiants', 'Groupe pour tous les étudiants'),
-                                                                                                               (3, 'Personnel_Admin', 'Groupe pour le personnel administratif'),
-                                                                                                               (4, 'Enseignants', 'Groupe pour tous les enseignants'),
-                                                                                                               (5, 'Commission_Membres', 'Groupe pour les membres de la commission');
+INSERT INTO `groupe_utilisateur` (`id_groupe_utilisateur`, `lib_groupe_utilisateur`, `description_groupe_utilisateur`, `code_groupe_utilisateur`) VALUES
+                                                                                                                                                      (1, 'Adminstrateur_systeme', NULL, NULL),
+                                                                                                                                                      (2, 'Etudiants', 'Groupe pour tous les étudiants', NULL),
+                                                                                                                                                      (3, 'Personnel_Admin', 'Groupe pour le personnel administratif', NULL),
+                                                                                                                                                      (4, 'Enseignants', 'Groupe pour tous les enseignants', NULL),
+                                                                                                                                                      (5, 'Commission_Membres', 'Groupe pour les membres de la commission', NULL);
 
 -- --------------------------------------------------------
 
@@ -478,16 +479,17 @@ CREATE TABLE `message_chat` (
 CREATE TABLE `niveau_acces_donne` (
                                       `id_niveau_acces_donne` int NOT NULL,
                                       `lib_niveau_acces_donne` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
-                                      `description_niveau_acces` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+                                      `description_niveau_acces_donne` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci,
+                                      `code_niveau_acces` varchar(50) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT 'Code unique optionnel pour référence programmatique du niveau d''accès'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Déchargement des données de la table `niveau_acces_donne`
 --
 
-INSERT INTO `niveau_acces_donne` (`id_niveau_acces_donne`, `lib_niveau_acces_donne`, `description_niveau_acces`) VALUES
-                                                                                                                     (1, 'Total', 'Accès complet'),
-                                                                                                                     (2, 'Restreint', 'Accès limité à certaines données');
+INSERT INTO `niveau_acces_donne` (`id_niveau_acces_donne`, `lib_niveau_acces_donne`, `description_niveau_acces_donne`, `code_niveau_acces`) VALUES
+                                                                                                                                                (1, 'Total', 'Accès complet', NULL),
+                                                                                                                                                (2, 'Restreint', 'Accès limité à certaines données', NULL);
 
 -- --------------------------------------------------------
 
@@ -819,7 +821,8 @@ INSERT INTO `statut_reclamation_ref` (`id_statut_reclamation`, `libelle`, `descr
 
 CREATE TABLE `traitement` (
                               `id_traitement` int NOT NULL,
-                              `lib_trait` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL
+                              `lib_trait` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+                              `code_traitement` varchar(100) COLLATE utf8mb4_general_ci NOT NULL COMMENT 'Code unique pour identifier la permission en PHP (ex: USER_CREATE, REPORT_VALIDATE)'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -853,18 +856,19 @@ INSERT INTO `type_document_ref` (`id_type_document`, `libelle`, `requis_ou_non`)
 CREATE TABLE `type_utilisateur` (
                                     `id_type_utilisateur` int NOT NULL,
                                     `lib_type_utilisateur` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
-                                    `description_type_utilisateur` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+                                    `description_type_utilisateur` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci,
+                                    `code_type_utilisateur` varchar(50) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT 'Code unique optionnel pour référence programmatique du type utilisateur'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Déchargement des données de la table `type_utilisateur`
 --
 
-INSERT INTO `type_utilisateur` (`id_type_utilisateur`, `lib_type_utilisateur`, `description_type_utilisateur`) VALUES
-                                                                                                                   (1, 'Administrateur', NULL),
-                                                                                                                   (2, 'Etudiant', NULL),
-                                                                                                                   (3, 'Personnel Administratif', NULL),
-                                                                                                                   (4, 'Enseignant', NULL);
+INSERT INTO `type_utilisateur` (`id_type_utilisateur`, `lib_type_utilisateur`, `description_type_utilisateur`, `code_type_utilisateur`) VALUES
+                                                                                                                                            (1, 'Administrateur', NULL, NULL),
+                                                                                                                                            (2, 'Etudiant', NULL, NULL),
+                                                                                                                                            (3, 'Personnel Administratif', NULL, NULL),
+                                                                                                                                            (4, 'Enseignant', NULL, NULL);
 
 -- --------------------------------------------------------
 
@@ -1118,7 +1122,9 @@ ALTER TABLE `grade`
 -- Index pour la table `groupe_utilisateur`
 --
 ALTER TABLE `groupe_utilisateur`
-    ADD PRIMARY KEY (`id_groupe_utilisateur`);
+    ADD PRIMARY KEY (`id_groupe_utilisateur`),
+  ADD UNIQUE KEY `code_groupe_utilisateur` (`code_groupe_utilisateur`),
+  ADD KEY `idx_code_groupe_utilisateur` (`code_groupe_utilisateur`);
 
 --
 -- Index pour la table `historique_mot_de_passe`
@@ -1164,7 +1170,9 @@ ALTER TABLE `message_chat`
 -- Index pour la table `niveau_acces_donne`
 --
 ALTER TABLE `niveau_acces_donne`
-    ADD PRIMARY KEY (`id_niveau_acces_donne`);
+    ADD PRIMARY KEY (`id_niveau_acces_donne`),
+  ADD UNIQUE KEY `code_niveau_acces` (`code_niveau_acces`),
+  ADD KEY `idx_code_niveau_acces` (`code_niveau_acces`);
 
 --
 -- Index pour la table `niveau_approbation`
@@ -1306,7 +1314,9 @@ ALTER TABLE `statut_reclamation_ref`
 -- Index pour la table `traitement`
 --
 ALTER TABLE `traitement`
-    ADD PRIMARY KEY (`id_traitement`);
+    ADD PRIMARY KEY (`id_traitement`),
+  ADD UNIQUE KEY `code_traitement` (`code_traitement`),
+  ADD KEY `idx_code_traitement` (`code_traitement`);
 
 --
 -- Index pour la table `type_document_ref`
@@ -1318,7 +1328,9 @@ ALTER TABLE `type_document_ref`
 -- Index pour la table `type_utilisateur`
 --
 ALTER TABLE `type_utilisateur`
-    ADD PRIMARY KEY (`id_type_utilisateur`);
+    ADD PRIMARY KEY (`id_type_utilisateur`),
+  ADD UNIQUE KEY `code_type_utilisateur` (`code_type_utilisateur`),
+  ADD KEY `idx_code_type_utilisateur` (`code_type_utilisateur`);
 
 --
 -- Index pour la table `ue`
