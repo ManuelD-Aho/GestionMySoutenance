@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Backend\Service;
+namespace App\Backend\Service\Notification;
 
 use App\Backend\Model\Notification as ModeleTypeNotification;
 use App\Backend\Model\Recevoir;

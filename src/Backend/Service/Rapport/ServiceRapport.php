@@ -1,12 +1,9 @@
 <?php
 
-namespace App\Backend\Service;
+namespace App\Backend\Service\Rapport;
 
-use App\Backend\Model\RapportEtudiant;
 use App\Backend\Model\DocumentSoumis;
-use App\Backend\Model\TypeDocumentRef;
-use App\Backend\Model\StatutRapportRef;
-use App\Backend\Model\Etudiant;
+use App\Backend\Model\RapportEtudiant;
 use PDO;
 
 class ServiceRapport

@@ -1,10 +1,10 @@
 <?php
 
-use Backend\Controller\DashboardController;
+use App\Backend\Controller\DashboardController;
 use FastRoute\RouteCollector;
-use Backend\Controller\AuthentificationController;
-use Backend\Controller\BaseController;
-use Backend\Controller\AssetController;
+use App\Backend\Controller\AuthentificationController;
+use App\Backend\Controller\BaseController;
+use App\Backend\Controller\AssetController;
 
 return function(RouteCollector $r) {
     $r->addRoute('GET', '/', [BaseController::class, 'home']);

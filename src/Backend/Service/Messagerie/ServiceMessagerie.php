@@ -1,12 +1,11 @@
 <?php
 
-namespace App\Backend\Service;
+namespace App\Backend\Service\Messagerie;
 
 use App\Backend\Model\Conversation;
-use App\Backend\Model\ParticipantConversation;
-use App\Backend\Model\MessageChat;
 use App\Backend\Model\LectureMessage;
-use App\Backend\Model\Utilisateur;
+use App\Backend\Model\MessageChat;
+use App\Backend\Model\ParticipantConversation;
 use PDO;
 
 class ServiceMessagerie

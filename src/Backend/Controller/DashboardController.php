@@ -1,6 +1,6 @@
 <?php
 // File: src/Backend/Controller/DashboardController.php
-namespace Backend\Controller;
+namespace App\Backend\Controller;
 
 use App\Backend\Model\TypeUtilisateur;
 use App\Backend\Model\Utilisateur;

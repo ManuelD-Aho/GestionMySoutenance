@@ -1,11 +1,11 @@
 <?php
 
-namespace App\Backend\Service;
+namespace App\Backend\Service\Permissions;
 
-use App\Backend\Model\Utilisateur;
+use App\Backend\Model\GroupeUtilisateur;
 use App\Backend\Model\Rattacher;
 use App\Backend\Model\Traitement;
-use App\Backend\Model\GroupeUtilisateur;
+use App\Backend\Model\Utilisateur;
 
 class ServicePermissions
 {

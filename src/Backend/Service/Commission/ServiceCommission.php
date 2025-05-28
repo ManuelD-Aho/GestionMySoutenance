@@ -1,15 +1,13 @@
 <?php
 
-namespace App\Backend\Service;
+namespace App\Backend\Service\Commission;
 
 use App\Backend\Model\Affecter;
-use App\Backend\Model\VoteCommission;
 use App\Backend\Model\CompteRendu;
-use App\Backend\Model\ValidationPv;
-use App\Backend\Model\RapportEtudiant;
 use App\Backend\Model\PvSessionRapport;
-use App\Backend\Model\StatutRapportRef;
-use App\Backend\Model\StatutPvRef;
+use App\Backend\Model\RapportEtudiant;
+use App\Backend\Model\ValidationPv;
+use App\Backend\Model\VoteCommission;
 use PDO;
 
 class ServiceCommission

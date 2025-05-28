@@ -1,23 +1,13 @@
 <?php
 
-namespace App\Backend\Service;
+namespace App\Backend\Service\GestionAcademique;
 
-use App\Backend\Model\Inscrire;
+use App\Backend\Model\Acquerir;
+use App\Backend\Model\Attribuer;
 use App\Backend\Model\Evaluer;
 use App\Backend\Model\FaireStage;
-use App\Backend\Model\Acquerir;
+use App\Backend\Model\Inscrire;
 use App\Backend\Model\Occuper;
-use App\Backend\Model\Attribuer;
-use App\Backend\Model\Etudiant;
-use App\Backend\Model\Enseignant;
-use App\Backend\Model\NiveauEtude;
-use App\Backend\Model\AnneeAcademique;
-use App\Backend\Model\Entreprise;
-use App\Backend\Model\Grade;
-use App\Backend\Model\Fonction;
-use App\Backend\Model\Specialite;
-use App\Backend\Model\Ecue;
-use PDO;
 
 class ServiceGestionAcademique
 {

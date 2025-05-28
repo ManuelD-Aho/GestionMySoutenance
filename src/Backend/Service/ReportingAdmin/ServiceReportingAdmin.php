@@ -1,11 +1,11 @@
 <?php
 
-namespace App\Backend\Service;
+namespace App\Backend\Service\ReportingAdmin;
 
-use App\Backend\Model\RapportEtudiant;
 use App\Backend\Model\AnneeAcademique;
-use App\Backend\Model\Utilisateur;
 use App\Backend\Model\Enregistrer;
+use App\Backend\Model\RapportEtudiant;
+use App\Backend\Model\Utilisateur;
 use PDO;
 
 class ServiceReportingAdmin

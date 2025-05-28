@@ -1,12 +1,11 @@
 <?php
 
-namespace App\Backend\Service;
+namespace App\Backend\Service\SupervisionAdmin;
 
-use App\Backend\Model\RapportEtudiant;
+use App\Backend\Model\CompteRendu;
 use App\Backend\Model\Enregistrer;
 use App\Backend\Model\Pister;
-use App\Backend\Model\CompteRendu;
-use App\Backend\Model\Utilisateur;
+use App\Backend\Model\RapportEtudiant;
 use PDO;
 
 class ServiceSupervisionAdmin

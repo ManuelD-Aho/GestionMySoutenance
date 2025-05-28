@@ -1,5 +1,5 @@
 <?php
-namespace Backend\Controller;
+namespace App\Backend\Controller;
 class BaseController
 {
     public function home(): void

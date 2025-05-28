@@ -1,5 +1,5 @@
 <?php
-namespace Backend\Controller;
+namespace App\Backend\Controller;
 
 class AssetController extends BaseController
 {

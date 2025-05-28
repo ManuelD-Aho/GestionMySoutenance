@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Backend\Service;
+namespace App\Backend\Service\ConfigurationSysteme;
 
 use App\Backend\Model\AnneeAcademique;
-use App\Backend\Model\TypeDocumentRef;
 use App\Backend\Model\Message as ModeleMessageTemplate;
+use App\Backend\Model\TypeDocumentRef;
 use PDO;
 
 class ServiceConfigurationSysteme

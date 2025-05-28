@@ -1,7 +1,7 @@
 <?php
 // src/Backend/Controller/AuthentificationController.php
 
-namespace Backend\Controller;
+namespace App\Backend\Controller;
 
 use Config\Database; // Assurez-vous que cette ligne est présente et correcte
 use App\Backend\Model\Utilisateur;

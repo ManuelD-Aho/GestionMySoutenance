@@ -1,12 +1,9 @@
 <?php
 
-namespace App\Backend\Service;
+namespace App\Backend\Service\Conformite;
 
 use App\Backend\Model\Approuver;
 use App\Backend\Model\RapportEtudiant;
-use App\Backend\Model\DocumentSoumis;
-use App\Backend\Model\StatutRapportRef;
-use App\Backend\Model\StatutConformiteRef;
 use PDO;
 
 class ServiceConformite

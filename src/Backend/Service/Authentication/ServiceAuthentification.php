@@ -1,11 +1,11 @@
 <?php
 
-namespace App\Backend\Service;
+namespace App\Backend\Service\Authentication;
 
-use App\Backend\Model\Utilisateur;
-use App\Backend\Model\Etudiant;
 use App\Backend\Model\Enseignant;
+use App\Backend\Model\Etudiant;
 use App\Backend\Model\PersonnelAdministratif;
+use App\Backend\Model\Utilisateur;
 use PDO;
 
 class ServiceAuthentification
