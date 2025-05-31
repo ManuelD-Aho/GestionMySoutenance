@@ -9,7 +9,6 @@ Directory structure:
     ├── docker-compose.yml
     ├── Dockerfile
     ├── mysoutenance.sql
-    ├── mysoutenance2.sql
     ├── php.ini
     ├── Documentation/
     │   ├── Module Administration du Système.md
