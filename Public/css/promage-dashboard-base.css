@@ -7,9 +7,9 @@
 
 /* Variables personnalisées */
 :root {
-    --primary-orange: #f97316;
+    --primary-orange: #28b707;
     --primary-orange-light: #fed7aa;
-    --sidebar-bg: #1f2937;
+    --sidebar-bg: #03219b;
     --sidebar-text: #d1d5db;
     --sidebar-text-muted: #9ca3af;
     --card-bg: white;
@@ -41,11 +41,10 @@ body {
 .promage-sidebar {
     width: 16rem;
     background: var(--sidebar-bg);
-    padding: 1.5rem;
+    padding: 25px;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    border-bottom-right-radius: var(--border-radius-xl);
     box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
     position: fixed;
     height: 100vh;
@@ -67,7 +66,7 @@ body {
 }
 
 .brand-text {
-    color: white;
+    color: #000000;
     font-size: 1.5rem;
     font-weight: 700;
 }
@@ -75,7 +74,7 @@ body {
 .create-project-btn {
     width: 100%;
     background: var(--primary-orange);
-    color: white;
+    color: #000000;
     border: none;
     padding: 0.75rem 1rem;
     border-radius: var(--border-radius-xl);
@@ -91,7 +90,7 @@ body {
 }
 
 .create-project-btn:hover {
-    background: #ea580c;
+    background: #ffffff;
     transform: translateY(-1px);
 }
 
