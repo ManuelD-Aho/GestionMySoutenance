@@ -1,15 +1,3 @@
-docker-compose.yml
 composer.phar
 /vendor/
 /Public/assets/css/bulma/
-mysoutenance.sql
-git rm --cached Public/assets/css/admin-module.html
-git rm --cached Public/assets/css/admin_module.css
-git rm --cached Public/assets/css/admin_module.js
-git rm --cached Public/assets/css/dashboard_style.css
-git rm --cached Public/assets/css/gestionsoutenance-dashboard.css
-git rm --cached Public/assets/css/gestionsoutenance-dashboard.js
-git rm --cached Public/assets/css/promage-dashboard-base.css
-git rm --cached Public/assets/css/promage-dashboard-index.html
-git rm --cached Public/assets/css/style.css
-composer.lock

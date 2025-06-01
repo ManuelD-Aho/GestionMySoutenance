@@ -376,3 +376,5 @@ Directory structure:
                         ├── gestion_etudiants_scolarite.php
                         ├── gestion_inscriptions_scolarite.php
                         └── gestion_notes_scolarite.php
+
+composer update --ignore-platform-reqs
