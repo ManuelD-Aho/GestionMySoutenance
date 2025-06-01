@@ -1,15 +1,3 @@
 docker-compose.yml
 composer.phar
 /vendor/
-/Public/assets/css/bulma/
-mysoutenance.sql
-admin-module.html
-admin_module.css
-admin_module.js
-dashboard_style.css
-gestionsoutenance-dashboard.css
-gestionsoutenance-dashboard.js
-promage-dashboard-base.css
-promage-dashboard-index.html
-style.css
-composer.lock
