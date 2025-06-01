@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Hôte : db:3306
--- Généré le : sam. 31 mai 2025 à 17:18
+-- Généré le : dim. 01 juin 2025 à 11:17
 -- Version du serveur : 8.3.0
 -- Version de PHP : 8.2.27
 
@@ -619,6 +619,22 @@ CREATE TABLE `rattacher` (
                              `id_traitement` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+--
+-- Déchargement des données de la table `rattacher`
+--
+
+INSERT INTO `rattacher` (`id_groupe_utilisateur`, `id_traitement`) VALUES
+                                                                       ('GRP_ADMIN_SYS', 'TRAIT_ADMIN_ACCES_MODULE'),
+                                                                       ('GRP_ADMIN_SYS', 'TRAIT_ADMIN_DASHBOARD_VOIR_ALERTES_ACCES_SUSPECTS'),
+                                                                       ('GRP_ADMIN_SYS', 'TRAIT_ADMIN_DASHBOARD_VOIR_ALERTES_BDD'),
+                                                                       ('GRP_ADMIN_SYS', 'TRAIT_ADMIN_DASHBOARD_VOIR_ALERTES_PERF_SERVEUR'),
+                                                                       ('GRP_ADMIN_SYS', 'TRAIT_ADMIN_DASHBOARD_VOIR_ETAT_PROCESSUS_AUTO'),
+                                                                       ('GRP_ADMIN_SYS', 'TRAIT_ADMIN_DASHBOARD_VOIR_STATS_RAPPORTS'),
+                                                                       ('GRP_ADMIN_SYS', 'TRAIT_ADMIN_DASHBOARD_VOIR_STATS_STOCKAGE'),
+                                                                       ('GRP_ADMIN_SYS', 'TRAIT_ADMIN_DASHBOARD_VOIR_STATS_UTILISATEURS'),
+                                                                       ('GRP_ADMIN_SYS', 'TRAIT_ADMIN_USER_VOIR_LISTE_TOUS'),
+                                                                       ('GRP_ADMIN_SYS', 'TRAIT_ADMIN_VOIR_DASHBOARD_PRINCIPAL');
+
 -- --------------------------------------------------------
 
 --
@@ -801,8 +817,146 @@ INSERT INTO `statut_reclamation_ref` (`id_statut_reclamation`, `libelle_statut_r
 
 CREATE TABLE `traitement` (
                               `id_traitement` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
-                              `libelle_traitement` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL
+                              `libelle_traitement` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+                              `code_traitement` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Déchargement des données de la table `traitement`
+--
+
+INSERT INTO `traitement` (`id_traitement`, `libelle_traitement`, `code_traitement`) VALUES
+                                                                                        ('TRAIT_ADMIN_ACCES_MODULE', 'Accès Module Administration Principal', 'ACCÈS_MODULE_ADMINISTRATION_PRINCIPAL'),
+                                                                                        ('TRAIT_ADMIN_CONFIG_ACCES_SECTION', 'Accès Section Configuration Système', 'ACCÈS_SECTION_CONFIGURATION_SYSTÈME'),
+                                                                                        ('TRAIT_ADMIN_CONFIG_GERER_ACTION_SYSTEME', 'Gérer Référentiel Types d´Action Système (Audit)', 'GÉRER_RÉFÉRENTIEL_TYPES_D´ACTION_SYSTÈME_(AUDIT)'),
+                                                                                        ('TRAIT_ADMIN_CONFIG_GERER_ANNEE_ACADEMIQUE', 'Gérer Référentiel Années Académiques', 'GÉRER_RÉFÉRENTIEL_ANNÉES_ACADÉMIQUES'),
+                                                                                        ('TRAIT_ADMIN_CONFIG_GERER_DECISION_PASSAGE', 'Gérer Référentiel Décisions de Passage', 'GÉRER_RÉFÉRENTIEL_DÉCISIONS_DE_PASSAGE'),
+                                                                                        ('TRAIT_ADMIN_CONFIG_GERER_DECISION_VALIDATION_PV', 'Gérer Référentiel Décisions de Validation de PV', 'GÉRER_RÉFÉRENTIEL_DÉCISIONS_DE_VALIDATION_DE_PV'),
+                                                                                        ('TRAIT_ADMIN_CONFIG_GERER_DECISION_VOTE', 'Gérer Référentiel Décisions de Vote Commission', 'GÉRER_RÉFÉRENTIEL_DÉCISIONS_DE_VOTE_COMMISSION'),
+                                                                                        ('TRAIT_ADMIN_CONFIG_GERER_ECUE', 'Gérer Référentiel Éléments Constitutifs d´UE (ECUE)', 'GÉRER_RÉFÉRENTIEL_ÉLÉMENTS_CONSTITUTIFS_D´UE_(ECUE)'),
+                                                                                        ('TRAIT_ADMIN_CONFIG_GERER_ENTREPRISE', 'Gérer Référentiel Entreprises', 'GÉRER_RÉFÉRENTIEL_ENTREPRISES'),
+                                                                                        ('TRAIT_ADMIN_CONFIG_GERER_FONCTION', 'Gérer Référentiel Fonctions', 'GÉRER_RÉFÉRENTIEL_FONCTIONS'),
+                                                                                        ('TRAIT_ADMIN_CONFIG_GERER_GRADE', 'Gérer Référentiel Grades', 'GÉRER_RÉFÉRENTIEL_GRADES'),
+                                                                                        ('TRAIT_ADMIN_CONFIG_GERER_MESSAGE_MODELE', 'Gérer Référentiel Modèles de Message', 'GÉRER_RÉFÉRENTIEL_MODÈLES_DE_MESSAGE'),
+                                                                                        ('TRAIT_ADMIN_CONFIG_GERER_MODELES_DOCUMENTS_PDF', 'Gérer Modèles de Documents PDF Générés', 'GÉRER_MODÈLES_DE_DOCUMENTS_PDF_GÉNÉRÉS'),
+                                                                                        ('TRAIT_ADMIN_CONFIG_GERER_MODELES_NOTIFICATIONS_COMM', 'Gérer Modèles de Notifications (Emails, Internes)', 'GÉRER_MODÈLES_DE_NOTIFICATIONS_(EMAILS,_INTERNES)'),
+                                                                                        ('TRAIT_ADMIN_CONFIG_GERER_NIVEAU_APPROBATION', 'Gérer Référentiel Niveaux d´Approbation', 'GÉRER_RÉFÉRENTIEL_NIVEAUX_D´APPROBATION'),
+                                                                                        ('TRAIT_ADMIN_CONFIG_GERER_NIVEAU_ETUDE', 'Gérer Référentiel Niveaux d´Étude', 'GÉRER_RÉFÉRENTIEL_NIVEAUX_D´ÉTUDE'),
+                                                                                        ('TRAIT_ADMIN_CONFIG_GERER_NOTIFICATION_TYPE', 'Gérer Référentiel Types de Notification', 'GÉRER_RÉFÉRENTIEL_TYPES_DE_NOTIFICATION'),
+                                                                                        ('TRAIT_ADMIN_CONFIG_GERER_REFERENTIEL_SPECIFIQUE', 'Gérer (CRUD) un Référentiel Spécifique', 'GÉRER_(CRUD)_UN_RÉFÉRENTIEL_SPÉCIFIQUE'),
+                                                                                        ('TRAIT_ADMIN_CONFIG_GERER_SPECIALITE', 'Gérer Référentiel Spécialités', 'GÉRER_RÉFÉRENTIEL_SPÉCIALITÉS'),
+                                                                                        ('TRAIT_ADMIN_CONFIG_GERER_STATUT_CONFORMITE', 'Gérer Référentiel Statuts de Conformité', 'GÉRER_RÉFÉRENTIEL_STATUTS_DE_CONFORMITÉ'),
+                                                                                        ('TRAIT_ADMIN_CONFIG_GERER_STATUT_JURY', 'Gérer Référentiel Statuts Jury', 'GÉRER_RÉFÉRENTIEL_STATUTS_JURY'),
+                                                                                        ('TRAIT_ADMIN_CONFIG_GERER_STATUT_PAIEMENT', 'Gérer Référentiel Statuts de Paiement', 'GÉRER_RÉFÉRENTIEL_STATUTS_DE_PAIEMENT'),
+                                                                                        ('TRAIT_ADMIN_CONFIG_GERER_STATUT_PV', 'Gérer Référentiel Statuts de PV', 'GÉRER_RÉFÉRENTIEL_STATUTS_DE_PV'),
+                                                                                        ('TRAIT_ADMIN_CONFIG_GERER_STATUT_RAPPORT', 'Gérer Référentiel Statuts de Rapport', 'GÉRER_RÉFÉRENTIEL_STATUTS_DE_RAPPORT'),
+                                                                                        ('TRAIT_ADMIN_CONFIG_GERER_STATUT_RECLAMATION', 'Gérer Référentiel Statuts de Réclamation', 'GÉRER_RÉFÉRENTIEL_STATUTS_DE_RÉCLAMATION'),
+                                                                                        ('TRAIT_ADMIN_CONFIG_GERER_TYPE_DOCUMENT', 'Gérer Référentiel Types de Document', 'GÉRER_RÉFÉRENTIEL_TYPES_DE_DOCUMENT'),
+                                                                                        ('TRAIT_ADMIN_CONFIG_GERER_UE', 'Gérer Référentiel Unités d´Enseignement (UE)', 'GÉRER_RÉFÉRENTIEL_UNITÉS_D´ENSEIGNEMENT_(UE)'),
+                                                                                        ('TRAIT_ADMIN_CONFIG_PARAM_ALERTES_SYSTEME', 'Configurer Paramètres Alertes Système', 'CONFIGURER_PARAMÈTRES_ALERTES_SYSTÈME'),
+                                                                                        ('TRAIT_ADMIN_CONFIG_PARAM_CHAT', 'Configurer Paramètres Chat Intégré', 'CONFIGURER_PARAMÈTRES_CHAT_INTÉGRÉ'),
+                                                                                        ('TRAIT_ADMIN_CONFIG_PARAM_DATES_LIMITES', 'Configurer Paramètres Dates Limites Système', 'CONFIGURER_PARAMÈTRES_DATES_LIMITES_SYSTÈME'),
+                                                                                        ('TRAIT_ADMIN_CONFIG_PARAM_REGLES_VALIDATION', 'Configurer Paramètres Règles de Validation (Conformité, Fichiers)', 'CONFIGURER_PARAMÈTRES_RÈGLES_DE_VALIDATION_(CONFORMITÉ,_FICHIERS)'),
+                                                                                        ('TRAIT_ADMIN_CONFIG_PARAM_VOTE_COMMISSION', 'Configurer Paramètres Vote en Ligne Commission', 'CONFIGURER_PARAMÈTRES_VOTE_EN_LIGNE_COMMISSION'),
+                                                                                        ('TRAIT_ADMIN_CONFIG_VOIR_LISTE_REFERENTIELS', 'Voir Liste de Tous les Référentiels', 'VOIR_LISTE_DE_TOUS_LES_RÉFÉRENTIELS'),
+                                                                                        ('TRAIT_ADMIN_DASHBOARD_VOIR_ALERTES_ACCES_SUSPECTS', 'Voir Alertes Accès Suspects (Dashboard Admin)', 'VOIR_ALERTES_ACCÈS_SUSPECTS_(DASHBOARD_ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_DASHBOARD_VOIR_ALERTES_BDD', 'Voir Alertes Base de Données (Dashboard Admin)', 'VOIR_ALERTES_BASE_DE_DONNÉES_(DASHBOARD_ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_DASHBOARD_VOIR_ALERTES_PERF_SERVEUR', 'Voir Alertes Performance Serveur (Dashboard Admin)', 'VOIR_ALERTES_PERFORMANCE_SERVEUR_(DASHBOARD_ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_DASHBOARD_VOIR_ETAT_PROCESSUS_AUTO', 'Voir État Processus Automatisés (Dashboard Admin)', 'VOIR_ÉTAT_PROCESSUS_AUTOMATISÉS_(DASHBOARD_ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_DASHBOARD_VOIR_STATS_RAPPORTS', 'Voir Statistiques Rapports (Dashboard Admin)', 'VOIR_STATISTIQUES_RAPPORTS_(DASHBOARD_ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_DASHBOARD_VOIR_STATS_STOCKAGE', 'Voir Statistiques Stockage (Dashboard Admin)', 'VOIR_STATISTIQUES_STOCKAGE_(DASHBOARD_ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_DASHBOARD_VOIR_STATS_UTILISATEURS', 'Voir Statistiques Utilisateurs (Dashboard Admin)', 'VOIR_STATISTIQUES_UTILISATEURS_(DASHBOARD_ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_GESTACAD_ACCES_SECTION', 'Accès Section Gestion Académique Admin', 'ACCÈS_SECTION_GESTION_ACADÉMIQUE_ADMIN'),
+                                                                                        ('TRAIT_ADMIN_GESTACAD_CONFIGURER_PARAM_EVALUATION', 'Configurer Paramètres des Évaluations/Notes (Admin)', 'CONFIGURER_PARAMÈTRES_DES_ÉVALUATIONS/NOTES_(ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_GESTACAD_CONFIGURER_PARAM_INSCRIPTION', 'Configurer Paramètres des Inscriptions (Admin)', 'CONFIGURER_PARAMÈTRES_DES_INSCRIPTIONS_(ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_GESTACAD_CONFIGURER_PARAM_STAGE', 'Configurer Paramètres des Stages (Admin)', 'CONFIGURER_PARAMÈTRES_DES_STAGES_(ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_GESTACAD_CONSULTER_GLOBAL_INSCRIPTIONS', 'Consulter Globalement les Inscriptions (Admin)', 'CONSULTER_GLOBALEMENT_LES_INSCRIPTIONS_(ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_GESTACAD_CONSULTER_GLOBAL_NOTES', 'Consulter Globalement les Notes (Admin)', 'CONSULTER_GLOBALEMENT_LES_NOTES_(ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_GESTACAD_CONSULTER_GLOBAL_STAGES', 'Consulter Globalement les Stages (Admin)', 'CONSULTER_GLOBALEMENT_LES_STAGES_(ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_GESTACAD_GERER_ASSOC_ENS_FONCTION', 'Gérer Associations Enseignant-Fonction (Admin)', 'GÉRER_ASSOCIATIONS_ENSEIGNANT-FONCTION_(ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_GESTACAD_GERER_ASSOC_ENS_GRADE', 'Gérer Associations Enseignant-Grade (Admin)', 'GÉRER_ASSOCIATIONS_ENSEIGNANT-GRADE_(ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_GESTACAD_GERER_ASSOC_ENS_SPECIALITE', 'Gérer Associations Enseignant-Spécialité (Admin)', 'GÉRER_ASSOCIATIONS_ENSEIGNANT-SPÉCIALITÉ_(ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_GESTACAD_INTERVENTION_INSCRIPTION', 'Intervenir sur les Inscriptions (Modification/Suppression Admin)', 'INTERVENIR_SUR_LES_INSCRIPTIONS_(MODIFICATION/SUPPRESSION_ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_GESTACAD_INTERVENTION_NOTE', 'Intervenir sur les Notes (Modification/Suppression Admin)', 'INTERVENIR_SUR_LES_NOTES_(MODIFICATION/SUPPRESSION_ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_GESTACAD_INTERVENTION_STAGE', 'Intervenir sur les Stages (Modification/Suppression Admin)', 'INTERVENIR_SUR_LES_STAGES_(MODIFICATION/SUPPRESSION_ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_HAB_ACCES_SECTION', 'Accès Section Gestion des Habilitations', 'ACCÈS_SECTION_GESTION_DES_HABILITATIONS'),
+                                                                                        ('TRAIT_ADMIN_HAB_CREER_GROUPE', 'Créer Groupe Utilisateur', 'CRÉER_GROUPE_UTILISATEUR'),
+                                                                                        ('TRAIT_ADMIN_HAB_CREER_NIVEAU_ACCES', 'Créer Niveau d´Accès aux Données', 'CRÉER_NIVEAU_D´ACCÈS_AUX_DONNÉES'),
+                                                                                        ('TRAIT_ADMIN_HAB_CREER_TRAITEMENT', 'Créer Fonctionnalité Système (Traitement)', 'CRÉER_FONCTIONNALITÉ_SYSTÈME_(TRAITEMENT)'),
+                                                                                        ('TRAIT_ADMIN_HAB_CREER_TYPE_UTILISATEUR', 'Créer Type Utilisateur (Rôle)', 'CRÉER_TYPE_UTILISATEUR_(RÔLE)'),
+                                                                                        ('TRAIT_ADMIN_HAB_GERER_RATTACHEMENTS_GROUPE_TRAITEMENT', 'Gérer Assignations Permissions (Groupe <-> Traitement)', 'GÉRER_ASSIGNATIONS_PERMISSIONS_(GROUPE_<->_TRAITEMENT)'),
+                                                                                        ('TRAIT_ADMIN_HAB_MODIFIER_GROUPE', 'Modifier Groupe Utilisateur', 'MODIFIER_GROUPE_UTILISATEUR'),
+                                                                                        ('TRAIT_ADMIN_HAB_MODIFIER_NIVEAU_ACCES', 'Modifier Niveau d´Accès aux Données', 'MODIFIER_NIVEAU_D´ACCÈS_AUX_DONNÉES'),
+                                                                                        ('TRAIT_ADMIN_HAB_MODIFIER_TRAITEMENT', 'Modifier Fonctionnalité Système (Traitement)', 'MODIFIER_FONCTIONNALITÉ_SYSTÈME_(TRAITEMENT)'),
+                                                                                        ('TRAIT_ADMIN_HAB_MODIFIER_TYPE_UTILISATEUR', 'Modifier Type Utilisateur (Rôle)', 'MODIFIER_TYPE_UTILISATEUR_(RÔLE)'),
+                                                                                        ('TRAIT_ADMIN_HAB_SUPPRIMER_GROUPE', 'Supprimer Groupe Utilisateur', 'SUPPRIMER_GROUPE_UTILISATEUR'),
+                                                                                        ('TRAIT_ADMIN_HAB_SUPPRIMER_NIVEAU_ACCES', 'Supprimer Niveau d´Accès aux Données', 'SUPPRIMER_NIVEAU_D´ACCÈS_AUX_DONNÉES'),
+                                                                                        ('TRAIT_ADMIN_HAB_SUPPRIMER_TRAITEMENT', 'Supprimer Fonctionnalité Système (Traitement)', 'SUPPRIMER_FONCTIONNALITÉ_SYSTÈME_(TRAITEMENT)'),
+                                                                                        ('TRAIT_ADMIN_HAB_SUPPRIMER_TYPE_UTILISATEUR', 'Supprimer Type Utilisateur (Rôle)', 'SUPPRIMER_TYPE_UTILISATEUR_(RÔLE)'),
+                                                                                        ('TRAIT_ADMIN_HAB_VOIR_LISTE_GROUPES', 'Voir Liste des Groupes Utilisateur', 'VOIR_LISTE_DES_GROUPES_UTILISATEUR'),
+                                                                                        ('TRAIT_ADMIN_HAB_VOIR_LISTE_NIVEAUX_ACCES', 'Voir Liste des Niveaux d´Accès aux Données', 'VOIR_LISTE_DES_NIVEAUX_D´ACCÈS_AUX_DONNÉES'),
+                                                                                        ('TRAIT_ADMIN_HAB_VOIR_LISTE_TRAITEMENTS', 'Voir Liste des Fonctionnalités Système (Traitements)', 'VOIR_LISTE_DES_FONCTIONNALITÉS_SYSTÈME_(TRAITEMENTS)'),
+                                                                                        ('TRAIT_ADMIN_HAB_VOIR_LISTE_TYPES_UTILISATEUR', 'Voir Liste des Types Utilisateur (Rôles)', 'VOIR_LISTE_DES_TYPES_UTILISATEUR_(RÔLES)'),
+                                                                                        ('TRAIT_ADMIN_REPORT_ACCES_SECTION', 'Accès Section Reporting & Analytique Admin', 'ACCÈS_SECTION_REPORTING_&_ANALYTIQUE_ADMIN'),
+                                                                                        ('TRAIT_ADMIN_REPORT_AGENCER_DASHBOARD', 'Agencer Éléments sur Dashboard (Admin)', 'AGENCER_ÉLÉMENTS_SUR_DASHBOARD_(ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_REPORT_CHOISIR_KPIS_DASHBOARD', 'Choisir KPIs pour Dashboard (Admin)', 'CHOISIR_KPIS_POUR_DASHBOARD_(ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_REPORT_CHOISIR_VISUALISATIONS_DASHBOARD', 'Choisir Types de Visualisation pour Dashboard (Admin)', 'CHOISIR_TYPES_DE_VISUALISATION_POUR_DASHBOARD_(ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_REPORT_CONFIGURER_DASHBOARD_ANALYTIQUE', 'Configurer Tableaux de Bord Analytiques (Admin)', 'CONFIGURER_TABLEAUX_DE_BORD_ANALYTIQUES_(ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_REPORT_EXPORTER_RESULTATS_RAPPORT', 'Exporter Résultats de Rapport Généré (Admin)', 'EXPORTER_RÉSULTATS_DE_RAPPORT_GÉNÉRÉ_(ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_REPORT_GENERER_RAPPORT_CONTENUS_CORRECTIONS', 'Générer Rapports Tendances Contenus/Corrections (Admin)', 'GÉNÉRER_RAPPORTS_TENDANCES_CONTENUS/CORRECTIONS_(ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_REPORT_GENERER_RAPPORT_DELAIS', 'Générer Rapports Délais de Traitement (Admin)', 'GÉNÉRER_RAPPORTS_DÉLAIS_DE_TRAITEMENT_(ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_REPORT_GENERER_RAPPORT_INSCRIPTIONS_NOTES', 'Générer Rapports Supervision Inscriptions/Notes (Admin)', 'GÉNÉRER_RAPPORTS_SUPERVISION_INSCRIPTIONS/NOTES_(ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_REPORT_GENERER_RAPPORT_PERFORMANCE_ACTEURS', 'Générer Rapports Performance Acteurs (Admin)', 'GÉNÉRER_RAPPORTS_PERFORMANCE_ACTEURS_(ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_REPORT_GENERER_RAPPORT_VALIDATION', 'Générer Rapports Taux de Validation/Conformité (Admin)', 'GÉNÉRER_RAPPORTS_TAUX_DE_VALIDATION/CONFORMITÉ_(ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_REPORT_GERER_ACCES_DASHBOARDS', 'Gérer Accès aux Dashboards Analytiques (Admin)', 'GÉRER_ACCÈS_AUX_DASHBOARDS_ANALYTIQUES_(ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_REPORT_SAUVEGARDER_CONFIG_RAPPORT', 'Sauvegarder Configuration de Rapport Personnalisée (Admin)', 'SAUVEGARDER_CONFIGURATION_DE_RAPPORT_PERSONNALISÉE_(ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_SUPERV_ACCES_SECTION', 'Accès Section Supervision & Maintenance Admin', 'ACCÈS_SECTION_SUPERVISION_&_MAINTENANCE_ADMIN'),
+                                                                                        ('TRAIT_ADMIN_SUPERV_ANALYSER_CHARGE_TRAVAIL', 'Analyser Charge de Travail Services (Admin)', 'ANALYSER_CHARGE_DE_TRAVAIL_SERVICES_(ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_SUPERV_APPLIQUER_MAJ_SYSTEME', 'Appliquer Mises à Jour Système/Application (Admin)', 'APPLIQUER_MISES_À_JOUR_SYSTÈME/APPLICATION_(ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_SUPERV_ARCHIVER_PV_OFFICIEL', 'Archiver Officiellement des PV (Admin)', 'ARCHIVER_OFFICIELLEMENT_DES_PV_(ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_SUPERV_CONSULTER_PV_VALIDES', 'Consulter Tous les PV Validés (Admin)', 'CONSULTER_TOUS_LES_PV_VALIDÉS_(ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_SUPERV_EXECUTER_SCRIPTS_MAINTENANCE_BDD', 'Exécuter Scripts de Maintenance BDD (Admin)', 'EXÉCUTER_SCRIPTS_DE_MAINTENANCE_BDD_(ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_SUPERV_GERER_SAUVEGARDES', 'Gérer Sauvegardes de la Base de Données (Admin)', 'GÉRER_SAUVEGARDES_DE_LA_BASE_DE_DONNÉES_(ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_SUPERV_LANCER_RESTAURATION', 'Lancer Restauration de la Base de Données (Admin Critique)', 'LANCER_RESTAURATION_DE_LA_BASE_DE_DONNÉES_(ADMIN_CRITIQUE)'),
+                                                                                        ('TRAIT_ADMIN_SUPERV_PURGER_ARCHIVER_NOTIFICATIONS', 'Purger/Archiver les Notifications Système en Masse', 'PURGER/ARCHIVER_LES_NOTIFICATIONS_SYSTÈME_EN_MASSE'),
+                                                                                        ('TRAIT_ADMIN_SUPERV_RECHERCHER_JOURNAL_ACCES', 'Rechercher/Filtrer Journal des Accès (Admin)', 'RECHERCHER/FILTRER_JOURNAL_DES_ACCÈS_(ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_SUPERV_RECHERCHER_JOURNAL_ACTIONS', 'Rechercher/Filtrer Journal des Actions (Admin)', 'RECHERCHER/FILTRER_JOURNAL_DES_ACTIONS_(ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_SUPERV_SIGNALER_PV_PUBLICATION', 'Gérer Signalement PV pour Publication Externe (Admin)', 'GÉRER_SIGNALEMENT_PV_POUR_PUBLICATION_EXTERNE_(ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_SUPERV_STATS_NOTIFICATIONS', 'Voir Statistiques sur les Notifications Système', 'VOIR_STATISTIQUES_SUR_LES_NOTIFICATIONS_SYSTÈME'),
+                                                                                        ('TRAIT_ADMIN_SUPERV_UTILISER_OUTIL_EXPORT', 'Utiliser Outil d´Export de Données (Admin)', 'UTILISER_OUTIL_D´EXPORT_DE_DONNÉES_(ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_SUPERV_UTILISER_OUTIL_IMPORT', 'Utiliser Outil d´Import de Données (Admin)', 'UTILISER_OUTIL_D´IMPORT_DE_DONNÉES_(ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_SUPERV_VOIR_ETAT_SANTE_SERVEUR_APP', 'Voir Indicateurs Santé Serveur/Application (Admin)', 'VOIR_INDICATEURS_SANTÉ_SERVEUR/APPLICATION_(ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_SUPERV_VOIR_JOURNAL_ACCES', 'Consulter Journal des Accès Système (Admin)', 'CONSULTER_JOURNAL_DES_ACCÈS_SYSTÈME_(ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_SUPERV_VOIR_JOURNAL_ACTIONS', 'Consulter Journal des Actions Utilisateurs (Admin)', 'CONSULTER_JOURNAL_DES_ACTIONS_UTILISATEURS_(ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_SUPERV_VOIR_TABLEAU_BORD_WORKFLOWS', 'Voir Tableaux de Bord Suivi des Workflows (Admin)', 'VOIR_TABLEAUX_DE_BORD_SUIVI_DES_WORKFLOWS_(ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_USER_CHANGER_STATUT_COMPTE_MASSE', 'Changer Statut de Comptes Utilisateurs en Masse', 'CHANGER_STATUT_DE_COMPTES_UTILISATEURS_EN_MASSE'),
+                                                                                        ('TRAIT_ADMIN_USER_CREER_ENSEIGNANT', 'Créer Profil et Compte Enseignant (Admin)', 'CRÉER_PROFIL_ET_COMPTE_ENSEIGNANT_(ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_USER_CREER_ETUDIANT', 'Créer Profil et Compte Étudiant (Admin)', 'CRÉER_PROFIL_ET_COMPTE_ÉTUDIANT_(ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_USER_CREER_PERSADMIN', 'Créer Profil et Compte Personnel Administratif (Admin)', 'CRÉER_PROFIL_ET_COMPTE_PERSONNEL_ADMINISTRATIF_(ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_USER_ENVOYER_NOTIFICATION_MASSE', 'Envoyer Notification Système en Masse aux Utilisateurs', 'ENVOYER_NOTIFICATION_SYSTÈME_EN_MASSE_AUX_UTILISATEURS'),
+                                                                                        ('TRAIT_ADMIN_USER_GERER_INSCRIPTIONS_ETUDIANT', 'Gérer Inscriptions d´un Étudiant (Admin)', 'GÉRER_INSCRIPTIONS_D´UN_ÉTUDIANT_(ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_USER_MODIFIER_COMPTE_ENSEIGNANT', 'Modifier Compte Utilisateur Enseignant (Admin)', 'MODIFIER_COMPTE_UTILISATEUR_ENSEIGNANT_(ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_USER_MODIFIER_COMPTE_ETUDIANT', 'Modifier Compte Utilisateur Étudiant (Admin)', 'MODIFIER_COMPTE_UTILISATEUR_ÉTUDIANT_(ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_USER_MODIFIER_COMPTE_PERSADMIN', 'Modifier Compte Utilisateur Personnel Administratif (Admin)', 'MODIFIER_COMPTE_UTILISATEUR_PERSONNEL_ADMINISTRATIF_(ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_USER_MODIFIER_PROFIL_ENSEIGNANT', 'Modifier Profil Enseignant (Admin)', 'MODIFIER_PROFIL_ENSEIGNANT_(ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_USER_MODIFIER_PROFIL_ETUDIANT', 'Modifier Profil Étudiant (Admin)', 'MODIFIER_PROFIL_ÉTUDIANT_(ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_USER_MODIFIER_PROFIL_PERSADMIN', 'Modifier Profil Personnel Administratif (Admin)', 'MODIFIER_PROFIL_PERSONNEL_ADMINISTRATIF_(ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_USER_RECHERCHER_FILTRER_TOUS', 'Rechercher/Filtrer Tous les Utilisateurs', 'RECHERCHER/FILTRER_TOUS_LES_UTILISATEURS'),
+                                                                                        ('TRAIT_ADMIN_USER_REINITIALISER_MDP_ENSEIGNANT', 'Réinitialiser Mot de Passe Enseignant (Admin)', 'RÉINITIALISER_MOT_DE_PASSE_ENSEIGNANT_(ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_USER_REINITIALISER_MDP_ETUDIANT', 'Réinitialiser Mot de Passe Étudiant (Admin)', 'RÉINITIALISER_MOT_DE_PASSE_ÉTUDIANT_(ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_USER_REINITIALISER_MDP_PERSADMIN', 'Réinitialiser Mot de Passe Personnel Administratif (Admin)', 'RÉINITIALISER_MOT_DE_PASSE_PERSONNEL_ADMINISTRATIF_(ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_USER_SUPPRIMER_ENSEIGNANT', 'Supprimer/Désactiver Compte Enseignant (Admin)', 'SUPPRIMER/DÉSACTIVER_COMPTE_ENSEIGNANT_(ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_USER_SUPPRIMER_ETUDIANT', 'Supprimer/Désactiver Compte Étudiant (Admin)', 'SUPPRIMER/DÉSACTIVER_COMPTE_ÉTUDIANT_(ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_USER_SUPPRIMER_PERSADMIN', 'Supprimer/Désactiver Compte Personnel Administratif (Admin)', 'SUPPRIMER/DÉSACTIVER_COMPTE_PERSONNEL_ADMINISTRATIF_(ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_USER_VOIR_ACTIVITES_ENSEIGNANT', 'Voir Activités d´un Enseignant (Admin)', 'VOIR_ACTIVITÉS_D´UN_ENSEIGNANT_(ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_USER_VOIR_DETAILS_ENSEIGNANT', 'Voir Détails d´un Enseignant (Admin)', 'VOIR_DÉTAILS_D´UN_ENSEIGNANT_(ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_USER_VOIR_DETAILS_ETUDIANT', 'Voir Détails d´un Étudiant (Admin)', 'VOIR_DÉTAILS_D´UN_ÉTUDIANT_(ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_USER_VOIR_DETAILS_PERSADMIN', 'Voir Détails d´un Personnel Administratif (Admin)', 'VOIR_DÉTAILS_D´UN_PERSONNEL_ADMINISTRATIF_(ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_USER_VOIR_LISTE_ENSEIGNANTS', 'Voir Liste des Enseignants (Admin)', 'VOIR_LISTE_DES_ENSEIGNANTS_(ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_USER_VOIR_LISTE_ETUDIANTS', 'Voir Liste des Étudiants (Admin)', 'VOIR_LISTE_DES_ÉTUDIANTS_(ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_USER_VOIR_LISTE_PERSADMIN', 'Voir Liste du Personnel Administratif (Admin)', 'VOIR_LISTE_DU_PERSONNEL_ADMINISTRATIF_(ADMIN)'),
+                                                                                        ('TRAIT_ADMIN_USER_VOIR_LISTE_TOUS', 'Voir Liste de Tous les Utilisateurs', 'VOIR_LISTE_DE_TOUS_LES_UTILISATEURS'),
+                                                                                        ('TRAIT_ADMIN_VOIR_DASHBOARD_PRINCIPAL', 'Voir Tableau de Bord Principal Admin', 'VOIR_TABLEAU_DE_BORD_PRINCIPAL_ADMIN');
 
 -- --------------------------------------------------------
 
@@ -1097,7 +1251,8 @@ ALTER TABLE `grade`
 -- Index pour la table `groupe_utilisateur`
 --
 ALTER TABLE `groupe_utilisateur`
-    ADD PRIMARY KEY (`id_groupe_utilisateur`);
+    ADD PRIMARY KEY (`id_groupe_utilisateur`),
+  ADD UNIQUE KEY `uq_libelle_groupe_utilisateur` (`libelle_groupe_utilisateur`);
 
 --
 -- Index pour la table `historique_mot_de_passe`
@@ -1142,7 +1297,8 @@ ALTER TABLE `message_chat`
 -- Index pour la table `niveau_acces_donne`
 --
 ALTER TABLE `niveau_acces_donne`
-    ADD PRIMARY KEY (`id_niveau_acces_donne`);
+    ADD PRIMARY KEY (`id_niveau_acces_donne`),
+  ADD UNIQUE KEY `uq_libelle_niveau_acces_donne` (`libelle_niveau_acces_donne`);
 
 --
 -- Index pour la table `niveau_approbation`
@@ -1282,7 +1438,9 @@ ALTER TABLE `statut_reclamation_ref`
 -- Index pour la table `traitement`
 --
 ALTER TABLE `traitement`
-    ADD PRIMARY KEY (`id_traitement`);
+    ADD PRIMARY KEY (`id_traitement`),
+  ADD UNIQUE KEY `code_traitement` (`code_traitement`),
+  ADD KEY `idx_code_traitement` (`code_traitement`);
 
 --
 -- Index pour la table `type_document_ref`
@@ -1294,7 +1452,8 @@ ALTER TABLE `type_document_ref`
 -- Index pour la table `type_utilisateur`
 --
 ALTER TABLE `type_utilisateur`
-    ADD PRIMARY KEY (`id_type_utilisateur`);
+    ADD PRIMARY KEY (`id_type_utilisateur`),
+  ADD UNIQUE KEY `uq_libelle_type_utilisateur` (`libelle_type_utilisateur`);
 
 --
 -- Index pour la table `ue`
@@ -1313,7 +1472,8 @@ ALTER TABLE `utilisateur`
   ADD KEY `idx_utilisateur_groupe` (`id_groupe_utilisateur`),
   ADD KEY `idx_utilisateur_type` (`id_type_utilisateur`),
   ADD KEY `idx_token_reset_mdp` (`token_reset_mdp`),
-  ADD KEY `idx_token_validation_email` (`token_validation_email`);
+  ADD KEY `idx_token_validation_email` (`token_validation_email`),
+  ADD KEY `idx_statut_compte_utilisateur` (`statut_compte`);
 
 --
 -- Index pour la table `validation_pv`

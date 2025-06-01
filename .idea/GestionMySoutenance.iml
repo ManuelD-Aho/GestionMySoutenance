@@ -14,6 +14,8 @@
       <sourceFolder url="file://$MODULE_DIR$/src/Backend/Service" isTestSource="false" packagePrefix="App\Backend\Service\" />
       <sourceFolder url="file://$MODULE_DIR$/src/Backend/Util" isTestSource="false" packagePrefix="App\Backend\Util\" />
       <sourceFolder url="file://$MODULE_DIR$/src/Frontend/views" isTestSource="false" packagePrefix="App\Frontend\View\" />
+      <sourceFolder url="file://$MODULE_DIR$/spec" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/tests" isTestSource="true" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/composer" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/graham-campbell/result-type" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/nikic/fast-route" />

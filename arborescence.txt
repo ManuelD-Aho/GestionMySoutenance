@@ -5,129 +5,124 @@ Directory structure:
     ├── arborescence.txt
     ├── composer.json
     ├── composer.lock
-    ├── composer.phar
     ├── docker-compose.yml
     ├── Dockerfile
     ├── mysoutenance.sql
     ├── php.ini
-    ├── Documentation/
-    │   ├── Module Administration du Système.md
-    │   ├── Module Commission de Validation.md
-    │   ├── Module Etudiant.md
-    │   └── Module Personnel Administratif.md
     ├── Public/
     │   ├── index.php
     │   ├── .htaccess
-    │   ├── css/
-    │   │   ├── admin-module.html
-    │   │   ├── admin_module.css
-    │   │   ├── admin_module.js
-    │   │   ├── dashboard_style.css
-    │   │   ├── promage-dashboard-base.css
-    │   │   ├── promage-dashboard-index.html
-    │   │   ├── style.css
-    │   │   └── bulma/
-    │   │       ├── README.md
-    │   │       ├── bulma.scss
-    │   │       ├── LICENSE
-    │   │       ├── package.json
-    │   │       ├── css/
-    │   │       │   ├── bulma.css
-    │   │       │   └── versions/
-    │   │       │       ├── bulma-no-dark-mode.css
-    │   │       │       ├── bulma-no-helpers-prefixed.css
-    │   │       │       ├── bulma-no-helpers.css
-    │   │       │       └── bulma-prefixed.css
-    │   │       ├── sass/
-    │   │       │   ├── _index.scss
-    │   │       │   ├── base/
-    │   │       │   │   ├── _index.scss
-    │   │       │   │   ├── animations.scss
-    │   │       │   │   ├── generic.scss
-    │   │       │   │   ├── minireset.scss
-    │   │       │   │   └── skeleton.scss
-    │   │       │   ├── components/
-    │   │       │   │   ├── _index.scss
-    │   │       │   │   ├── breadcrumb.scss
-    │   │       │   │   ├── card.scss
-    │   │       │   │   ├── dropdown.scss
-    │   │       │   │   ├── menu.scss
-    │   │       │   │   ├── message.scss
-    │   │       │   │   ├── modal.scss
-    │   │       │   │   ├── navbar.scss
-    │   │       │   │   ├── pagination.scss
-    │   │       │   │   ├── panel.scss
-    │   │       │   │   └── tabs.scss
-    │   │       │   ├── elements/
-    │   │       │   │   ├── _index.scss
-    │   │       │   │   ├── block.scss
-    │   │       │   │   ├── box.scss
-    │   │       │   │   ├── button.scss
-    │   │       │   │   ├── content.scss
-    │   │       │   │   ├── delete.scss
-    │   │       │   │   ├── icon.scss
-    │   │       │   │   ├── image.scss
-    │   │       │   │   ├── loader.scss
-    │   │       │   │   ├── notification.scss
-    │   │       │   │   ├── progress.scss
-    │   │       │   │   ├── table.scss
-    │   │       │   │   ├── tag.scss
-    │   │       │   │   └── title.scss
-    │   │       │   ├── form/
-    │   │       │   │   ├── _index.scss
-    │   │       │   │   ├── checkbox-radio.scss
-    │   │       │   │   ├── file.scss
-    │   │       │   │   ├── input-textarea.scss
-    │   │       │   │   ├── select.scss
-    │   │       │   │   ├── shared.scss
-    │   │       │   │   └── tools.scss
-    │   │       │   ├── grid/
-    │   │       │   │   ├── _index.scss
-    │   │       │   │   ├── columns.scss
-    │   │       │   │   └── grid.scss
-    │   │       │   ├── helpers/
-    │   │       │   │   ├── _index.scss
-    │   │       │   │   ├── aspect-ratio.scss
-    │   │       │   │   ├── border.scss
-    │   │       │   │   ├── color.scss
-    │   │       │   │   ├── flexbox.scss
-    │   │       │   │   ├── float.scss
-    │   │       │   │   ├── gap.scss
-    │   │       │   │   ├── other.scss
-    │   │       │   │   ├── overflow.scss
-    │   │       │   │   ├── position.scss
-    │   │       │   │   ├── spacing.scss
-    │   │       │   │   ├── typography.scss
-    │   │       │   │   └── visibility.scss
-    │   │       │   ├── layout/
-    │   │       │   │   ├── _index.scss
-    │   │       │   │   ├── container.scss
-    │   │       │   │   ├── footer.scss
-    │   │       │   │   ├── hero.scss
-    │   │       │   │   ├── level.scss
-    │   │       │   │   ├── media.scss
-    │   │       │   │   └── section.scss
-    │   │       │   ├── themes/
-    │   │       │   │   ├── _index.scss
-    │   │       │   │   ├── dark.scss
-    │   │       │   │   ├── light.scss
-    │   │       │   │   └── setup.scss
-    │   │       │   └── utilities/
-    │   │       │       ├── _index.scss
-    │   │       │       ├── controls.scss
-    │   │       │       ├── css-variables.scss
-    │   │       │       ├── derived-variables.scss
-    │   │       │       ├── extends.scss
-    │   │       │       ├── functions.scss
-    │   │       │       ├── initial-variables.scss
-    │   │       │       └── mixins.scss
-    │   │       └── versions/
-    │   │           ├── bulma-no-dark-mode.scss
-    │   │           ├── bulma-no-helpers-prefixed.scss
-    │   │           ├── bulma-no-helpers.scss
-    │   │           └── bulma-prefixed.scss
-    │   └── js/
-    │       └── main.js
+    │   └── assets/
+    │       ├── css/
+    │       │   ├── admin-module.html
+    │       │   ├── admin_module.css
+    │       │   ├── admin_module.js
+    │       │   ├── dashboard_style.css
+    │       │   ├── promage-dashboard-base.css
+    │       │   ├── promage-dashboard-index.html
+    │       │   ├── style.css
+    │       │   └── bulma/
+    │       │       ├── README.md
+    │       │       ├── bulma.scss
+    │       │       ├── LICENSE
+    │       │       ├── package.json
+    │       │       ├── css/
+    │       │       │   ├── bulma.css
+    │       │       │   └── versions/
+    │       │       │       ├── bulma-no-dark-mode.css
+    │       │       │       ├── bulma-no-helpers-prefixed.css
+    │       │       │       ├── bulma-no-helpers.css
+    │       │       │       └── bulma-prefixed.css
+    │       │       ├── sass/
+    │       │       │   ├── _index.scss
+    │       │       │   ├── base/
+    │       │       │   │   ├── _index.scss
+    │       │       │   │   ├── animations.scss
+    │       │       │   │   ├── generic.scss
+    │       │       │   │   ├── minireset.scss
+    │       │       │   │   └── skeleton.scss
+    │       │       │   ├── components/
+    │       │       │   │   ├── _index.scss
+    │       │       │   │   ├── breadcrumb.scss
+    │       │       │   │   ├── card.scss
+    │       │       │   │   ├── dropdown.scss
+    │       │       │   │   ├── menu.scss
+    │       │       │   │   ├── message.scss
+    │       │       │   │   ├── modal.scss
+    │       │       │   │   ├── navbar.scss
+    │       │       │   │   ├── pagination.scss
+    │       │       │   │   ├── panel.scss
+    │       │       │   │   └── tabs.scss
+    │       │       │   ├── elements/
+    │       │       │   │   ├── _index.scss
+    │       │       │   │   ├── block.scss
+    │       │       │   │   ├── box.scss
+    │       │       │   │   ├── button.scss
+    │       │       │   │   ├── content.scss
+    │       │       │   │   ├── delete.scss
+    │       │       │   │   ├── icon.scss
+    │       │       │   │   ├── image.scss
+    │       │       │   │   ├── loader.scss
+    │       │       │   │   ├── notification.scss
+    │       │       │   │   ├── progress.scss
+    │       │       │   │   ├── table.scss
+    │       │       │   │   ├── tag.scss
+    │       │       │   │   └── title.scss
+    │       │       │   ├── form/
+    │       │       │   │   ├── _index.scss
+    │       │       │   │   ├── checkbox-radio.scss
+    │       │       │   │   ├── file.scss
+    │       │       │   │   ├── input-textarea.scss
+    │       │       │   │   ├── select.scss
+    │       │       │   │   ├── shared.scss
+    │       │       │   │   └── tools.scss
+    │       │       │   ├── grid/
+    │       │       │   │   ├── _index.scss
+    │       │       │   │   ├── columns.scss
+    │       │       │   │   └── grid.scss
+    │       │       │   ├── helpers/
+    │       │       │   │   ├── _index.scss
+    │       │       │   │   ├── aspect-ratio.scss
+    │       │       │   │   ├── border.scss
+    │       │       │   │   ├── color.scss
+    │       │       │   │   ├── flexbox.scss
+    │       │       │   │   ├── float.scss
+    │       │       │   │   ├── gap.scss
+    │       │       │   │   ├── other.scss
+    │       │       │   │   ├── overflow.scss
+    │       │       │   │   ├── position.scss
+    │       │       │   │   ├── spacing.scss
+    │       │       │   │   ├── typography.scss
+    │       │       │   │   └── visibility.scss
+    │       │       │   ├── layout/
+    │       │       │   │   ├── _index.scss
+    │       │       │   │   ├── container.scss
+    │       │       │   │   ├── footer.scss
+    │       │       │   │   ├── hero.scss
+    │       │       │   │   ├── level.scss
+    │       │       │   │   ├── media.scss
+    │       │       │   │   └── section.scss
+    │       │       │   ├── themes/
+    │       │       │   │   ├── _index.scss
+    │       │       │   │   ├── dark.scss
+    │       │       │   │   ├── light.scss
+    │       │       │   │   └── setup.scss
+    │       │       │   └── utilities/
+    │       │       │       ├── _index.scss
+    │       │       │       ├── controls.scss
+    │       │       │       ├── css-variables.scss
+    │       │       │       ├── derived-variables.scss
+    │       │       │       ├── extends.scss
+    │       │       │       ├── functions.scss
+    │       │       │       ├── initial-variables.scss
+    │       │       │       └── mixins.scss
+    │       │       └── versions/
+    │       │           ├── bulma-no-dark-mode.scss
+    │       │           ├── bulma-no-helpers-prefixed.scss
+    │       │           ├── bulma-no-helpers.scss
+    │       │           └── bulma-prefixed.scss
+    │       └── js/
+    │           └── main.js
     ├── routes/
     │   └── web.php
     └── src/
@@ -168,6 +163,23 @@ Directory structure:
         │   │       ├── ConformiteController.php
         │   │       ├── PersonnelDashboardController.php
         │   │       └── ScolariteController.php
+        │   ├── Exception/
+        │   │   ├── AuthenticationException.php
+        │   │   ├── CompteBloqueException.php
+        │   │   ├── CompteNonValideException.php
+        │   │   ├── DoublonException.php
+        │   │   ├── ElementNonTrouveException.php
+        │   │   ├── EmailException.php
+        │   │   ├── EmailNonValideException.php
+        │   │   ├── IdentifiantsInvalidesException.php
+        │   │   ├── ModeleNonTrouveException.php
+        │   │   ├── MotDePasseInvalideException.php
+        │   │   ├── OperationImpossibleException.php
+        │   │   ├── PermissionException.php
+        │   │   ├── TokenExpireException.php
+        │   │   ├── TokenInvalideException.php
+        │   │   ├── UtilisateurNonTrouveException.php
+        │   │   └── ValidationException.php
         │   ├── Model/
         │   │   ├── Acquerir.php
         │   │   ├── Action.php
@@ -193,6 +205,7 @@ Directory structure:
         │   │   ├── Fonction.php
         │   │   ├── Grade.php
         │   │   ├── GroupeUtilisateur.php
+        │   │   ├── HistoriqueMotDePasse.php
         │   │   ├── Inscrire.php
         │   │   ├── LectureMessage.php
         │   │   ├── Message.php
@@ -229,17 +242,48 @@ Directory structure:
         │   │   ├── Valider.php
         │   │   └── VoteCommission.php
         │   ├── Service/
-        │   │   ├── ServiceAuthentification.php
-        │   │   ├── ServiceCommission.php
-        │   │   ├── ServiceConfigurationSysteme.php
-        │   │   ├── ServiceConformite.php
-        │   │   ├── ServiceGestionAcademique.php
-        │   │   ├── ServiceMessagerie.php
-        │   │   ├── ServiceNotification.php
-        │   │   ├── ServicePermissions.php
-        │   │   ├── ServiceRapport.php
-        │   │   ├── ServiceReportingAdmin.php
-        │   │   └── ServiceSupervisionAdmin.php
+        │   │   ├── Authentication/
+        │   │   │   ├── ServiceAuthenticationInterface.php
+        │   │   │   └── ServiceAuthentification.php
+        │   │   ├── Commission/
+        │   │   │   ├── ServiceCommission.php
+        │   │   │   └── ServiceCommissionInterface.php
+        │   │   ├── ConfigurationSysteme/
+        │   │   │   ├── ServiceConfigurationSysteme.php
+        │   │   │   └── ServiceConfigurationSystemeInterface.php
+        │   │   ├── Conformite/
+        │   │   │   ├── ServiceConformite.php
+        │   │   │   └── ServiceConformiteInterface.php
+        │   │   ├── DocumentGenerator/
+        │   │   │   ├── ServiceDocumentGenerator.php
+        │   │   │   └── ServiceDocumentGeneratorInterface.php
+        │   │   ├── Email/
+        │   │   │   ├── ServiceEmail.php
+        │   │   │   └── ServiceEmailInterface.php
+        │   │   ├── GestionAcademique/
+        │   │   │   ├── ServiceGestionAcademique.php
+        │   │   │   └── ServiceGestionAcademiqueInterface.php
+        │   │   ├── Messagerie/
+        │   │   │   ├── ServiceMessagerie.php
+        │   │   │   └── ServiceMessagerieInterface.php
+        │   │   ├── Notification/
+        │   │   │   ├── ServiceNotification.php
+        │   │   │   └── ServiceNotificationInterface.php
+        │   │   ├── Permissions/
+        │   │   │   ├── ServicePermissions.php
+        │   │   │   └── ServicePermissionsInterface.php
+        │   │   ├── Rapport/
+        │   │   │   ├── ServiceRapport.php
+        │   │   │   └── ServiceRapportInterface.php
+        │   │   ├── Reclamation/
+        │   │   │   ├── ServiceReclamation.php
+        │   │   │   └── ServiceReclamationInterface.php
+        │   │   ├── ReportingAdmin/
+        │   │   │   ├── ServiceReportingAdmin.php
+        │   │   │   └── ServiceReportingAdminInterface.php
+        │   │   └── SupervisionAdmin/
+        │   │       ├── ServiceSupervisionAdmin.php
+        │   │       └── ServiceSupervisionAdminInterface.php
         │   └── Util/
         │       └── FormValidator.php
         ├── Config/
