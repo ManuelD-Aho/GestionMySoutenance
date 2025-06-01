@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GestionMySoutenance - Panneau de Contrôle Principal</title>
+    <link rel="stylesheet" href="gestionsoutenance-dashboard.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+</head>
+<body>
+<!-- Mobile Sidebar Toggle -->
+<button class="mobile-sidebar-toggle" onclick="toggleMobileSidebar()">
+    <span class="material-icons">menu</span>
+</button>
+
+<div class="app-layout">
+    <!-- Sidebar -->
+    <aside class="gestionsoutenance-sidebar" id="sidebar">
+        <div>
+            <div class="sidebar-brand">
+                <div class="brand-logo">
+                    <span class="material-icons">school</span> <!-- Icône pour l'éducation/gestion -->
+                </div>
+                <span class="brand-text">GestionMySoutenance</span>
+            </div>
+
+            <div class="admin-info">
+                <div class="admin-avatar" id="admin-avatar-initials">MA</div>
+                <div class="admin-details">
+                    <p class="admin-name" id="admin-name-display">ManuelD-Aho</p>
+                    <p class="admin-role" id="admin-role-display">Administrateur Système</p>
+                </div>
+            </div>
+
+            <nav class="sidebar-nav">
+                <div class="nav-section">
+                    <div class="nav-items">
+                        <a href="#" class="nav-item active" data-section="dashboard">
+                            <span class="material-icons">dashboard</span>
+                            <span>Tableau de Bord</span>
+                        </a>
+                        <a href="#" class="nav-item" data-section="users">
+                            <span class="material-icons">people</span>
+                            <span>Gestion Utilisateurs</span>
+                        </a>
+                        <a href="#" class="nav-item" data-section="permissions">
+                            <span class="material-icons">admin_panel_settings</span>
+                            <span>Habilitations</span>
+                        </a>
+                    </div>
+                </div>
+
+                <div class="nav-section">
+                    <div class="nav-section-title">Configuration</div>
+                    <div class="nav-items">
+                        <a href="#" class="nav-item" data-section="system_config">
+                            <span class="material-icons">settings_applications</span>
+                            <span>Référentiels</span>
+                        </a>
+                        <a href="#" class="nav-item" data-section="academic_year">
+                            <span class="material-icons">calendar_today</span>
+                            <span>Année Académique</span>
+                        </a>
+                        <a href="#" class="nav-item" data-section="templates_docs">
+                            <span class="material-icons">description</span>
+                            <span>Modèles & Documents</span>
+                        </a>
+                        <a href="#" class="nav-item" data-section="app_settings">
+                            <span class="material-icons">tune</span>
+                            <span>Paramètres Applicatifs</span>
+                        </a>
+                    </div>
+                </div>
+
+                <div class="nav-section">
+                    <div class="nav-section-title">Supervision & Maintenance</div>
+                    <div class="nav-items">
+                        <a href="#" class="nav-item" data-section="workflow_monitoring">
+                            <span class="material-icons">schema</span>
+                            <span>Suivi des Workflows</span>
+                        </a>
+                        <a href="#" class="nav-item" data-section="pv_management">
+                            <span class="material-icons">gavel</span>
+                            <span>Gestion des PV</span>
+                        </a>
+                        <a href="#" class="nav-item" data-section="system_notifications_mgmt">
+                            <span class="material-icons">mark_chat_read</span>
+                            <span>Notifications Système</span>
+                        </a>
+                        <a href="#" class="nav-item" data-section="audit_logs">
+                            <span class="material-icons">history_toggle_off</span>
+                            <span>Journaux d'Audit</span>
+                        </a>
+                        <a href="#" class="nav-item" data-section="data_tools">
+                            <span class="material-icons">import_export</span>
+                            <span>Import/Export</span>
+                        </a>
+                        <a href="#" class="nav-item" data-section="technical_maintenance">
+                            <span class="material-icons">build</span>
+                            <span>Maintenance Technique</span>
+                        </a>
+                    </div>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Reporting</div>
+                    <div class="nav-items">
+                        <a href="#" class="nav-item" data-section="reporting_analytics">
+                            <span class="material-icons">analytics</span>
+                            <span>Rapports & Analytics</span>
+                        </a>
+                    </div>
+                </div>
+            </nav>
+        </div>
+
+        <button class="sidebar-logout" onclick="logout()">
+            <span class="material-icons">logout</span>
+            <span>Déconnexion</span>
+        </button>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Header -->
+        <header class="main-header">
+            <div class="header-left">
+                <h1 class="header-title" id="page-title">Panneau de Contrôle Principal</h1>
+                <div class="breadcrumb" id="breadcrumb">
+                    <span>Administration</span>
+                    <span class="material-icons">chevron_right</span>
+                    <span id="breadcrumb-current-page">Dashboard</span>
+                </div>
+            </div>
+
+            <div class="header-right">
+                <div class="header-search">
+                    <span class="material-icons">search</span>
+                    <input type="text" placeholder="Rechercher..." id="global-search">
+                </div>
+
+                <div class="header-actions">
+                    <button class="notification-btn" onclick="showNotificationsPanel()">
+                        <span class="material-icons">notifications</span>
+                        <span class="notification-badge" id="notification-count">0</span>
+                    </button>
+
+                    <div class="system-status" id="system-status-indicator">
+                        <span class="status-indicator status-healthy"></span>
+                        <span class="status-text">Système OK</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Dashboard Content (Visible by default) -->
+        <div id="dashboard-content" class="content-section active">
+            <section class="overview-section">
+                <div class="section-header">
+                    <h2 class="section-title">Vue d'Ensemble Système</h2>
+                    <div class="time-range">
+                        <select id="time-range-selector" onchange="updateDashboardStats()">
+                            <option value="today">Aujourd'hui</option>
+                            <option value="week" selected>7 derniers jours</option>
+                            <option value="month">30 derniers jours</option>
+                            <option value="year">Cette année</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="stats-grid" id="dashboard-stats-grid">
+                    <!-- Stats cards will be populated by JavaScript -->
+                </div>
+            </section>
+
+            <section class="dashboard-grid">
+                <div class="dashboard-card quick-actions-card">
+                    <div class="card-header">
+                        <h3 class="card-title">Actions Rapides - Utilisateurs</h3>
+                        <button class="card-action" onclick="navigateToSection('users')">
+                            <span class="material-icons">open_in_new</span>
+                        </button>
+                    </div>
+                    <div class="quick-actions-grid">
+                        <button class="quick-action-btn" onclick="openCreateUserModalWithType('TYPE_ETUD')">
+                            <span class="material-icons">person_add</span>
+                            <span>Créer Étudiant</span>
+                        </button>
+                        <button class="quick-action-btn" onclick="openCreateUserModalWithType('TYPE_ENS')">
+                            <span class="material-icons">school</span>
+                            <span>Créer Enseignant</span>
+                        </button>
+                        <button class="quick-action-btn" onclick="openCreateUserModalWithType('TYPE_PERS_ADMIN')">
+                            <span class="material-icons">manage_accounts</span>
+                            <span>Créer Personnel</span>
+                        </button>
+                        <button class="quick-action-btn" onclick="navigateToSection('users', 'overview')">
+                            <span class="material-icons">search</span>
+                            <span>Rechercher Utilisateur</span>
+                        </button>
+                    </div>
+                    <div class="user-type-summary" id="dashboard-user-type-summary">
+                        <!-- User type summary will be populated by JavaScript -->
+                    </div>
+                </div>
+
+                <div class="dashboard-card activities-card">
+                    <div class="card-header">
+                        <h3 class="card-title">Activités Récentes du Système</h3>
+                        <div class="activity-filters" id="dashboard-activity-filters">
+                            <button class="filter-btn active" data-filter="all">Toutes</button>
+                            <button class="filter-btn" data-filter="user_management">Utilisateurs</button>
+                            <button class="filter-btn" data-filter="security">Sécurité</button>
+                            <button class="filter-btn" data-filter="system_config">Configuration</button>
+                        </div>
+                    </div>
+                    <div class="activities-list" id="dashboard-activities-list">
+                        <!-- Activities will be populated by JavaScript -->
+                    </div>
+                </div>
+
+                <div class="dashboard-card system-health-card">
+                    <div class="card-header">
+                        <h3 class="card-title">État du Système</h3>
+                        <div class="health-status" id="dashboard-overall-health">
+                            <span class="health-indicator healthy"></span>
+                            <span>Opérationnel</span>
+                        </div>
+                    </div>
+                    <div class="health-metrics" id="dashboard-health-metrics">
+                        <!-- Health metrics will be populated by JavaScript -->
+                    </div>
+                </div>
+
+                <div class="dashboard-card permissions-overview-card">
+                    <div class="card-header">
+                        <h3 class="card-title">Aperçu des Habilitations</h3>
+                        <button class="card-action" onclick="navigateToSection('permissions')">
+                            <span class="material-icons">settings_suggest</span>
+                        </button>
+                    </div>
+                    <div class="permissions-summary" id="dashboard-permissions-summary">
+                        <!-- Permissions overview will be populated by JavaScript -->
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- Users Management Content -->
+        <div id="users-content" class="content-section">
+            <div class="section-header-sticky">
+                <div class="users-tabs" id="users-tabs-container">
+                    <button class="users-tab active" data-tab="overview">Vue Générale</button>
+                    <button class="users-tab" data-tab="students">Étudiants</button>
+                    <button class="users-tab" data-tab="teachers">Enseignants</button>
+                    <button class="users-tab" data-tab="staff">Personnel Admin</button>
+                </div>
+                <div class="users-actions">
+                    <button class="btn-primary" onclick="openCreateUserModal()">
+                        <span class="material-icons">add</span>
+                        Créer Utilisateur
+                    </button>
+                    <button class="btn-secondary" onclick="exportUsersData()">
+                        <span class="material-icons">file_download</span>
+                        Exporter
+                    </button>
+                </div>
+            </div>
+
+            <div class="users-tab-content active" id="users-overview-content">
+                <div class="dashboard-card filters-card">
+                    <div class="filters-header">
+                        <h3>Recherche et Filtres (Tous les utilisateurs)</h3>
+                        <button class="btn-text" onclick="resetUsersFilters('all')">Réinitialiser</button>
+                    </div>
+                    <div class="filters-grid">
+                        <div class="filter-group">
+                            <label for="user-search-all">Recherche Globale</label>
+                            <input type="text" id="user-search-all" placeholder="Nom, email, login, ID utilisateur..." onkeyup="applyUsersTableFilters('all')">
+                        </div>
+                        <div class="filter-group">
+                            <label for="user-type-filter-all">Type d'Utilisateur</label>
+                            <select id="user-type-filter-all" onchange="applyUsersTableFilters('all')">
+                                <option value="">Tous les types</option>
+                                <!-- Options populated by JS -->
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label for="user-status-filter-all">Statut du Compte</label>
+                            <select id="user-status-filter-all" onchange="applyUsersTableFilters('all')">
+                                <option value="">Tous les statuts</option>
+                                <!-- Options populated by JS -->
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label for="user-group-filter-all">Groupe Utilisateur</label>
+                            <select id="user-group-filter-all" onchange="applyUsersTableFilters('all')">
+                                <option value="">Tous les groupes</option>
+                                <!-- Options populated by JS -->
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="dashboard-card table-card">
+                    <div class="table-controls">
+                        <h3 id="users-table-title-all">Liste des Utilisateurs</h3>
+                        <select id="users-per-page-all" onchange="renderUsersTable('all', 1)">
+                            <option value="10">10 par page</option>
+                            <option value="25" selected>25 par page</option>
+                            <option value="50">50 par page</option>
+                        </select>
+                    </div>
+                    <div class="table-container">
+                        <table class="gestionsoutenance-table" id="users-table-all">
+                            <thead><tr> <!-- Headers populated by JS --></tr></thead>
+                            <tbody id="users-table-body-all"></tbody>
+                        </table>
+                    </div>
+                    <div class="table-pagination-controls" id="users-pagination-all"></div>
+                </div>
+            </div>
+            <div class="users-tab-content" id="users-students-content">
+                <!-- Similar filter/table structure for students, teachers, staff -->
+            </div>
+            <div class="users-tab-content" id="users-teachers-content"></div>
+            <div class="users-tab-content" id="users-staff-content"></div>
+
+            <div class="bulk-actions-panel" id="users-bulk-actions-panel">
+                <div class="bulk-actions-content">
+                    <span class="bulk-selection-count" id="users-bulk-selection-count">0 utilisateur(s) sélectionné(s)</span>
+                    <div class="bulk-actions-buttons">
+                        <button class="btn-secondary" onclick="bulkChangeUsersStatus()">
+                            <span class="material-icons">toggle_on</span>Changer Statut
+                        </button>
+                        <button class="btn-secondary" onclick="bulkSendUsersNotification()">
+                            <span class="material-icons">email</span>Envoyer Notification
+                        </button>
+                        <button class="btn-danger" onclick="bulkArchiveUsers()">
+                            <span class="material-icons">archive</span>Archiver
+                        </button>
+                    </div>
+                    <button class="bulk-actions-close" onclick="clearUsersBulkSelection()">
+                        <span class="material-icons">close</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Permissions Management Content -->
+        <div id="permissions-content" class="content-section">
+            <div class="section-header-sticky">
+                <div class="users-tabs" id="permissions-tabs-container">
+                    <button class="users-tab active" data-tab="types">Types Utilisateur</button>
+                    <button class="users-tab" data-tab="groups">Groupes Utilisateur</button>
+                    <button class="users-tab" data-tab="access_levels">Niveaux d'Accès</button>
+                    <button class="users-tab" data-tab="treatments">Fonctionnalités (Traitements)</button>
+                    <button class="users-tab" data-tab="assignments">Assignation Permissions</button>
+                </div>
+                <div id="permissions-actions-container"></div> <!-- Actions specific to tab -->
+            </div>
+            <div class="permissions-tab-content active" id="permissions-types-content"></div>
+            <div class="permissions-tab-content" id="permissions-groups-content"></div>
+            <div class="permissions-tab-content" id="permissions-access_levels-content"></div>
+            <div class="permissions-tab-content" id="permissions-treatments-content"></div>
+            <div class="permissions-tab-content" id="permissions-assignments-content"></div>
+        </div>
+
+        <!-- System Configuration Content -->
+        <div id="system_config-content" class="content-section">
+            <div class="section-header-sticky">
+                <div class="users-tabs" id="system_config-tabs-container">
+                    <button class="users-tab active" data-tab="referentiels_annee_academique">Années Académiques</button>
+                    <button class="users-tab" data-tab="referentiels_niveaux_etude">Niveaux d'Étude</button>
+                    <button class="users-tab" data-tab="referentiels_specialites">Spécialités</button>
+                    <button class="users-tab" data-tab="referentiels_statuts">Statuts Divers</button>
+                    <!-- Add more referential tabs as needed -->
+                </div>
+                <div id="system_config-actions-container"></div>
+            </div>
+            <div class="system_config-tab-content active" id="system_config-referentiels_annee_academique-content"></div>
+            <div class="system_config-tab-content" id="system_config-referentiels_niveaux_etude-content"></div>
+            <div class="system_config-tab-content" id="system_config-referentiels_specialites-content"></div>
+            <div class="system_config-tab-content" id="system_config-referentiels_statuts-content"></div>
+        </div>
+
+        <div id="academic_year-content" class="content-section">
+            <h2>Gestion de l'Année Académique Active</h2>
+            <div id="academic_year_management_content"></div>
+        </div>
+
+        <div id="templates_docs-content" class="content-section">
+            <div class="section-header-sticky">
+                <div class="users-tabs" id="templates_docs-tabs-container">
+                    <button class="users-tab active" data-tab="pdf_templates">Modèles PDF</button>
+                    <button class="users-tab" data-tab="email_templates">Modèles Courriel (Table Message)</button>
+                </div>
+                <div id="templates_docs-actions-container"></div>
+            </div>
+            <div class="templates_docs-tab-content active" id="templates_docs-pdf_templates-content"></div>
+            <div class="templates_docs-tab-content" id="templates_docs-email_templates-content"></div>
+        </div>
+
+        <div id="app_settings-content" class="content-section">
+            <h2>Paramètres Applicatifs & Workflow</h2>
+            <div id="app_settings_management_content" class="dashboard-card"></div>
+        </div>
+
+        <!-- Supervision & Maintenance Content -->
+        <div id="workflow_monitoring-content" class="content-section">
+            <h2>Suivi des Workflows</h2>
+            <div id="workflow_monitoring_dashboard" class="dashboard-card"></div>
+        </div>
+        <div id="pv_management-content" class="content-section">
+            <h2>Gestion des PV (Admin)</h2>
+            <div id="pv_management_table_area" class="dashboard-card"></div>
+        </div>
+        <div id="system_notifications_mgmt-content" class="content-section">
+            <h2>Gestion des Notifications Système (Table Recevoir)</h2>
+            <div id="system_notifications_table_area" class="dashboard-card"></div>
+        </div>
+        <div id="audit_logs-content" class="content-section">
+            <div class="section-header-sticky">
+                <div class="users-tabs" id="audit_logs-tabs-container">
+                    <button class="users-tab active" data-tab="actions_log">Journal des Actions (enregistrer)</button>
+                    <button class="users-tab" data-tab="access_log">Traçabilité des Accès (pister)</button>
+                </div>
+            </div>
+            <div class="audit_logs-tab-content active" id="audit_logs-actions_log-content"></div>
+            <div class="audit_logs-tab-content" id="audit_logs-access_log-content"></div>
+        </div>
+        <div id="data_tools-content" class="content-section">
+            <h2>Outils d'Import/Export Données</h2>
+            <div id="data_tools_interface" class="dashboard-card"></div>
+        </div>
+        <div id="technical_maintenance-content" class="content-section">
+            <h2>Maintenance Technique</h2>
+            <div id="technical_maintenance_interface" class="dashboard-card"></div>
+        </div>
+
+        <!-- Reporting & Analytics Content -->
+        <div id="reporting_analytics-content" class="content-section">
+            <h2>Rapports & Analytics</h2>
+            <div id="reporting_analytics_interface" class="dashboard-card"></div>
+        </div>
+
+
+        <!-- Create/Edit User Modal -->
+        <div class="modal" id="user-form-modal">
+            <div class="modal-content large">
+                <div class="modal-header">
+                    <h3 id="user-modal-title">Créer un Nouvel Utilisateur</h3>
+                    <button class="modal-close" onclick="closeUserFormModal()">
+                        <span class="material-icons">close</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <form id="user-form">
+                        <input type="hidden" id="user-form-mode" value="create"> <!-- create or edit -->
+                        <input type="hidden" id="user-form-edit-id" value="">
+
+                        <div class="form-steps" id="user-form-steps">
+                            <div class="step-indicator" id="user-form-step-indicator">
+                                <div class="step active" data-step-target="1">1. Type</div>
+                                <div class="step" data-step-target="2">2. Profil</div>
+                                <div class="step" data-step-target="3">3. Compte</div>
+                                <div class="step" data-step-target="4">4. Confirmation</div>
+                            </div>
+
+                            <div class="step-content active" data-step-content="1">
+                                <h4>Sélectionner le Type d'Utilisateur</h4>
+                                <select id="user-form-type" class="form-control" onchange="updateUserFormForType()">
+                                    <option value="">-- Choisir un type --</option>
+                                    <!-- Options populated by JS -->
+                                </select>
+                                <div id="user-form-type-specific-fields-container">
+                                    <!-- Placeholder for fields like numero_carte_etudiant if needed early -->
+                                </div>
+                            </div>
+
+                            <div class="step-content" data-step-content="2">
+                                <h4>Informations du Profil</h4>
+                                <div class="form-grid">
+                                    <div class="form-group">
+                                        <label for="user-form-nom">Nom *</label>
+                                        <input type="text" id="user-form-nom" class="form-control" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="user-form-prenom">Prénom *</label>
+                                        <input type="text" id="user-form-prenom" class="form-control" required>
+                                    </div>
+                                </div>
+                                <div id="user-form-profile-fields" class="form-grid">
+                                    <!-- Profile fields specific to user type will be injected here by JS -->
+                                    <!-- Example: numero_carte_etudiant for student -->
+                                    <div class="form-group student-field staff-field teacher-field" style="display:none;">
+                                        <label for="user-form-date_naissance">Date de Naissance</label>
+                                        <input type="date" id="user-form-date_naissance" class="form-control">
+                                    </div>
+                                    <div class="form-group student-field staff-field teacher-field" style="display:none;">
+                                        <label for="user-form-telephone_personnel">Téléphone Personnel</label>
+                                        <input type="tel" id="user-form-telephone_personnel" class="form-control">
+                                    </div>
+                                    <div class="form-group student-field" style="display:none;">
+                                        <label for="user-form-numero_carte_etudiant">Numéro Carte Étudiant *</label>
+                                        <input type="text" id="user-form-numero_carte_etudiant" class="form-control">
+                                    </div>
+                                    <div class="form-group staff-field" style="display:none;">
+                                        <label for="user-form-numero_personnel_administratif">Numéro Personnel Admin *</label>
+                                        <input type="text" id="user-form-numero_personnel_administratif" class="form-control">
+                                    </div>
+                                    <div class="form-group staff-field teacher-field" style="display:none;">
+                                        <label for="user-form-email_professionnel">Email Professionnel</label>
+                                        <input type="email" id="user-form-email_professionnel" class="form-control">
+                                    </div>
+                                    <div class="form-group teacher-field" style="display:none;">
+                                        <label for="user-form-numero_enseignant">Numéro Enseignant *</label>
+                                        <input type="text" id="user-form-numero_enseignant" class="form-control">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="step-content" data-step-content="3">
+                                <h4>Informations du Compte</h4>
+                                <div class="form-grid">
+                                    <div class="form-group">
+                                        <label for="user-form-login">Login Utilisateur *</label>
+                                        <input type="text" id="user-form-login" class="form-control" required>
+                                        <small>Sera généré automatiquement basé sur nom.prénom si vide (en création).</small>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="user-form-email_principal">Email Principal (pour connexion) *</label>
+                                        <input type="email" id="user-form-email_principal" class="form-control" required>
+                                    </div>
+                                    <div class="form-group" id="user-form-password-group">
+                                        <label for="user-form-password">Mot de Passe Initial</label>
+                                        <input type="password" id="user-form-password" class="form-control">
+                                        <small>Laisser vide pour génération automatique (en création). Non requis en modification sauf si réinitialisation.</small>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="user-form-statut_compte">Statut du Compte *</label>
+                                        <select id="user-form-statut_compte" class="form-control" required></select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="user-form-id_groupe_utilisateur">Groupe Utilisateur *</label>
+                                        <select id="user-form-id_groupe_utilisateur" class="form-control" required></select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="user-form-id_niveau_acces_donne">Niveau d'Accès aux Données *</label>
+                                        <select id="user-form-id_niveau_acces_donne" class="form-control" required></select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="user-form-photo_profil">Photo de Profil (URL)</label>
+                                        <input type="url" id="user-form-photo_profil" class="form-control">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="step-content" data-step-content="4">
+                                <h4>Confirmation</h4>
+                                <div class="confirmation-summary" id="user-form-summary">
+                                    <!-- Summary populated by JS -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="modal-actions">
+                            <button type="button" class="btn-secondary" onclick="closeUserFormModal()">Annuler</button>
+                            <button type="button" class="btn-secondary" id="user-form-prev-step-btn" onclick="changeUserFormStep(-1)" style="display: none;">Précédent</button>
+                            <button type="button" class="btn-primary" id="user-form-next-step-btn" onclick="changeUserFormStep(1)">Suivant</button>
+                            <button type="submit" class="btn-primary" id="user-form-submit-btn" style="display: none;">Sauvegarder</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Generic CRUD Modal -->
+        <div class="modal" id="generic-crud-modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 id="generic-crud-modal-title"></h3>
+                    <button class="modal-close" onclick="closeGenericCrudModal()">
+                        <span class="material-icons">close</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <form id="generic-crud-form">
+                        <input type="hidden" id="generic-crud-mode">
+                        <input type="hidden" id="generic-crud-edit-id">
+                        <input type="hidden" id="generic-crud-entity-type">
+                        <div id="generic-crud-form-fields" class="form-grid">
+                            <!-- Fields will be populated by JavaScript -->
+                        </div>
+                        <div class="modal-actions">
+                            <button type="button" class="btn-secondary" onclick="closeGenericCrudModal()">Annuler</button>
+                            <button type="submit" class="btn-primary">Sauvegarder</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+
+        <!-- Notification Panel -->
+        <div class="notification-panel" id="notification-panel">
+            <div class="notification-panel-header">
+                <h3>Notifications</h3>
+                <button class="notification-panel-close" onclick="hideNotificationsPanel()">
+                    <span class="material-icons">close</span>
+                </button>
+            </div>
+            <div class="notification-panel-list" id="notification-panel-list">
+                <!-- Notifications populated by JS -->
+            </div>
+        </div>
+
+        <!-- Alert/Confirmation Modal -->
+        <div class="modal" id="alert-confirmation-modal">
+            <div class="modal-content small">
+                <div class="modal-header">
+                    <h3 id="alert-confirmation-title">Confirmation</h3>
+                    <button class="modal-close" onclick="closeAlertConfirmationModal()">
+                        <span class="material-icons">close</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <p id="alert-confirmation-message">Êtes-vous sûr ?</p>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn-secondary" onclick="closeAlertConfirmationModal()" id="alert-confirmation-cancel-btn">Annuler</button>
+                    <button type="button" class="btn-primary" id="alert-confirmation-confirm-btn">Confirmer</button>
+                </div>
+            </div>
+        </div>
+
+    </main>
+</div>
+
+<script src="gestionsoutenance-dashboard.js"></script>
+</body>
+</html>

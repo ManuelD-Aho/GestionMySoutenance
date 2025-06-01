@@ -1,0 +1,57 @@
+/* File: src/Frontend/css/dashboard_style.css */
+/* Ce fichier peut contenir des styles personnalisés qui ne sont pas facilement réalisables avec Tailwind seul,
+   ou des styles globaux pour les éléments du dashboard. */
+
+body {
+    /* Assurez-vous que la police Roboto est chargée et appliquée si vous n'utilisez pas la config Tailwind JS */
+    /* font-family: 'Roboto', sans-serif; (déjà dans le style inline de app.php) */
+    overscroll-behavior: none; /* Empêche le "pull-to-refresh" sur mobile qui peut être gênant */
+}
+
+/* Styles pour les barres de défilement personnalisées (optionnel, pour l'esthétique) */
+/* Pour Webkit (Chrome, Safari, Edge) */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f1f1; /* Couleur de la piste */
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #c1c1c1; /* Couleur du pouce */
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #a1a1a1; /* Couleur du pouce au survol */
+}
+
+/* Pour Firefox (un peu plus limité) */
+/* Vous pouvez ajouter ceci dans une balise <style> dans app.php ou ici */
+/* html { scrollbar-color: #c1c1c1 #f1f1f1; scrollbar-width: thin; } */
+
+
+/* Exemple de style pour une carte (card) de base si vous n'utilisez pas que Tailwind */
+.custom-card {
+    background-color: white;
+    border-radius: 0.5rem; /* rounded-lg */
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1); /* shadow-md */
+    padding: 1.5rem; /* p-6 */
+    margin-bottom: 1.5rem; /* mb-6 */
+}
+
+.custom-card-title {
+    font-size: 1.125rem; /* text-lg */
+    font-weight: 600; /* font-semibold */
+    color: #374151; /* text-gray-700 */
+    margin-bottom: 1rem;
+}
+
+/* Assurez-vous que les icônes SVG dans le menu sont bien dimensionnées si elles ne le sont pas par Tailwind */
+.sidebar-icon svg {
+    width: 100%;
+    height: 100%;
+}
