@@ -2,15 +2,25 @@
 
 namespace App\Backend\Controller;
 
-use App\Backend\Service\Authentication\ServiceAuthenticationInterface;
-use App\Backend\Service\Authentication\ServiceAuthentification;
 use App\Config\Database;
 use PDO;
+use App\Backend\Service\Authentication\ServiceAuthenticationInterface;
+use App\Backend\Service\Authentication\ServiceAuthentification; // Pour l'instanciation par défaut
 use App\Backend\Model\Utilisateur as UtilisateurModel;
 use App\Backend\Model\HistoriqueMotDePasse as HistoriqueMotDePasseModel;
 use App\Backend\Model\Etudiant as EtudiantModel;
 use App\Backend\Model\Enseignant as EnseignantModel;
 use App\Backend\Model\PersonnelAdministratif as PersonnelAdministratifModel;
+use App\Backend\Model\RapportEtudiant;
+use App\Backend\Model\Enregistrer;
+use App\Backend\Model\Pister;
+use App\Backend\Model\CompteRendu;
+use App\Backend\Model\Inscrire;
+use App\Backend\Model\Evaluer;
+use App\Backend\Model\FaireStage;
+use App\Backend\Model\Acquerir;
+use App\Backend\Model\Occuper;
+use App\Backend\Model\Attribuer;
 use App\Backend\Service\Email\ServiceEmail;
 use App\Backend\Service\SupervisionAdmin\ServiceSupervisionAdmin;
 use App\Backend\Service\GestionAcademique\ServiceGestionAcademique;
@@ -18,80 +28,111 @@ use App\Backend\Service\Permissions\ServicePermissions;
 use RobThree\Auth\TwoFactorAuth;
 use RobThree\Auth\Providers\Qr\BaconQrCodeProvider;
 
-
 abstract class BaseController
 {
-    protected string $viewDirectory = __DIR__ . '/../../Frontend/views/';
-    protected ?ServiceAuthenticationInterface $authServiceInstance = null;
+    protected string $viewDirectory = ROOT_PATH . '/src/Frontend/views/';
     protected ?PDO $db = null;
+    protected ?ServiceAuthenticationInterface $authService = null;
+    protected ?ServicePermissions $permissionService = null; // Ajout pour la gestion des permissions
 
     public function __construct()
     {
         if (session_status() === PHP_SESSION_NONE) {
             session_start();
         }
-        if($this->db === null){
-            try {
-                // CORRECTION ICI :
-                // 1. Obtenir l'instance de la classe Database (si c'est un Singleton)
-                $databaseInstance = Database::getInstance();
-                // 2. Appeler la méthode (non statique) getConnection() sur cette instance
-                $this->db = $databaseInstance->getConnection();
 
-            } catch (\PDOException $e) {
-                error_log("ERREUR CRITIQUE de connexion BDD dans BaseController: " . $e->getMessage());
-                die("Erreur critique: Impossible de se connecter à la base de données. Message : " . $e->getMessage());
-            } catch (\Exception $e) { // Attraper d'autres exceptions potentielles (ex: si getInstance() échoue)
-                error_log("ERREUR CRITIQUE lors de l'obtention de l'instance de Database: " . $e->getMessage());
-                die("Erreur critique: Problème lors de l'initialisation de la connexion à la base de données. Message : " . $e->getMessage());
+        try {
+            $databaseInstance = Database::getInstance();
+            $this->db = $databaseInstance->getConnection();
+        } catch (\PDOException $e) {
+            error_log("ERREUR CRITIQUE de connexion BDD dans BaseController: " . $e->getMessage());
+            // En mode développement, afficher l'erreur peut être utile, sinon une page d'erreur générique.
+            if (($_ENV['APP_ENV'] ?? 'production') === 'development') {
+                die("Erreur critique BDD: " . $e->getMessage());
+            } else {
+                die("Une erreur critique est survenue. Veuillez contacter l'administrateur.");
             }
         }
+
+        // Instanciation des services ici pour qu'ils soient disponibles pour les contrôleurs enfants
+        // Cela suppose que tous les contrôleurs enfants pourraient potentiellement en avoir besoin.
+        // Une meilleure approche serait l'injection de dépendances.
+        if ($this->db instanceof PDO) {
+            $this->initializeCommonServices();
+        }
     }
+
+    protected function initializeCommonServices(): void
+    {
+        $utilisateurModel = new UtilisateurModel($this->db);
+        $historiqueMotDePasseModel = new HistoriqueMotDePasseModel($this->db);
+        $etudiantModel = new EtudiantModel($this->db);
+        $enseignantModel = new EnseignantModel($this->db);
+        $personnelAdministratifModel = new PersonnelAdministratifModel($this->db);
+        $serviceEmail = new ServiceEmail();
+
+        // Dépendances pour ServiceSupervisionAdmin
+        $rapportEtudiantModel = new RapportEtudiant($this->db);
+        $enregistrerModel = new Enregistrer($this->db);
+        $pisterModel = new Pister($this->db);
+        $compteRenduModel = new CompteRendu($this->db);
+        $serviceSupervision = new ServiceSupervisionAdmin(
+            $rapportEtudiantModel,
+            $enregistrerModel,
+            $pisterModel,
+            $compteRenduModel,
+            $this->db
+        );
+
+        // Dépendances pour ServiceGestionAcademique
+        $inscrireModel = new Inscrire($this->db);
+        $evaluerModel = new Evaluer($this->db);
+        $faireStageModel = new FaireStage($this->db);
+        $acquerirModel = new Acquerir($this->db);
+        $occuperModel = new Occuper($this->db);
+        $attribuerModel = new Attribuer($this->db);
+        $serviceGestionAcademique = new ServiceGestionAcademique(
+            $inscrireModel,
+            $evaluerModel,
+            $faireStageModel,
+            $acquerirModel,
+            $occuperModel,
+            $attribuerModel
+        );
+
+        $this->permissionService = new ServicePermissions($this->db, $serviceSupervision);
+
+        $qrProvider = new BaconQrCodeProvider();
+        $tfaProvider = new TwoFactorAuth(($_ENV['APP_NAME'] ?? 'GestionMySoutenance'), 6, 30, 'sha1', $qrProvider);
+
+        $this->authService = new ServiceAuthentification(
+            $this->db,
+            $serviceEmail,
+            $serviceSupervision,
+            $serviceGestionAcademique,
+            $this->permissionService,
+            $tfaProvider,
+            $utilisateurModel,
+            $historiqueMotDePasseModel,
+            $etudiantModel,
+            $enseignantModel,
+            $personnelAdministratifModel
+        );
+    }
+
 
     public function home(): void
     {
-        if ($this->getAuthService()->estUtilisateurConnecteEtSessionValide()) {
-            header('Location: /dashboard');
+        if ($this->authService && $this->authService->estUtilisateurConnecteEtSessionValide()) {
+            $this->redirect('/dashboard');
         } else {
-            header('Location: /login');
+            $this->redirect('/login');
         }
-        exit;
-    }
-
-    protected function getAuthService(): ServiceAuthenticationInterface
-    {
-        if ($this->authServiceInstance === null) {
-            // $this->db devrait DÉJÀ être une instance de PDO ici.
-            if (!$this->db instanceof PDO) {
-                // Si $this->db n'est toujours pas une instance de PDO, c'est une erreur de logique grave.
-                // Cela ne devrait pas arriver si le constructeur de BaseController l'a bien initialisé.
-                throw new \LogicException("La connexion PDO n'a pas été correctement initialisée dans BaseController avant d'appeler getAuthService.");
-            }
-
-            $utilisateurModel = new UtilisateurModel($this->db);
-            $historiqueMotDePasseModel = new HistoriqueMotDePasseModel($this->db);
-            $etudiantModel = new EtudiantModel($this->db);
-            $enseignantModel = new EnseignantModel($this->db);
-            $personnelAdministratifModel = new PersonnelAdministratifModel($this->db);
-            $serviceEmail = new ServiceEmail();
-
-            $this->authServiceInstance = new ServiceAuthentification(
-                $this->db,
-                $utilisateurModel,
-                $historiqueMotDePasseModel,
-                $etudiantModel,
-                $enseignantModel,
-                $personnelAdministratifModel,
-                $serviceEmail,
-                'gestionmysoutenance_tfa_secret'
-            );
-        }
-        return $this->authServiceInstance;
     }
 
     protected function render(string $viewName, array $data = [], string $layout = 'layout/app'): void
     {
-        extract($data);
+        extract($data, EXTR_SKIP); // EXTR_SKIP pour ne pas écraser les variables existantes comme $this
 
         $viewFilePath = $this->viewDirectory . $viewName . '.php';
 
@@ -110,45 +151,66 @@ abstract class BaseController
                 $this->renderError(500, "Erreur: Le layout '$layoutFilePath' est introuvable.");
                 return;
             }
+            // Les variables $pageTitle, $menuItems, $currentUser, $userRole, $contentView
+            // sont attendues par le layout et doivent être dans $data ou définies avant d'inclure le layout
+            // $contentForLayout contient le contenu de la vue $viewName
             include $layoutFilePath;
         } else {
             echo $contentForLayout;
         }
     }
 
-    protected function renderError(int $httpStatusCode, string $message = "Une erreur est survenue."): void
+    protected function renderError(int $httpStatusCode, string $message = "Une erreur est survenue.", ?string $customView = null): void
     {
         http_response_code($httpStatusCode);
-        $errorView = 'errors/' . $httpStatusCode;
-        if (!file_exists($this->viewDirectory . $errorView . '.php')) {
-            $errorView = 'errors/default_error';
-            if (!file_exists($this->viewDirectory . $errorView . '.php')) {
-                echo "<h1>Erreur $httpStatusCode</h1><p>" . htmlspecialchars($message) . "</p><p>Page d'erreur par défaut non trouvée.</p>";
+
+        $errorViewName = $customView ?? 'errors/' . $httpStatusCode;
+        $errorViewPath = $this->viewDirectory . $errorViewName . '.php';
+
+        if (!file_exists($errorViewPath)) {
+            $errorViewName = 'errors/default_error'; // Un fallback
+            $errorViewPath = $this->viewDirectory . $errorViewName . '.php';
+            if (!file_exists($errorViewPath)) {
+                // Fallback ultime si même la vue d'erreur par défaut n'existe pas
+                echo "<h1>Erreur {$httpStatusCode}</h1><p>" . htmlspecialchars($message) . "</p><p>Page d'erreur non trouvée.</p>";
                 return;
             }
         }
-        $this->render($errorView, ['message' => $message, 'title' => "Erreur $httpStatusCode"], 'layout/app_minimal'); // Layout minimal pour les erreurs
-    }
 
+        // Utiliser la méthode render pour inclure le layout d'erreur si nécessaire
+        // Supposons un layout minimal pour les erreurs : 'layout/error_layout'
+        $this->render($errorViewName, ['message' => $message, 'title' => "Erreur {$httpStatusCode}"], 'layout/error_layout');
+    }
 
     protected function requireLogin(): void
     {
-        if (!$this->getAuthService()->estUtilisateurConnecteEtSessionValide()) {
-            if (session_status() === PHP_SESSION_NONE) {
-                session_start();
-            }
+        if (!$this->authService || !$this->authService->estUtilisateurConnecteEtSessionValide()) {
             $_SESSION['redirect_after_login'] = $_SERVER['REQUEST_URI'];
-            $_SESSION['error_message'] = "Vous devez être connecté pour accéder à cette page.";
-            header('Location: /login');
-            exit;
+            $this->setFlashMessage('error_message', "Vous devez être connecté pour accéder à cette page.");
+            $this->redirect('/login');
         }
     }
 
     protected function requireNoLogin(): void
     {
-        if ($this->getAuthService()->estUtilisateurConnecteEtSessionValide()) {
-            header('Location: /dashboard');
-            exit;
+        if ($this->authService && $this->authService->estUtilisateurConnecteEtSessionValide()) {
+            $this->redirect('/dashboard');
+        }
+    }
+
+    protected function checkPermission(string $permissionCode, ?string $redirectTo = null, string $errorMessage = "Accès refusé."): void
+    {
+        $this->requireLogin(); // Implicitement, une permission ne peut être vérifiée que pour un utilisateur connecté
+
+        $userNum = $_SESSION['numero_utilisateur'] ?? null;
+        if ($userNum === null || !$this->permissionService || !$this->permissionService->utilisateurPossedePermission($userNum, $permissionCode)) {
+            if ($redirectTo) {
+                $this->setFlashMessage('error_message', $errorMessage);
+                $this->redirect($redirectTo);
+            } else {
+                $this->renderError(403, $errorMessage);
+                exit; // Important pour arrêter l'exécution après renderError
+            }
         }
     }
 
@@ -159,6 +221,11 @@ abstract class BaseController
         }
         header('Location: ' . $url);
         exit;
+    }
+
+    protected function setFlashMessage(string $key, string $message): void
+    {
+        $_SESSION[$key] = $message;
     }
 
     protected function getFlashMessage(string $key): ?string

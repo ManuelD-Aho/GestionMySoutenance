@@ -17,10 +17,20 @@ abstract class BaseModel
         $this->db = $db;
     }
 
+    public function getClePrimaire(): string
+    {
+        return $this->clePrimaire;
+    }
+
+    public function getTable(): string
+    {
+        return $this->table;
+    }
+
     public function trouverTout(array $colonnes = ['*']): array
     {
         $listeColonnes = implode(', ', $colonnes);
-        $sql = "SELECT {$listeColonnes} FROM {$this->table}";
+        $sql = "SELECT {$listeColonnes} FROM `{$this->table}`";
         $declaration = $this->db->query($sql);
         return $declaration->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
@@ -28,7 +38,7 @@ abstract class BaseModel
     public function trouverParIdentifiant(int|string $id, array $colonnes = ['*']): ?array
     {
         $listeColonnes = implode(', ', $colonnes);
-        $sql = "SELECT {$listeColonnes} FROM {$this->table} WHERE {$this->clePrimaire} = :id";
+        $sql = "SELECT {$listeColonnes} FROM `{$this->table}` WHERE `{$this->clePrimaire}` = :id";
         $declaration = $this->db->prepare($sql);
         $typeParametre = is_int($id) ? PDO::PARAM_INT : PDO::PARAM_STR;
         $declaration->bindParam(':id', $id, $typeParametre);
@@ -39,16 +49,15 @@ abstract class BaseModel
 
     public function creer(array $donnees): string|bool
     {
-        $colonnes = implode(', ', array_keys($donnees));
+        $colonnes = implode(', ', array_map(fn($col) => "`$col`", array_keys($donnees)));
         $placeholders = ':' . implode(', :', array_keys($donnees));
-        $sql = "INSERT INTO {$this->table} ({$colonnes}) VALUES ({$placeholders})";
+        $sql = "INSERT INTO `{$this->table}` ({$colonnes}) VALUES ({$placeholders})";
         $declaration = $this->db->prepare($sql);
-
         try {
             $succes = $declaration->execute($donnees);
             if ($succes) {
                 $dernierId = $this->db->lastInsertId();
-                if ($dernierId && $dernierId !== "0") {
+                if ($dernierId && $dernierId !== "0" && $dernierId !== 0) { // Gère les chaînes et les entiers
                     return $dernierId;
                 }
                 return true;
@@ -66,15 +75,13 @@ abstract class BaseModel
         }
         $setClause = [];
         foreach (array_keys($donnees) as $colonne) {
-            $setClause[] = "{$colonne} = :{$colonne}";
+            $setClause[] = "`{$colonne}` = :{$colonne}";
         }
         $setString = implode(', ', $setClause);
-        $sql = "UPDATE {$this->table} SET {$setString} WHERE {$this->clePrimaire} = :id_cle_primaire";
+        $sql = "UPDATE `{$this->table}` SET {$setString} WHERE `{$this->clePrimaire}` = :id_cle_primaire";
         $declaration = $this->db->prepare($sql);
-
         $parametres = $donnees;
         $parametres['id_cle_primaire'] = $id;
-
         try {
             return $declaration->execute($parametres);
         } catch (PDOException $e) {
@@ -84,7 +91,7 @@ abstract class BaseModel
 
     public function supprimerParIdentifiant(int|string $id): bool
     {
-        $sql = "DELETE FROM {$this->table} WHERE {$this->clePrimaire} = :id";
+        $sql = "DELETE FROM `{$this->table}` WHERE `{$this->clePrimaire}` = :id";
         $declaration = $this->db->prepare($sql);
         $typeParametre = is_int($id) ? PDO::PARAM_INT : PDO::PARAM_STR;
         $declaration->bindParam(':id', $id, $typeParametre);
@@ -95,56 +102,63 @@ abstract class BaseModel
         }
     }
 
-    public function trouverParCritere(array $criteres, array $colonnes = ['*'], string $operateurLogique = 'AND'): array
+    public function trouverParCritere(array $criteres, array $colonnes = ['*'], string $operateurLogique = 'AND', ?string $orderBy = null, ?int $limit = null, ?int $offset = null): array
     {
-        if (empty($criteres)) {
-            return $this->trouverTout($colonnes);
-        }
         $listeColonnes = implode(', ', $colonnes);
+        $sql = "SELECT {$listeColonnes} FROM `{$this->table}`";
         $conditions = [];
-        foreach (array_keys($criteres) as $champ) {
-            $conditions[] = "{$champ} = :{$champ}";
+        if (!empty($criteres)) {
+            foreach (array_keys($criteres) as $champ) {
+                $conditions[] = "`{$champ}` = :{$champ}";
+            }
+            $sql .= " WHERE " . implode(" {$operateurLogique} ", $conditions);
         }
-        $sql = "SELECT {$listeColonnes} FROM {$this->table} WHERE " . implode(" {$operateurLogique} ", $conditions);
+        if ($orderBy !== null) {
+            $sql .= " ORDER BY {$orderBy}";
+        }
+        if ($limit !== null) {
+            $sql .= " LIMIT :limit";
+            if ($offset !== null) {
+                $sql .= " OFFSET :offset";
+            }
+        }
         $declaration = $this->db->prepare($sql);
-        $declaration->execute($criteres);
+        foreach ($criteres as $key => $value) {
+            $typeParam = is_int($value) ? PDO::PARAM_INT : (is_bool($value) ? PDO::PARAM_BOOL : (is_null($value) ? PDO::PARAM_NULL : PDO::PARAM_STR));
+            $declaration->bindValue(":$key", $value, $typeParam);
+        }
+        if ($limit !== null) {
+            $declaration->bindValue(':limit', $limit, PDO::PARAM_INT);
+        }
+        if ($offset !== null) {
+            $declaration->bindValue(':offset', $offset, PDO::PARAM_INT);
+        }
+        $declaration->execute();
         return $declaration->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
-    public function trouverUnParCritere(array $criteres, array $colonnes = ['*'], string $operateurLogique = 'AND'): ?array
+    public function trouverUnParCritere(array $criteres, array $colonnes = ['*'], string $operateurLogique = 'AND', ?string $orderBy = null): ?array
     {
-        if (empty($criteres)) {
-            $sql = "SELECT " . implode(', ', $colonnes) . " FROM {$this->table} LIMIT 1";
-            $declaration = $this->db->query($sql);
-            $resultat = $declaration->fetch(PDO::FETCH_ASSOC);
-            return $resultat ?: null;
-        }
-        $listeColonnes = implode(', ', $colonnes);
-        $conditions = [];
-        foreach (array_keys($criteres) as $champ) {
-            $conditions[] = "{$champ} = :{$champ}";
-        }
-        $sql = "SELECT {$listeColonnes} FROM {$this->table} WHERE " . implode(" {$operateurLogique} ", $conditions) . " LIMIT 1";
-        $declaration = $this->db->prepare($sql);
-        $declaration->execute($criteres);
-        $resultat = $declaration->fetch(PDO::FETCH_ASSOC);
-        return $resultat ?: null;
+        $resultats = $this->trouverParCritere($criteres, $colonnes, $operateurLogique, $orderBy, 1);
+        return $resultats[0] ?? null;
     }
 
     public function compterParCritere(array $criteres, string $operateurLogique = 'AND'): int
     {
-        if (empty($criteres)) {
-            $sql = "SELECT COUNT(*) FROM {$this->table}";
-            $declaration = $this->db->query($sql);
-            return (int) $declaration->fetchColumn();
-        }
+        $sql = "SELECT COUNT(*) FROM `{$this->table}`";
         $conditions = [];
-        foreach (array_keys($criteres) as $champ) {
-            $conditions[] = "{$champ} = :{$champ}";
+        if (!empty($criteres)) {
+            foreach (array_keys($criteres) as $champ) {
+                $conditions[] = "`{$champ}` = :{$champ}";
+            }
+            $sql .= " WHERE " . implode(" {$operateurLogique} ", $conditions);
         }
-        $sql = "SELECT COUNT(*) FROM {$this->table} WHERE " . implode(" {$operateurLogique} ", $conditions);
         $declaration = $this->db->prepare($sql);
-        $declaration->execute($criteres);
+        foreach ($criteres as $key => $value) {
+            $typeParam = is_int($value) ? PDO::PARAM_INT : (is_bool($value) ? PDO::PARAM_BOOL : (is_null($value) ? PDO::PARAM_NULL : PDO::PARAM_STR));
+            $declaration->bindValue(":$key", $value, $typeParam);
+        }
+        $declaration->execute();
         return (int) $declaration->fetchColumn();
     }
 

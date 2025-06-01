@@ -1,21 +1,50 @@
+# GestionMySoutenance .htaccess
+
+# Empêcher le listage des répertoires
+Options -Indexes
+
+# Cacher la signature du serveur
+ServerSignature Off
+
 <IfModule mod_rewrite.c>
     RewriteEngine On
 
+    # Ne pas réécrire les requêtes pour les fichiers et dossiers existants dans /Public
+    # Utile pour les assets (CSS, JS, images) qui doivent être servis directement
     RewriteCond %{REQUEST_FILENAME} -f [OR]
     RewriteCond %{REQUEST_FILENAME} -d
     RewriteRule ^ - [L]
 
-    RewriteRule /^\.(?!well-known) - [F]
+    # Empêcher l'accès direct aux fichiers commençant par un point (ex: .env, .git)
+    # sauf pour le répertoire .well-known (utilisé par Let's Encrypt par exemple)
+    RewriteRule /^\.(?!well-known\/) - [F]
 
+    # Rediriger toutes les autres requêtes vers le front controller index.php
     RewriteRule ^ index.php [L]
 </IfModule>
 
 <IfModule mod_headers.c>
+    # En-têtes de sécurité
     Header set X-Content-Type-Options "nosniff"
     Header set X-Frame-Options "SAMEORIGIN"
-    Header set X-XSS-Protection "1; mode=block"
+    # X-XSS-Protection est déprécié, préférez Content-Security-Policy
+    # Header set X-XSS-Protection "1; mode=block"
+    
+    # Exemple de Content-Security-Policy (À ADAPTER PRÉCISÉMENT À VOS BESOINS ET ASSETS)
+    # Header set Content-Security-Policy "default-src 'self'; img-src 'self' data: https://placehold.co; script-src 'self' https://cdn.tailwindcss.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com;"
+
+    # Optionnel: Pour forcer HTTPS en production (si votre reverse proxy ne le fait pas déjà)
+    # RewriteCond %{HTTPS} !=on
+    # RewriteCond %{ENV:HTTPS} !=on # Pour certains hébergeurs
+    # RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
 </IfModule>
 
-Options -Indexes
+# Protection de fichiers sensibles (si présents à la racine ou ailleurs accessible)
+<FilesMatch "(\.(env|config|log|bak|sql|swp|yml|yaml)|composer\.(json|lock)|Dockerfile|README\.md|CONTRIBUTING\.md|LICENSE|php\.ini|Makefile|Vagrantfile|Gemfile(|\.lock))$">
+    Require all denied
+</FilesMatch>
 
-ServerSignature Off
+# Refuser l'accès direct aux dossiers de l'application en dehors de Public/
+# (Cette règle est plus pour une configuration Apache globale, ici on est déjà dans Public/)
+# Mais si des liens symboliques ou des alias existent, cela peut être une sécurité supplémentaire.
+# RewriteRule ^(src|vendor|config|routes)/ - [F,L]

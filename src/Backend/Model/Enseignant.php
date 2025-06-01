@@ -2,9 +2,6 @@
 
 namespace App\Backend\Model;
 
-use PDO;
-use App\Backend\Model\BaseModel;
-
 class Enseignant extends BaseModel
 {
     protected string $table = 'enseignant';

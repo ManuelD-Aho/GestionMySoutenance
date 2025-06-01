@@ -7,16 +7,17 @@ use PDOException;
 
 class Database {
     private static ?self $instance = null;
-    private ?PDO $pdo;
+    private ?PDO $pdoInstance = null;
 
     private function __construct() {
         $host = getenv('DB_HOST') ?: 'localhost';
+        $port = getenv('DB_PORT') ?: '3306';
         $db   = getenv('DB_DATABASE') ?: 'mysoutenance';
         $user = getenv('DB_USER') ?: 'root';
-        $pass = getenv('DB_PASSWORD') ?: ''; // Utilise DB_PASSWORD
+        $pass = getenv('DB_PASSWORD') ?: '';
         $charset = 'utf8mb4';
 
-        $dsn = "mysql:host=$host;dbname=$db;charset=$charset";
+        $dsn = "mysql:host={$host};port={$port};dbname={$db};charset={$charset}";
         $options = [
             PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
@@ -24,11 +25,10 @@ class Database {
         ];
 
         try {
-            $this->pdo = new PDO($dsn, $user, $pass, $options);
+            $this->pdoInstance = new PDO($dsn, $user, $pass, $options);
         } catch (PDOException $e) {
-            // Pour une application en production, loguer l'erreur $e->getMessage() de manière sécurisée
-            // et ne pas exposer de détails sensibles à l'utilisateur.
-            throw new PDOException('Connexion à la base de données impossible. Veuillez contacter l\'administrateur.', (int)$e->getCode(), $e);
+            error_log("PDO Connection Error: " . $e->getMessage());
+            throw new PDOException('Connexion à la base de données impossible. Veuillez vérifier la configuration ou contacter l\'administrateur.', (int)$e->getCode(), $e);
         }
     }
 
@@ -40,12 +40,10 @@ class Database {
     }
 
     public function getConnection(): PDO {
-        if ($this->pdo === null) {
-            // Ce cas ne devrait pas arriver si getInstance est toujours utilisé correctement
-            // Mais c'est une sécurité si l'objet Database a été créé d'une manière ou d'une autre sans que le constructeur initialise pdo
-            throw new PDOException("La connexion PDO n'a pas été initialisée.");
+        if ($this->pdoInstance === null) {
+            throw new PDOException("La connexion PDO n'a pas été initialisée. Assurez-vous que getInstance() est appelé.");
         }
-        return $this->pdo;
+        return $this->pdoInstance;
     }
 
     private function __clone(){}

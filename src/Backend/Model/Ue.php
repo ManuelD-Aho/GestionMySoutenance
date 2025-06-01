@@ -2,8 +2,6 @@
 
 namespace App\Backend\Model;
 
-use PDO;
-
 class Ue extends BaseModel
 {
     protected string $table = 'ue';
