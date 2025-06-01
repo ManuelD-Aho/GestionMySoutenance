@@ -1,5 +1,5 @@
 @use "../utilities/initial-variables" as iv;
-@use "../utilities/css-variables.scss" as cv;
+@use "../utilities/css-variables" as cv;
 @use "../utilities/mixins" as mx;
 
 $body-background-color: cv.getVar("scheme-main") !default;

@@ -1,5 +1,16 @@
 FROM php:8.2-apache
 
+FROM php:8.1-cli
+WORKDIR /app
+COPY composer.json composer.lock /app/
+RUN apt-get update && apt-get install -y git unzip \
+    && php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');" \
+    && php composer-setup.php --install-dir=/usr/local/bin --filename=composer \
+    && rm composer-setup.php
+COPY . /app
+RUN composer install --no-dev --optimize-autoloader
+
+
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y \
