@@ -5,6 +5,7 @@ namespace App\Backend\Controller;
 use App\Backend\Service\Authentication\ServiceAuthenticationInterface;
 use App\Backend\Service\Authentication\ServiceAuthentification;
 use App\Config\Database;
+use PDO;
 use App\Backend\Model\Utilisateur as UtilisateurModel;
 use App\Backend\Model\HistoriqueMotDePasse as HistoriqueMotDePasseModel;
 use App\Backend\Model\Etudiant as EtudiantModel;
@@ -22,11 +23,28 @@ abstract class BaseController
 {
     protected string $viewDirectory = __DIR__ . '/../../Frontend/views/';
     protected ?ServiceAuthenticationInterface $authServiceInstance = null;
+    protected ?PDO $db = null;
 
     public function __construct()
     {
         if (session_status() === PHP_SESSION_NONE) {
             session_start();
+        }
+        if($this->db === null){
+            try {
+                // CORRECTION ICI :
+                // 1. Obtenir l'instance de la classe Database (si c'est un Singleton)
+                $databaseInstance = Database::getInstance();
+                // 2. Appeler la méthode (non statique) getConnection() sur cette instance
+                $this->db = $databaseInstance->getConnection();
+
+            } catch (\PDOException $e) {
+                error_log("ERREUR CRITIQUE de connexion BDD dans BaseController: " . $e->getMessage());
+                die("Erreur critique: Impossible de se connecter à la base de données. Message : " . $e->getMessage());
+            } catch (\Exception $e) { // Attraper d'autres exceptions potentielles (ex: si getInstance() échoue)
+                error_log("ERREUR CRITIQUE lors de l'obtention de l'instance de Database: " . $e->getMessage());
+                die("Erreur critique: Problème lors de l'initialisation de la connexion à la base de données. Message : " . $e->getMessage());
+            }
         }
     }
 
@@ -43,33 +61,29 @@ abstract class BaseController
     protected function getAuthService(): ServiceAuthenticationInterface
     {
         if ($this->authServiceInstance === null) {
-            $pdo = Database::getInstance()->getConnection();
-            $utilisateurModel = new UtilisateurModel($pdo);
-            $historiqueMotDePasseModel = new HistoriqueMotDePasseModel($pdo);
-            $etudiantModel = new EtudiantModel($pdo);
-            $enseignantModel = new EnseignantModel($pdo);
-            $personnelAdministratifModel = new PersonnelAdministratifModel($pdo);
+            // $this->db devrait DÉJÀ être une instance de PDO ici.
+            if (!$this->db instanceof PDO) {
+                // Si $this->db n'est toujours pas une instance de PDO, c'est une erreur de logique grave.
+                // Cela ne devrait pas arriver si le constructeur de BaseController l'a bien initialisé.
+                throw new \LogicException("La connexion PDO n'a pas été correctement initialisée dans BaseController avant d'appeler getAuthService.");
+            }
 
+            $utilisateurModel = new UtilisateurModel($this->db);
+            $historiqueMotDePasseModel = new HistoriqueMotDePasseModel($this->db);
+            $etudiantModel = new EtudiantModel($this->db);
+            $enseignantModel = new EnseignantModel($this->db);
+            $personnelAdministratifModel = new PersonnelAdministratifModel($this->db);
             $serviceEmail = new ServiceEmail();
-            $serviceSupervision = new ServiceSupervisionAdmin($pdo, $utilisateurModel);
-            $serviceGestionAcademique = new ServiceGestionAcademique($pdo);
-            $servicePermissions = new ServicePermissions($pdo, $serviceSupervision, $utilisateurModel);
-
-            $qrProvider = new BaconQrCodeProvider();
-            $tfaProvider = new TwoFactorAuth(getenv('APP_NAME_FOR_2FA') ?: 'GestionMySoutenance', 6, 30, 'sha1', $qrProvider);
 
             $this->authServiceInstance = new ServiceAuthentification(
-                $pdo,
-                $serviceEmail,
-                $serviceSupervision,
-                $serviceGestionAcademique,
-                $servicePermissions,
-                $tfaProvider,
+                $this->db,
                 $utilisateurModel,
                 $historiqueMotDePasseModel,
                 $etudiantModel,
                 $enseignantModel,
-                $personnelAdministratifModel
+                $personnelAdministratifModel,
+                $serviceEmail,
+                'gestionmysoutenance_tfa_secret'
             );
         }
         return $this->authServiceInstance;

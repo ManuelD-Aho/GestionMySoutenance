@@ -11,6 +11,17 @@ use App\Backend\Model\HistoriqueMotDePasse as HistoriqueMotDePasseModel;
 use App\Backend\Model\Etudiant as EtudiantModel;
 use App\Backend\Model\Enseignant as EnseignantModel;
 use App\Backend\Model\PersonnelAdministratif as PersonnelAdministratifModel;
+use App\Backend\Model\RapportEtudiant; // Pour ServiceSupervisionAdmin
+use App\Backend\Model\Enregistrer;     // Pour ServiceSupervisionAdmin
+use App\Backend\Model\Pister;          // Pour ServiceSupervisionAdmin
+use App\Backend\Model\CompteRendu;
+use App\Backend\Model\Inscrire;
+use App\Backend\Model\Evaluer;
+use App\Backend\Model\FaireStage;
+use App\Backend\Model\Acquerir;
+use App\Backend\Model\Occuper;
+use App\Backend\Model\Attribuer;// Pour ServiceSupervisionAdmin
+
 use App\Backend\Service\Email\ServiceEmail;
 use App\Backend\Service\SupervisionAdmin\ServiceSupervisionAdmin;
 use App\Backend\Service\GestionAcademique\ServiceGestionAcademique;
@@ -33,32 +44,68 @@ use RobThree\Auth\Providers\Qr\BaconQrCodeProvider;
 class AuthentificationController extends BaseController
 {
     private ServiceAuthenticationInterface $authService;
+    private ServiceSupervisionAdmin $serviceSupervision;
+    private ServiceGestionAcademique $serviceGestionAcademique;
+
 
     public function __construct()
     {
-        parent::__construct();
-        $pdo = Database::getInstance()->getConnection();
+        parent::__construct(); // Initialise $this->db depuis BaseController
 
+        if (!$this->db instanceof PDO) {
+            throw new \LogicException("La connexion PDO n'est pas disponible depuis BaseController dans AuthentificationController.");
+        }
+        $pdo = $this->db; // Utiliser la connexion PDO de BaseController
+
+        // --- Instanciation pour ServiceSupervisionAdmin ---
+        $rapportEtudiantModel = new RapportEtudiant($pdo);
+        $enregistrerModel = new Enregistrer($pdo);
+        $pisterModel = new Pister($pdo);
+        $compteRenduModel = new CompteRendu($pdo);
+        $this->serviceSupervision = new ServiceSupervisionAdmin(
+            $rapportEtudiantModel,
+            $enregistrerModel,
+            $pisterModel,
+            $compteRenduModel,
+            $pdo
+        );
+
+        // --- Instanciation pour ServiceGestionAcademique ---
+        $inscrireModel = new Inscrire($pdo);
+        $evaluerModel = new Evaluer($pdo);
+        $faireStageModel = new FaireStage($pdo);
+        $acquerirModel = new Acquerir($pdo);
+        $occuperModel = new Occuper($pdo);
+        $attribuerModel = new Attribuer($pdo);
+
+        // Instanciation de ServiceGestionAcademique avec TOUTES ses dépendances de modèles
+        $this->serviceGestionAcademique = new ServiceGestionAcademique( // Ligne 75 (environ)
+            $inscrireModel,
+            $evaluerModel,
+            $faireStageModel,
+            $acquerirModel,
+            $occuperModel,
+            $attribuerModel
+        );
+
+        // --- Instanciation des autres modèles et services pour ServiceAuthentification ---
         $utilisateurModel = new UtilisateurModel($pdo);
         $historiqueMotDePasseModel = new HistoriqueMotDePasseModel($pdo);
         $etudiantModel = new EtudiantModel($pdo);
         $enseignantModel = new EnseignantModel($pdo);
         $personnelAdministratifModel = new PersonnelAdministratifModel($pdo);
 
-        $serviceEmail = new ServiceEmail();
-        $serviceSupervision = new ServiceSupervisionAdmin($pdo);
-        $serviceGestionAcademique = new ServiceGestionAcademique($pdo);
-        $servicePermissions = new ServicePermissions($pdo, $serviceSupervision);
+        $serviceEmail = new ServiceEmail(); // Vérifiez ses dépendances si besoin
+        $servicePermissions = new ServicePermissions($pdo, $this->serviceSupervision);
 
         $qrProvider = new BaconQrCodeProvider();
         $tfaProvider = new TwoFactorAuth('GestionMySoutenance', 6, 30, 'sha1', $qrProvider);
 
-
         $this->authService = new ServiceAuthentification(
             $pdo,
             $serviceEmail,
-            $serviceSupervision,
-            $serviceGestionAcademique,
+            $this->serviceSupervision,
+            $this->serviceGestionAcademique, // Passez l'instance de serviceGestionAcademique
             $servicePermissions,
             $tfaProvider,
             $utilisateurModel,

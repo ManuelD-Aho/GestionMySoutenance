@@ -7,8 +7,9 @@ use App\Backend\Model\Enregistrer;
 use App\Backend\Model\Pister;
 use App\Backend\Model\RapportEtudiant;
 use PDO;
+use DateTime;
 
-class ServiceSupervisionAdmin
+class ServiceSupervisionAdmin implements ServiceSupervisionAdminInterface
 {
     private RapportEtudiant $modeleRapportEtudiant;
     private Enregistrer $modeleEnregistrer;
@@ -28,6 +29,30 @@ class ServiceSupervisionAdmin
         $this->modelePister = $modelePister;
         $this->modeleCompteRendu = $modeleCompteRendu;
         $this->db = $db;
+    }
+    public function enregistrerAction(
+        string $loginUtilisateur,
+        string $codeAction,
+        DateTime $dateAction,
+        string $adresseIp,
+        string $userAgent,
+        string $contexteEntite,
+        ?string $idEntite,
+        ?array $details
+    ): bool {
+        $donnees = [
+            'numero_utilisateur_trigger' => $loginUtilisateur, // Adapter au nom de colonne de la table 'enregistrer'
+            'code_action' => $codeAction,                   // Adapter
+            'date_action' => $dateAction->format('Y-m-d H:i:s'),
+            'adresse_ip_action' => $adresseIp,             // Adapter
+            'user_agent_action' => $userAgent,             // Adapter
+            'contexte_entite_action' => $contexteEntite,   // Adapter
+            'id_entite_concernee_action' => $idEntite,     // Adapter
+            'details_action' => json_encode($details)      // Adapter
+        ];
+        // Supposons que votre modèle Enregistrer a une méthode 'creer'
+        $result = $this->modeleEnregistrer->creer($donnees); // La méthode creer de BaseModel retourne string|bool
+        return is_string($result) || $result === true;
     }
 
     public function obtenirStatistiquesGlobalesRapports(): array
