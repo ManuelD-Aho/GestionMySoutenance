@@ -320,16 +320,32 @@ class ServiceAuthentification implements ServiceAuthenticationInterface
         if (session_status() === PHP_SESSION_NONE) {
             session_start();
         }
+
+        // ---- DEBUT DEBUG ----
+        echo "<pre>Contenu de \$_SESSION au début de estUtilisateurConnecteEtSessionValide():<br>";
+        var_dump($_SESSION);
+        echo "</pre>";
+        // ---- FIN DEBUG ----
+
         if (!isset($_SESSION['numero_utilisateur'])) {
+            // ---- DEBUT DEBUG ----
+            echo "<p>DEBUG: \$_SESSION['numero_utilisateur'] N'EST PAS DÉFINI. Retour false.</p>";
+            // ---- FIN DEBUG ----
             return false;
         }
 
-        $sessionTimeout = 3600;
+        $sessionTimeout = 3600; // 1 heure
         if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > $sessionTimeout)) {
+            // ---- DEBUT DEBUG ----
+            echo "<p>DEBUG: Session expirée. Appel de terminerSessionUtilisateur().</p>";
+            // ---- FIN DEBUG ----
             $this->terminerSessionUtilisateur();
             return false;
         }
         $_SESSION['last_activity'] = time();
+        // ---- DEBUT DEBUG ----
+        echo "<p>DEBUG: \$_SESSION['numero_utilisateur'] EST DÉFINI ET SESSION NON EXPIRÉE. Retour true.</p>";
+        // ---- FIN DEBUG ----
         return true;
     }
 

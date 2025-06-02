@@ -1,7 +1,7 @@
 <?php
 
 use FastRoute\RouteCollector;
-use App\Backend\Controller\BaseController;
+use App\Backend\Controller\HomeController;
 use App\Backend\Controller\AssetController;
 use App\Backend\Controller\AuthentificationController; // Assurez-vous que le nom est correct
 use App\Backend\Controller\DashboardController;
@@ -9,7 +9,7 @@ use App\Backend\Controller\DashboardController;
 
 return function(RouteCollector $r) {
     // Routes Publiques
-    $r->addRoute('GET', '/', [BaseController::class, 'home']);
+    $r->addRoute('GET', '/', [HomeController::class, 'home']);
     //$r->addRoute('GET', '/assets/css/{filename:.+\.css}', [AssetController::class, 'serveCss']);
     // Ajoutez d'autres routes pour assets si nécessaire (JS, images)
     // $r->addRoute('GET', '/assets/js/{filename:.+\.js}', [AssetController::class, 'serveJs']);

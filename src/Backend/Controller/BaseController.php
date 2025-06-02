@@ -27,6 +27,7 @@ use App\Backend\Service\GestionAcademique\ServiceGestionAcademique;
 use App\Backend\Service\Permissions\ServicePermissions;
 use RobThree\Auth\TwoFactorAuth;
 use RobThree\Auth\Providers\Qr\BaconQrCodeProvider;
+use RobThree\Auth\Algorithm; // <-- AJOUTÉ : Importer la classe Algorithm
 
 abstract class BaseController
 {
@@ -34,6 +35,7 @@ abstract class BaseController
     protected ?PDO $db = null;
     protected ?ServiceAuthenticationInterface $authService = null;
     protected ?ServicePermissions $permissionService = null; // Ajout pour la gestion des permissions
+    protected ?TwoFactorAuth $tfa = null; // Ajout pour stocker l'instance de TFA si besoin ailleurs
 
     public function __construct()
     {
@@ -55,8 +57,6 @@ abstract class BaseController
         }
 
         // Instanciation des services ici pour qu'ils soient disponibles pour les contrôleurs enfants
-        // Cela suppose que tous les contrôleurs enfants pourraient potentiellement en avoir besoin.
-        // Une meilleure approche serait l'injection de dépendances.
         if ($this->db instanceof PDO) {
             $this->initializeCommonServices();
         }
@@ -64,18 +64,26 @@ abstract class BaseController
 
     protected function initializeCommonServices(): void
     {
+        // Instanciation des Modèles
         $utilisateurModel = new UtilisateurModel($this->db);
         $historiqueMotDePasseModel = new HistoriqueMotDePasseModel($this->db);
         $etudiantModel = new EtudiantModel($this->db);
         $enseignantModel = new EnseignantModel($this->db);
         $personnelAdministratifModel = new PersonnelAdministratifModel($this->db);
-        $serviceEmail = new ServiceEmail();
-
-        // Dépendances pour ServiceSupervisionAdmin
         $rapportEtudiantModel = new RapportEtudiant($this->db);
         $enregistrerModel = new Enregistrer($this->db);
         $pisterModel = new Pister($this->db);
         $compteRenduModel = new CompteRendu($this->db);
+        $inscrireModel = new Inscrire($this->db);
+        $evaluerModel = new Evaluer($this->db);
+        $faireStageModel = new FaireStage($this->db);
+        $acquerirModel = new Acquerir($this->db);
+        $occuperModel = new Occuper($this->db);
+        $attribuerModel = new Attribuer($this->db);
+
+        // Instanciation des Services
+        $serviceEmail = new ServiceEmail();
+
         $serviceSupervision = new ServiceSupervisionAdmin(
             $rapportEtudiantModel,
             $enregistrerModel,
@@ -84,34 +92,40 @@ abstract class BaseController
             $this->db
         );
 
-        // Dépendances pour ServiceGestionAcademique
-        $inscrireModel = new Inscrire($this->db);
-        $evaluerModel = new Evaluer($this->db);
-        $faireStageModel = new FaireStage($this->db);
-        $acquerirModel = new Acquerir($this->db);
-        $occuperModel = new Occuper($this->db);
-        $attribuerModel = new Attribuer($this->db);
         $serviceGestionAcademique = new ServiceGestionAcademique(
             $inscrireModel,
             $evaluerModel,
             $faireStageModel,
             $acquerirModel,
             $occuperModel,
-            $attribuerModel
+            $attribuerModel,
+            $this->db // Assurez-vous que le constructeur de ServiceGestionAcademique attend la BDD si nécessaire
         );
 
         $this->permissionService = new ServicePermissions($this->db, $serviceSupervision);
 
+        // Configuration du TwoFactorAuth
         $qrProvider = new BaconQrCodeProvider();
-        $tfaProvider = new TwoFactorAuth(($_ENV['APP_NAME'] ?? 'GestionMySoutenance'), 6, 30, 'sha1', $qrProvider);
+        // Utilisation de la variable d'environnement pour le nom de l'application, avec un fallback.
+        $issuer = $_ENV['APP_NAME'] ?? 'GestionMySoutenance';
+        // Correction de l'instanciation de TwoFactorAuth
+        $this->tfa = new TwoFactorAuth(
+            $issuer,
+            6,          // Nombre de chiffres pour le code OTP
+            30,         // Période de validité du code OTP en secondes
+            Algorithm::Sha1, // <-- CORRIGÉ : Utilisation de la constante/enum pour l'algorithme
+            $qrProvider // Fournisseur pour la génération de QR Code
+        // Le 6ème argument (rngprovider) est optionnel et peut être omis si non nécessaire.
+        );
 
+        // Instanciation du ServiceAuthentification avec toutes ses dépendances
         $this->authService = new ServiceAuthentification(
             $this->db,
             $serviceEmail,
             $serviceSupervision,
             $serviceGestionAcademique,
             $this->permissionService,
-            $tfaProvider,
+            $this->tfa, // Passer l'instance de TwoFactorAuth configurée
             $utilisateurModel,
             $historiqueMotDePasseModel,
             $etudiantModel,
@@ -132,7 +146,7 @@ abstract class BaseController
 
     protected function render(string $viewName, array $data = [], string $layout = 'layout/app'): void
     {
-        extract($data, EXTR_SKIP); // EXTR_SKIP pour ne pas écraser les variables existantes comme $this
+        extract($data, EXTR_SKIP);
 
         $viewFilePath = $this->viewDirectory . $viewName . '.php';
 
@@ -151,9 +165,6 @@ abstract class BaseController
                 $this->renderError(500, "Erreur: Le layout '$layoutFilePath' est introuvable.");
                 return;
             }
-            // Les variables $pageTitle, $menuItems, $currentUser, $userRole, $contentView
-            // sont attendues par le layout et doivent être dans $data ou définies avant d'inclure le layout
-            // $contentForLayout contient le contenu de la vue $viewName
             include $layoutFilePath;
         } else {
             echo $contentForLayout;
@@ -168,18 +179,20 @@ abstract class BaseController
         $errorViewPath = $this->viewDirectory . $errorViewName . '.php';
 
         if (!file_exists($errorViewPath)) {
-            $errorViewName = 'errors/default_error'; // Un fallback
+            $errorViewName = 'errors/default_error';
             $errorViewPath = $this->viewDirectory . $errorViewName . '.php';
             if (!file_exists($errorViewPath)) {
-                // Fallback ultime si même la vue d'erreur par défaut n'existe pas
                 echo "<h1>Erreur {$httpStatusCode}</h1><p>" . htmlspecialchars($message) . "</p><p>Page d'erreur non trouvée.</p>";
                 return;
             }
         }
 
-        // Utiliser la méthode render pour inclure le layout d'erreur si nécessaire
-        // Supposons un layout minimal pour les erreurs : 'layout/error_layout'
-        $this->render($errorViewName, ['message' => $message, 'title' => "Erreur {$httpStatusCode}"], 'layout/error_layout');
+        // Pour le rendu d'erreur, on peut supposer un layout minimal ou pas de layout complexe.
+        // Si vous avez un layout spécifique pour les erreurs (ex: 'layout/error_layout.php'), utilisez-le.
+        // Sinon, incluez directement la vue d'erreur.
+        $dataToPass = ['message' => $message, 'title' => "Erreur {$httpStatusCode}"];
+        extract($dataToPass, EXTR_SKIP);
+        include $errorViewPath; // Affichage direct de la vue d'erreur sans le layout principal 'app'
     }
 
     protected function requireLogin(): void
@@ -200,7 +213,7 @@ abstract class BaseController
 
     protected function checkPermission(string $permissionCode, ?string $redirectTo = null, string $errorMessage = "Accès refusé."): void
     {
-        $this->requireLogin(); // Implicitement, une permission ne peut être vérifiée que pour un utilisateur connecté
+        $this->requireLogin();
 
         $userNum = $_SESSION['numero_utilisateur'] ?? null;
         if ($userNum === null || !$this->permissionService || !$this->permissionService->utilisateurPossedePermission($userNum, $permissionCode)) {
@@ -208,8 +221,7 @@ abstract class BaseController
                 $this->setFlashMessage('error_message', $errorMessage);
                 $this->redirect($redirectTo);
             } else {
-                $this->renderError(403, $errorMessage);
-                exit; // Important pour arrêter l'exécution après renderError
+                $this->renderError(403, $errorMessage); // renderError gère l'affichage et devrait appeler exit si nécessaire
             }
         }
     }
