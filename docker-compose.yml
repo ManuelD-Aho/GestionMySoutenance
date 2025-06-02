@@ -29,7 +29,7 @@ services:
     image: mysql:8.3
     container_name: gestionmysoutenance_db
     restart: unless-stopped
-    command: --default-authentication-plugin=mysql_native_password # Pour compatibilité avec certains clients anciens si besoin
+    command: --default-authentication-plugin=caching_sha2_password
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD} # Sera 'root123' via .env
       MYSQL_DATABASE: ${DB_DATABASE}
