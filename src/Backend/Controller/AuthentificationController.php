@@ -3,7 +3,6 @@
 namespace App\Backend\Controller;
 
 use PDO;
-// ... (gardez tous vos autres 'use' statements existants)
 use App\Backend\Service\Authentication\ServiceAuthenticationInterface;
 use App\Backend\Service\Authentication\ServiceAuthentification;
 use App\Backend\Model\Utilisateur as UtilisateurModel;
@@ -102,7 +101,7 @@ class AuthentificationController extends BaseController
 
         $qrProvider = new BaconQrCodeProvider();
         $issuer = $_ENV['APP_NAME'] ?? 'GestionMySoutenance';
-        $tfaProvider = new TwoFactorAuth(
+        $tfaInstance = $this->tfa ?? new TwoFactorAuth(
             $issuer,
             6,
             30,
@@ -116,7 +115,7 @@ class AuthentificationController extends BaseController
             $this->serviceSupervision,
             $this->serviceGestionAcademique,
             $servicePermissions,
-            $tfaProvider,
+            $tfaInstance,
             $utilisateurModel,
             $historiqueMotDePasseModel,
             $etudiantModel,
@@ -127,22 +126,28 @@ class AuthentificationController extends BaseController
 
     protected function requireNoLogin(): void
     {
-        echo "<p style='background: yellow; color: black; padding: 5px;'>DEBUG AuthentificationController: Entrée dans requireNoLogin().</p>";
-        // La méthode estUtilisateurConnecteEtSessionValide() dans $this->authService contient déjà votre var_dump de $_SESSION
+        // ---- DEBUT DEBUG (Commenté car headers already sent si activé ici) ----
+        // echo "<p style='background: yellow; color: black; padding: 5px; border: 1px dashed red; margin: 2px;'>DEBUG AuthentificationController: Entrée dans requireNoLogin().</p>";
+        // if ($this->authService && $this->authService->estUtilisateurConnecteEtSessionValide()) { // estUtilisateurConnecteEtSessionValide a ses propres echos commentés
+        //     echo "<p style='background: orange; color: white; padding: 5px; border: 1px dashed red; margin: 2px;'>DEBUG AuthentificationController: Dans requireNoLogin() - Condition VRAIE. Redirection vers /dashboard...</p>";
+        //     $this->redirect('/dashboard');
+        // } else {
+        //     echo "<p style='background: lightgreen; color: black; padding: 5px; border: 1px dashed red; margin: 2px;'>DEBUG AuthentificationController: Dans requireNoLogin() - Condition FAUSSE. PAS de redirection.</p>";
+        // }
+        // ---- FIN DEBUG ----
+        // Logique normale sans les echos pour éviter "headers already sent"
         if ($this->authService && $this->authService->estUtilisateurConnecteEtSessionValide()) {
-            echo "<p style='background: orange; color: white; padding: 5px;'>DEBUG AuthentificationController: Dans requireNoLogin() - Condition VRAIE (utilisateur considéré connecté). Redirection vers /dashboard...</p>";
-            header('Location: /dashboard');
-            exit;
-        } else {
-            echo "<p style='background: lightgreen; color: black; padding: 5px;'>DEBUG AuthentificationController: Dans requireNoLogin() - Condition FAUSSE (utilisateur considéré NON connecté). PAS de redirection depuis requireNoLogin.</p>";
+            $this->redirect('/dashboard');
         }
     }
 
     public function showLoginForm(): void
     {
-        echo "<p style='background: cyan; color: black; padding: 5px;'>DEBUG AuthentificationController: Entrée dans showLoginForm().</p>";
-        $this->requireNoLogin(); // Appel à la méthode qui contient maintenant du débogage
-        echo "<p style='background: cyan; color: black; padding: 5px;'>DEBUG AuthentificationController: Sortie de requireNoLogin(). Préparation du rendu pour Auth/login...</p>";
+        // ---- DEBUT DEBUG (Commenté) ----
+        // echo "<p style='background: cyan; color: black; padding: 5px; border: 1px dashed blue; margin: 2px;'>DEBUG AuthentificationController: Entrée dans showLoginForm().</p>";
+        $this->requireNoLogin();
+        // echo "<p style='background: cyan; color: black; padding: 5px; border: 1px dashed blue; margin: 2px;'>DEBUG AuthentificationController: Sortie de requireNoLogin(). Préparation du rendu pour Auth/login...</p>";
+        // ---- FIN DEBUG ----
 
         $errorMessage = $this->getFlashMessage('login_error_message');
         $loginData = $_SESSION['login_form_data'] ?? [];
@@ -156,19 +161,14 @@ class AuthentificationController extends BaseController
             'success_message' => $successMessage,
             'title' => 'Connexion'
         ]);
-        // Si vous voyez ce message, cela signifie que render() a été appelé.
-        // Si render() redirige ensuite, le problème est dans render() ou dans le layout.
-        echo "<p style='background: cyan; color: black; padding: 5px;'>DEBUG AuthentificationController: Après appel à render('Auth/login') dans showLoginForm().</p>";
+        // ---- DEBUT DEBUG (Commenté) ----
+        // echo "<p style='background: cyan; color: black; padding: 5px; border: 1px dashed blue; margin: 2px;'>DEBUG AuthentificationController: Après appel à render('Auth/login') dans showLoginForm().</p>";
+        // ---- FIN DEBUG ----
     }
-
-    // ... Collez ici TOUTES les autres méthodes de votre AuthentificationController ...
-    // (handleLogin, logout, handleValidateEmailToken, etc.)
-    // Je vais ajouter les placeholders pour la structure, mais assurez-vous de mettre votre code complet.
 
     public function handleLogin(): void
     {
-        // Votre code pour handleLogin
-        $this->requireNoLogin();
+        $this->requireNoLogin(); // Ne devrait pas rediriger si la session est vide
         $identifiant = $_POST['identifiant'] ?? '';
         $motDePasse = $_POST['mot_de_passe'] ?? '';
 
@@ -188,9 +188,6 @@ class AuthentificationController extends BaseController
 
         } catch (AuthenticationException $e) {
             if ($e->getCode() === 1001) {
-                // Gérer la redirection vers 2FA. Le service devrait stocker l'état.
-                $_SESSION['2fa_user_num_pending_verification'] = $e->getUserIdPending2FA(); // Assurez-vous que l'exception peut fournir cela
-                $_SESSION['2fa_authentication_pending'] = true;
                 $this->redirect('/login-2fa');
             }
             $this->setFlashMessage('login_error_message', $e->getMessage());
@@ -199,9 +196,18 @@ class AuthentificationController extends BaseController
         } catch (PDOException $e) {
             error_log("PDOException dans handleLogin: " . $e->getMessage());
             $this->setFlashMessage('login_error_message', "Erreur de base de données. Veuillez réessayer.");
-        } catch (\Exception $e) {
-            error_log("Exception dans handleLogin: " . $e->getMessage());
-            $this->setFlashMessage('login_error_message', "Une erreur inattendue s'est produite.");
+        } catch (\Exception $e) { // Capture toutes les autres exceptions
+            error_log("Exception Générale dans handleLogin: " . $e->getMessage() . " dans " . $e->getFile() . " à la ligne " . $e->getLine() . "\nTrace: " . $e->getTraceAsString());
+            // **** MODIFICATION POUR DÉBOGAGE ****
+            // Affiche plus de détails sur l'erreur. À retirer en production.
+            $detailedError = "Une erreur inattendue s'est produite.";
+            if (($_ENV['APP_ENV'] ?? 'production') === 'development') { // Afficher plus de détails en mode développement
+                $detailedError .= "<br><small>Détails : " . htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8') .
+                    "<br>Fichier : " . htmlspecialchars($e->getFile(), ENT_QUOTES, 'UTF-8') .
+                    " (ligne " . $e->getLine() . ")</small>";
+            }
+            $this->setFlashMessage('login_error_message', $detailedError);
+            // **** FIN MODIFICATION POUR DÉBOGAGE ****
         }
 
         $_SESSION['login_form_data']['identifiant'] = htmlspecialchars($identifiant);
@@ -210,11 +216,22 @@ class AuthentificationController extends BaseController
 
     public function logout(): void
     {
-        echo "<p style='background: pink; color: black; padding: 5px;'>DEBUG AuthentificationController: Entrée dans logout().</p>";
+        // ---- DEBUT DEBUG (Commenté) ----
+        // echo "<p style='background: pink; color: black; padding: 5px; border: 1px dashed purple; margin: 2px;'>DEBUG AuthentificationController: Entrée dans logout().</p>";
+        // ---- FIN DEBUG ----
         if ($this->authService) {
-            $this->authService->terminerSessionUtilisateur(); // Cette méthode a aussi besoin de var_dump($_SESSION) avant et après session_destroy
+            $this->authService->terminerSessionUtilisateur();
         } else {
-            session_start(); // Assurez-vous que la session est démarrée avant de la détruire
+            if (session_status() === PHP_SESSION_NONE) {
+                session_start();
+            }
+            // ---- DEBUT DEBUG (Commenté) ----
+            /*
+            echo "<pre style='background: pink; color: black; padding: 10px; margin: 10px;'>DEBUG AuthentificationController (logout fallback): \$_SESSION AVANT destruction:<br>";
+            var_dump($_SESSION);
+            echo "</pre>";
+            */
+            // ---- FIN DEBUG ----
             $_SESSION = [];
             if (ini_get("session.use_cookies")) {
                 $params = session_get_cookie_params();
@@ -224,17 +241,155 @@ class AuthentificationController extends BaseController
                 );
             }
             session_destroy();
-            echo "<p style='background: pink; color: black; padding: 5px;'>DEBUG AuthentificationController: Session détruite manuellement dans logout (authService non dispo).</p>";
+            // ---- DEBUT DEBUG (Commenté) ----
+            /*
+            echo "<pre style='background: lightcoral; color: white; padding: 10px; margin: 10px;'>DEBUG AuthentificationController (logout fallback): \$_SESSION APRES destruction:<br>";
+            var_dump($_SESSION);
+            echo "</pre>";
+            */
+            // ---- FIN DEBUG ----
         }
-        echo "<p style='background: pink; color: black; padding: 5px;'>DEBUG AuthentificationController: Redirection vers /login depuis logout().</p>";
+        // ---- DEBUT DEBUG (Commenté) ----
+        // echo "<p style='background: pink; color: black; padding: 5px; border: 1px dashed purple; margin: 2px;'>DEBUG AuthentificationController: Redirection vers /login depuis logout().</p>";
+        // ---- FIN DEBUG ----
         $this->redirect('/login');
     }
 
-    public function handleValidateEmailToken(): void { /* Votre code */ }
-    public function showForgotPasswordForm(): void { /* Votre code */ }
-    public function handleForgotPasswordRequest(): void { /* Votre code */ }
-    public function showResetPasswordForm(): void { /* Votre code */ }
-    public function handleResetPasswordSubmission(): void { /* Votre code */ }
+    public function handleValidateEmailToken(): void
+    {
+        $token = $_GET['token'] ?? '';
+        $pageData = ['title' => "Validation d'Email"];
+
+        if (empty($token)) {
+            $pageData['success'] = false;
+            $pageData['message'] = "Token de validation manquant ou invalide.";
+            $this->render('Auth/email_validation_result', $pageData, 'layout/minimal'); // Utiliser un layout minimal pour cette page
+            return;
+        }
+
+        try {
+            $success = $this->authService->validerCompteEmailViaToken($token);
+            $pageData['success'] = $success;
+            $pageData['message'] = $success ? "Votre adresse email a été validée avec succès. Vous pouvez maintenant vous connecter." : "La validation de l'email a échoué. Le token est peut-être invalide ou déjà utilisé.";
+        } catch (TokenInvalideException | TokenExpireException $e) {
+            $pageData['success'] = false;
+            $pageData['message'] = $e->getMessage();
+        } catch (PDOException $e) {
+            error_log("PDOException dans handleValidateEmailToken: " . $e->getMessage());
+            $pageData['success'] = false;
+            $pageData['message'] = "Une erreur de base de données s'est produite lors de la validation de l'email.";
+        } catch (\Exception $e) {
+            error_log("Exception dans handleValidateEmailToken: " . $e->getMessage());
+            $pageData['success'] = false;
+            $pageData['message'] = "Une erreur inattendue s'est produite lors de la validation de l'email.";
+        }
+        $this->render('Auth/email_validation_result', $pageData, 'layout/minimal'); // Utiliser un layout minimal
+    }
+
+    public function showForgotPasswordForm(): void
+    {
+        $this->requireNoLogin();
+        $successMessage = $this->getFlashMessage('forgot_password_message_succes');
+        $errorMessage = $this->getFlashMessage('forgot_password_message_erreur');
+        $formData = $_SESSION['forgot_password_form_data'] ?? [];
+        unset($_SESSION['forgot_password_form_data']);
+
+        $this->render('Auth/forgot_password_form', [
+            'success_message' => $successMessage,
+            'error_message' => $errorMessage,
+            'form_data' => $formData,
+            'title' => 'Mot de Passe Oublié'
+        ], 'layout/minimal'); // Utiliser un layout minimal
+    }
+
+    public function handleForgotPasswordRequest(): void
+    {
+        $this->requireNoLogin();
+        $email = $_POST['email_principal'] ?? '';
+
+        if (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $this->setFlashMessage('forgot_password_message_erreur', "Veuillez fournir une adresse email valide.");
+            $_SESSION['forgot_password_form_data']['email_principal'] = htmlspecialchars($email);
+            $this->redirect('/forgot-password');
+        }
+
+        try {
+            $this->authService->demanderReinitialisationMotDePasse($email);
+            $this->setFlashMessage('forgot_password_message_succes', "Si un compte est associé à cet email, un lien de réinitialisation a été envoyé.");
+        } catch (UtilisateurNonTrouveException | CompteNonValideException $e) {
+            $this->setFlashMessage('forgot_password_message_succes', "Si un compte est associé à cet email, un lien de réinitialisation a été envoyé.");
+        } catch (OperationImpossibleException | \Exception $e) {
+            error_log("Erreur dans handleForgotPasswordRequest: " . $e->getMessage());
+            $this->setFlashMessage('forgot_password_message_erreur', "Une erreur s'est produite lors de la demande. Veuillez réessayer.");
+        }
+        $this->redirect('/forgot-password');
+    }
+
+    public function showResetPasswordForm(): void
+    {
+        $this->requireNoLogin();
+        $token = $_GET['token'] ?? '';
+        $pageData = ['title' => 'Réinitialiser le Mot de Passe', 'token' => $token];
+        $pageData['error_message'] = $this->getFlashMessage('reset_password_error');
+
+        if (empty($token)) {
+            $pageData['error_message'] = $pageData['error_message'] ?: "Token de réinitialisation manquant ou invalide.";
+        } else {
+            try {
+                $this->authService->validerTokenReinitialisationMotDePasse($token);
+                $_SESSION['reset_password_token_valide'] = $token;
+            } catch (TokenInvalideException | TokenExpireException $e) {
+                $pageData['error_message'] = $e->getMessage();
+                $pageData['token'] = null;
+            } catch (\Exception $e) {
+                error_log("Erreur dans showResetPasswordForm: " . $e->getMessage());
+                $pageData['error_message'] = "Une erreur inattendue s'est produite.";
+                $pageData['token'] = null;
+            }
+        }
+        $this->render('Auth/reset_password_form', $pageData, 'layout/minimal'); // Utiliser un layout minimal
+    }
+
+    public function handleResetPasswordSubmission(): void
+    {
+        $this->requireNoLogin();
+        $token = $_POST['token'] ?? '';
+        $nouveauMdp = $_POST['nouveau_mot_de_passe'] ?? '';
+        $confirmerMdp = $_POST['confirmer_mot_de_passe'] ?? '';
+
+        if (empty($token) || empty($_SESSION['reset_password_token_valide']) || $token !== $_SESSION['reset_password_token_valide']) {
+            $this->setFlashMessage('login_error_message', "Session de réinitialisation invalide ou expirée. Veuillez refaire la demande.");
+            unset($_SESSION['reset_password_token_valide']);
+            $this->redirect('/forgot-password');
+        }
+
+        if (empty($nouveauMdp) || empty($confirmerMdp)) {
+            $this->setFlashMessage('reset_password_error', "Tous les champs de mot de passe sont requis.");
+            $this->redirect('/reset-password?token=' . urlencode($token));
+        }
+
+        if ($nouveauMdp !== $confirmerMdp) {
+            $this->setFlashMessage('reset_password_error', "Les mots de passe ne correspondent pas.");
+            $this->redirect('/reset-password?token=' . urlencode($token));
+        }
+
+        try {
+            $this->authService->reinitialiserMotDePasseApresValidationToken($token, $nouveauMdp);
+            $this->setFlashMessage('login_message_succes', "Votre mot de passe a été réinitialisé avec succès. Veuillez vous connecter.");
+            unset($_SESSION['reset_password_token_valide']);
+            $this->redirect('/login');
+        } catch (ValidationException | MotDePasseInvalideException $e) {
+            $this->setFlashMessage('reset_password_error', $e->getMessage());
+        } catch (TokenInvalideException | TokenExpireException $e) {
+            $this->setFlashMessage('reset_password_error', $e->getMessage());
+        } catch (UtilisateurNonTrouveException $e){
+            $this->setFlashMessage('reset_password_error', "Erreur: Utilisateur non trouvé pour ce token.");
+        }catch (OperationImpossibleException | \Exception $e) {
+            error_log("Erreur dans handleResetPasswordSubmission: " . $e->getMessage());
+            $this->setFlashMessage('reset_password_error', "Une erreur inattendue s'est produite lors de la réinitialisation.");
+        }
+        $this->redirect('/reset-password?token=' . urlencode($token));
+    }
 
     public function show2FAForm(): void
     {
@@ -243,7 +398,7 @@ class AuthentificationController extends BaseController
             $this->redirect('/login');
         }
         $errorMessage = $this->getFlashMessage('2fa_error_message');
-        $this->render('Auth/form_2fa', ['error' => $errorMessage, 'title' => 'Vérification 2FA']);
+        $this->render('Auth/form_2fa', ['error' => $errorMessage, 'title' => 'Vérification 2FA'], 'layout/minimal'); // Utiliser un layout minimal
     }
 
     public function handle2FASubmission(): void
@@ -261,24 +416,30 @@ class AuthentificationController extends BaseController
         }
 
         try {
-            // verifierCodeAuthentificationDeuxFacteurs devrait retourner l'objet utilisateur si valide
-            $utilisateurObjet = $this->authService->verifierCodeAuthentificationDeuxFacteurs($numUser, $code2FA);
+            $isValid = $this->authService->verifierCodeAuthentificationDeuxFacteurs($numUser, $code2FA);
 
-            $this->authService->demarrerSessionUtilisateur($utilisateurObjet);
+            if ($isValid) {
+                $utilisateurObjet = $this->authService->recupererUtilisateurCompletParNumero($numUser);
+                if (!$utilisateurObjet) {
+                    throw new OperationImpossibleException("Impossible de récupérer l'utilisateur après vérification 2FA valide.");
+                }
+                $this->authService->demarrerSessionUtilisateur($utilisateurObjet);
 
-            unset($_SESSION['2fa_user_num_pending_verification']);
-            unset($_SESSION['2fa_authentication_pending']);
+                // Nettoyage des variables de session 2FA est maintenant dans demarrerSessionUtilisateur
 
-
-            $redirectUrl = $_SESSION['redirect_after_login'] ?? '/dashboard';
-            unset($_SESSION['redirect_after_login']);
-            $this->redirect($redirectUrl);
+                $redirectUrl = $_SESSION['redirect_after_login'] ?? '/dashboard';
+                unset($_SESSION['redirect_after_login']);
+                $this->redirect($redirectUrl);
+            } else {
+                // Ce bloc ne devrait pas être atteint si verifierCode... lève une exception pour code invalide.
+                $this->setFlashMessage('2fa_error_message', "Code d'authentification à deux facteurs invalide (vérification interne).");
+            }
 
         } catch (MotDePasseInvalideException $e) {
             $this->setFlashMessage('2fa_error_message', $e->getMessage());
         } catch (UtilisateurNonTrouveException | OperationImpossibleException $e) {
             error_log("Erreur 2FA (handle2FASubmission): " . $e->getMessage());
-            $this->setFlashMessage('2fa_error_message', "Erreur lors de la vérification 2FA.");
+            $this->setFlashMessage('2fa_error_message', "Erreur lors de la vérification 2FA: " . $e->getMessage());
         } catch (\Exception $e) {
             error_log("Exception 2FA (handle2FASubmission): " . $e->getMessage());
             $this->setFlashMessage('2fa_error_message', "Une erreur inattendue s'est produite avec la 2FA.");
@@ -286,10 +447,121 @@ class AuthentificationController extends BaseController
         $this->redirect('/login-2fa');
     }
 
-    public function showChangePasswordForm(): void { /* Votre code */ }
-    public function handleChangePassword(): void { /* Votre code */ }
-    public function showSetup2FAForm(): void { /* Votre code */ }
-    public function handleActivate2FA(): void { /* Votre code */ }
-    public function handleDisable2FA(): void { /* Votre code */ }
+    public function showChangePasswordForm(): void
+    {
+        $this->requireLogin(); // Cette méthode utilise le layout 'app' par défaut
+        $successMessage = $this->getFlashMessage('profile_message_succes');
+        $errorMessage = $this->getFlashMessage('profile_error_message');
 
+        $this->render('Profile/change_password_form', [
+            'success_message' => $successMessage,
+            'error_message' => $errorMessage,
+            'title' => 'Changer Votre Mot de Passe'
+        ]);
+    }
+
+    public function handleChangePassword(): void
+    {
+        $this->requireLogin();
+        $numUser = $_SESSION['numero_utilisateur'];
+        $ancienMdp = $_POST['ancien_mot_de_passe'] ?? '';
+        $nouveauMdp = $_POST['nouveau_mot_de_passe'] ?? '';
+        $confirmerMdp = $_POST['confirmer_nouveau_mot_de_passe'] ?? '';
+
+        if (empty($ancienMdp) || empty($nouveauMdp) || empty($confirmerMdp)) {
+            $this->setFlashMessage('profile_error_message', "Tous les champs sont requis.");
+            $this->redirect('/profile/change-password'); // La route définie dans web.php
+        }
+        if ($nouveauMdp !== $confirmerMdp) {
+            $this->setFlashMessage('profile_error_message', "Les nouveaux mots de passe ne correspondent pas.");
+            $this->redirect('/profile/change-password');
+        }
+
+        try {
+            $this->authService->modifierMotDePasse($numUser, $nouveauMdp, $ancienMdp);
+            $this->setFlashMessage('profile_message_succes', "Votre mot de passe a été changé avec succès.");
+        } catch (ValidationException | MotDePasseInvalideException $e) {
+            $this->setFlashMessage('profile_error_message', $e->getMessage());
+        } catch (UtilisateurNonTrouveException | OperationImpossibleException | \Exception $e) {
+            error_log("Erreur handleChangePassword: " . $e->getMessage());
+            $this->setFlashMessage('profile_error_message', "Une erreur s'est produite lors du changement de mot de passe.");
+        }
+        $this->redirect('/profile/change-password');
+    }
+
+    public function showSetup2FAForm(): void
+    {
+        $this->requireLogin(); // Utilise le layout 'app'
+        $numUser = $_SESSION['numero_utilisateur'];
+        $pageData = ['title' => 'Configurer l\'Authentification à Deux Facteurs'];
+        $pageData['error_message'] = $this->getFlashMessage('setup_2fa_error');
+        $pageData['success_message'] = $this->getFlashMessage('setup_2fa_success');
+
+        try {
+            $utilisateur = $this->authService->recupererUtilisateurCompletParNumero($numUser);
+            if (!$utilisateur) {
+                throw new UtilisateurNonTrouveException("Utilisateur non trouvé pour la configuration 2FA.");
+            }
+
+            $is2FAActive = false;
+            if (isset($utilisateur->preferences_2fa_active)) {
+                if (is_string($utilisateur->preferences_2fa_active)) $is2FAActive = ($utilisateur->preferences_2fa_active === '1');
+                elseif (is_int($utilisateur->preferences_2fa_active)) $is2FAActive = ($utilisateur->preferences_2fa_active === 1);
+                elseif (is_bool($utilisateur->preferences_2fa_active)) $is2FAActive = $utilisateur->preferences_2fa_active;
+            }
+            $pageData['is_2fa_active'] = $is2FAActive;
+
+            if (!$pageData['is_2fa_active']) {
+                $pageData['qrCodeUri'] = $this->authService->genererEtStockerSecret2FA($numUser);
+            }
+        } catch (UtilisateurNonTrouveException $e) {
+            error_log("Erreur showSetup2FAForm (UtilisateurNonTrouveException): " . $e->getMessage());
+            $this->setFlashMessage('profile_error_message', "Utilisateur non trouvé. Impossible de configurer la 2FA."); // Message pour page de profil générale
+            $this->redirect('/profile');
+            return;
+        }
+        catch (OperationImpossibleException | \Exception $e) {
+            error_log("Erreur showSetup2FAForm: " . $e->getMessage());
+            $this->setFlashMessage('setup_2fa_error', "Erreur lors de la préparation de la configuration 2FA.");
+            $pageData['qrCodeUri'] = null;
+        }
+        $this->render('Profile/setup_2fa_form', $pageData);
+    }
+
+    public function handleActivate2FA(): void
+    {
+        $this->requireLogin();
+        $numUser = $_SESSION['numero_utilisateur'];
+        $code2FA = $_POST['code_2fa'] ?? '';
+
+        if (empty($code2FA)) {
+            $this->setFlashMessage('setup_2fa_error', "Veuillez entrer le code d'authentification.");
+            $this->redirect('/profile/setup-2fa');
+        }
+
+        try {
+            $this->authService->activerAuthentificationDeuxFacteurs($numUser, $code2FA);
+            $this->setFlashMessage('setup_2fa_success', "L'authentification à deux facteurs a été activée avec succès.");
+        } catch (MotDePasseInvalideException $e) {
+            $this->setFlashMessage('setup_2fa_error', $e->getMessage());
+        } catch (UtilisateurNonTrouveException | OperationImpossibleException | \Exception $e) {
+            error_log("Erreur handleActivate2FA: " . $e->getMessage());
+            $this->setFlashMessage('setup_2fa_error', "Une erreur s'est produite lors de l'activation de la 2FA.");
+        }
+        $this->redirect('/profile/setup-2fa');
+    }
+
+    public function handleDisable2FA(): void
+    {
+        $this->requireLogin();
+        $numUser = $_SESSION['numero_utilisateur'];
+        try {
+            $this->authService->desactiverAuthentificationDeuxFacteurs($numUser);
+            $this->setFlashMessage('setup_2fa_success', "L'authentification à deux facteurs a été désactivée.");
+        } catch (UtilisateurNonTrouveException | OperationImpossibleException | \Exception $e) {
+            error_log("Erreur handleDisable2FA: " . $e->getMessage());
+            $this->setFlashMessage('setup_2fa_error', "Erreur lors de la désactivation de la 2FA.");
+        }
+        $this->redirect('/profile/setup-2fa');
+    }
 }

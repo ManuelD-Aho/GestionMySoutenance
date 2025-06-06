@@ -1,35 +1,39 @@
 <?php
-// File: src/Frontend/views/layouts/app.php
-// Description: Fichier de layout principal pour les pages après connexion (dashboards).
-//              Il inclut le header, le menu, et la zone de contenu dynamique.
+// File: src/Frontend/views/layout/app.php
 
-// Assurer que la session est démarrée pour accéder aux informations de l'utilisateur
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-// Récupérer l'utilisateur depuis la session. S'il n'est pas là, on pourrait rediriger vers /login.
-// Cette vérification devrait idéalement être faite dans le contrôleur avant de rendre cette vue.
-$currentUser = $_SESSION['user'] ?? null;
-$userRole = $_SESSION['user_role_label'] ?? 'Invité'; // Le libellé du rôle, ex: "Administrateur Système"
-// Ce $userRole devrait être défini lors de la connexion.
+// Ces variables sont utilisées par le header et le menu, elles doivent être définies
+// par les contrôleurs qui utilisent ce layout. Pour la page de login, elles seront probablement nulles.
+$currentUser = $_SESSION['user_complet'] ?? null; // Utiliser user_complet comme défini dans ServiceAuthentification
+$userRole = null;
+if ($currentUser && isset($currentUser->libelle_type_utilisateur)) {
+    $userRole = $currentUser->libelle_type_utilisateur;
+} elseif(isset($_SESSION['id_type_utilisateur'])) { // Fallback si user_complet n'est pas entièrement peuplé
+    // Vous auriez besoin d'une logique pour mapper id_type_utilisateur à un libellé si nécessaire ici
+    // Pour l'instant, on peut le laisser vide ou mettre une valeur par défaut.
+    // $userRole = 'Rôle ID: ' . $_SESSION['id_type_utilisateur'];
+}
+$userRole = $userRole ?? 'Invité';
 
-// $pageTitle, $menuItems, et $contentView sont passés par le contrôleur
-// $pageTitle: Titre de la page actuelle.
-// $menuItems: Tableau des éléments de menu spécifiques au rôle.
-// $contentView: Chemin vers la vue de contenu spécifique au dashboard du rôle.
+
+// $pageTitle est passé par le contrôleur.
+// $menuItems devrait être passé par le contrôleur pour les pages connectées.
+// Pour la page de login, $menuItems ne sera pas pertinent ou sera vide.
+// $contentForLayout est la variable clé qui contient le HTML de la vue spécifique (ex: Auth/login.php)
 ?>
 <!DOCTYPE html>
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?= htmlspecialchars($pageTitle ?? 'Tableau de Bord') ?> - Gestion MySoutenance</title>
+    <title><?= htmlspecialchars($pageTitle ?? 'Gestion MySoutenance', ENT_QUOTES, 'UTF-8') ?></title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/assets/css/dashboard_style.css">
+    <link rel="stylesheet" href="/assets/css/dashboard_style.css"> <?php // Assurez-vous que ce chemin est correct ?>
     <script>
-        // Configuration de Tailwind (optionnel, pour des personnalisations)
         tailwind.config = {
             theme: {
                 extend: {
@@ -37,18 +41,17 @@ $userRole = $_SESSION['user_role_label'] ?? 'Invité'; // Le libellé du rôle, 
                         sans: ['Roboto', 'sans-serif'],
                     },
                     colors: {
-                        'primary': '#2563eb', // Bleu
-                        'secondary': '#10B981', // Vert
-                        'accent': '#8B5CF6', // Violet
-                        'neutral-dark': '#1f2937', // Gris foncé pour sidebar
-                        'neutral-light': '#f3f4f6', // Gris clair pour fond de contenu
+                        'primary': '#2563eb',
+                        'secondary': '#10B981',
+                        'accent': '#8B5CF6',
+                        'neutral-dark': '#1f2937',
+                        'neutral-light': '#f3f4f6',
                     }
                 }
             }
         }
     </script>
     <style>
-        /* Styles de base si dashboard_style.css n'est pas suffisant ou pour des ajustements rapides */
         body { font-family: 'Roboto', sans-serif; }
         .sidebar.collapsed .sidebar-text,
         .sidebar.collapsed .sidebar-brand-text { display: none; }
@@ -56,12 +59,12 @@ $userRole = $_SESSION['user_role_label'] ?? 'Invité'; // Le libellé du rôle, 
         .sidebar.collapsed .sidebar-icon-toggle-open { display: none; }
         .sidebar.collapsed .sidebar-icon { margin-left: auto; margin-right: auto; }
 
-        @media (max-width: 1023px) { /* Tailwind 'lg' breakpoint */
+        @media (max-width: 1023px) {
             .sidebar {
                 transform: translateX(-100%);
                 transition: transform 0.3s ease-in-out;
                 position: fixed;
-                z-index: 40; /* Inférieur au header mobile pour le bouton de toggle */
+                z-index: 40;
             }
             .sidebar.open {
                 transform: translateX(0);
@@ -76,50 +79,70 @@ $userRole = $_SESSION['user_role_label'] ?? 'Invité'; // Le libellé du rôle, 
 <body class="bg-neutral-light">
 <div class="flex h-screen">
     <?php
-    // Inclure le menu. Il aura besoin de $menuItems et de l'URI actuelle.
-    // Vous passerez $menuItems depuis le contrôleur, basé sur $userRole.
-    // $currentUri est utilisé pour marquer l'élément de menu actif.
+    // Pour la page de login, on ne voudra probablement pas du menu principal.
+    // On pourrait ajouter une condition ici pour ne l'afficher que si l'utilisateur est connecté.
+    // Par exemple: if (isset($currentUser)) { include ROOT_PATH . '/src/Frontend/views/common/menu.php'; }
+    // Pour l'instant, on le laisse pour voir si le reste fonctionne.
+    // Assurez-vous que $menuItems est défini (même un tableau vide) pour éviter les erreurs dans menu.php
+    $menuItems = $menuItems ?? [];
     $currentUri = $_SERVER['REQUEST_URI'];
     if (false !== $pos = strpos($currentUri, '?')) {
         $currentUri = substr($currentUri, 0, $pos);
     }
-    include ROOT_PATH . '/src/Frontend/views/common/menu.php';
+    // Condition pour afficher le menu uniquement si l'utilisateur est connecté
+    if (isset($_SESSION['numero_utilisateur'])) { // ou if($currentUser)
+        include ROOT_PATH . '/src/Frontend/views/common/menu.php';
+    }
     ?>
 
     <div class="flex-1 flex flex-col overflow-hidden">
         <?php
-        // Inclure le header. Il aura besoin de $pageTitle et $currentUser.
-        include ROOT_PATH . '/src/Frontend/views/common/header.php';
+        // Idem pour le header, conditionner son affichage.
+        // if (isset($currentUser)) { include ROOT_PATH . '/src/Frontend/views/common/header.php'; }
+        if (isset($_SESSION['numero_utilisateur'])) { // ou if($currentUser)
+            include ROOT_PATH . '/src/Frontend/views/common/header.php';
+        }
         ?>
 
-        <main class="flex-1 overflow-x-hidden overflow-y-auto bg-neutral-light p-6">
-            <?php if (isset($contentView) && file_exists($contentView)): ?>
-                <?php include $contentView; // Inclusion du contenu spécifique au dashboard du rôle ?>
-            <?php elseif (isset($contentHtml)): ?>
-                <?= $contentHtml // Alternative si le contrôleur génère directement du HTML ?>
-            <?php else: ?>
-                <div class="bg-white p-8 rounded-lg shadow-md">
-                    <h1 class="text-2xl font-semibold text-gray-700">Bienvenue</h1>
-                    <p class="text-gray-600 mt-2">Contenu du tableau de bord non spécifié ou introuvable.</p>
-                </div>
-            <?php endif; ?>
+        <main class="flex-1 overflow-x-hidden overflow-y-auto <?= isset($_SESSION['numero_utilisateur']) ? 'bg-neutral-light p-6' : 'bg-gray-100' ?>">
+            <?php
+            // *** CORRECTION PRINCIPALE ICI ***
+            // Afficher le contenu préparé par BaseController::render()
+            if (isset($contentForLayout)) {
+                echo $contentForLayout;
+            } elseif (isset($contentView) && file_exists($contentView)) { // Garder comme fallback si vous l'utilisez ailleurs
+                include $contentView;
+            } elseif (isset($contentHtml)) { // Garder comme fallback
+                echo $contentHtml;
+            } else {
+                // Ce bloc ne devrait plus être atteint pour les vues normales si $contentForLayout est toujours fourni.
+                echo '<div class="bg-white p-8 rounded-lg shadow-md">';
+                echo '<h1 class="text-2xl font-semibold text-gray-700">Bienvenue</h1>';
+                echo '<p class="text-gray-600 mt-2">Aucun contenu spécifique à afficher.</p>';
+                echo '</div>';
+            }
+            ?>
         </main>
     </div>
 </div>
 
 <script>
+    // Votre JavaScript existant pour la sidebar
     const sidebar = document.getElementById('sidebar');
     const mobileMenuButton = document.getElementById('mobileMenuButton');
     const desktopCollapseButton = document.getElementById('desktopCollapseButton');
 
     function toggleSidebarDesktop() {
-        sidebar.classList.toggle('collapsed');
-        // Optionnel : Sauvegarder la préférence dans localStorage
-        localStorage.setItem('sidebarCollapsed', sidebar.classList.contains('collapsed'));
+        if (sidebar) {
+            sidebar.classList.toggle('collapsed');
+            localStorage.setItem('sidebarCollapsed', sidebar.classList.contains('collapsed'));
+        }
     }
 
     function toggleSidebarMobile() {
-        sidebar.classList.toggle('open');
+        if (sidebar) {
+            sidebar.classList.toggle('open');
+        }
     }
 
     if (mobileMenuButton) {
@@ -129,14 +152,12 @@ $userRole = $_SESSION['user_role_label'] ?? 'Invité'; // Le libellé du rôle, 
         desktopCollapseButton.addEventListener('click', toggleSidebarDesktop);
     }
 
-    // Restaurer l'état de la sidebar au chargement pour desktop
-    if (window.innerWidth >= 1024 && localStorage.getItem('sidebarCollapsed') === 'true') {
+    if (sidebar && window.innerWidth >= 1024 && localStorage.getItem('sidebarCollapsed') === 'true') {
         sidebar.classList.add('collapsed');
     }
 
-    // Fermer la sidebar mobile si on clique en dehors (optionnel)
     document.addEventListener('click', function(event) {
-        if (window.innerWidth < 1024 && sidebar.classList.contains('open')) {
+        if (sidebar && mobileMenuButton && window.innerWidth < 1024 && sidebar.classList.contains('open')) {
             const isClickInsideSidebar = sidebar.contains(event.target);
             const isClickOnMobileButton = mobileMenuButton.contains(event.target);
             if (!isClickInsideSidebar && !isClickOnMobileButton) {
@@ -147,5 +168,3 @@ $userRole = $_SESSION['user_role_label'] ?? 'Invité'; // Le libellé du rôle, 
 </script>
 </body>
 </html>
-
-
