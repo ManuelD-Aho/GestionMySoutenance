@@ -2,6 +2,7 @@ SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 START TRANSACTION;
 SET time_zone = "+00:00";
 
+
 --
 -- Base de données : `mysoutenance`
 --
@@ -352,6 +353,35 @@ CREATE TABLE `section_rapport` (
   `date_derniere_modif` datetime DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+CREATE TABLE `sequences` (
+  `nom_sequence` varchar(50) NOT NULL,
+  `annee` year NOT NULL,
+  `valeur_actuelle` int UNSIGNED NOT NULL DEFAULT 0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE `session_rapport` (
+  `id_session` varchar(50) NOT NULL,
+  `id_rapport_etudiant` varchar(50) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE `session_validation` (
+  `id_session` varchar(50) NOT NULL,
+  `nom_session` varchar(255) NOT NULL,
+  `date_debut_session` datetime DEFAULT NULL,
+  `date_fin_prevue` datetime DEFAULT NULL,
+  `date_creation` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `id_president_session` varchar(50) NOT NULL,
+  `mode_session` enum('presentiel','en_ligne') NOT NULL,
+  `statut_session` enum('planifiee','en_cours','cloturee') NOT NULL DEFAULT 'planifiee'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE `sessions` (
+  `session_id` varchar(128) NOT NULL,
+  `user_id` varchar(50) DEFAULT NULL,
+  `session_data` blob,
+  `session_last_access` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
 CREATE TABLE `specialite` (
   `id_specialite` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
   `libelle_specialite` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
@@ -448,6 +478,7 @@ CREATE TABLE `validation_pv` (
 
 CREATE TABLE `vote_commission` (
   `id_vote` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+  `id_session` varchar(50) NOT NULL,
   `id_rapport_etudiant` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
   `numero_enseignant` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
   `id_decision_vote` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
@@ -630,6 +661,21 @@ ALTER TABLE `section_rapport`
   ADD PRIMARY KEY (`id_section`),
   ADD KEY `idx_section_rapport` (`id_rapport_etudiant`);
 
+ALTER TABLE `sequences`
+  ADD PRIMARY KEY (`nom_sequence`,`annee`);
+
+ALTER TABLE `session_rapport`
+  ADD PRIMARY KEY (`id_session`,`id_rapport_etudiant`),
+  ADD KEY `fk_sr_rapport` (`id_rapport_etudiant`);
+
+ALTER TABLE `session_validation`
+  ADD PRIMARY KEY (`id_session`),
+  ADD KEY `fk_session_president` (`id_president_session`);
+
+ALTER TABLE `sessions`
+  ADD PRIMARY KEY (`session_id`),
+  ADD KEY `idx_sessions_user_id` (`user_id`);
+
 ALTER TABLE `specialite`
   ADD PRIMARY KEY (`id_specialite`),
   ADD KEY `fk_specialite_enseignant` (`numero_enseignant_specialite`);
@@ -688,7 +734,8 @@ ALTER TABLE `vote_commission`
   ADD PRIMARY KEY (`id_vote`),
   ADD KEY `idx_vote_rapport` (`id_rapport_etudiant`),
   ADD KEY `idx_vote_enseignant` (`numero_enseignant`),
-  ADD KEY `fk_vote_decision` (`id_decision_vote`);
+  ADD KEY `fk_vote_decision` (`id_decision_vote`),
+  ADD KEY `fk_vote_session` (`id_session`);
 
 
 ALTER TABLE `acquerir`
@@ -795,7 +842,7 @@ ALTER TABLE `recevoir`
 
 ALTER TABLE `reclamation`
   ADD CONSTRAINT `fk_reclam_etudiant` FOREIGN KEY (`numero_carte_etudiant`) REFERENCES `etudiant` (`numero_carte_etudiant`) ON DELETE CASCADE ON UPDATE CASCADE,
-  ADD CONSTRAINT `fk_reclam_personnel` FOREIGN KEY (`numero_personnel_traitant`) REFERENCES `personnel_administratif` (`numero_personnel_administratif`) ON DELETE SET NULL ON UPDATE CASCADE,
+  ADD CONSTRAINT `fk_reclam_personnel` FOREIGN KEY (`numero_personnel_traitant`) REFERENCES `personnel_administratif` (`numero_personnel_traitant`) ON DELETE SET NULL ON UPDATE CASCADE,
   ADD CONSTRAINT `fk_reclam_statut` FOREIGN KEY (`id_statut_reclamation`) REFERENCES `statut_reclamation_ref` (`id_statut_reclamation`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 ALTER TABLE `rendre`
@@ -804,6 +851,16 @@ ALTER TABLE `rendre`
 
 ALTER TABLE `section_rapport`
   ADD CONSTRAINT `fk_section_rapport_etudiant` FOREIGN KEY (`id_rapport_etudiant`) REFERENCES `rapport_etudiant` (`id_rapport_etudiant`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+ALTER TABLE `session_rapport`
+  ADD CONSTRAINT `fk_sr_rapport` FOREIGN KEY (`id_rapport_etudiant`) REFERENCES `rapport_etudiant` (`id_rapport_etudiant`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `fk_sr_session` FOREIGN KEY (`id_session`) REFERENCES `session_validation` (`id_session`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+ALTER TABLE `session_validation`
+  ADD CONSTRAINT `fk_session_president` FOREIGN KEY (`id_president_session`) REFERENCES `enseignant` (`numero_enseignant`) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+ALTER TABLE `sessions`
+  ADD CONSTRAINT `fk_sessions_user` FOREIGN KEY (`user_id`) REFERENCES `utilisateur` (`numero_utilisateur`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 ALTER TABLE `specialite`
   ADD CONSTRAINT `fk_specialite_enseignant` FOREIGN KEY (`numero_enseignant_specialite`) REFERENCES `enseignant` (`numero_enseignant`) ON DELETE SET NULL ON UPDATE CASCADE;
@@ -821,6 +878,7 @@ ALTER TABLE `validation_pv`
 ALTER TABLE `vote_commission`
   ADD CONSTRAINT `fk_vote_decision` FOREIGN KEY (`id_decision_vote`) REFERENCES `decision_vote_ref` (`id_decision_vote`) ON DELETE RESTRICT ON UPDATE CASCADE,
   ADD CONSTRAINT `fk_vote_enseignant` FOREIGN KEY (`numero_enseignant`) REFERENCES `enseignant` (`numero_enseignant`) ON DELETE CASCADE ON UPDATE CASCADE,
-  ADD CONSTRAINT `fk_vote_rapport` FOREIGN KEY (`id_rapport_etudiant`) REFERENCES `rapport_etudiant` (`id_rapport_etudiant`) ON DELETE CASCADE ON UPDATE CASCADE;
+  ADD CONSTRAINT `fk_vote_rapport` FOREIGN KEY (`id_rapport_etudiant`) REFERENCES `rapport_etudiant` (`id_rapport_etudiant`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `fk_vote_session` FOREIGN KEY (`id_session`) REFERENCES `session_validation` (`id_session`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 COMMIT;
