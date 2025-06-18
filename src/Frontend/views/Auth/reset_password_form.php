@@ -22,6 +22,7 @@ if (!isset($pageTitle) && isset($title)) {
 
         <?php if (isset($token) && !empty($token)): ?>
             <form action="/reset-password" method="POST">
+                <?= $this->getCsrfInput() ?>
                 <input type="hidden" name="token" value="<?= htmlspecialchars($token, ENT_QUOTES, 'UTF-8') ?>">
 
                 <div class="mb-4">

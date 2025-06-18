@@ -229,53 +229,34 @@ class ServiceAuthentification implements ServiceAuthenticationInterface
         $numeroUtilisateur = $utilisateurBase['numero_utilisateur'];
 
         if ($this->estCompteActuellementBloque($numeroUtilisateur)) {
-            $this->journaliserActionAuthentification(null, $numeroUtilisateur, 'TENTATIVE_CONNEXION_COMPTE_BLOQUE', 'ECHEC');
-            throw new CompteBloqueException("Ce compte est temporairement bloqué. Veuillez réessayer plus tard ou contacter le support.");
+            throw new CompteBloqueException("Ce compte est temporairement bloqué. Veuillez réessayer plus tard.");
         }
 
         if (!password_verify($motDePasse, $utilisateurBase['mot_de_passe'])) {
             $this->traiterTentativeConnexionEchoueePourUtilisateur($numeroUtilisateur);
-            $this->journaliserActionAuthentification(null, $numeroUtilisateur, 'TENTATIVE_CONNEXION_MDP_INCORRECT', 'ECHEC');
             throw new IdentifiantsInvalidesException("Identifiant ou mot de passe incorrect.");
         }
 
-        if ($utilisateurBase['statut_compte'] === 'en_attente_validation') {
-            $this->journaliserActionAuthentification(null, $numeroUtilisateur, 'TENTATIVE_CONNEXION_COMPTE_NON_VALIDE_EMAIL', 'ECHEC');
-            throw new CompteNonValideException("Votre compte n'a pas encore été validé par email. Veuillez vérifier vos emails.");
-        }
-
         if ($utilisateurBase['statut_compte'] !== 'actif') {
-            $this->journaliserActionAuthentification(null, $numeroUtilisateur, 'TENTATIVE_CONNEXION_COMPTE_NON_ACTIF', 'ECHEC', ['statut_actuel' => $utilisateurBase['statut_compte']]);
-            throw new CompteNonValideException("Ce compte n'est pas actif (statut: " . htmlspecialchars($utilisateurBase['statut_compte']) . "). Veuillez contacter le support.");
+            throw new CompteNonValideException("Ce compte n'est pas actif. Veuillez contacter le support.");
         }
 
-        $preferences2FAActive = false;
-        if (isset($utilisateurBase['preferences_2fa_active'])) {
-            if (is_string($utilisateurBase['preferences_2fa_active'])) {
-                $preferences2FAActive = ($utilisateurBase['preferences_2fa_active'] === '1');
-            } elseif (is_int($utilisateurBase['preferences_2fa_active'])) {
-                $preferences2FAActive = ($utilisateurBase['preferences_2fa_active'] === 1);
-            } elseif (is_bool($utilisateurBase['preferences_2fa_active'])) {
-                $preferences2FAActive = $utilisateurBase['preferences_2fa_active'];
-            }
-        }
-
-        if ($preferences2FAActive) {
+        if (!empty($utilisateurBase['preferences_2fa_active'])) {
             $_SESSION['2fa_user_num_pending_verification'] = $numeroUtilisateur;
             $_SESSION['2fa_authentication_pending'] = true;
-            $this->journaliserActionAuthentification($numeroUtilisateur, $numeroUtilisateur, 'CONNEXION_2FA_REQUISE', 'INFO');
-            $authException = new AuthenticationException("Authentification à deux facteurs requise.", 1001);
-            throw $authException;
+            throw new AuthenticationException("Authentification à deux facteurs requise.", 1001);
         }
 
         $this->reinitialiserTentativesConnexion($numeroUtilisateur);
-        $this->mettreAJourDerniereConnexion($numeroUtilisateur);
 
         $utilisateurComplet = $this->recupererUtilisateurCompletParNumero($numeroUtilisateur);
         if (!$utilisateurComplet) {
-            $this->journaliserActionAuthentification(null, $numeroUtilisateur, 'CONNEXION_ECHEC_RECUP_PROFIL', 'ERREUR_INTERNE');
-            throw new OperationImpossibleException("Impossible de récupérer les informations complètes de l'utilisateur après connexion.");
+            throw new OperationImpossibleException("Impossible de récupérer les informations complètes de l'utilisateur.");
         }
+
+        // CORRECTION CRUCIALE : On démarre la session sécurisée ici !
+        $this->demarrerSessionUtilisateur($utilisateurComplet);
+
         $this->journaliserActionAuthentification($numeroUtilisateur, $numeroUtilisateur, 'CONNEXION_REUSSIE', 'SUCCES');
         return $utilisateurComplet;
     }
@@ -417,14 +398,20 @@ class ServiceAuthentification implements ServiceAuthenticationInterface
         if (session_status() === PHP_SESSION_NONE) {
             session_start();
         }
+        // Régénère l'ID pour la sécurité (prévention fixation de session)
         session_regenerate_id(true);
-        $_SESSION['numero_utilisateur'] = $utilisateurAvecProfil->numero_utilisateur;
-        $_SESSION['login_utilisateur'] = $utilisateurAvecProfil->login_utilisateur ?? null;
-        $_SESSION['id_type_utilisateur'] = $utilisateurAvecProfil->id_type_utilisateur ?? null;
-        $_SESSION['id_groupe_utilisateur'] = $utilisateurAvecProfil->id_groupe_utilisateur ?? null;
-        $_SESSION['user_complet'] = $utilisateurAvecProfil;
+
+        $_SESSION['user'] = [
+            'numero_utilisateur' => $utilisateurAvecProfil->numero_utilisateur,
+            'login_utilisateur' => $utilisateurAvecProfil->login_utilisateur ?? null,
+            'id_type_utilisateur' => $utilisateurAvecProfil->id_type_utilisateur ?? null,
+            'id_groupe_utilisateur' => $utilisateurAvecProfil->id_groupe_utilisateur ?? null,
+            'user_complet' => (array) $utilisateurAvecProfil // Stocker en array pour la sérialisation
+        ];
+
         $_SESSION['last_activity'] = time();
 
+        // Nettoyage des variables temporaires de 2FA
         unset($_SESSION['2fa_user_num_pending_verification']);
         unset($_SESSION['2fa_authentication_pending']);
     }

@@ -34,6 +34,7 @@ $email_value = isset($form_data['email_principal']) ? htmlspecialchars($form_dat
         <?php endif; ?>
 
         <form action="/forgot-password" method="POST">
+            <?= $this->getCsrfInput() ?>
             <div class="mb-4">
                 <label class="block text-gray-700 text-sm font-bold mb-2" for="email_principal">
                     Adresse E-mail

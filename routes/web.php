@@ -66,6 +66,15 @@ return function(RouteCollector $r) {
         $r->addRoute('POST', '/disable-2fa', [AuthentificationController::class, 'handleDisable2FA']);
     });
 
+    $r->addGroup('/admin', function (FastRoute\RouteCollector $r) {
+        // ... (vos autres routes admin)
+
+        // NOUVELLE ROUTE POUR LA LISTE DES UTILISATEURS
+
+
+        // ...
+    });
+
 
     // --- Routes spécifiques aux Étudiants ---
     $r->addGroup('/etudiant', function (RouteCollector $r) {
@@ -135,10 +144,13 @@ return function(RouteCollector $r) {
 
     // --- Routes spécifiques à l'Administration Système ---
     $r->addGroup('/admin', function (RouteCollector $r) {
+
+        $r->addRoute('GET', '', [AdminDashboardController::class, 'index']); // Route pour /admin
         $r->addRoute('GET', '/dashboard', [AdminDashboardController::class, 'index']);
 
         // Gestion des utilisateurs
         $r->addGroup('/utilisateurs', function (RouteCollector $r) {
+            $r->addRoute('GET', '/utilisateurs', [UtilisateurController::class, 'listerUtilisateurs']);
             $r->addRoute('GET', '', [UtilisateurController::class, 'listAll']); // Liste tous les types d'utilisateurs ou une page de gestion
             $r->addRoute('GET', '/etudiants', [UtilisateurController::class, 'listEtudiants']);
             $r->addRoute('GET', '/etudiants/ajouter', [UtilisateurController::class, 'showAddEtudiantForm']);

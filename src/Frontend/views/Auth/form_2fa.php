@@ -24,6 +24,7 @@ if (!isset($pageTitle) && isset($title)) {
         <?php endif; ?>
 
         <form action="/login-2fa" method="POST">
+            <?= $this->getCsrfInput() ?>
             <div class="mb-4">
                 <label class="block text-gray-700 text-sm font-bold mb-2" for="code_2fa">
                     Code d'Authentification

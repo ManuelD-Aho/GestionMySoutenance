@@ -32,6 +32,9 @@ $identifiant_value = isset($login_data['identifiant']) ? htmlspecialchars($login
         <?php endif; ?>
 
         <form action="/login" method="POST">
+
+            <?= $this->getCsrfInput() ?>
+
             <div class="mb-4">
                 <label class="block text-gray-700 text-sm font-bold mb-2" for="identifiant">
                     Identifiant (Email ou Numéro)
