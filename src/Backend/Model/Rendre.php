@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Backend\Model;
 
 use PDO;
@@ -7,39 +6,49 @@ use PDO;
 class Rendre extends BaseModel
 {
     protected string $table = 'rendre';
+    // La clé primaire est composite et contient des VARCHAR (string en PHP)
+    protected string|array $primaryKey = ['numero_enseignant', 'id_compte_rendu'];
 
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+
+    /**
+     * Trouve une action de rendu spécifique par ses clés composées (enseignant et compte rendu).
+     * @param string $numeroEnseignant Le numéro d'enseignant.
+     * @param string $idCompteRendu L'ID du compte rendu (PV).
+     * @param array $colonnes Les colonnes à sélectionner.
+     * @return array|null Les données de l'action de rendu ou null si non trouvée.
+     */
     public function trouverActionRenduParCles(string $numeroEnseignant, string $idCompteRendu, array $colonnes = ['*']): ?array
     {
-        $listeColonnes = implode(', ', $colonnes);
-        $sql = "SELECT {$listeColonnes} FROM `{$this->table}` WHERE `numero_enseignant` = :numero_enseignant AND `id_compte_rendu` = :id_compte_rendu";
-        $declaration = $this->db->prepare($sql);
-        $declaration->bindParam(':numero_enseignant', $numeroEnseignant, PDO::PARAM_STR);
-        $declaration->bindParam(':id_compte_rendu', $idCompteRendu, PDO::PARAM_STR);
-        $declaration->execute();
-        $resultat = $declaration->fetch(PDO::FETCH_ASSOC);
-        return $resultat ?: null;
+        return $this->trouverUnParCritere([
+            'numero_enseignant' => $numeroEnseignant,
+            'id_compte_rendu' => $idCompteRendu
+        ], $colonnes);
     }
 
+    /**
+     * Met à jour une action de rendu spécifique par ses clés composées.
+     * @param string $numeroEnseignant Le numéro d'enseignant.
+     * @param string $idCompteRendu L'ID du compte rendu (PV).
+     * @param array $donnees Les données à mettre à jour.
+     * @return bool Vrai si la mise à jour a réussi, faux sinon.
+     */
     public function mettreAJourActionRenduParCles(string $numeroEnseignant, string $idCompteRendu, array $donnees): bool
     {
-        if (empty($donnees)) return false;
-        $setClause = [];
-        foreach (array_keys($donnees) as $colonne) $setClause[] = "`{$colonne}` = :{$colonne}";
-        $setString = implode(', ', $setClause);
-        $sql = "UPDATE `{$this->table}` SET {$setString} WHERE `numero_enseignant` = :numero_enseignant_condition AND `id_compte_rendu` = :id_compte_rendu_condition";
-        $parametres = $donnees;
-        $parametres['numero_enseignant_condition'] = $numeroEnseignant;
-        $parametres['id_compte_rendu_condition'] = $idCompteRendu;
-        $declaration = $this->db->prepare($sql);
-        return $declaration->execute($parametres);
+        return $this->mettreAJourParClesInternes(['numero_enseignant' => $numeroEnseignant, 'id_compte_rendu' => $idCompteRendu], $donnees);
     }
 
+    /**
+     * Supprime une action de rendu spécifique par ses clés composées.
+     * @param string $numeroEnseignant Le numéro d'enseignant.
+     * @param string $idCompteRendu L'ID du compte rendu (PV).
+     * @return bool Vrai si la suppression a réussi, faux sinon.
+     */
     public function supprimerActionRenduParCles(string $numeroEnseignant, string $idCompteRendu): bool
     {
-        $sql = "DELETE FROM `{$this->table}` WHERE `numero_enseignant` = :numero_enseignant AND `id_compte_rendu` = :id_compte_rendu";
-        $declaration = $this->db->prepare($sql);
-        $declaration->bindParam(':numero_enseignant', $numeroEnseignant, PDO::PARAM_STR);
-        $declaration->bindParam(':id_compte_rendu', $idCompteRendu, PDO::PARAM_STR);
-        return $declaration->execute();
+        return $this->supprimerParClesInternes(['numero_enseignant' => $numeroEnseignant, 'id_compte_rendu' => $idCompteRendu]);
     }
 }

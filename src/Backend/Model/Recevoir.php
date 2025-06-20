@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Backend\Model;
 
 use PDO;
@@ -7,42 +6,61 @@ use PDO;
 class Recevoir extends BaseModel
 {
     protected string $table = 'recevoir';
+    // La clé primaire est composite et contient des VARCHAR/DATETIME (string en PHP)
+    protected string|array $primaryKey = ['numero_utilisateur', 'id_notification', 'date_reception'];
 
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+
+    /**
+     * Trouve une entrée de réception de notification spécifique par ses clés composées.
+     * @param string $numeroUtilisateur Le numéro de l'utilisateur.
+     * @param string $idNotification L'ID de la notification.
+     * @param string $dateReception La date et heure de réception (format YYYY-MM-DD HH:MM:SS).
+     * @param array $colonnes Les colonnes à sélectionner.
+     * @return array|null Les données de réception ou null si non trouvée.
+     */
     public function trouverReceptionParCles(string $numeroUtilisateur, string $idNotification, string $dateReception, array $colonnes = ['*']): ?array
     {
-        $listeColonnes = implode(', ', $colonnes);
-        $sql = "SELECT {$listeColonnes} FROM `{$this->table}` WHERE `numero_utilisateur` = :numero_utilisateur AND `id_notification` = :id_notification AND `date_reception` = :date_reception";
-        $declaration = $this->db->prepare($sql);
-        $declaration->bindParam(':numero_utilisateur', $numeroUtilisateur, PDO::PARAM_STR);
-        $declaration->bindParam(':id_notification', $idNotification, PDO::PARAM_STR);
-        $declaration->bindParam(':date_reception', $dateReception, PDO::PARAM_STR);
-        $declaration->execute();
-        $resultat = $declaration->fetch(PDO::FETCH_ASSOC);
-        return $resultat ?: null;
+        return $this->trouverUnParCritere([
+            'numero_utilisateur' => $numeroUtilisateur,
+            'id_notification' => $idNotification,
+            'date_reception' => $dateReception
+        ], $colonnes);
     }
 
+    /**
+     * Met à jour une entrée de réception de notification spécifique par ses clés composées.
+     * @param string $numeroUtilisateur Le numéro de l'utilisateur.
+     * @param string $idNotification L'ID de la notification.
+     * @param string $dateReception La date et heure de réception.
+     * @param array $donnees Les données à mettre à jour.
+     * @return bool Vrai si la mise à jour a réussi, faux sinon.
+     */
     public function mettreAJourReceptionParCles(string $numeroUtilisateur, string $idNotification, string $dateReception, array $donnees): bool
     {
-        if (empty($donnees)) return false;
-        $setClause = [];
-        foreach (array_keys($donnees) as $colonne) $setClause[] = "`{$colonne}` = :{$colonne}";
-        $setString = implode(', ', $setClause);
-        $sql = "UPDATE `{$this->table}` SET {$setString} WHERE `numero_utilisateur` = :numero_utilisateur_condition AND `id_notification` = :id_notification_condition AND `date_reception` = :date_reception_condition";
-        $parametres = $donnees;
-        $parametres['numero_utilisateur_condition'] = $numeroUtilisateur;
-        $parametres['id_notification_condition'] = $idNotification;
-        $parametres['date_reception_condition'] = $dateReception;
-        $declaration = $this->db->prepare($sql);
-        return $declaration->execute($parametres);
+        return $this->mettreAJourParClesInternes([
+            'numero_utilisateur' => $numeroUtilisateur,
+            'id_notification' => $idNotification,
+            'date_reception' => $dateReception
+        ], $donnees);
     }
 
+    /**
+     * Supprime une entrée de réception de notification spécifique par ses clés composées.
+     * @param string $numeroUtilisateur Le numéro de l'utilisateur.
+     * @param string $idNotification L'ID de la notification.
+     * @param string $dateReception La date et heure de réception.
+     * @return bool Vrai si la suppression a réussi, faux sinon.
+     */
     public function supprimerReceptionParCles(string $numeroUtilisateur, string $idNotification, string $dateReception): bool
     {
-        $sql = "DELETE FROM `{$this->table}` WHERE `numero_utilisateur` = :numero_utilisateur AND `id_notification` = :id_notification AND `date_reception` = :date_reception";
-        $declaration = $this->db->prepare($sql);
-        $declaration->bindParam(':numero_utilisateur', $numeroUtilisateur, PDO::PARAM_STR);
-        $declaration->bindParam(':id_notification', $idNotification, PDO::PARAM_STR);
-        $declaration->bindParam(':date_reception', $dateReception, PDO::PARAM_STR);
-        return $declaration->execute();
+        return $this->supprimerParClesInternes([
+            'numero_utilisateur' => $numeroUtilisateur,
+            'id_notification' => $idNotification,
+            'date_reception' => $dateReception
+        ]);
     }
 }

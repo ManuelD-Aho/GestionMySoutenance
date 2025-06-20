@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Backend\Model;
 
 use PDO;
@@ -7,39 +6,55 @@ use PDO;
 class Occuper extends BaseModel
 {
     protected string $table = 'occuper';
+    // La clé primaire est composite et contient des VARCHAR (string en PHP)
+    protected string|array $primaryKey = ['id_fonction', 'numero_enseignant'];
 
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+
+    /**
+     * Trouve une occupation spécifique par ses clés composées (fonction et enseignant).
+     * @param string $idFonction L'ID de la fonction.
+     * @param string $numeroEnseignant Le numéro d'enseignant.
+     * @param array $colonnes Les colonnes à sélectionner.
+     * @return array|null Les données de l'occupation ou null si non trouvée.
+     */
     public function trouverOccupationParCles(string $idFonction, string $numeroEnseignant, array $colonnes = ['*']): ?array
     {
-        $listeColonnes = implode(', ', $colonnes);
-        $sql = "SELECT {$listeColonnes} FROM `{$this->table}` WHERE `id_fonction` = :id_fonction AND `numero_enseignant` = :numero_enseignant";
-        $declaration = $this->db->prepare($sql);
-        $declaration->bindParam(':id_fonction', $idFonction, PDO::PARAM_STR);
-        $declaration->bindParam(':numero_enseignant', $numeroEnseignant, PDO::PARAM_STR);
-        $declaration->execute();
-        $resultat = $declaration->fetch(PDO::FETCH_ASSOC);
-        return $resultat ?: null;
+        return $this->trouverUnParCritere([
+            'id_fonction' => $idFonction,
+            'numero_enseignant' => $numeroEnseignant
+        ], $colonnes);
     }
 
+    /**
+     * Met à jour une occupation spécifique par ses clés composées.
+     * @param string $idFonction L'ID de la fonction.
+     * @param string $numeroEnseignant Le numéro d'enseignant.
+     * @param array $donnees Les données à mettre à jour.
+     * @return bool Vrai si la mise à jour a réussi, faux sinon.
+     */
     public function mettreAJourOccupationParCles(string $idFonction, string $numeroEnseignant, array $donnees): bool
     {
-        if (empty($donnees)) return false;
-        $setClause = [];
-        foreach (array_keys($donnees) as $colonne) $setClause[] = "`{$colonne}` = :{$colonne}";
-        $setString = implode(', ', $setClause);
-        $sql = "UPDATE `{$this->table}` SET {$setString} WHERE `id_fonction` = :id_fonction_condition AND `numero_enseignant` = :numero_enseignant_condition";
-        $parametres = $donnees;
-        $parametres['id_fonction_condition'] = $idFonction;
-        $parametres['numero_enseignant_condition'] = $numeroEnseignant;
-        $declaration = $this->db->prepare($sql);
-        return $declaration->execute($parametres);
+        return $this->mettreAJourParClesInternes([
+            'id_fonction' => $idFonction,
+            'numero_enseignant' => $numeroEnseignant
+        ], $donnees);
     }
 
+    /**
+     * Supprime une occupation spécifique par ses clés composées.
+     * @param string $idFonction L'ID de la fonction.
+     * @param string $numeroEnseignant Le numéro d'enseignant.
+     * @return bool Vrai si la suppression a réussi, faux sinon.
+     */
     public function supprimerOccupationParCles(string $idFonction, string $numeroEnseignant): bool
     {
-        $sql = "DELETE FROM `{$this->table}` WHERE `id_fonction` = :id_fonction AND `numero_enseignant` = :numero_enseignant";
-        $declaration = $this->db->prepare($sql);
-        $declaration->bindParam(':id_fonction', $idFonction, PDO::PARAM_STR);
-        $declaration->bindParam(':numero_enseignant', $numeroEnseignant, PDO::PARAM_STR);
-        return $declaration->execute();
+        return $this->supprimerParClesInternes([
+            'id_fonction' => $idFonction,
+            'numero_enseignant' => $numeroEnseignant
+        ]);
     }
 }

@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Backend\Model;
 
 use PDO;
@@ -7,42 +6,55 @@ use PDO;
 class Evaluer extends BaseModel
 {
     protected string $table = 'evaluer';
+    // Nouvelle clé primaire composite après la modification de la table evaluer
+    protected string|array $primaryKey = ['numero_carte_etudiant', 'id_ecue'];
 
-    public function trouverEvaluationParCles(string $numeroCarteEtudiant, string $numeroEnseignant, string $idEcue, array $colonnes = ['*']): ?array
+    public function __construct(PDO $db)
     {
-        $listeColonnes = implode(', ', $colonnes);
-        $sql = "SELECT {$listeColonnes} FROM `{$this->table}` WHERE `numero_carte_etudiant` = :numero_carte_etudiant AND `numero_enseignant` = :numero_enseignant AND `id_ecue` = :id_ecue";
-        $declaration = $this->db->prepare($sql);
-        $declaration->bindParam(':numero_carte_etudiant', $numeroCarteEtudiant, PDO::PARAM_STR);
-        $declaration->bindParam(':numero_enseignant', $numeroEnseignant, PDO::PARAM_STR);
-        $declaration->bindParam(':id_ecue', $idEcue, PDO::PARAM_STR);
-        $declaration->execute();
-        $resultat = $declaration->fetch(PDO::FETCH_ASSOC);
-        return $resultat ?: null;
+        parent::__construct($db);
     }
 
-    public function mettreAJourEvaluationParCles(string $numeroCarteEtudiant, string $numeroEnseignant, string $idEcue, array $donnees): bool
+    /**
+     * Trouve une évaluation spécifique par les clés composées (étudiant et ECUE).
+     * @param string $numeroCarteEtudiant Le numéro de carte de l'étudiant.
+     * @param string $idEcue L'ID de l'ECUE.
+     * @param array $colonnes Les colonnes à sélectionner.
+     * @return array|null Les données de l'évaluation ou null si non trouvée.
+     */
+    public function trouverEvaluationParCles(string $numeroCarteEtudiant, string $idEcue, array $colonnes = ['*']): ?array
     {
-        if (empty($donnees)) return false;
-        $setClause = [];
-        foreach (array_keys($donnees) as $colonne) $setClause[] = "`{$colonne}` = :{$colonne}";
-        $setString = implode(', ', $setClause);
-        $sql = "UPDATE `{$this->table}` SET {$setString} WHERE `numero_carte_etudiant` = :numero_carte_etudiant_condition AND `numero_enseignant` = :numero_enseignant_condition AND `id_ecue` = :id_ecue_condition";
-        $parametres = $donnees;
-        $parametres['numero_carte_etudiant_condition'] = $numeroCarteEtudiant;
-        $parametres['numero_enseignant_condition'] = $numeroEnseignant;
-        $parametres['id_ecue_condition'] = $idEcue;
-        $declaration = $this->db->prepare($sql);
-        return $declaration->execute($parametres);
+        return $this->trouverUnParCritere([
+            'numero_carte_etudiant' => $numeroCarteEtudiant,
+            'id_ecue' => $idEcue
+        ], $colonnes);
     }
 
-    public function supprimerEvaluationParCles(string $numeroCarteEtudiant, string $numeroEnseignant, string $idEcue): bool
+    /**
+     * Met à jour une évaluation spécifique par ses clés composées.
+     * @param string $numeroCarteEtudiant Le numéro de carte de l'étudiant.
+     * @param string $idEcue L'ID de l'ECUE.
+     * @param array $donnees Les données à mettre à jour.
+     * @return bool Vrai si la mise à jour a réussi, faux sinon.
+     */
+    public function mettreAJourEvaluationParCles(string $numeroCarteEtudiant, string $idEcue, array $donnees): bool
     {
-        $sql = "DELETE FROM `{$this->table}` WHERE `numero_carte_etudiant` = :numero_carte_etudiant AND `numero_enseignant` = :numero_enseignant AND `id_ecue` = :id_ecue";
-        $declaration = $this->db->prepare($sql);
-        $declaration->bindParam(':numero_carte_etudiant', $numeroCarteEtudiant, PDO::PARAM_STR);
-        $declaration->bindParam(':numero_enseignant', $numeroEnseignant, PDO::PARAM_STR);
-        $declaration->bindParam(':id_ecue', $idEcue, PDO::PARAM_STR);
-        return $declaration->execute();
+        return $this->mettreAJourParClesInternes([
+            'numero_carte_etudiant' => $numeroCarteEtudiant,
+            'id_ecue' => $idEcue
+        ], $donnees);
+    }
+
+    /**
+     * Supprime une évaluation spécifique par ses clés composées.
+     * @param string $numeroCarteEtudiant Le numéro de carte de l'étudiant.
+     * @param string $idEcue L'ID de l'ECUE.
+     * @return bool Vrai si la suppression a réussi, faux sinon.
+     */
+    public function supprimerEvaluationParCles(string $numeroCarteEtudiant, string $idEcue): bool
+    {
+        return $this->supprimerParClesInternes([
+            'numero_carte_etudiant' => $numeroCarteEtudiant,
+            'id_ecue' => $idEcue
+        ]);
     }
 }

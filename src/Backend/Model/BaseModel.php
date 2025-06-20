@@ -1,25 +1,28 @@
 <?php
-
 namespace App\Backend\Model;
 
 use PDO;
-use PDOStatement;
-use PDOException;
+use PDOStatement; // Assurez-vous d'importer PDOStatement
+use App\Backend\Exception\ElementNonTrouveException; // Assurez-vous d'importer cette exception
+use App\Backend\Exception\DoublonException; // Assurez-vous d'importer cette exception
 
 abstract class BaseModel
 {
-    protected PDO $db;
+    // Propriétés à définir dans les modèles enfants
     protected string $table;
-    protected string $clePrimaire = 'id'; // Valeur par défaut, surchargée dans les classes enfants
+    // Peut être une string (pour clé simple) ou un tableau de strings (pour clé composite)
+    protected string|array $primaryKey;
+
+    protected PDO $db;
 
     public function __construct(PDO $db)
     {
         $this->db = $db;
     }
 
-    public function getClePrimaire(): string
+    public function getClePrimaire(): string|array
     {
-        return $this->clePrimaire;
+        return $this->primaryKey;
     }
 
     public function getTable(): string
@@ -27,240 +30,363 @@ abstract class BaseModel
         return $this->table;
     }
 
-    /**
-     * Prépare la chaîne de caractères des colonnes pour une requête SELECT.
-     * Gère le cas de '*' et protège les noms de colonnes individuels avec des backticks.
-     */
     protected function preparerListeColonnes(array $colonnes): string
     {
-        if (count($colonnes) === 1 && $colonnes[0] === '*') {
+        if (empty($colonnes) || in_array('*', $colonnes)) {
             return '*';
         }
-        // Nettoie chaque nom de colonne (enlève les backticks existants pour éviter le doublage)
-        // et ajoute des backticks autour de chaque nom de colonne.
-        return implode(', ', array_map(fn($col) => "`" . trim(str_replace('`', '', $col)) . "`", $colonnes));
+        return implode(', ', array_map(fn($col) => "`{$col}`", $colonnes));
     }
+
+    /**
+     * Construit la clause WHERE pour les opérations de recherche/mise à jour/suppression par clés.
+     * Supporte les clés simples et composites.
+     * @param string|int|array $keys La valeur de la clé primaire (simple) ou un tableau associatif (pour composite).
+     * @return array Tableau contenant la clause WHERE et les paramètres bindés.
+     * @throws \InvalidArgumentException Si la clé primaire n'est pas définie ou le format de $keys est incorrect.
+     */
+    protected function preparerClauseWhereParCles(string|int|array $keys): array
+    {
+        $whereClause = '';
+        $params = [];
+
+        if (is_array($this->primaryKey)) { // Clé composite
+            if (!is_array($keys) || count(array_diff_key(array_flip($this->primaryKey), $keys)) > 0) {
+                throw new \InvalidArgumentException("Les clés composites doivent être fournies sous forme de tableau associatif avec toutes les colonnes de la clé primaire.");
+            }
+            $conditions = [];
+            foreach ($this->primaryKey as $keyName) {
+                $conditions[] = "`{$keyName}` = :{$keyName}";
+                $params[":{$keyName}"] = $keys[$keyName];
+            }
+            $whereClause = implode(' AND ', $conditions);
+        } else { // Clé simple
+            if (is_array($keys)) {
+                throw new \InvalidArgumentException("La clé primaire simple doit être fournie directement, pas un tableau.");
+            }
+            $whereClause = "`{$this->primaryKey}` = :id";
+            $params[':id'] = $keys;
+        }
+        return ['clause' => $whereClause, 'params' => $params];
+    }
+
 
     public function trouverTout(array $colonnes = ['*']): array
     {
-        $listeColonnes = $this->preparerListeColonnes($colonnes); // CORRIGÉ
-        $sql = "SELECT {$listeColonnes} FROM `{$this->table}`";
-        try {
-            $declaration = $this->db->query($sql);
-            return $declaration->fetchAll(PDO::FETCH_ASSOC) ?: [];
-        } catch (PDOException $e) {
-            error_log("Erreur PDO dans trouverTout pour la table {$this->table}: " . $e->getMessage());
-            throw $e; // Ou retourner un tableau vide selon votre stratégie d'erreur
-        }
+        $cols = $this->preparerListeColonnes($colonnes);
+        $stmt = $this->db->query("SELECT {$cols} FROM `{$this->table}`");
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     public function trouverParIdentifiant(int|string $id, array $colonnes = ['*']): ?array
     {
-        $listeColonnes = $this->preparerListeColonnes($colonnes); // CORRIGÉ
-        $sql = "SELECT {$listeColonnes} FROM `{$this->table}` WHERE `{$this->clePrimaire}` = :id_cle_primaire_bind"; // Placeholder unique
-        try {
-            $declaration = $this->db->prepare($sql);
-            $typeParametre = is_int($id) ? PDO::PARAM_INT : PDO::PARAM_STR;
-            $declaration->bindParam(':id_cle_primaire_bind', $id, $typeParametre);
-            $declaration->execute();
-            $resultat = $declaration->fetch(PDO::FETCH_ASSOC);
-            return $resultat ?: null;
-        } catch (PDOException $e) {
-            error_log("Erreur PDO dans trouverParIdentifiant pour la table {$this->table} avec ID {$id}: " . $e->getMessage());
-            throw $e;
+        if (is_array($this->primaryKey)) {
+            // Pour les clés composites, cette méthode générique n'est pas appropriée.
+            // Il faut utiliser trouverUnParCritere ou une méthode spécifique (e.g. trouverParCles)
+            throw new \BadMethodCallException("La méthode trouverParIdentifiant n'est pas supportée pour les clés primaires composites. Utilisez trouverUnParCritere ou une méthode de recherche par clés.");
         }
+
+        $cols = $this->preparerListeColonnes($colonnes);
+        $stmt = $this->db->prepare("SELECT {$cols} FROM `{$this->table}` WHERE `{$this->primaryKey}` = :id");
+        $stmt->bindParam(':id', $id);
+        $stmt->execute();
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $result ?: null;
     }
 
     public function creer(array $donnees): string|bool
     {
-        if (empty($donnees)) {
-            return false;
+        $cols = [];
+        $placeholders = [];
+        $params = [];
+
+        foreach ($donnees as $key => $value) {
+            $cols[] = "`{$key}`";
+            $placeholders[] = ":{$key}";
+            $params[":{$key}"] = $value;
         }
-        $colonnesArray = array_keys($donnees);
-        $colonnes = implode(', ', array_map(fn($col) => "`$col`", $colonnesArray));
-        $placeholders = ':' . implode(', :', $colonnesArray);
-        $sql = "INSERT INTO `{$this->table}` ({$colonnes}) VALUES ({$placeholders})";
+
+        $sql = "INSERT INTO `{$this->table}` (" . implode(', ', $cols) . ") VALUES (" . implode(', ', $placeholders) . ")";
+        $stmt = $this->db->prepare($sql);
 
         try {
-            $declaration = $this->db->prepare($sql);
-            $succes = $declaration->execute($donnees);
-            if ($succes) {
-                // Tenter de récupérer lastInsertId() uniquement si la clé primaire est susceptible d'être auto-incrémentée (typiquement INT)
-                // Pour les clés primaires VARCHAR (comme numero_utilisateur), lastInsertId() ne fonctionnera pas comme attendu.
-                // La valeur de la clé primaire est déjà dans $donnees si elle n'est pas auto-générée.
-                $dernierId = $this->db->lastInsertId();
-                // lastInsertId() retourne "0" (chaîne) si la dernière ligne insérée n'a pas de valeur auto-incrémentée.
-                if ($dernierId && $dernierId !== "0") {
-                    return $dernierId; // Pour les PK auto-incrémentées numériques
+            if ($stmt->execute($params)) {
+                // Si la clé primaire est auto-incrémentée et n'est pas dans $donnees
+                if (is_string($this->primaryKey) && !isset($donnees[$this->primaryKey])) {
+                    $lastInsertId = $this->db->lastInsertId();
+                    return $lastInsertId ?: true; // Retourne l'ID ou true si pas d'ID auto-généré
                 }
-                // Si la clé primaire est fournie dans $donnees (ex: VARCHAR) et n'est pas auto-incrémentée
-                if (isset($donnees[$this->clePrimaire])) {
-                    return $donnees[$this->clePrimaire];
+                // Si la clé primaire est fournie dans $donnees (cas de VARCHAR généré par le système)
+                if (is_string($this->primaryKey) && isset($donnees[$this->primaryKey])) {
+                    return $donnees[$this->primaryKey];
                 }
-                return true; // Succès générique si aucun ID pertinent n'est retourné par lastInsertId
+                // Si clé composite, on ne peut pas retourner un simple ID
+                return true;
             }
             return false;
-        } catch (PDOException $e) {
-            error_log("Erreur PDO dans creer pour la table {$this->table}: " . $e->getMessage());
-            // Vous pourriez vouloir vérifier les codes d'erreur spécifiques, ex: 23000 pour violation de contrainte d'unicité
-            throw $e; // Relancer pour que le service puisse la gérer
+        } catch (\PDOException $e) {
+            // Gérer les cas de doublons via une exception spécifique
+            if ($e->getCode() == 23000) { // Code SQLSTATE pour violation de contrainte d'unicité
+                throw new DoublonException("Une ressource avec des attributs uniques similaires existe déjà dans la table '{$this->table}'.", 0, $e);
+            }
+            throw $e; // Re-lancer l'exception si ce n'est pas un doublon
         }
     }
 
     public function mettreAJourParIdentifiant(int|string $id, array $donnees): bool
     {
-        if (empty($donnees)) {
-            return false;
+        if (is_array($this->primaryKey)) {
+            throw new \BadMethodCallException("La méthode mettreAJourParIdentifiant n'est pas supportée pour les clés primaires composites. Utilisez mettreAJourParCles.");
         }
-        $setClause = [];
-        foreach (array_keys($donnees) as $colonne) {
-            $setClause[] = "`{$colonne}` = :{$colonne}";
+
+        $setParts = [];
+        $params = [];
+        foreach ($donnees as $key => $value) {
+            $setParts[] = "`{$key}` = :{$key}";
+            $params[":{$key}"] = $value;
         }
-        $setString = implode(', ', $setClause);
-        $sql = "UPDATE `{$this->table}` SET {$setString} WHERE `{$this->clePrimaire}` = :id_cle_primaire_bind"; // Placeholder unique pour l'ID
+
+        $params[':id'] = $id;
+        $sql = "UPDATE `{$this->table}` SET " . implode(', ', $setParts) . " WHERE `{$this->primaryKey}` = :id";
+        $stmt = $this->db->prepare($sql);
 
         try {
-            $declaration = $this->db->prepare($sql);
-            $parametres = $donnees;
-            $parametres['id_cle_primaire_bind'] = $id; // Ajouter l'ID aux paramètres pour le bind
-            return $declaration->execute($parametres);
-        } catch (PDOException $e) {
-            error_log("Erreur PDO dans mettreAJourParIdentifiant pour la table {$this->table} avec ID {$id}: " . $e->getMessage());
-            return false; // Ou throw $e;
+            return $stmt->execute($params);
+        } catch (\PDOException $e) {
+            if ($e->getCode() == 23000) { // Code SQLSTATE pour violation de contrainte d'unicité
+                throw new DoublonException("Une ressource avec des attributs uniques similaires existe déjà lors de la mise à jour de la table '{$this->table}'.", 0, $e);
+            }
+            throw $e;
+        }
+    }
+
+    /**
+     * Met à jour un enregistrement en utilisant un tableau de clés (pour clés composites ou simples).
+     * @param array $keys Tableau associatif des clés (ex: ['col1' => 'val1', 'col2' => 'val2']).
+     * @param array $donnees Données à mettre à jour.
+     * @return bool Vrai si la mise à jour a réussi, faux sinon.
+     * @throws \InvalidArgumentException Si $keys est mal formé.
+     * @throws DoublonException Si la mise à jour provoque une violation de contrainte d'unicité.
+     */
+    public function mettreAJourParCles(array $keys, array $donnees): bool
+    {
+        $whereInfo = $this->preparerClauseWhereParCles($keys);
+        $setParts = [];
+        $params = [];
+
+        foreach ($donnees as $key => $value) {
+            $setParts[] = "`{$key}` = :set_{$key}"; // Utiliser un préfixe pour éviter les conflits de nom avec les clés WHERE
+            $params[":set_{$key}"] = $value;
+        }
+
+        $params = array_merge($params, $whereInfo['params']);
+        $sql = "UPDATE `{$this->table}` SET " . implode(', ', $setParts) . " WHERE {$whereInfo['clause']}";
+        $stmt = $this->db->prepare($sql);
+
+        try {
+            return $stmt->execute($params);
+        } catch (\PDOException $e) {
+            if ($e->getCode() == 23000) { // Code SQLSTATE pour violation de contrainte d'unicité
+                throw new DoublonException("Une ressource avec des attributs uniques similaires existe déjà lors de la mise à jour de la table '{$this->table}'.", 0, $e);
+            }
+            throw $e;
         }
     }
 
     public function supprimerParIdentifiant(int|string $id): bool
     {
-        $sql = "DELETE FROM `{$this->table}` WHERE `{$this->clePrimaire}` = :id_cle_primaire_bind"; // Placeholder unique
-        try {
-            $declaration = $this->db->prepare($sql);
-            $typeParametre = is_int($id) ? PDO::PARAM_INT : PDO::PARAM_STR;
-            $declaration->bindParam(':id_cle_primaire_bind', $id, $typeParametre);
-            return $declaration->execute();
-        } catch (PDOException $e) {
-            error_log("Erreur PDO dans supprimerParIdentifiant pour la table {$this->table} avec ID {$id}: " . $e->getMessage());
-            return false; // Ou throw $e;
+        if (is_array($this->primaryKey)) {
+            throw new \BadMethodCallException("La méthode supprimerParIdentifiant n'est pas supportée pour les clés primaires composites. Utilisez supprimerParCles.");
         }
+
+        $sql = "DELETE FROM `{$this->table}` WHERE `{$this->primaryKey}` = :id";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bindParam(':id', $id);
+        return $stmt->execute();
     }
+
+    /**
+     * Supprime un enregistrement en utilisant un tableau de clés (pour clés composites ou simples).
+     * @param array $keys Tableau associatif des clés (ex: ['col1' => 'val1', 'col2' => 'val2']).
+     * @return bool Vrai si la suppression a réussi, faux sinon.
+     * @throws \InvalidArgumentException Si $keys est mal formé.
+     */
+    public function supprimerParCles(array $keys): bool
+    {
+        $whereInfo = $this->preparerClauseWhereParCles($keys);
+        $sql = "DELETE FROM `{$this->table}` WHERE {$whereInfo['clause']}";
+        $stmt = $this->db->prepare($sql);
+        return $stmt->execute($whereInfo['params']);
+    }
+
 
     public function trouverParCritere(array $criteres, array $colonnes = ['*'], string $operateurLogique = 'AND', ?string $orderBy = null, ?int $limit = null, ?int $offset = null): array
     {
-        $listeColonnes = $this->preparerListeColonnes($colonnes); // CORRIGÉ
-        $sql = "SELECT {$listeColonnes} FROM `{$this->table}`";
-        $conditions = [];
-        $parametres = [];
+        $cols = $this->preparerListeColonnes($colonnes);
+        $whereParts = [];
+        $params = [];
 
-        if (!empty($criteres)) {
-            $index = 0;
-            foreach ($criteres as $champ => $valeur) {
-                $placeholder = ":critere_" . preg_replace('/[^a-zA-Z0-9_]/', '', $champ) . "_" . $index++; // Placeholder unique
-                if (is_array($valeur) && isset($valeur['operateur']) && isset($valeur['valeur'])) {
-                    // Gérer des opérateurs plus complexes si nécessaire, ex: ['champ' => ['operateur' => 'LIKE', 'valeur' => '%terme%']]
-                    $conditions[] = "`{$champ}` {$valeur['operateur']} {$placeholder}";
-                    $parametres[$placeholder] = $valeur['valeur'];
-                } else {
-                    $conditions[] = "`{$champ}` = {$placeholder}";
-                    $parametres[$placeholder] = $valeur;
+        foreach ($criteres as $key => $value) {
+            if (is_array($value)) { // Gérer les critères de type IN ou BETWEEN
+                if (isset($value['operator']) && strtolower($value['operator']) === 'in') {
+                    $inPlaceholders = [];
+                    foreach ($value['values'] as $i => $inValue) {
+                        $inPlaceholders[] = ":{$key}_in_{$i}";
+                        $params[":{$key}_in_{$i}"] = $inValue;
+                    }
+                    $whereParts[] = "`{$key}` IN (" . implode(', ', $inPlaceholders) . ")";
+                } elseif (isset($value['operator']) && strtolower($value['operator']) === 'between') {
+                    if (count($value['values']) === 2) {
+                        $whereParts[] = "`{$key}` BETWEEN :{$key}_start AND :{$key}_end";
+                        $params[":{$key}_start"] = $value['values'][0];
+                        $params[":{$key}_end"] = $value['values'][1];
+                    }
+                } elseif (isset($value['operator']) && strtolower($value['operator']) === 'like') {
+                    $whereParts[] = "`{$key}` LIKE :{$key}_like";
+                    $params[":{$key}_like"] = $value['value'];
                 }
+                // Ajoutez d'autres opérateurs si nécessaire
+            } else { // Critère simple d'égalité
+                $whereParts[] = "`{$key}` = :{$key}";
+                $params[":{$key}"] = $value;
             }
-            $sql .= " WHERE " . implode(" {$operateurLogique} ", $conditions);
         }
-        if ($orderBy !== null) {
-            // Attention à l'injection SQL ici si $orderBy vient de l'extérieur sans validation stricte
-            $sql .= " ORDER BY " . $orderBy; // Valider/assainir $orderBy en amont
+
+        $sql = "SELECT {$cols} FROM `{$this->table}`";
+        if (!empty($whereParts)) {
+            $sql .= " WHERE " . implode(" {$operateurLogique} ", $whereParts);
+        }
+        if ($orderBy) {
+            $sql .= " ORDER BY {$orderBy}";
         }
         if ($limit !== null) {
-            $sql .= " LIMIT :limit_bind"; // Placeholder unique
+            $sql .= " LIMIT {$limit}";
             if ($offset !== null) {
-                $sql .= " OFFSET :offset_bind"; // Placeholder unique
+                $sql .= " OFFSET {$offset}";
             }
         }
 
-        try {
-            $declaration = $this->db->prepare($sql);
-            foreach ($parametres as $key => $value) {
-                $typeParam = is_int($value) ? PDO::PARAM_INT : (is_bool($value) ? PDO::PARAM_BOOL : (is_null($value) ? PDO::PARAM_NULL : PDO::PARAM_STR));
-                $declaration->bindValue($key, $value, $typeParam);
-            }
-            if ($limit !== null) {
-                $declaration->bindValue(':limit_bind', $limit, PDO::PARAM_INT);
-            }
-            if ($offset !== null) {
-                $declaration->bindValue(':offset_bind', $offset, PDO::PARAM_INT);
-            }
-            $declaration->execute();
-            return $declaration->fetchAll(PDO::FETCH_ASSOC) ?: [];
-        } catch (PDOException $e) {
-            error_log("Erreur PDO dans trouverParCritere pour la table {$this->table}: " . $e->getMessage() . " SQL: " . $sql);
-            throw $e;
-        }
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     public function trouverUnParCritere(array $criteres, array $colonnes = ['*'], string $operateurLogique = 'AND', ?string $orderBy = null): ?array
     {
-        $resultats = $this->trouverParCritere($criteres, $colonnes, $operateurLogique, $orderBy, 1);
-        return $resultats[0] ?? null;
+        $results = $this->trouverParCritere($criteres, $colonnes, $operateurLogique, $orderBy, 1);
+        return $results[0] ?? null;
     }
 
     public function compterParCritere(array $criteres, string $operateurLogique = 'AND'): int
     {
+        $whereParts = [];
+        $params = [];
+
+        foreach ($criteres as $key => $value) {
+            if (is_array($value)) { // Gérer les critères de type IN, BETWEEN, LIKE
+                if (isset($value['operator']) && strtolower($value['operator']) === 'in') {
+                    $inPlaceholders = [];
+                    foreach ($value['values'] as $i => $inValue) {
+                        $inPlaceholders[] = ":{$key}_in_{$i}";
+                        $params[":{$key}_in_{$i}"] = $inValue;
+                    }
+                    $whereParts[] = "`{$key}` IN (" . implode(', ', $inPlaceholders) . ")";
+                } elseif (isset($value['operator']) && strtolower($value['operator']) === 'between') {
+                    if (count($value['values']) === 2) {
+                        $whereParts[] = "`{$key}` BETWEEN :{$key}_start AND :{$key}_end";
+                        $params[":{$key}_start"] = $value['values'][0];
+                        $params[":{$key}_end"] = $value['values'][1];
+                    }
+                } elseif (isset($value['operator']) && strtolower($value['operator']) === 'like') {
+                    $whereParts[] = "`{$key}` LIKE :{$key}_like";
+                    $params[":{$key}_like"] = $value['value'];
+                }
+            } else {
+                $whereParts[] = "`{$key}` = :{$key}";
+                $params[":{$key}"] = $value;
+            }
+        }
+
         $sql = "SELECT COUNT(*) FROM `{$this->table}`";
-        $conditions = [];
-        $parametres = [];
-        if (!empty($criteres)) {
-            $index = 0;
-            foreach ($criteres as $champ => $valeur) {
-                $placeholder = ":critere_" . preg_replace('/[^a-zA-Z0-9_]/', '', $champ) . "_" . $index++;
-                $conditions[] = "`{$champ}` = {$placeholder}";
-                $parametres[$placeholder] = $valeur;
-            }
-            $sql .= " WHERE " . implode(" {$operateurLogique} ", $conditions);
+        if (!empty($whereParts)) {
+            $sql .= " WHERE " . implode(" {$operateurLogique} ", $whereParts);
         }
-        try {
-            $declaration = $this->db->prepare($sql);
-            foreach ($parametres as $key => $value) {
-                $typeParam = is_int($value) ? PDO::PARAM_INT : (is_bool($value) ? PDO::PARAM_BOOL : (is_null($value) ? PDO::PARAM_NULL : PDO::PARAM_STR));
-                $declaration->bindValue($key, $value, $typeParam);
-            }
-            $declaration->execute();
-            return (int) $declaration->fetchColumn();
-        } catch (PDOException $e) {
-            error_log("Erreur PDO dans compterParCritere pour la table {$this->table}: " . $e->getMessage());
-            throw $e;
-        }
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        return (int) $stmt->fetchColumn();
     }
+
 
     public function executerRequete(string $sql, array $parametres = []): PDOStatement
     {
-        try {
-            $declaration = $this->db->prepare($sql);
-            $declaration->execute($parametres);
-            return $declaration;
-        } catch (PDOException $e) {
-            error_log("Erreur PDO dans executerRequete: " . $e->getMessage() . " SQL: " . $sql);
-            throw $e;
-        }
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($parametres);
+        return $stmt;
     }
 
     public function commencerTransaction(): void
     {
-        if (!$this->db->inTransaction()) {
-            $this->db->beginTransaction();
-        }
+        $this->db->beginTransaction();
     }
 
     public function validerTransaction(): void
     {
-        if ($this->db->inTransaction()) {
-            $this->db->commit();
-        }
+        $this->db->commit();
     }
 
     public function annulerTransaction(): void
     {
-        if ($this->db->inTransaction()) {
-            $this->db->rollBack();
+        $this->db->rollBack();
+    }
+
+    /**
+     * Méthode générique pour mettre à jour un enregistrement par ses clés primaires (simple ou composite).
+     * Similaire à mettreAJourParCles, mais sert de point d'entrée pour les modèles enfants.
+     * @param string|int|array $keys La valeur de la clé primaire (simple) ou un tableau associatif (pour composite).
+     * @param array $donnees Données à mettre à jour.
+     * @return bool Vrai si la mise à jour a réussi, faux sinon.
+     * @throws \InvalidArgumentException Si $keys est mal formé.
+     * @throws DoublonException Si la mise à jour provoque une violation de contrainte d'unicité.
+     */
+    protected function mettreAJourParClesInternes(string|int|array $keys, array $donnees): bool
+    {
+        // Réutilise la logique de preparerClauseWhereParCles et le UPDATE SQL
+        $whereInfo = $this->preparerClauseWhereParCles($keys);
+        $setParts = [];
+        $params = [];
+
+        foreach ($donnees as $key => $value) {
+            $setParts[] = "`{$key}` = :set_{$key}";
+            $params[":set_{$key}"] = $value;
         }
+
+        $params = array_merge($params, $whereInfo['params']);
+        $sql = "UPDATE `{$this->table}` SET " . implode(', ', $setParts) . " WHERE {$whereInfo['clause']}";
+        $stmt = $this->db->prepare($sql);
+
+        try {
+            return $stmt->execute($params);
+        } catch (\PDOException $e) {
+            if ($e->getCode() == 23000) {
+                throw new DoublonException("Une ressource avec des attributs uniques similaires existe déjà lors de la mise à jour de la table '{$this->table}'.", 0, $e);
+            }
+            throw $e;
+        }
+    }
+
+    /**
+     * Méthode générique pour supprimer un enregistrement par ses clés primaires (simple ou composite).
+     * Similaire à supprimerParCles, mais sert de point d'entrée pour les modèles enfants.
+     * @param string|int|array $keys La valeur de la clé primaire (simple) ou un tableau associatif (pour composite).
+     * @return bool Vrai si la suppression a réussi, faux sinon.
+     * @throws \InvalidArgumentException Si $keys est mal formé.
+     */
+    protected function supprimerParClesInternes(string|int|array $keys): bool
+    {
+        $whereInfo = $this->preparerClauseWhereParCles($keys);
+        $sql = "DELETE FROM `{$this->table}` WHERE {$whereInfo['clause']}";
+        $stmt = $this->db->prepare($sql);
+        return $stmt->execute($whereInfo['params']);
     }
 }

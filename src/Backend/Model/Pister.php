@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Backend\Model;
 
 use PDO;
@@ -7,42 +6,61 @@ use PDO;
 class Pister extends BaseModel
 {
     protected string $table = 'pister';
+    // La clé primaire est composite et contient des VARCHAR/DATETIME (string en PHP)
+    protected string|array $primaryKey = ['numero_utilisateur', 'id_traitement', 'date_pister'];
 
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+
+    /**
+     * Trouve une piste d'accès spécifique par ses clés composées.
+     * @param string $numeroUtilisateur Le numéro de l'utilisateur.
+     * @param string $idTraitement L'ID du traitement.
+     * @param string $datePister La date et heure de la piste (format YYYY-MM-DD HH:MM:SS).
+     * @param array $colonnes Les colonnes à sélectionner.
+     * @return array|null Les données de la piste ou null si non trouvée.
+     */
     public function trouverPisteParCles(string $numeroUtilisateur, string $idTraitement, string $datePister, array $colonnes = ['*']): ?array
     {
-        $listeColonnes = implode(', ', $colonnes);
-        $sql = "SELECT {$listeColonnes} FROM `{$this->table}` WHERE `numero_utilisateur` = :numero_utilisateur AND `id_traitement` = :id_traitement AND `date_pister` = :date_pister";
-        $declaration = $this->db->prepare($sql);
-        $declaration->bindParam(':numero_utilisateur', $numeroUtilisateur, PDO::PARAM_STR);
-        $declaration->bindParam(':id_traitement', $idTraitement, PDO::PARAM_STR);
-        $declaration->bindParam(':date_pister', $datePister, PDO::PARAM_STR);
-        $declaration->execute();
-        $resultat = $declaration->fetch(PDO::FETCH_ASSOC);
-        return $resultat ?: null;
+        return $this->trouverUnParCritere([
+            'numero_utilisateur' => $numeroUtilisateur,
+            'id_traitement' => $idTraitement,
+            'date_pister' => $datePister
+        ], $colonnes);
     }
 
+    /**
+     * Met à jour une piste d'accès spécifique par ses clés composées.
+     * @param string $numeroUtilisateur Le numéro de l'utilisateur.
+     * @param string $idTraitement L'ID du traitement.
+     * @param string $datePister La date et heure de la piste.
+     * @param array $donnees Les données à mettre à jour.
+     * @return bool Vrai si la mise à jour a réussi, faux sinon.
+     */
     public function mettreAJourPisteParCles(string $numeroUtilisateur, string $idTraitement, string $datePister, array $donnees): bool
     {
-        if (empty($donnees)) return false;
-        $setClause = [];
-        foreach (array_keys($donnees) as $colonne) $setClause[] = "`{$colonne}` = :{$colonne}";
-        $setString = implode(', ', $setClause);
-        $sql = "UPDATE `{$this->table}` SET {$setString} WHERE `numero_utilisateur` = :numero_utilisateur_condition AND `id_traitement` = :id_traitement_condition AND `date_pister` = :date_pister_condition";
-        $parametres = $donnees;
-        $parametres['numero_utilisateur_condition'] = $numeroUtilisateur;
-        $parametres['id_traitement_condition'] = $idTraitement;
-        $parametres['date_pister_condition'] = $datePister;
-        $declaration = $this->db->prepare($sql);
-        return $declaration->execute($parametres);
+        return $this->mettreAJourParClesInternes([
+            'numero_utilisateur' => $numeroUtilisateur,
+            'id_traitement' => $idTraitement,
+            'date_pister' => $datePister
+        ], $donnees);
     }
 
+    /**
+     * Supprime une piste d'accès spécifique par ses clés composées.
+     * @param string $numeroUtilisateur Le numéro de l'utilisateur.
+     * @param string $idTraitement L'ID du traitement.
+     * @param string $datePister La date et heure de la piste.
+     * @return bool Vrai si la suppression a réussi, faux sinon.
+     */
     public function supprimerPisteParCles(string $numeroUtilisateur, string $idTraitement, string $datePister): bool
     {
-        $sql = "DELETE FROM `{$this->table}` WHERE `numero_utilisateur` = :numero_utilisateur AND `id_traitement` = :id_traitement AND `date_pister` = :date_pister";
-        $declaration = $this->db->prepare($sql);
-        $declaration->bindParam(':numero_utilisateur', $numeroUtilisateur, PDO::PARAM_STR);
-        $declaration->bindParam(':id_traitement', $idTraitement, PDO::PARAM_STR);
-        $declaration->bindParam(':date_pister', $datePister, PDO::PARAM_STR);
-        return $declaration->execute();
+        return $this->supprimerParClesInternes([
+            'numero_utilisateur' => $numeroUtilisateur,
+            'id_traitement' => $idTraitement,
+            'date_pister' => $datePister
+        ]);
     }
 }

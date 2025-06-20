@@ -3,10 +3,10 @@ namespace App\Backend\Model;
 
 use PDO;
 
-class StatutPvRef extends BaseModel
+class StatutPenaliteRef extends BaseModel
 {
-    protected string $table = 'statut_pv_ref';
-    protected string|array $primaryKey = 'id_statut_pv'; // Clé primaire de type string
+    protected string $table = 'statut_penalite_ref';
+    protected string|array $primaryKey = 'id_statut_penalite'; // Clé primaire VARCHAR(50)
 
     public function __construct(PDO $db)
     {

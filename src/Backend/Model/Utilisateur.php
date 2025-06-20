@@ -1,169 +1,141 @@
 <?php
-
 namespace App\Backend\Model;
 
 use PDO;
-use PDOException;
+use App\Backend\Exception\DoublonException; // Assurez-vous d'importer cette exception
 
 class Utilisateur extends BaseModel
 {
     protected string $table = 'utilisateur';
-    protected string $clePrimaire = 'numero_utilisateur';
+    protected string|array $primaryKey = 'numero_utilisateur'; // Clé primaire de type string
 
-    // Déclaration des propriétés
-    public ?string $numero_utilisateur = null;
-    public ?string $login_utilisateur = null;
-    public ?string $email_principal = null;
-    public ?string $mot_de_passe = null;
-    public ?string $date_creation = null;
-    public ?string $derniere_connexion = null;
-    public ?string $token_reset_mdp = null;
-    public ?string $date_expiration_token_reset = null;
-    public ?string $token_validation_email = null;
-    public bool $email_valide = false;
-    public int $tentatives_connexion_echouees = 0;
-    public ?string $compte_bloque_jusqua = null;
-    public bool $preferences_2fa_active = false;
-    public ?string $secret_2fa = null;
-    public ?string $photo_profil = null;
-    public string $statut_compte = 'en_attente_validation';
-    public ?string $id_niveau_acces_donne = null;
-    public ?string $id_groupe_utilisateur = null;
-    public ?string $id_type_utilisateur = null;
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
 
-    // Cette méthode devrait être dans BaseModel.php pour éviter la duplication.
-    // Assurez-vous que la version dans BaseModel est aussi corrigée.
+    /**
+     * Prépare la liste des colonnes pour une requête SQL.
+     * Surcharge la méthode de BaseModel si des logiques spécifiques sont nécessaires,
+     * sinon elle pourrait être retirée et utiliser celle de BaseModel directement.
+     * @param array $colonnes Les noms des colonnes à sélectionner.
+     * @return string La chaîne des colonnes formatée.
+     */
     protected function preparerListeColonnes(array $colonnes): string
     {
-        if (count($colonnes) === 1 && $colonnes[0] === '*') {
-            return '*';
-        }
-        return implode(', ', array_map(fn($col) => "`" . trim(str_replace('`', '', $col)) . "`", $colonnes));
+        return parent::preparerListeColonnes($colonnes); // Appelle la méthode du parent
     }
 
+    /**
+     * Trouve un utilisateur par son numéro unique.
+     * @param string $numeroUtilisateur Le numéro unique de l'utilisateur.
+     * @param array $colonnes Les colonnes à sélectionner.
+     * @return array|null Les données de l'utilisateur ou null si non trouvé.
+     */
     public function trouverParNumeroUtilisateur(string $numeroUtilisateur, array $colonnes = ['*']): ?array
     {
-        return $this->trouverParIdentifiant($numeroUtilisateur, $colonnes);
+        return $this->trouverUnParCritere(['numero_utilisateur' => $numeroUtilisateur], $colonnes);
     }
 
+    /**
+     * Trouve un utilisateur par son login ou son email principal.
+     * @param string $identifiant Le login ou l'email principal de l'utilisateur.
+     * @param array $colonnes Les colonnes à sélectionner.
+     * @return array|null Les données de l'utilisateur ou null si non trouvé.
+     */
     public function trouverParLoginOuEmailPrincipal(string $identifiant, array $colonnes = ['*']): ?array
     {
-        $listeColonnes = $this->preparerListeColonnes($colonnes);
-        // ALTERNATIVE: Utilisation de placeholders positionnels pour déboguer
-        $sql = "SELECT {$listeColonnes} FROM `{$this->table}` 
-                WHERE `login_utilisateur` = ? OR `email_principal` = ? 
-                LIMIT 1";
-        try {
-            $stmt = $this->db->prepare($sql);
-            // Lier les deux placeholders avec la même valeur d'$identifiant
-            $stmt->execute([$identifiant, $identifiant]); // <-- Ligne 59 (ou proche)
-            $result = $stmt->fetch(PDO::FETCH_ASSOC);
-            return $result ?: null;
-        } catch (PDOException $e) {
-            error_log("Erreur PDO dans trouverParLoginOuEmailPrincipal: " . $e->getMessage() . " SQL: " . $sql . " Identifiant: " . $identifiant);
-            throw $e;
-        }
+        return $this->trouverUnParCritere([
+            'login_utilisateur' => $identifiant,
+            'email_principal' => $identifiant
+        ], $colonnes, 'OR'); // Recherche par login OU email
     }
 
+    /**
+     * Trouve un utilisateur par son login.
+     * @param string $login Le login de l'utilisateur.
+     * @param array $colonnes Les colonnes à sélectionner.
+     * @return array|null Les données de l'utilisateur ou null si non trouvé.
+     */
     public function trouverParLoginUtilisateur(string $login, array $colonnes = ['*']): ?array
     {
-        $listeColonnes = $this->preparerListeColonnes($colonnes);
-        $sql = "SELECT {$listeColonnes} FROM `{$this->table}` WHERE `login_utilisateur` = :login LIMIT 1";
-        try {
-            $stmt = $this->db->prepare($sql);
-            $stmt->execute([':login' => $login]);
-            $result = $stmt->fetch(PDO::FETCH_ASSOC);
-            return $result ?: null;
-        } catch (PDOException $e) {
-            error_log("Erreur PDO dans trouverParLoginUtilisateur: " . $e->getMessage() . " SQL: " . $sql);
-            throw $e;
-        }
+        return $this->trouverUnParCritere(['login_utilisateur' => $login], $colonnes);
     }
 
+    /**
+     * Trouve un utilisateur par son email principal.
+     * @param string $email L'email principal de l'utilisateur.
+     * @param array $colonnes Les colonnes à sélectionner.
+     * @return array|null Les données de l'utilisateur ou null si non trouvé.
+     */
     public function trouverParEmailPrincipal(string $email, array $colonnes = ['*']): ?array
     {
-        $listeColonnes = $this->preparerListeColonnes($colonnes);
-        $sql = "SELECT {$listeColonnes} FROM `{$this->table}` WHERE `email_principal` = :email LIMIT 1";
-        try {
-            $stmt = $this->db->prepare($sql);
-            $stmt->execute([':email' => $email]);
-            $result = $stmt->fetch(PDO::FETCH_ASSOC);
-            return $result ?: null;
-        } catch (PDOException $e) {
-            error_log("Erreur PDO dans trouverParEmailPrincipal: " . $e->getMessage() . " SQL: " . $sql);
-            throw $e;
-        }
+        return $this->trouverUnParCritere(['email_principal' => $email], $colonnes);
     }
 
+    /**
+     * Trouve un utilisateur par un token de réinitialisation de mot de passe (clair).
+     * @param string $tokenClair Le token de réinitialisation de mot de passe en clair.
+     * @param array $colonnes Les colonnes à sélectionner.
+     * @return array|null Les données de l'utilisateur ou null si non trouvé.
+     */
     public function trouverParTokenResetMdp(string $tokenClair, array $colonnes = ['*']): ?array
     {
-        $tokenHache = hash('sha256', $tokenClair);
-        $listeColonnes = $this->preparerListeColonnes($colonnes);
-        $sql = "SELECT {$listeColonnes} FROM `{$this->table}` WHERE `token_reset_mdp` = :token_hache LIMIT 1";
-        try {
-            $stmt = $this->db->prepare($sql);
-            $stmt->execute([':token_hache' => $tokenHache]);
-            $result = $stmt->fetch(PDO::FETCH_ASSOC);
-            return $result ?: null;
-        } catch (PDOException $e) {
-            error_log("Erreur PDO dans trouverParTokenResetMdp: " . $e->getMessage() . " SQL: " . $sql);
-            throw $e;
-        }
+        // Note: En général, on stocke un hachage du token dans la DB et on compare le token clair avec le hachage.
+        // Si le token clair est directement stocké, des mesures de sécurité supplémentaires sont nécessaires.
+        return $this->trouverUnParCritere(['token_reset_mdp' => $tokenClair], $colonnes);
     }
 
+    /**
+     * Trouve un utilisateur par un token de validation d'email (haché).
+     * @param string $tokenHache Le token de validation d'email haché.
+     * @param array $colonnes Les colonnes à sélectionner.
+     * @return array|null Les données de l'utilisateur ou null si non trouvé.
+     */
     public function trouverParTokenValidationEmailHache(string $tokenHache, array $colonnes = ['*']): ?array
     {
-        $listeColonnes = $this->preparerListeColonnes($colonnes);
-        $sql = "SELECT {$listeColonnes} FROM `{$this->table}` WHERE `token_validation_email` = :token_hache LIMIT 1";
-        try {
-            $stmt = $this->db->prepare($sql);
-            $stmt->execute([':token_hache' => $tokenHache]);
-            $result = $stmt->fetch(PDO::FETCH_ASSOC);
-            return $result ?: null;
-        } catch (PDOException $e) {
-            error_log("Erreur PDO dans trouverParTokenValidationEmailHache: " . $e->getMessage() . " SQL: " . $sql);
-            throw $e;
-        }
+        return $this->trouverUnParCritere(['token_validation_email' => $tokenHache], $colonnes);
     }
 
+    /**
+     * Met à jour des champs spécifiques d'un utilisateur par son numéro unique.
+     * @param string $numeroUtilisateur Le numéro de l'utilisateur à mettre à jour.
+     * @param array $champsValeurs Un tableau associatif des colonnes et de leurs nouvelles valeurs.
+     * @return bool Vrai si la mise à jour a réussi, faux sinon.
+     * @throws DoublonException Si la mise à jour provoque une violation de contrainte d'unicité (ex: login/email déjà pris).
+     */
     public function mettreAJourChamps(string $numeroUtilisateur, array $champsValeurs): bool
     {
-        return $this->mettreAJourParIdentifiant($numeroUtilisateur, $champsValeurs);
+        return $this->mettreAJourParClesInternes(['numero_utilisateur' => $numeroUtilisateur], $champsValeurs);
     }
 
+    /**
+     * Vérifie si un login existe déjà pour un autre utilisateur.
+     * @param string $login Le login à vérifier.
+     * @param string|null $numeroUtilisateurExclure Le numéro de l'utilisateur à exclure de la vérification (pour les mises à jour).
+     * @return bool Vrai si le login existe déjà pour un autre utilisateur, faux sinon.
+     */
     public function loginExiste(string $login, ?string $numeroUtilisateurExclure = null): bool
     {
-        $sql = "SELECT COUNT(*) FROM `{$this->table}` WHERE `login_utilisateur` = :login";
-        $params = [':login' => $login];
+        $criteres = ['login_utilisateur' => $login];
         if ($numeroUtilisateurExclure !== null) {
-            $sql .= " AND `numero_utilisateur` != :numero_exclure";
-            $params[':numero_exclure'] = $numeroUtilisateurExclure;
+            $criteres['numero_utilisateur'] = ['operator' => '!=', 'value' => $numeroUtilisateurExclure]; // Utilisation de la nouvelle fonctionnalité de BaseModel
         }
-        try {
-            $stmt = $this->db->prepare($sql);
-            $stmt->execute($params);
-            return (int)$stmt->fetchColumn() > 0;
-        } catch (PDOException $e) {
-            error_log("Erreur PDO dans loginExiste: " . $e->getMessage() . " SQL: " . $sql);
-            throw $e;
-        }
+        return $this->compterParCritere($criteres) > 0;
     }
 
+    /**
+     * Vérifie si un email principal existe déjà pour un autre utilisateur.
+     * @param string $email L'email à vérifier.
+     * @param string|null $numeroUtilisateurExclure Le numéro de l'utilisateur à exclure de la vérification.
+     * @return bool Vrai si l'email existe déjà pour un autre utilisateur, faux sinon.
+     */
     public function emailPrincipalExiste(string $email, ?string $numeroUtilisateurExclure = null): bool
     {
-        $sql = "SELECT COUNT(*) FROM `{$this->table}` WHERE `email_principal` = :email";
-        $params = [':email' => $email];
+        $criteres = ['email_principal' => $email];
         if ($numeroUtilisateurExclure !== null) {
-            $sql .= " AND `numero_utilisateur` != :numero_exclure";
-            $params[':numero_exclure'] = $numeroUtilisateurExclure;
+            $criteres['numero_utilisateur'] = ['operator' => '!=', 'value' => $numeroUtilisateurExclure]; // Utilisation de la nouvelle fonctionnalité de BaseModel
         }
-        try {
-            $stmt = $this->db->prepare($sql);
-            $stmt->execute($params);
-            return (int)$stmt->fetchColumn() > 0;
-        } catch (PDOException $e) {
-            error_log("Erreur PDO dans emailPrincipalExiste: " . $e->getMessage() . " SQL: " . $sql);
-            throw $e;
-        }
+        return $this->compterParCritere($criteres) > 0;
     }
 }

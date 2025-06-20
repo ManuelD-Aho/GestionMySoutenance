@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Backend\Model;
 
 use PDO;
@@ -7,39 +6,55 @@ use PDO;
 class LectureMessage extends BaseModel
 {
     protected string $table = 'lecture_message';
+    // La clé primaire est composite et contient des VARCHAR (string en PHP)
+    protected string|array $primaryKey = ['id_message_chat', 'numero_utilisateur'];
 
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+
+    /**
+     * Trouve une entrée de lecture de message spécifique par ses clés composées.
+     * @param string $idMessageChat L'ID du message de chat.
+     * @param string $numeroUtilisateur Le numéro de l'utilisateur.
+     * @param array $colonnes Les colonnes à sélectionner.
+     * @return array|null Les données de lecture du message ou null si non trouvée.
+     */
     public function trouverLectureParCles(string $idMessageChat, string $numeroUtilisateur, array $colonnes = ['*']): ?array
     {
-        $listeColonnes = implode(', ', $colonnes);
-        $sql = "SELECT {$listeColonnes} FROM `{$this->table}` WHERE `id_message_chat` = :id_message_chat AND `numero_utilisateur` = :numero_utilisateur";
-        $declaration = $this->db->prepare($sql);
-        $declaration->bindParam(':id_message_chat', $idMessageChat, PDO::PARAM_STR);
-        $declaration->bindParam(':numero_utilisateur', $numeroUtilisateur, PDO::PARAM_STR);
-        $declaration->execute();
-        $resultat = $declaration->fetch(PDO::FETCH_ASSOC);
-        return $resultat ?: null;
+        return $this->trouverUnParCritere([
+            'id_message_chat' => $idMessageChat,
+            'numero_utilisateur' => $numeroUtilisateur
+        ], $colonnes);
     }
 
+    /**
+     * Met à jour une entrée de lecture de message spécifique par ses clés composées.
+     * @param string $idMessageChat L'ID du message de chat.
+     * @param string $numeroUtilisateur Le numéro de l'utilisateur.
+     * @param array $donnees Les données à mettre à jour.
+     * @return bool Vrai si la mise à jour a réussi, faux sinon.
+     */
     public function mettreAJourLectureParCles(string $idMessageChat, string $numeroUtilisateur, array $donnees): bool
     {
-        if (empty($donnees)) return false;
-        $setClause = [];
-        foreach (array_keys($donnees) as $colonne) $setClause[] = "`{$colonne}` = :{$colonne}";
-        $setString = implode(', ', $setClause);
-        $sql = "UPDATE `{$this->table}` SET {$setString} WHERE `id_message_chat` = :id_message_chat_condition AND `numero_utilisateur` = :numero_utilisateur_condition";
-        $parametres = $donnees;
-        $parametres['id_message_chat_condition'] = $idMessageChat;
-        $parametres['numero_utilisateur_condition'] = $numeroUtilisateur;
-        $declaration = $this->db->prepare($sql);
-        return $declaration->execute($parametres);
+        return $this->mettreAJourParClesInternes([
+            'id_message_chat' => $idMessageChat,
+            'numero_utilisateur' => $numeroUtilisateur
+        ], $donnees);
     }
 
+    /**
+     * Supprime une entrée de lecture de message spécifique par ses clés composées.
+     * @param string $idMessageChat L'ID du message de chat.
+     * @param string $numeroUtilisateur Le numéro de l'utilisateur.
+     * @return bool Vrai si la suppression a réussi, faux sinon.
+     */
     public function supprimerLectureParCles(string $idMessageChat, string $numeroUtilisateur): bool
     {
-        $sql = "DELETE FROM `{$this->table}` WHERE `id_message_chat` = :id_message_chat AND `numero_utilisateur` = :numero_utilisateur";
-        $declaration = $this->db->prepare($sql);
-        $declaration->bindParam(':id_message_chat', $idMessageChat, PDO::PARAM_STR);
-        $declaration->bindParam(':numero_utilisateur', $numeroUtilisateur, PDO::PARAM_STR);
-        return $declaration->execute();
+        return $this->supprimerParClesInternes([
+            'id_message_chat' => $idMessageChat,
+            'numero_utilisateur' => $numeroUtilisateur
+        ]);
     }
 }

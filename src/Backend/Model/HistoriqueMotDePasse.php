@@ -1,57 +1,57 @@
 <?php
-
 namespace App\Backend\Model;
 
 use PDO;
-use PDOException;
 
 class HistoriqueMotDePasse extends BaseModel
 {
     protected string $table = 'historique_mot_de_passe';
-    protected string $clePrimaire = 'id_historique_mdp';
-
-    public ?string $id_historique_mdp = null;
-    public string $numero_utilisateur;
-    public string $mot_de_passe_hache;
-    public ?string $date_changement = null;
+    protected string|array $primaryKey = 'id_historique_mdp'; // Clé primaire de type string
 
     public function __construct(PDO $db)
     {
         parent::__construct($db);
     }
 
+    /**
+     * Récupère l'historique des mots de passe pour un utilisateur donné.
+     * @param string $numeroUtilisateur Le numéro de l'utilisateur.
+     * @param int $limite Le nombre maximum d'entrées à récupérer.
+     * @param array $colonnes Les colonnes à sélectionner.
+     * @return array La liste des entrées d'historique.
+     */
     public function recupererHistoriquePourUtilisateur(string $numeroUtilisateur, int $limite = 5, array $colonnes = ['mot_de_passe_hache', 'date_changement', 'id_historique_mdp']): array
     {
-        if ($limite <= 0) return [];
-        $listeColonnes = implode(', ', $colonnes);
-        $sql = "SELECT {$listeColonnes} FROM `{$this->table}` 
-                WHERE `numero_utilisateur` = :numero_utilisateur 
-                ORDER BY `date_changement` DESC 
-                LIMIT :limite";
-        $stmt = $this->db->prepare($sql);
-        $stmt->bindParam(':numero_utilisateur', $numeroUtilisateur, PDO::PARAM_STR);
-        $stmt->bindParam(':limite', $limite, PDO::PARAM_INT);
-        try {
-            $stmt->execute();
-            return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-        } catch (PDOException $e) {
-            throw new PDOException("Erreur lors de la récupération de l'historique des mots de passe pour l'utilisateur {$numeroUtilisateur}: " . $e->getMessage(), (int)$e->getCode(), $e);
-        }
+        return $this->trouverParCritere(
+            ['numero_utilisateur' => $numeroUtilisateur],
+            $colonnes,
+            'AND',
+            'date_changement DESC',
+            $limite
+        );
     }
 
+    /**
+     * Supprime plusieurs entrées de l'historique par leurs identifiants.
+     * @param array $idsHistorique Un tableau d'IDs d'historique à supprimer (string).
+     * @return bool Vrai si la suppression a réussi, faux sinon.
+     */
     public function supprimerPlusieursParIdentifiants(array $idsHistorique): bool
     {
-        if (empty($idsHistorique)) return false;
-        $placeholders = implode(',', array_fill(0, count($idsHistorique), '?'));
-        $sql = "DELETE FROM `{$this->table}` WHERE `{$this->clePrimaire}` IN ({$placeholders})";
-        $stmt = $this->db->prepare($sql);
-        try {
-            return $stmt->execute($idsHistorique);
-        } catch (PDOException $e) {
-            throw new PDOException("Erreur lors de la suppression de plusieurs entrées d'historique: " . $e->getMessage(), (int)$e->getCode(), $e);
+        if (empty($idsHistorique)) {
+            return true;
         }
+        $placeholders = implode(',', array_fill(0, count($idsHistorique), '?'));
+        $sql = "DELETE FROM `{$this->table}` WHERE `{$this->primaryKey}` IN ({$placeholders})";
+        $stmt = $this->db->prepare($sql);
+        return $stmt->execute($idsHistorique);
     }
 
+    /**
+     * Compte le nombre d'entrées d'historique pour un utilisateur donné.
+     * @param string $numeroUtilisateur Le numéro de l'utilisateur.
+     * @return int Le nombre d'entrées d'historique.
+     */
     public function compterPourUtilisateur(string $numeroUtilisateur): int
     {
         return $this->compterParCritere(['numero_utilisateur' => $numeroUtilisateur]);

@@ -2,20 +2,20 @@
 
 namespace App\Backend\Service\Rapport;
 
-use App\Backend\Model\DocumentSoumis;
+use App\Backend\Model\DocumentGenere;
 use App\Backend\Model\RapportEtudiant;
 use PDO;
 
 class ServiceRapport
 {
     private RapportEtudiant $modeleRapportEtudiant;
-    private DocumentSoumis $modeleDocumentSoumis;
+    private DocumentGenere $modeleDocumentSoumis;
     private PDO $db;
 
     public function __construct(
         RapportEtudiant $modeleRapportEtudiant,
-        DocumentSoumis $modeleDocumentSoumis,
-        PDO $db
+        DocumentGenere  $modeleDocumentSoumis,
+        PDO             $db
     ) {
         $this->modeleRapportEtudiant = $modeleRapportEtudiant;
         $this->modeleDocumentSoumis = $modeleDocumentSoumis;

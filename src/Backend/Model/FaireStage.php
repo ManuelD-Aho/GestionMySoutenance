@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Backend\Model;
 
 use PDO;
@@ -7,39 +6,55 @@ use PDO;
 class FaireStage extends BaseModel
 {
     protected string $table = 'faire_stage';
+    // La clé primaire est composite et contient des VARCHAR (string en PHP)
+    protected string|array $primaryKey = ['id_entreprise', 'numero_carte_etudiant'];
 
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+
+    /**
+     * Trouve une entrée de stage spécifique par les clés composées (entreprise et étudiant).
+     * @param string $idEntreprise L'ID de l'entreprise.
+     * @param string $numeroCarteEtudiant Le numéro de carte de l'étudiant.
+     * @param array $colonnes Les colonnes à sélectionner.
+     * @return array|null Les données du stage ou null si non trouvé.
+     */
     public function trouverStageParCles(string $idEntreprise, string $numeroCarteEtudiant, array $colonnes = ['*']): ?array
     {
-        $listeColonnes = implode(', ', $colonnes);
-        $sql = "SELECT {$listeColonnes} FROM `{$this->table}` WHERE `id_entreprise` = :id_entreprise AND `numero_carte_etudiant` = :numero_carte_etudiant";
-        $declaration = $this->db->prepare($sql);
-        $declaration->bindParam(':id_entreprise', $idEntreprise, PDO::PARAM_STR);
-        $declaration->bindParam(':numero_carte_etudiant', $numeroCarteEtudiant, PDO::PARAM_STR);
-        $declaration->execute();
-        $resultat = $declaration->fetch(PDO::FETCH_ASSOC);
-        return $resultat ?: null;
+        return $this->trouverUnParCritere([
+            'id_entreprise' => $idEntreprise,
+            'numero_carte_etudiant' => $numeroCarteEtudiant
+        ], $colonnes);
     }
 
+    /**
+     * Met à jour une entrée de stage spécifique par ses clés composées.
+     * @param string $idEntreprise L'ID de l'entreprise.
+     * @param string $numeroCarteEtudiant Le numéro de carte de l'étudiant.
+     * @param array $donnees Les données à mettre à jour.
+     * @return bool Vrai si la mise à jour a réussi, faux sinon.
+     */
     public function mettreAJourStageParCles(string $idEntreprise, string $numeroCarteEtudiant, array $donnees): bool
     {
-        if (empty($donnees)) return false;
-        $setClause = [];
-        foreach (array_keys($donnees) as $colonne) $setClause[] = "`{$colonne}` = :{$colonne}";
-        $setString = implode(', ', $setClause);
-        $sql = "UPDATE `{$this->table}` SET {$setString} WHERE `id_entreprise` = :id_entreprise_condition AND `numero_carte_etudiant` = :numero_carte_etudiant_condition";
-        $parametres = $donnees;
-        $parametres['id_entreprise_condition'] = $idEntreprise;
-        $parametres['numero_carte_etudiant_condition'] = $numeroCarteEtudiant;
-        $declaration = $this->db->prepare($sql);
-        return $declaration->execute($parametres);
+        return $this->mettreAJourParClesInternes([
+            'id_entreprise' => $idEntreprise,
+            'numero_carte_etudiant' => $numeroCarteEtudiant
+        ], $donnees);
     }
 
+    /**
+     * Supprime une entrée de stage spécifique par ses clés composées.
+     * @param string $idEntreprise L'ID de l'entreprise.
+     * @param string $numeroCarteEtudiant Le numéro de carte de l'étudiant.
+     * @return bool Vrai si la suppression a réussi, faux sinon.
+     */
     public function supprimerStageParCles(string $idEntreprise, string $numeroCarteEtudiant): bool
     {
-        $sql = "DELETE FROM `{$this->table}` WHERE `id_entreprise` = :id_entreprise AND `numero_carte_etudiant` = :numero_carte_etudiant";
-        $declaration = $this->db->prepare($sql);
-        $declaration->bindParam(':id_entreprise', $idEntreprise, PDO::PARAM_STR);
-        $declaration->bindParam(':numero_carte_etudiant', $numeroCarteEtudiant, PDO::PARAM_STR);
-        return $declaration->execute();
+        return $this->supprimerParClesInternes([
+            'id_entreprise' => $idEntreprise,
+            'numero_carte_etudiant' => $numeroCarteEtudiant
+        ]);
     }
 }

@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Backend\Model;
 
 use PDO;
@@ -7,39 +6,48 @@ use PDO;
 class Approuver extends BaseModel
 {
     protected string $table = 'approuver';
+    protected string|array $primaryKey = ['numero_personnel_administratif', 'id_rapport_etudiant']; // Clé composite
 
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+
+    /**
+     * Trouve une approbation spécifique par ses clés composées.
+     * @param string $numeroPersonnelAdministratif Le numéro du personnel administratif.
+     * @param string $idRapportEtudiant L'ID du rapport étudiant.
+     * @param array $colonnes Les colonnes à sélectionner.
+     * @return array|null Les données de l'approbation ou null si non trouvée.
+     */
     public function trouverApprobationParCles(string $numeroPersonnelAdministratif, string $idRapportEtudiant, array $colonnes = ['*']): ?array
     {
-        $listeColonnes = implode(', ', $colonnes);
-        $sql = "SELECT {$listeColonnes} FROM `{$this->table}` WHERE `numero_personnel_administratif` = :numero_personnel_administratif AND `id_rapport_etudiant` = :id_rapport_etudiant";
-        $declaration = $this->db->prepare($sql);
-        $declaration->bindParam(':numero_personnel_administratif', $numeroPersonnelAdministratif, PDO::PARAM_STR);
-        $declaration->bindParam(':id_rapport_etudiant', $idRapportEtudiant, PDO::PARAM_STR);
-        $declaration->execute();
-        $resultat = $declaration->fetch(PDO::FETCH_ASSOC);
-        return $resultat ?: null;
+        return $this->trouverUnParCritere([
+            'numero_personnel_administratif' => $numeroPersonnelAdministratif,
+            'id_rapport_etudiant' => $idRapportEtudiant
+        ], $colonnes);
     }
 
+    /**
+     * Met à jour une approbation spécifique par ses clés composées.
+     * @param string $numeroPersonnelAdministratif Le numéro du personnel administratif.
+     * @param string $idRapportEtudiant L'ID du rapport étudiant.
+     * @param array $donnees Les données à mettre à jour.
+     * @return bool Vrai si la mise à jour a réussi, faux sinon.
+     */
     public function mettreAJourApprobationParCles(string $numeroPersonnelAdministratif, string $idRapportEtudiant, array $donnees): bool
     {
-        if (empty($donnees)) return false;
-        $setClause = [];
-        foreach (array_keys($donnees) as $colonne) $setClause[] = "`{$colonne}` = :{$colonne}";
-        $setString = implode(', ', $setClause);
-        $sql = "UPDATE `{$this->table}` SET {$setString} WHERE `numero_personnel_administratif` = :numero_personnel_administratif_condition AND `id_rapport_etudiant` = :id_rapport_etudiant_condition";
-        $parametres = $donnees;
-        $parametres['numero_personnel_administratif_condition'] = $numeroPersonnelAdministratif;
-        $parametres['id_rapport_etudiant_condition'] = $idRapportEtudiant;
-        $declaration = $this->db->prepare($sql);
-        return $declaration->execute($parametres);
+        return $this->mettreAJourParClesInternes(['numero_personnel_administratif' => $numeroPersonnelAdministratif, 'id_rapport_etudiant' => $idRapportEtudiant], $donnees);
     }
 
+    /**
+     * Supprime une approbation spécifique par ses clés composées.
+     * @param string $numeroPersonnelAdministratif Le numéro du personnel administratif.
+     * @param string $idRapportEtudiant L'ID du rapport étudiant.
+     * @return bool Vrai si la suppression a réussi, faux sinon.
+     */
     public function supprimerApprobationParCles(string $numeroPersonnelAdministratif, string $idRapportEtudiant): bool
     {
-        $sql = "DELETE FROM `{$this->table}` WHERE `numero_personnel_administratif` = :numero_personnel_administratif AND `id_rapport_etudiant` = :id_rapport_etudiant";
-        $declaration = $this->db->prepare($sql);
-        $declaration->bindParam(':numero_personnel_administratif', $numeroPersonnelAdministratif, PDO::PARAM_STR);
-        $declaration->bindParam(':id_rapport_etudiant', $idRapportEtudiant, PDO::PARAM_STR);
-        return $declaration->execute();
+        return $this->supprimerParClesInternes(['numero_personnel_administratif' => $numeroPersonnelAdministratif, 'id_rapport_etudiant' => $idRapportEtudiant]);
     }
 }
