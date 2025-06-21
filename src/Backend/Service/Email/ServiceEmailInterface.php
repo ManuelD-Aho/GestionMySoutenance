@@ -1,49 +1,24 @@
 <?php
-
 namespace App\Backend\Service\Email;
 
-/**
- * Interface ServiceEmailInterface
- * Définit le contrat pour un service d'envoi d'emails.
- */
 interface ServiceEmailInterface
 {
     /**
      * Envoie un email.
-     *
-     * @param string $destinataire L'adresse email du destinataire.
-     * @param string $sujet Le sujet de l'email.
-     * @param string $corpsMessage Le contenu du message (peut être du texte brut ou HTML selon l'implémentation).
-     * @param array $entetes Optionnel. Tableau associatif d'en-têtes supplémentaires (ex: ['From' => 'expediteur@example.com', 'Reply-To' => 'reponse@example.com']).
-     * @param bool $estHtml Optionnel. True si le corps du message est en HTML, false pour texte brut. Par défaut à false.
-     * @return bool True si l'email a été envoyé avec succès (ou mis en file d'attente), false sinon.
-     * @throws \App\Backend\Exception\EmailException Si une erreur se produit lors de la tentative d'envoi.
+     * @param array $emailData Données de l'email: destinataire_email, sujet, corps_html (optionnel), corps_texte (optionnel).
+     * @return bool Vrai si l'email a été envoyé avec succès.
+     * @throws \App\Backend\Exception\EmailException En cas d'échec de l'envoi de l'email.
      */
-    public function envoyerEmail(
-        string $destinataire,
-        string $sujet,
-        string $corpsMessage,
-        array $entetes = [],
-        bool $estHtml = false
-    ): bool;
+    public function envoyerEmail(array $emailData): bool;
 
     /**
-     * Envoie un email en utilisant un modèle (template).
-     *
-     * @param string $destinataire L'adresse email du destinataire.
-     * @param string $sujet Le sujet de l'email.
-     * @param string $nomModele Le nom ou l'identifiant du modèle d'email à utiliser.
-     * @param array $donneesModele Tableau associatif des données à injecter dans le modèle.
-     * @param array $entetes Optionnel. Tableau associatif d'en-têtes supplémentaires.
-     * @return bool True si l'email a été envoyé avec succès, false sinon.
-     * @throws \App\Backend\Exception\EmailException Si une erreur se produit ou si le modèle n'est pas trouvé.
-     * @throws \App\Backend\Exception\ModeleNonTrouveException Si le modèle d'email spécifié n'existe pas.
+     * Envoie un email en utilisant un modèle stocké en base de données.
+     * @param string $destinataireEmail L'adresse email du destinataire.
+     * @param string $modeleCode L'ID du modèle de notification à utiliser.
+     * @param array $variablesModele Tableau associatif des variables à remplacer dans le modèle.
+     * @return bool Vrai si l'email a été envoyé avec succès.
+     * @throws \App\Backend\Exception\ElementNonTrouveException Si le modèle d'email n'est pas trouvé.
+     * @throws \App\Backend\Exception\EmailException En cas d'échec de l'envoi de l'email.
      */
-    public function envoyerEmailAvecModele(
-        string $destinataire,
-        string $sujet,
-        string $nomModele,
-        array $donneesModele = [],
-        array $entetes = []
-    ): bool;
+    public function envoyerEmailAvecModele(string $destinataireEmail, string $modeleCode, array $variablesModele = []): bool;
 }

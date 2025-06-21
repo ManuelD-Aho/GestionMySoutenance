@@ -1,375 +1,718 @@
 <?php
-
 namespace App\Backend\Service\Permissions;
 
 use PDO;
-use PDOException;
-use DateTime;
-use App\Backend\Service\SupervisionAdmin\ServiceSupervisionAdminInterface;
-// Supposons que vos exceptions sont toujours pertinentes
+use App\Backend\Model\GroupeUtilisateur;
+use App\Backend\Model\TypeUtilisateur;
+use App\Backend\Model\NiveauAccesDonne;
+use App\Backend\Model\Traitement;
+use App\Backend\Model\Rattacher;
+use App\Backend\Model\Utilisateur; // Pour des opérations liées aux utilisateurs si nécessaire
+use App\Backend\Service\SupervisionAdmin\ServiceSupervisionAdmin; // Pour journalisation
 use App\Backend\Exception\ElementNonTrouveException;
 use App\Backend\Exception\OperationImpossibleException;
 use App\Backend\Exception\DoublonException;
-use App\Backend\Exception\ValidationException;
 
 class ServicePermissions implements ServicePermissionsInterface
 {
-    private PDO $db;
-    private ServiceSupervisionAdminInterface $serviceSupervision;
-    private string $currentUserLogin;
+    private GroupeUtilisateur $groupeUtilisateurModel;
+    private TypeUtilisateur $typeUtilisateurModel;
+    private NiveauAccesDonne $niveauAccesDonneModel;
+    private Traitement $traitementModel;
+    private Rattacher $rattacherModel;
+    private Utilisateur $utilisateurModel; // Utilisé pour récupérer l'utilisateur lié à la session
+    private ServiceSupervisionAdmin $supervisionService;
 
-    public function __construct(PDO $db, ServiceSupervisionAdminInterface $serviceSupervision)
-    {
-        $this->db = $db;
-        $this->serviceSupervision = $serviceSupervision;
-        $this->currentUserLogin = $_SESSION['login_utilisateur'] ?? 'SYSTEME';
+    public function __construct(
+        PDO $db,
+        ServiceSupervisionAdmin $supervisionService,
+        // Ces modèles pourraient être passés directement via le Container si configuré,
+        // ou instanciés ici si ce service est toujours le premier à les utiliser.
+        // Pour l'exercice, nous les instancions ici.
+        // Utilisez les objets des modèles si déjà injectés par un Container plus haut.
+        // Si c'est pour des tests unitaires ou des cas où ils sont déjà disponibles,
+        // il est préférable de les demander en paramètre du constructeur.
+        Utilisateur $utilisateurModel = null,
+        GroupeUtilisateur $groupeUtilisateurModel = null,
+        TypeUtilisateur $typeUtilisateurModel = null
+    ) {
+        $this->groupeUtilisateurModel = $groupeUtilisateurModel ?? new GroupeUtilisateur($db);
+        $this->typeUtilisateurModel = $typeUtilisateurModel ?? new TypeUtilisateur($db);
+        $this->niveauAccesDonneModel = new NiveauAccesDonne($db);
+        $this->traitementModel = new Traitement($db);
+        $this->rattacherModel = new Rattacher($db);
+        $this->utilisateurModel = $utilisateurModel ?? new Utilisateur($db);
+        $this->supervisionService = $supervisionService;
     }
+
+    // --- GESTION DES GROUPES UTILISATEURS ---
 
     /**
      * Crée un nouveau groupe d'utilisateurs.
-     * L'ID est fourni car il est de type VARCHAR.
+     * @param string $idGroupeUtilisateur L'ID unique du groupe (ex: 'GRP_COMMISSION').
+     * @param string $libelleGroupeUtilisateur Le libellé du groupe.
+     * @return bool Vrai si le groupe a été créé.
+     * @throws DoublonException Si l'ID du groupe existe déjà.
+     * @throws OperationImpossibleException En cas d'échec de création.
      */
-    public function creerGroupeUtilisateur(string $idGroupeUtilisateur, string $libelle): string
+    public function creerGroupeUtilisateur(string $idGroupeUtilisateur, string $libelleGroupeUtilisateur): bool
     {
-        if (empty(trim($idGroupeUtilisateur))) {
-            throw new ValidationException("L'identifiant du groupe ne peut être vide.");
-        }
-        if (empty(trim($libelle))) {
-            throw new ValidationException("Le libellé du groupe ne peut être vide.");
-        }
-
-        // Vérifier les doublons sur l'ID ou le libellé
-        $sqlCheck = "SELECT id_groupe_utilisateur FROM groupe_utilisateur WHERE id_groupe_utilisateur = :id_check OR lib_groupe_utilisateur = :libelle_check";
-        $stmtCheck = $this->db->prepare($sqlCheck);
-        $stmtCheck->bindParam(':id_check', $idGroupeUtilisateur);
-        $stmtCheck->bindParam(':libelle_check', $libelle);
-        $stmtCheck->execute();
-        if ($stmtCheck->fetch()) {
-            throw new DoublonException("Un groupe avec cet identifiant ou libellé existe déjà.");
-        }
-
-        // Insertion avec seulement id_groupe_utilisateur et libelle_groupe_utilisateur
-        $sql = "INSERT INTO groupe_utilisateur (id_groupe_utilisateur, lib_groupe_utilisateur) VALUES (:id_insert, :libelle_insert)";
-        $stmt = $this->db->prepare($sql);
-        $stmt->bindParam(':id_insert', $idGroupeUtilisateur);
-        $stmt->bindParam(':libelle_insert', $libelle);
-
+        $this->groupeUtilisateurModel->commencerTransaction();
         try {
-            $stmt->execute();
-            // Enregistrer l'action de supervision
-            $this->serviceSupervision->enregistrerAction(
-                $this->currentUserLogin,
+            $data = [
+                'id_groupe_utilisateur' => $idGroupeUtilisateur,
+                'libelle_groupe_utilisateur' => $libelleGroupeUtilisateur
+            ];
+            $success = $this->groupeUtilisateurModel->creer($data);
+            if (!$success) {
+                throw new OperationImpossibleException("Échec de la création du groupe utilisateur.");
+            }
+            $this->groupeUtilisateurModel->validerTransaction();
+            $this->supervisionService->enregistrerAction(
+                $_SESSION['user_id'] ?? 'SYSTEM',
                 'CREATION_GROUPE_UTILISATEUR',
-                new DateTime(),
-                $_SERVER['REMOTE_ADDR'] ?? 'N/A',
-                $_SERVER['HTTP_USER_AGENT'] ?? 'N/A',
-                'GroupeUtilisateur',
-                $idGroupeUtilisateur, // L'ID est la chaîne fournie
-                ['id_groupe_utilisateur' => $idGroupeUtilisateur, 'libelle' => $libelle]
+                "Groupe utilisateur '{$idGroupeUtilisateur}' créé.",
+                $idGroupeUtilisateur,
+                'GroupeUtilisateur'
             );
-            return $idGroupeUtilisateur; // Retourner l'ID VARCHAR fourni
-        } catch (PDOException $e) {
-            throw new PDOException("Erreur lors de la création du groupe: " . $e->getMessage(), (int)$e->getCode(), $e);
+            return true;
+        } catch (DoublonException $e) {
+            $this->groupeUtilisateurModel->annulerTransaction();
+            throw $e;
+        } catch (\Exception $e) {
+            $this->groupeUtilisateurModel->annulerTransaction();
+            $this->supervisionService->enregistrerAction(
+                $_SESSION['user_id'] ?? 'SYSTEM',
+                'ECHEC_CREATION_GROUPE_UTILISATEUR',
+                "Erreur création groupe utilisateur '{$idGroupeUtilisateur}': " . $e->getMessage()
+            );
+            throw $e;
         }
     }
 
     /**
-     * Modifie le libellé d'un groupe d'utilisateurs existant.
-     * L'ID est une chaîne (VARCHAR).
+     * Modifie un groupe d'utilisateurs existant.
+     * @param string $idGroupeUtilisateur L'ID du groupe à modifier.
+     * @param array $donnees Les données à mettre à jour (ex: 'libelle_groupe_utilisateur').
+     * @return bool Vrai si la mise à jour a réussi.
+     * @throws ElementNonTrouveException Si le groupe n'est pas trouvé.
+     * @throws DoublonException Si le nouveau libellé existe déjà.
      */
-    public function modifierGroupeUtilisateur(string $idGroupeUtilisateur, string $libelle): bool
+    public function modifierGroupeUtilisateur(string $idGroupeUtilisateur, array $donnees): bool
     {
-        // Vérifier d'abord si le groupe existe
-        $this->recupererGroupeUtilisateurParId($idGroupeUtilisateur); // S'assure que l'élément existe ou lance une exception
-
-        if (empty(trim($libelle))) {
-            throw new ValidationException("Le libellé du groupe ne peut être vide.");
+        $groupe = $this->groupeUtilisateurModel->trouverParIdentifiant($idGroupeUtilisateur);
+        if (!$groupe) {
+            throw new ElementNonTrouveException("Groupe utilisateur '{$idGroupeUtilisateur}' non trouvé.");
         }
 
-        // Vérifier si le nouveau libellé est déjà utilisé par un AUTRE groupe
-        $sqlCheck = "SELECT id_groupe_utilisateur FROM groupe_utilisateur WHERE lib_groupe_utilisateur = :libelle_check AND id_groupe_utilisateur != :id_current";
-        $stmtCheck = $this->db->prepare($sqlCheck);
-        $stmtCheck->bindParam(':libelle_check', $libelle);
-        $stmtCheck->bindParam(':id_current', $idGroupeUtilisateur);
-        $stmtCheck->execute();
-        if ($stmtCheck->fetch()) {
-            throw new DoublonException("Un autre groupe avec ce libellé existe déjà.");
-        }
-
-        // Mise à jour du libellé uniquement
-        $sql = "UPDATE groupe_utilisateur SET lib_groupe_utilisateur = :libelle_update WHERE id_groupe_utilisateur = :id_update";
-        $stmt = $this->db->prepare($sql);
-        $stmt->bindParam(':libelle_update', $libelle);
-        $stmt->bindParam(':id_update', $idGroupeUtilisateur);
-
+        $this->groupeUtilisateurModel->commencerTransaction();
         try {
-            $success = $stmt->execute();
-            if ($success && $stmt->rowCount() > 0) {
-                $this->serviceSupervision->enregistrerAction(
-                    $this->currentUserLogin,
-                    'MODIFICATION_GROUPE_UTILISATEUR',
-                    new DateTime(),
-                    $_SERVER['REMOTE_ADDR'] ?? 'N/A',
-                    $_SERVER['HTTP_USER_AGENT'] ?? 'N/A',
-                    'GroupeUtilisateur',
-                    $idGroupeUtilisateur,
-                    ['libelle' => $libelle]
-                );
+            $success = $this->groupeUtilisateurModel->mettreAJourParIdentifiant($idGroupeUtilisateur, $donnees);
+            if (!$success) {
+                throw new OperationImpossibleException("Échec de la mise à jour du groupe utilisateur.");
             }
-            return $success;
-        } catch (PDOException $e) {
-            throw new PDOException("Erreur lors de la modification du groupe: " . $e->getMessage(), (int)$e->getCode(), $e);
+            $this->groupeUtilisateurModel->validerTransaction();
+            $this->supervisionService->enregistrerAction(
+                $_SESSION['user_id'] ?? 'SYSTEM',
+                'MODIF_GROUPE_UTILISATEUR',
+                "Groupe utilisateur '{$idGroupeUtilisateur}' mis à jour.",
+                $idGroupeUtilisateur,
+                'GroupeUtilisateur'
+            );
+            return true;
+        } catch (DoublonException $e) {
+            $this->groupeUtilisateurModel->annulerTransaction();
+            throw $e;
+        } catch (\Exception $e) {
+            $this->groupeUtilisateurModel->annulerTransaction();
+            $this->supervisionService->enregistrerAction(
+                $_SESSION['user_id'] ?? 'SYSTEM',
+                'ECHEC_MODIF_GROUPE_UTILISATEUR',
+                "Erreur modification groupe utilisateur '{$idGroupeUtilisateur}': " . $e->getMessage()
+            );
+            throw $e;
         }
     }
 
     /**
      * Supprime un groupe d'utilisateurs.
-     * L'ID est une chaîne (VARCHAR).
+     * @param string $idGroupeUtilisateur L'ID du groupe à supprimer.
+     * @return bool Vrai si la suppression a réussi.
+     * @throws ElementNonTrouveException Si le groupe n'est pas trouvé.
+     * @throws OperationImpossibleException Si le groupe a des utilisateurs ou des permissions rattachées (gestion des cascades).
      */
     public function supprimerGroupeUtilisateur(string $idGroupeUtilisateur): bool
     {
-        // Vérifier d'abord si le groupe existe
-        $this->recupererGroupeUtilisateurParId($idGroupeUtilisateur);
-
-        // Vérifier si le groupe est assigné à des utilisateurs
-        $stmtCheck = $this->db->prepare("SELECT COUNT(*) FROM utilisateur WHERE id_groupe_utilisateur = :id_groupe");
-        // Assurez-vous que la liaison se fait correctement pour un VARCHAR. PDO le gère souvent bien.
-        $stmtCheck->bindParam(':id_groupe', $idGroupeUtilisateur);
-        $stmtCheck->execute();
-        if ($stmtCheck->fetchColumn() > 0) {
-            throw new OperationImpossibleException("Impossible de supprimer le groupe car il est assigné à des utilisateurs.");
+        $groupe = $this->groupeUtilisateurModel->trouverParIdentifiant($idGroupeUtilisateur);
+        if (!$groupe) {
+            throw new ElementNonTrouveException("Groupe utilisateur '{$idGroupeUtilisateur}' non trouvé.");
         }
 
-        $stmt = $this->db->prepare("DELETE FROM groupe_utilisateur WHERE id_groupe_utilisateur = :id_delete");
-        $stmt->bindParam(':id_delete', $idGroupeUtilisateur);
+        // Vérifier s'il y a des utilisateurs rattachés à ce groupe
+        if ($this->utilisateurModel->compterParCritere(['id_groupe_utilisateur' => $idGroupeUtilisateur]) > 0) {
+            throw new OperationImpossibleException("Impossible de supprimer le groupe : des utilisateurs y sont encore rattachés.");
+        }
+        // Vérifier s'il y a des permissions rattachées à ce groupe
+        if ($this->rattacherModel->compterParCritere(['id_groupe_utilisateur' => $idGroupeUtilisateur]) > 0) {
+            throw new OperationImpossibleException("Impossible de supprimer le groupe : des permissions lui sont encore rattachées.");
+        }
+
+        $this->groupeUtilisateurModel->commencerTransaction();
         try {
-            $success = $stmt->execute();
-            if ($success && $stmt->rowCount() > 0) {
-                $this->serviceSupervision->enregistrerAction(
-                    $this->currentUserLogin,
-                    'SUPPRESSION_GROUPE_UTILISATEUR',
-                    new DateTime(),
-                    $_SERVER['REMOTE_ADDR'] ?? 'N/A',
-                    $_SERVER['HTTP_USER_AGENT'] ?? 'N/A',
-                    'GroupeUtilisateur',
-                    $idGroupeUtilisateur,
-                    []
-                );
+            $success = $this->groupeUtilisateurModel->supprimerParIdentifiant($idGroupeUtilisateur);
+            if (!$success) {
+                throw new OperationImpossibleException("Échec de la suppression du groupe utilisateur.");
             }
-            return $success;
-        } catch (PDOException $e) {
-            throw new PDOException("Erreur lors de la suppression du groupe: " . $e->getMessage(), (int)$e->getCode(), $e);
+            $this->groupeUtilisateurModel->validerTransaction();
+            $this->supervisionService->enregistrerAction(
+                $_SESSION['user_id'] ?? 'SYSTEM',
+                'SUPPRESSION_GROUPE_UTILISATEUR',
+                "Groupe utilisateur '{$idGroupeUtilisateur}' supprimé.",
+                $idGroupeUtilisateur,
+                'GroupeUtilisateur'
+            );
+            return true;
+        } catch (\Exception $e) {
+            $this->groupeUtilisateurModel->annulerTransaction();
+            $this->supervisionService->enregistrerAction(
+                $_SESSION['user_id'] ?? 'SYSTEM',
+                'ECHEC_SUPPRESSION_GROUPE_UTILISATEUR',
+                "Erreur suppression groupe utilisateur '{$idGroupeUtilisateur}': " . $e->getMessage()
+            );
+            throw $e;
         }
     }
 
-    /**
-     * Récupère un groupe d'utilisateurs par son ID (chaîne VARCHAR).
-     */
     public function recupererGroupeUtilisateurParId(string $idGroupeUtilisateur): ?array
     {
-        // Sélectionner uniquement les colonnes existantes
-        $stmt = $this->db->prepare("SELECT id_groupe_utilisateur, lib_groupe_utilisateur FROM groupe_utilisateur WHERE id_groupe_utilisateur = :id");
-        $stmt->bindParam(':id', $idGroupeUtilisateur); // PDO::PARAM_STR est implicite ou peut être ajouté
-        $stmt->execute();
-        $groupe = $stmt->fetch(PDO::FETCH_ASSOC);
-        if (!$groupe) {
-            throw new ElementNonTrouveException("Groupe d'utilisateurs non trouvé avec l'ID: " . $idGroupeUtilisateur);
-        }
-        return $groupe;
+        return $this->groupeUtilisateurModel->trouverParIdentifiant($idGroupeUtilisateur);
     }
 
-    /**
-     * Supprimez cette méthode si la colonne code_groupe_utilisateur n'existe plus.
-     * Si elle existe sous un autre nom ou si une recherche par un "code" est toujours nécessaire
-     * sur une autre colonne, adaptez cette méthode.
-     * Actuellement, elle va générer une erreur SQL si la colonne code_groupe_utilisateur est absente.
-     */
-    // public function recupererGroupeUtilisateurParCode(string $codeGroupe): ?array
-    // {
-    //     // SI LA COLONNE N'EXISTE PLUS, CETTE MÉTHODE EST INVALIDE
-    //     $stmt = $this->db->prepare("SELECT id_groupe_utilisateur, lib_groupe_utilisateur FROM groupe_utilisateur WHERE code_groupe_utilisateur = :code");
-    //     $stmt->bindParam(':code', $codeGroupe);
-    //     $stmt->execute();
-    //     $groupe = $stmt->fetch(PDO::FETCH_ASSOC);
-    //     if (!$groupe) {
-    //         throw new ElementNonTrouveException("Groupe d'utilisateurs non trouvé avec le code: " . $codeGroupe);
-    //     }
-    //     return $groupe;
-    // }
+    public function recupererGroupeUtilisateurParCode(string $codeGroupe): ?array
+    {
+        return $this->groupeUtilisateurModel->trouverUnParCritere(['id_groupe_utilisateur' => $codeGroupe]);
+    }
 
     public function listerGroupesUtilisateur(): array
     {
-        // Sélectionner uniquement les colonnes existantes
-        $stmt = $this->db->query("SELECT id_groupe_utilisateur, lib_groupe_utilisateur FROM groupe_utilisateur ORDER BY lib_groupe_utilisateur ASC");
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        return $this->groupeUtilisateurModel->trouverTout();
     }
 
-    // ... (Le reste de vos méthodes pour TypeUtilisateur, NiveauAcces, Traitement, etc.)
-    // Vous devrez vérifier si des ajustements similaires sont nécessaires pour ces autres entités
-    // si leurs tables respectives ont également changé.
-    // Par exemple, les méthodes recuperer...ParCode() pourraient être concernées.
+    // --- GESTION DES TYPES UTILISATEURS ---
 
-    // Continuez avec les autres méthodes ici...
-    // Par exemple, la méthode `utilisateurPossedePermission` utilise `recupererTraitementParCode`.
-    // Assurez-vous que la table `traitement` a bien une colonne `code_traitement`.
-    // La méthode `groupePossedePermission` utilise également `recupererTraitementParCode`.
-
-    // COLLER LE RESTE DE VOS MÉTHODES DE LA CLASSE ICI, EN VÉRIFIANT LEUR LOGIQUE PAR RAPPORT À LA STRUCTURE DE LA DB
-    // CI-DESSOUS UN EXEMPLE POUR MONTRER OÙ REPRENDRE VOTRE CODE ORIGINAL:
-
-    public function creerTypeUtilisateur(string $libelle, ?string $description, ?string $codeType = null): int
+    public function creerTypeUtilisateur(string $idTypeUtilisateur, string $libelleTypeUtilisateur): bool
     {
-        // ... (votre code existant, vérifiez si `description_type_utilisateur` et `code_type_utilisateur` existent)
-        // Si la table type_utilisateur a aussi changé, adaptez cette méthode.
-        // Par exemple, si id_type_utilisateur est un VARCHAR, le retour devrait être string et lastInsertId() ne serait pas utilisé.
-        // Cette section est un placeholder pour votre code existant.
-        if (empty(trim($libelle))) {
-            throw new ValidationException("Le libellé du type d'utilisateur ne peut être vide.");
-        }
-        if ($codeType !== null && empty(trim($codeType))) {
-            $codeType = null;
-        }
-
-        $sqlCheck = "SELECT id_type_utilisateur FROM type_utilisateur WHERE lib_type_utilisateur = :libelle";
-        $paramsCheck = [':libelle' => $libelle];
-        if ($codeType !== null) {
-            $sqlCheck .= " OR code_type_utilisateur = :code"; // Vérifiez si cette colonne existe
-            $paramsCheck[':code'] = $codeType;
-        }
-        $stmtCheck = $this->db->prepare($sqlCheck);
-        $stmtCheck->execute($paramsCheck);
-        if ($stmtCheck->fetch()) {
-            throw new DoublonException("Un type d'utilisateur avec ce libellé ou code existe déjà.");
-        }
-
-        $sql = "INSERT INTO type_utilisateur (lib_type_utilisateur, description_type_utilisateur, code_type_utilisateur) VALUES (:libelle, :description, :code)"; // Vérifiez ces colonnes
-        $stmt = $this->db->prepare($sql);
-        $stmt->bindParam(':libelle', $libelle);
-        $stmt->bindParam(':description', $description); // Vérifiez si cette colonne existe
-        $stmt->bindParam(':code', $codeType); // Vérifiez si cette colonne existe
+        $this->typeUtilisateurModel->commencerTransaction();
         try {
-            $stmt->execute();
-            $id = (int)$this->db->lastInsertId(); // Si id_type_utilisateur est un INT AI
-            $this->serviceSupervision->enregistrerAction($this->currentUserLogin, 'CREATION_TYPE_UTILISATEUR', new DateTime(), $_SERVER['REMOTE_ADDR'] ?? 'N/A', $_SERVER['HTTP_USER_AGENT'] ?? 'N/A', 'TypeUtilisateur', (string)$id, ['libelle' => $libelle, 'code' => $codeType]);
-            return $id;
-        } catch (PDOException $e) {
-            throw new PDOException("Erreur lors de la création du type d'utilisateur: " . $e->getMessage(), (int)$e->getCode(), $e);
-        }
-    }
-    // ... Intégrez et vérifiez toutes vos autres méthodes ici
-    // (modifierTypeUtilisateur, supprimerTypeUtilisateur, recupererTypeUtilisateurParId, recupererTypeUtilisateurParCode, listerTypesUtilisateur,
-    // creerNiveauAcces, modifierNiveauAcces, supprimerNiveauAcces, recupererNiveauAccesParId, recupererNiveauAccesParCode, listerNiveauxAcces,
-    // creerTraitement, modifierTraitement, supprimerTraitement, recupererTraitementParId, recupererTraitementParCode, listerTraitements,
-    // attribuerPermissionGroupe, retirerPermissionGroupe, recupererPermissionsPourGroupe, recupererGroupesPourPermission,
-    // utilisateurPossedePermission, groupePossedePermission, getPermissionsPourUtilisateur)
-
-    // Exemple pour recupererGroupeUtilisateurParCode, qui devrait être supprimé si la colonne n'existe plus :
-    /*
-    public function recupererGroupeUtilisateurParCode(string $codeGroupe): ?array
-    {
-        // Cette méthode est à supprimer si 'code_groupe_utilisateur' n'existe pas.
-        // Si vous l'avez commentée plus haut, c'est parfait.
-        // Sinon, le code ci-dessous provoquerait une erreur SQL.
-        // $stmt = $this->db->prepare("SELECT * FROM groupe_utilisateur WHERE code_groupe_utilisateur = :code");
-        // $stmt->bindParam(':code', $codeGroupe);
-        // $stmt->execute();
-        // $groupe = $stmt->fetch(PDO::FETCH_ASSOC);
-        // if (!$groupe) {
-        //     throw new ElementNonTrouveException("Groupe d'utilisateurs non trouvé avec le code: " . $codeGroupe);
-        // }
-        // return $groupe;
-        throw new \LogicException("La méthode recupererGroupeUtilisateurParCode n'est plus valide car la colonne code_groupe_utilisateur n'existe pas/plus.");
-    }
-    */
-
-    // ASSUREZ-VOUS D'INCLURE TOUTES LES AUTRES MÉTHODES DE VOTRE CLASSE ICI,
-    // EN APPLIQUANT DES MODIFICATIONS SIMILAIRES SI NÉCESSAIRE.
-    // Pour l'instant, je vais ajouter des placeholders pour les méthodes restantes mentionnées dans le fichier original que vous avez fourni.
-    // Vous devrez les vérifier et les adapter.
-
-    public function modifierTypeUtilisateur(int $idType, string $libelle, ?string $description, ?string $codeType = null): bool { /* ... à vérifier ... */ return false; }
-    public function supprimerTypeUtilisateur(int $idType): bool { /* ... à vérifier ... */ return false; }
-    public function recupererTypeUtilisateurParId(int $idType): ?array { /* ... à vérifier ... */ return null; }
-    public function recupererTypeUtilisateurParCode(string $codeType): ?array { /* ... à vérifier, probablement à supprimer ou modifier si pas de code_type_utilisateur ... */ return null; }
-    public function listerTypesUtilisateur(): array { /* ... à vérifier ... */ return []; }
-
-    public function creerNiveauAcces(string $libelle, ?string $description, ?string $codeNiveauAcces = null): int { /* ... à vérifier ... */ return 0; }
-    public function modifierNiveauAcces(int $idNiveau, string $libelle, ?string $description, ?string $codeNiveauAcces = null): bool { /* ... à vérifier ... */ return false; }
-    public function supprimerNiveauAcces(int $idNiveau): bool { /* ... à vérifier ... */ return false; }
-    public function recupererNiveauAccesParId(int $idNiveau): ?array { /* ... à vérifier ... */ return null; }
-    public function recupererNiveauAccesParCode(string $codeNiveauAcces): ?array { /* ... à vérifier, probablement à supprimer ou modifier si pas de code_niveau_acces ... */ return null; }
-    public function listerNiveauxAcces(): array { /* ... à vérifier ... */ return []; }
-
-    public function creerTraitement(string $libelleTraitement, string $codeTraitement): int { /* ... à vérifier ... */ return 0; }
-    public function modifierTraitement(int $idTraitement, string $libelleTraitement, string $codeTraitement): bool { /* ... à vérifier ... */ return false; }
-    public function supprimerTraitement(int $idTraitement): bool { /* ... à vérifier ... */ return false; }
-    public function recupererTraitementParId(int $idTraitement): ?array { /* ... à vérifier ... */ return null; }
-    public function recupererTraitementParCode(string $codeTraitement): ?array { /* ... à vérifier ... */ return null; } // Cette méthode semble valide si la table traitement a un code_traitement
-    public function listerTraitements(): array { /* ... à vérifier ... */ return []; }
-
-    public function attribuerPermissionGroupe(string $idGroupeUtilisateur, int $idTraitement): bool { /* idGroupeUtilisateur doit être string ici */ return false; } // Changé le premier paramètre en string
-    public function retirerPermissionGroupe(string $idGroupeUtilisateur, int $idTraitement): bool { /* idGroupeUtilisateur doit être string ici */ return false; } // Changé le premier paramètre en string
-    public function recupererPermissionsPourGroupe(string $idGroupeUtilisateur): array { /* idGroupeUtilisateur doit être string ici */ return []; } // Changé le premier paramètre en string
-
-    public function recupererGroupesPourPermission(int $idTraitement): array { /* ... à vérifier ... */ return []; }
-
-    public function utilisateurPossedePermission(string $numeroUtilisateur, string $codePermission): bool
-    {
-        $stmtUser = $this->db->prepare("SELECT id_groupe_utilisateur FROM utilisateur WHERE numero_utilisateur = :num_user");
-        $stmtUser->bindParam(':num_user', $numeroUtilisateur);
-        $stmtUser->execute();
-        $idGroupe = $stmtUser->fetchColumn(); // $idGroupe sera un VARCHAR ici
-
-        if ($idGroupe === false) {
-            throw new ElementNonTrouveException("Utilisateur non trouvé: " . $numeroUtilisateur);
-        }
-        if ($idGroupe === null) { // Peut arriver si la colonne est nullable et pas de groupe assigné
-            return false;
-        }
-        // groupePossedePermission attend un string pour l'ID du groupe désormais
-        return $this->groupePossedePermission((string)$idGroupe, $codePermission);
-    }
-
-    public function groupePossedePermission(string $idGroupeUtilisateur, string $codePermission): bool // Changé le premier paramètre en string
-    {
-        $traitement = $this->recupererTraitementParCode($codePermission); // S'assurer que recupererTraitementParCode est correct
-        if (!$traitement) {
-            // Si un code permission invalide ne doit pas lever d'exception mais retourner false :
-            // return false;
-            throw new ElementNonTrouveException("Permission (traitement) non trouvée avec le code: " . $codePermission);
-        }
-        $idTraitement = $traitement['id_trait'];
-
-        $stmt = $this->db->prepare("SELECT COUNT(*) FROM rattacher WHERE id_groupe_utilisateur = :id_groupe AND id_trait = :id_trait");
-        $stmt->bindParam(':id_groupe', $idGroupeUtilisateur); // id_groupe_utilisateur est maintenant une chaîne
-        $stmt->bindParam(':id_trait', $idTraitement, PDO::PARAM_INT);
-        $stmt->execute();
-        return $stmt->fetchColumn() > 0;
-    }
-
-    public function getPermissionsPourUtilisateur(string $numeroUtilisateur): array
-    {
-        $stmtUser = $this->db->prepare("SELECT id_groupe_utilisateur FROM utilisateur WHERE numero_utilisateur = :num_user");
-        $stmtUser->bindParam(':num_user', $numeroUtilisateur);
-        $stmtUser->execute();
-        $idGroupe = $stmtUser->fetchColumn(); // $idGroupe sera un VARCHAR
-
-        if ($idGroupe === false) {
-            throw new ElementNonTrouveException("Utilisateur non trouvé: " . $numeroUtilisateur);
-        }
-        if ($idGroupe === null) {
-            return [];
-        }
-
-        // recupererPermissionsPourGroupe attend un string pour l'ID du groupe
-        $permissionsGroupe = $this->recupererPermissionsPourGroupe((string)$idGroupe);
-        $codesPermissions = [];
-        foreach ($permissionsGroupe as $permission) {
-            if (isset($permission['code_traitement'])) { // Vérifier que la clé existe
-                $codesPermissions[] = $permission['code_traitement'];
+            $data = [
+                'id_type_utilisateur' => $idTypeUtilisateur,
+                'libelle_type_utilisateur' => $libelleTypeUtilisateur
+            ];
+            $success = $this->typeUtilisateurModel->creer($data);
+            if (!$success) {
+                throw new OperationImpossibleException("Échec de la création du type d'utilisateur.");
             }
+            $this->typeUtilisateurModel->validerTransaction();
+            $this->supervisionService->enregistrerAction(
+                $_SESSION['user_id'] ?? 'SYSTEM',
+                'CREATION_TYPE_UTILISATEUR',
+                "Type d'utilisateur '{$idTypeUtilisateur}' créé.",
+                $idTypeUtilisateur,
+                'TypeUtilisateur'
+            );
+            return true;
+        } catch (DoublonException $e) {
+            $this->typeUtilisateurModel->annulerTransaction();
+            throw $e;
+        } catch (\Exception $e) {
+            $this->typeUtilisateurModel->annulerTransaction();
+            $this->supervisionService->enregistrerAction(
+                $_SESSION['user_id'] ?? 'SYSTEM',
+                'ECHEC_CREATION_TYPE_UTILISATEUR',
+                "Erreur création type utilisateur '{$idTypeUtilisateur}': " . $e->getMessage()
+            );
+            throw $e;
         }
-        return $codesPermissions;
     }
 
+    public function modifierTypeUtilisateur(string $idTypeUtilisateur, array $donnees): bool
+    {
+        $typeUser = $this->typeUtilisateurModel->trouverParIdentifiant($idTypeUtilisateur);
+        if (!$typeUser) {
+            throw new ElementNonTrouveException("Type d'utilisateur '{$idTypeUtilisateur}' non trouvé.");
+        }
+
+        $this->typeUtilisateurModel->commencerTransaction();
+        try {
+            $success = $this->typeUtilisateurModel->mettreAJourParIdentifiant($idTypeUtilisateur, $donnees);
+            if (!$success) {
+                throw new OperationImpossibleException("Échec de la mise à jour du type d'utilisateur.");
+            }
+            $this->typeUtilisateurModel->validerTransaction();
+            $this->supervisionService->enregistrerAction(
+                $_SESSION['user_id'] ?? 'SYSTEM',
+                'MODIF_TYPE_UTILISATEUR',
+                "Type d'utilisateur '{$idTypeUtilisateur}' mis à jour.",
+                $idTypeUtilisateur,
+                'TypeUtilisateur'
+            );
+            return true;
+        } catch (DoublonException $e) {
+            $this->typeUtilisateurModel->annulerTransaction();
+            throw $e;
+        } catch (\Exception $e) {
+            $this->typeUtilisateurModel->annulerTransaction();
+            $this->supervisionService->enregistrerAction(
+                $_SESSION['user_id'] ?? 'SYSTEM',
+                'ECHEC_MODIF_TYPE_UTILISATEUR',
+                "Erreur modification type utilisateur '{$idTypeUtilisateur}': " . $e->getMessage()
+            );
+            throw $e;
+        }
+    }
+
+    public function supprimerTypeUtilisateur(string $idTypeUtilisateur): bool
+    {
+        $typeUser = $this->typeUtilisateurModel->trouverParIdentifiant($idTypeUtilisateur);
+        if (!$typeUser) {
+            throw new ElementNonTrouveException("Type d'utilisateur '{$idTypeUtilisateur}' non trouvé.");
+        }
+        if ($this->utilisateurModel->compterParCritere(['id_type_utilisateur' => $idTypeUtilisateur]) > 0) {
+            throw new OperationImpossibleException("Impossible de supprimer le type d'utilisateur : des utilisateurs y sont encore rattachés.");
+        }
+
+        $this->typeUtilisateurModel->commencerTransaction();
+        try {
+            $success = $this->typeUtilisateurModel->supprimerParIdentifiant($idTypeUtilisateur);
+            if (!$success) {
+                throw new OperationImpossibleException("Échec de la suppression du type d'utilisateur.");
+            }
+            $this->typeUtilisateurModel->validerTransaction();
+            $this->supervisionService->enregistrerAction(
+                $_SESSION['user_id'] ?? 'SYSTEM',
+                'SUPPRESSION_TYPE_UTILISATEUR',
+                "Type d'utilisateur '{$idTypeUtilisateur}' supprimé.",
+                $idTypeUtilisateur,
+                'TypeUtilisateur'
+            );
+            return true;
+        } catch (\Exception $e) {
+            $this->typeUtilisateurModel->annulerTransaction();
+            $this->supervisionService->enregistrerAction(
+                $_SESSION['user_id'] ?? 'SYSTEM',
+                'ECHEC_SUPPRESSION_TYPE_UTILISATEUR',
+                "Erreur suppression type utilisateur '{$idTypeUtilisateur}': " . $e->getMessage()
+            );
+            throw $e;
+        }
+    }
+
+    public function recupererTypeUtilisateurParId(string $idTypeUtilisateur): ?array
+    {
+        return $this->typeUtilisateurModel->trouverParIdentifiant($idTypeUtilisateur);
+    }
+
+    public function recupererTypeUtilisateurParCode(string $codeType): ?array
+    {
+        return $this->typeUtilisateurModel->trouverUnParCritere(['id_type_utilisateur' => $codeType]);
+    }
+
+    public function listerTypesUtilisateur(): array
+    {
+        return $this->typeUtilisateurModel->trouverTout();
+    }
+
+    // --- GESTION DES NIVEAUX D'ACCÈS AUX DONNÉES ---
+    // Similaire aux méthodes de gestion des groupes et types
+
+    public function creerNiveauAcces(string $idNiveauAcces, string $libelleNiveauAcces): bool
+    {
+        $this->niveauAccesDonneModel->commencerTransaction();
+        try {
+            $data = [
+                'id_niveau_acces_donne' => $idNiveauAcces,
+                'libelle_niveau_acces_donne' => $libelleNiveauAcces
+            ];
+            $success = $this->niveauAccesDonneModel->creer($data);
+            if (!$success) {
+                throw new OperationImpossibleException("Échec de la création du niveau d'accès.");
+            }
+            $this->niveauAccesDonneModel->validerTransaction();
+            $this->supervisionService->enregistrerAction(
+                $_SESSION['user_id'] ?? 'SYSTEM',
+                'CREATION_NIVEAU_ACCES',
+                "Niveau d'accès '{$idNiveauAcces}' créé.",
+                $idNiveauAcces,
+                'NiveauAccesDonne'
+            );
+            return true;
+        } catch (DoublonException $e) {
+            $this->niveauAccesDonneModel->annulerTransaction();
+            throw $e;
+        } catch (\Exception $e) {
+            $this->niveauAccesDonneModel->annulerTransaction();
+            $this->supervisionService->enregistrerAction(
+                $_SESSION['user_id'] ?? 'SYSTEM',
+                'ECHEC_CREATION_NIVEAU_ACCES',
+                "Erreur création niveau d'accès '{$idNiveauAcces}': " . $e->getMessage()
+            );
+            throw $e;
+        }
+    }
+
+    public function modifierNiveauAcces(string $idNiveauAcces, array $donnees): bool
+    {
+        $niveauAcces = $this->niveauAccesDonneModel->trouverParIdentifiant($idNiveauAcces);
+        if (!$niveauAcces) {
+            throw new ElementNonTrouveException("Niveau d'accès '{$idNiveauAcces}' non trouvé.");
+        }
+
+        $this->niveauAccesDonneModel->commencerTransaction();
+        try {
+            $success = $this->niveauAccesDonneModel->mettreAJourParIdentifiant($idNiveauAcces, $donnees);
+            if (!$success) {
+                throw new OperationImpossibleException("Échec de la mise à jour du niveau d'accès.");
+            }
+            $this->niveauAccesDonneModel->validerTransaction();
+            $this->supervisionService->enregistrerAction(
+                $_SESSION['user_id'] ?? 'SYSTEM',
+                'MODIF_NIVEAU_ACCES',
+                "Niveau d'accès '{$idNiveauAcces}' mis à jour.",
+                $idNiveauAcces,
+                'NiveauAccesDonne'
+            );
+            return true;
+        } catch (DoublonException $e) {
+            $this->niveauAccesDonneModel->annulerTransaction();
+            throw $e;
+        } catch (\Exception $e) {
+            $this->niveauAccesDonneModel->annulerTransaction();
+            $this->supervisionService->enregistrerAction(
+                $_SESSION['user_id'] ?? 'SYSTEM',
+                'ECHEC_MODIF_NIVEAU_ACCES',
+                "Erreur modification niveau d'accès '{$idNiveauAcces}': " . $e->getMessage()
+            );
+            throw $e;
+        }
+    }
+
+    public function supprimerNiveauAcces(string $idNiveauAcces): bool
+    {
+        $niveauAcces = $this->niveauAccesDonneModel->trouverParIdentifiant($idNiveauAcces);
+        if (!$niveauAcces) {
+            throw new ElementNonTrouveException("Niveau d'accès '{$idNiveauAcces}' non trouvé.");
+        }
+        if ($this->utilisateurModel->compterParCritere(['id_niveau_acces_donne' => $idNiveauAcces]) > 0) {
+            throw new OperationImpossibleException("Impossible de supprimer le niveau d'accès : des utilisateurs y sont encore rattachés.");
+        }
+
+        $this->niveauAccesDonneModel->commencerTransaction();
+        try {
+            $success = $this->niveauAccesDonneModel->supprimerParIdentifiant($idNiveauAcces);
+            if (!$success) {
+                throw new OperationImpossibleException("Échec de la suppression du niveau d'accès.");
+            }
+            $this->niveauAccesDonneModel->validerTransaction();
+            $this->supervisionService->enregistrerAction(
+                $_SESSION['user_id'] ?? 'SYSTEM',
+                'SUPPRESSION_NIVEAU_ACCES',
+                "Niveau d'accès '{$idNiveauAcces}' supprimé.",
+                $idNiveauAcces,
+                'NiveauAccesDonne'
+            );
+            return true;
+        } catch (\Exception $e) {
+            $this->niveauAccesDonneModel->annulerTransaction();
+            $this->supervisionService->enregistrerAction(
+                $_SESSION['user_id'] ?? 'SYSTEM',
+                'ECHEC_SUPPRESSION_NIVEAU_ACCES',
+                "Erreur suppression niveau d'accès '{$idNiveauAcces}': " . $e->getMessage()
+            );
+            throw $e;
+        }
+    }
+
+    public function recupererNiveauAccesParId(string $idNiveauAcces): ?array
+    {
+        return $this->niveauAccesDonneModel->trouverParIdentifiant($idNiveauAcces);
+    }
+
+    public function recupererNiveauAccesParCode(string $codeNiveau): ?array
+    {
+        return $this->niveauAccesDonneModel->trouverUnParCritere(['id_niveau_acces_donne' => $codeNiveau]);
+    }
+
+    public function listerNiveauxAcces(): array
+    {
+        return $this->niveauAccesDonneModel->trouverTout();
+    }
+
+    // --- GESTION DES TRAITEMENTS (PERMISSIONS) ---
+    // Similaire aux méthodes de gestion des groupes et types
+
+    public function creerTraitement(string $idTraitement, string $libelleTraitement): bool
+    {
+        $this->traitementModel->commencerTransaction();
+        try {
+            $data = [
+                'id_traitement' => $idTraitement,
+                'libelle_traitement' => $libelleTraitement
+            ];
+            $success = $this->traitementModel->creer($data);
+            if (!$success) {
+                throw new OperationImpossibleException("Échec de la création du traitement.");
+            }
+            $this->traitementModel->validerTransaction();
+            $this->supervisionService->enregistrerAction(
+                $_SESSION['user_id'] ?? 'SYSTEM',
+                'CREATION_TRAITEMENT',
+                "Traitement '{$idTraitement}' créé.",
+                $idTraitement,
+                'Traitement'
+            );
+            return true;
+        } catch (DoublonException $e) {
+            $this->traitementModel->annulerTransaction();
+            throw $e;
+        } catch (\Exception $e) {
+            $this->traitementModel->annulerTransaction();
+            $this->supervisionService->enregistrerAction(
+                $_SESSION['user_id'] ?? 'SYSTEM',
+                'ECHEC_CREATION_TRAITEMENT',
+                "Erreur création traitement '{$idTraitement}': " . $e->getMessage()
+            );
+            throw $e;
+        }
+    }
+
+    public function modifierTraitement(string $idTraitement, array $donnees): bool
+    {
+        $traitement = $this->traitementModel->trouverParIdentifiant($idTraitement);
+        if (!$traitement) {
+            throw new ElementNonTrouveException("Traitement '{$idTraitement}' non trouvé.");
+        }
+
+        $this->traitementModel->commencerTransaction();
+        try {
+            $success = $this->traitementModel->mettreAJourParIdentifiant($idTraitement, $donnees);
+            if (!$success) {
+                throw new OperationImpossibleException("Échec de la mise à jour du traitement.");
+            }
+            $this->traitementModel->validerTransaction();
+            $this->supervisionService->enregistrerAction(
+                $_SESSION['user_id'] ?? 'SYSTEM',
+                'MODIF_TRAITEMENT',
+                "Traitement '{$idTraitement}' mis à jour.",
+                $idTraitement,
+                'Traitement'
+            );
+            return true;
+        } catch (DoublonException $e) {
+            $this->traitementModel->annulerTransaction();
+            throw $e;
+        } catch (\Exception $e) {
+            $this->traitementModel->annulerTransaction();
+            $this->supervisionService->enregistrerAction(
+                $_SESSION['user_id'] ?? 'SYSTEM',
+                'ECHEC_MODIF_TRAITEMENT',
+                "Erreur modification traitement '{$idTraitement}': " . $e->getMessage()
+            );
+            throw $e;
+        }
+    }
+
+    public function supprimerTraitement(string $idTraitement): bool
+    {
+        $traitement = $this->traitementModel->trouverParIdentifiant($idTraitement);
+        if (!$traitement) {
+            throw new ElementNonTrouveException("Traitement '{$idTraitement}' non trouvé.");
+        }
+        // Vérifier s'il y a des rattachements à ce traitement
+        if ($this->rattacherModel->compterParCritere(['id_traitement' => $idTraitement]) > 0) {
+            throw new OperationImpossibleException("Impossible de supprimer le traitement : des rattachements existent.");
+        }
+
+        $this->traitementModel->commencerTransaction();
+        try {
+            $success = $this->traitementModel->supprimerParIdentifiant($idTraitement);
+            if (!$success) {
+                throw new OperationImpossibleException("Échec de la suppression du traitement.");
+            }
+            $this->traitementModel->validerTransaction();
+            $this->supervisionService->enregistrerAction(
+                $_SESSION['user_id'] ?? 'SYSTEM',
+                'SUPPRESSION_TRAITEMENT',
+                "Traitement '{$idTraitement}' supprimé.",
+                $idTraitement,
+                'Traitement'
+            );
+            return true;
+        } catch (\Exception $e) {
+            $this->traitementModel->annulerTransaction();
+            $this->supervisionService->enregistrerAction(
+                $_SESSION['user_id'] ?? 'SYSTEM',
+                'ECHEC_SUPPRESSION_TRAITEMENT',
+                "Erreur suppression traitement '{$idTraitement}': " . $e->getMessage()
+            );
+            throw $e;
+        }
+    }
+
+    public function recupererTraitementParId(string $idTraitement): ?array
+    {
+        return $this->traitementModel->trouverParIdentifiant($idTraitement);
+    }
+
+    public function recupererTraitementParCode(string $codeTraitement): ?array
+    {
+        return $this->traitementModel->trouverUnParCritere(['id_traitement' => $codeTraitement]);
+    }
+
+    public function listerTraitements(): array
+    {
+        return $this->traitementModel->trouverTout();
+    }
+
+    // --- GESTION DE L'ATTRIBUTION DES PERMISSIONS (RATTACHEMENT) ---
+
+    /**
+     * Attribue une permission (traitement) à un groupe d'utilisateurs.
+     * @param string $idGroupeUtilisateur L'ID du groupe.
+     * @param string $idTraitement L'ID du traitement (permission).
+     * @return bool Vrai si l'attribution a réussi.
+     * @throws ElementNonTrouveException Si groupe ou traitement n'est pas trouvé.
+     * @throws DoublonException Si le rattachement existe déjà.
+     */
+    public function attribuerPermissionGroupe(string $idGroupeUtilisateur, string $idTraitement): bool
+    {
+        $this->rattacherModel->commencerTransaction();
+        try {
+            if (!$this->groupeUtilisateurModel->trouverParIdentifiant($idGroupeUtilisateur)) {
+                throw new ElementNonTrouveException("Groupe utilisateur '{$idGroupeUtilisateur}' non trouvé.");
+            }
+            if (!$this->traitementModel->trouverParIdentifiant($idTraitement)) {
+                throw new ElementNonTrouveException("Traitement '{$idTraitement}' non trouvé.");
+            }
+
+            $data = [
+                'id_groupe_utilisateur' => $idGroupeUtilisateur,
+                'id_traitement' => $idTraitement
+            ];
+            $success = $this->rattacherModel->creer($data);
+            if (!$success) {
+                throw new OperationImpossibleException("Échec de l'attribution de la permission au groupe.");
+            }
+            $this->rattacherModel->validerTransaction();
+            $this->supervisionService->enregistrerAction(
+                $_SESSION['user_id'] ?? 'SYSTEM',
+                'ATTRIB_PERM_GROUPE',
+                "Permission '{$idTraitement}' attribuée au groupe '{$idGroupeUtilisateur}'."
+            );
+            return true;
+        } catch (DoublonException $e) {
+            $this->rattacherModel->annulerTransaction();
+            throw $e;
+        } catch (\Exception $e) {
+            $this->rattacherModel->annulerTransaction();
+            $this->supervisionService->enregistrerAction(
+                $_SESSION['user_id'] ?? 'SYSTEM',
+                'ECHEC_ATTRIB_PERM_GROUPE',
+                "Erreur attribution permission à groupe '{$idGroupeUtilisateur}': " . $e->getMessage()
+            );
+            throw $e;
+        }
+    }
+
+    /**
+     * Retire une permission (traitement) d'un groupe d'utilisateurs.
+     * @param string $idGroupeUtilisateur L'ID du groupe.
+     * @param string $idTraitement L'ID du traitement (permission).
+     * @return bool Vrai si le retrait a réussi.
+     * @throws ElementNonTrouveException Si le rattachement n'est pas trouvé.
+     */
+    public function retirerPermissionGroupe(string $idGroupeUtilisateur, string $idTraitement): bool
+    {
+        $this->rattacherModel->commencerTransaction();
+        try {
+            $success = $this->rattacherModel->supprimerParClesInternes([
+                'id_groupe_utilisateur' => $idGroupeUtilisateur,
+                'id_traitement' => $idTraitement
+            ]);
+            if (!$success) {
+                throw new OperationImpossibleException("Échec du retrait de la permission du groupe.");
+            }
+            $this->rattacherModel->validerTransaction();
+            $this->supervisionService->enregistrerAction(
+                $_SESSION['user_id'] ?? 'SYSTEM',
+                'RETRAIT_PERM_GROUPE',
+                "Permission '{$idTraitement}' retirée du groupe '{$idGroupeUtilisateur}'."
+            );
+            return true;
+        } catch (\Exception $e) {
+            $this->rattacherModel->annulerTransaction();
+            $this->supervisionService->enregistrerAction(
+                $_SESSION['user_id'] ?? 'SYSTEM',
+                'ECHEC_RETRAIT_PERM_GROUPE',
+                "Erreur retrait permission de groupe '{$idGroupeUtilisateur}': " . $e->getMessage()
+            );
+            throw $e;
+        }
+    }
+
+    /**
+     * Récupère la liste des permissions (traitements) pour un groupe donné.
+     * @param string $idGroupeUtilisateur L'ID du groupe utilisateur.
+     * @return array La liste des IDs de traitements.
+     * @throws ElementNonTrouveException Si le groupe n'est pas trouvé.
+     */
+    public function recupererPermissionsPourGroupe(string $idGroupeUtilisateur): array
+    {
+        if (!$this->groupeUtilisateurModel->trouverParIdentifiant($idGroupeUtilisateur)) {
+            throw new ElementNonTrouveException("Groupe utilisateur '{$idGroupeUtilisateur}' non trouvé.");
+        }
+        $rattachements = $this->rattacherModel->trouverParCritere(['id_groupe_utilisateur' => $idGroupeUtilisateur], ['id_traitement']);
+        return array_column($rattachements, 'id_traitement');
+    }
+
+    /**
+     * Récupère la liste des groupes auxquels une permission est attribuée.
+     * @param string $idTraitement L'ID du traitement (permission).
+     * @return array La liste des IDs de groupes utilisateurs.
+     * @throws ElementNonTrouveException Si le traitement n'est pas trouvé.
+     */
+    public function recupererGroupesPourPermission(string $idTraitement): array
+    {
+        if (!$this->traitementModel->trouverParIdentifiant($idTraitement)) {
+            throw new ElementNonTrouveException("Traitement '{$idTraitement}' non trouvé.");
+        }
+        $rattachements = $this->rattacherModel->trouverParCritere(['id_traitement' => $idTraitement], ['id_groupe_utilisateur']);
+        return array_column($rattachements, 'id_groupe_utilisateur');
+    }
+
+    /**
+     * Vérifie si l'utilisateur connecté (dans la session) possède une permission spécifique.
+     * Cette méthode se base sur les permissions chargées en session lors de la connexion.
+     * @param string $permissionCode Le code de la permission à vérifier.
+     * @return bool Vrai si l'utilisateur possède la permission, faux sinon.
+     */
+    public function utilisateurPossedePermission(string $permissionCode): bool
+    {
+        // Les permissions sont supposées être chargées dans $_SESSION['user_permissions']
+        return isset($_SESSION['user_permissions']) && in_array($permissionCode, $_SESSION['user_permissions']);
+    }
+
+    /**
+     * Vérifie si un groupe possède une permission spécifique.
+     * @param string $idGroupeUtilisateur L'ID du groupe.
+     * @param string $permissionCode Le code de la permission à vérifier.
+     * @return bool Vrai si le groupe possède la permission, faux sinon.
+     * @throws ElementNonTrouveException Si le groupe n'est pas trouvé.
+     */
+    public function groupePossedePermission(string $idGroupeUtilisateur, string $permissionCode): bool
+    {
+        if (!$this->groupeUtilisateurModel->trouverParIdentifiant($idGroupeUtilisateur)) {
+            throw new ElementNonTrouveException("Groupe utilisateur '{$idGroupeUtilisateur}' non trouvé.");
+        }
+        return $this->rattacherModel->trouverRattachementParCles($idGroupeUtilisateur, $permissionCode) !== null;
+    }
 }

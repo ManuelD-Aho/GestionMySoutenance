@@ -1,1448 +1,1025 @@
 <?php
-
 namespace App\Backend\Service\Authentication;
 
 use PDO;
-use PDOException;
-use DateTime;
-use DateTimeImmutable;
-use DateInterval;
-// use App\Config\Database;
-use App\Backend\Model\Utilisateur as UtilisateurModel;
-use App\Backend\Model\Etudiant as EtudiantModel;
-use App\Backend\Model\Enseignant as EnseignantModel;
-use App\Backend\Model\PersonnelAdministratif as PersonnelAdministratifModel;
-use App\Backend\Model\HistoriqueMotDePasse as HistoriqueMotDePasseModel;
-use App\Backend\Service\Email\ServiceEmailInterface;
-use App\Backend\Service\SupervisionAdmin\ServiceSupervisionAdminInterface;
-use App\Backend\Service\GestionAcademique\ServiceGestionAcademiqueInterface;
-use App\Backend\Service\Permissions\ServicePermissionsInterface;
-use App\Backend\Exception\AuthenticationException;
-use App\Backend\Exception\CompteBloqueException;
+use App\Backend\Model\Utilisateur;
+use App\Backend\Model\HistoriqueMotDePasse;
+use App\Backend\Model\TypeUtilisateur;
+use App\Backend\Model\GroupeUtilisateur;
+use App\Backend\Model\Enseignant; // Nouveau: pour gestion du profil Enseignant
+use App\Backend\Model\Etudiant; // Nouveau: pour gestion du profil Etudiant
+use App\Backend\Model\PersonnelAdministratif; // Nouveau: pour gestion du profil Personnel Administratif
+use App\Backend\Model\Sessions; // Nouveau: pour la table sessions en DB
+use App\Backend\Service\Email\ServiceEmail;
+use App\Backend\Service\SupervisionAdmin\ServiceSupervisionAdmin;
+use App\Backend\Service\IdentifiantGenerator\IdentifiantGenerator; // Nouveau service
 use App\Backend\Exception\IdentifiantsInvalidesException;
-use App\Backend\Exception\TokenInvalideException;
-use App\Backend\Exception\TokenExpireException;
-use App\Backend\Exception\UtilisateurNonTrouveException;
-use App\Backend\Exception\EmailNonValideException;
-use App\Backend\Exception\OperationImpossibleException;
-use App\Backend\Exception\MotDePasseInvalideException;
+use App\Backend\Exception\CompteBloqueException;
 use App\Backend\Exception\CompteNonValideException;
-use App\Backend\Exception\ValidationException;
-use RobThree\Auth\TwoFactorAuth;
-// use RobThree\Auth\Providers\Qr\BaconQrCodeProvider;
-use App\Backend\Model\BaseModel;
-
+use App\Backend\Exception\EmailException;
+use App\Backend\Exception\EmailNonValideException;
+use App\Backend\Exception\TokenExpireException;
+use App\Backend\Exception\TokenInvalideException;
+use App\Backend\Exception\MotDePasseInvalideException;
+use App\Backend\Exception\DoublonException; // Importer la nouvelle exception
 
 class ServiceAuthentification implements ServiceAuthenticationInterface
 {
-    private PDO $db;
-    private ServiceEmailInterface $serviceEmail;
-    private ServiceSupervisionAdminInterface $serviceSupervision;
-    private ServiceGestionAcademiqueInterface $serviceGestionAcademique;
-    private ServicePermissionsInterface $servicePermissions;
-    private TwoFactorAuth $tfaProvider;
-    private UtilisateurModel $utilisateurModel;
-    private HistoriqueMotDePasseModel $historiqueMotDePasseModel;
-    private EtudiantModel $etudiantModel;
-    private EnseignantModel $enseignantModel;
-    private PersonnelAdministratifModel $personnelAdministratifModel;
+    private Utilisateur $utilisateurModel;
+    private HistoriqueMotDePasse $historiqueMdpModel;
+    private ServiceEmail $emailService;
+    private ServiceSupervisionAdmin $supervisionService;
+    private IdentifiantGenerator $idGenerator; // Injection du nouveau service
+    private TypeUtilisateur $typeUtilisateurModel; // Pour l'accès aux types d'utilisateurs
+    private GroupeUtilisateur $groupeUtilisateurModel; // Pour l'accès aux groupes d'utilisateurs
+    private Enseignant $enseignantModel; // Modèle Enseignant
+    private Etudiant $etudiantModel; // Modèle Etudiant
+    private PersonnelAdministratif $personnelAdminModel; // Modèle Personnel Administratif
+    private Sessions $sessionsModel; // Modèle Sessions pour la gestion temps réel
 
     private const MAX_LOGIN_ATTEMPTS = 5;
-    private const ACCOUNT_LOCKOUT_DURATION = 'PT15M';
-    private const PASSWORD_RESET_TOKEN_EXPIRY_HOURS = 1;
-    private const PASSWORD_HISTORY_LIMIT = 3;
-    private const TOKEN_LENGHT_BYTES = 32;
-
-    private const PASSWORD_MIN_LENGTH = 10;
-    private const PASSWORD_REQ_UPPERCASE = true;
-    private const PASSWORD_REQ_LOWERCASE = true;
-    private const PASSWORD_REQ_NUMBER = true;
-    private const PASSWORD_REQ_SPECIAL = true;
-    private const APP_NAME_FOR_2FA = 'GestionMySoutenance';
-
+    private const LOCKOUT_TIME_MINUTES = 30; // 30 minutes de blocage
 
     public function __construct(
         PDO $db,
-        ServiceEmailInterface $serviceEmail,
-        ServiceSupervisionAdminInterface $serviceSupervision,
-        ServiceGestionAcademiqueInterface $serviceGestionAcademique,
-        ServicePermissionsInterface $servicePermissions,
-        TwoFactorAuth $tfaProvider,
-        UtilisateurModel $utilisateurModel,
-        HistoriqueMotDePasseModel $historiqueMotDePasseModel,
-        EtudiantModel $etudiantModel,
-        EnseignantModel $enseignantModel,
-        PersonnelAdministratifModel $personnelAdministratifModel
+        ServiceEmail $emailService,
+        ServiceSupervisionAdmin $supervisionService,
+        IdentifiantGenerator $idGenerator // Injecter le générateur
     ) {
-        $this->db = $db;
-        $this->serviceEmail = $serviceEmail;
-        $this->serviceSupervision = $serviceSupervision;
-        $this->serviceGestionAcademique = $serviceGestionAcademique;
-        $this->servicePermissions = $servicePermissions;
-        $this->tfaProvider = $tfaProvider;
-        $this->utilisateurModel = $utilisateurModel;
-        $this->historiqueMotDePasseModel = $historiqueMotDePasseModel;
-        $this->etudiantModel = $etudiantModel;
-        $this->enseignantModel = $enseignantModel;
-        $this->personnelAdministratifModel = $personnelAdministratifModel;
+        $this->utilisateurModel = new Utilisateur($db);
+        $this->historiqueMdpModel = new HistoriqueMotDePasse($db);
+        $this->typeUtilisateurModel = new TypeUtilisateur($db); // Initialiser
+        $this->groupeUtilisateurModel = new GroupeUtilisateur($db); // Initialiser
+        $this->enseignantModel = new Enseignant($db); // Initialiser
+        $this->etudiantModel = new Etudiant($db); // Initialiser
+        $this->personnelAdminModel = new PersonnelAdministratif($db); // Initialiser
+        $this->sessionsModel = new Sessions($db); // Initialiser
 
-        if (session_status() === PHP_SESSION_NONE) {
-            session_start();
-        }
+        $this->emailService = $emailService;
+        $this->supervisionService = $supervisionService;
+        $this->idGenerator = $idGenerator;
     }
 
-    public function traiterTentativeConnexionEchoueePourUtilisateur(string $numeroUtilisateur): void
+    // --- AUTHENTIFICATION ET GESTION DE SESSION ---
+
+    public function tenterConnexion(string $identifiant, string $motDePasseClair): array
     {
-        $this->utilisateurModel->commencerTransaction(); // Commence une transaction via le modèle (qui utilise $this->db)
-        try {
-            // Ligne 254 (environ) - Correction: suppression de FOR UPDATE
-            $stmtInc = $this->db->prepare("UPDATE utilisateur SET tentatives_connexion_echouees = COALESCE(tentatives_connexion_echouees, 0) + 1 WHERE numero_utilisateur = :num_user");
-            $stmtInc->bindParam(':num_user', $numeroUtilisateur);
-            $stmtInc->execute();
+        $utilisateur = $this->utilisateurModel->trouverParLoginOuEmailPrincipal($identifiant);
 
-            // Il est généralement plus sûr de récupérer les tentatives *après* l'incrémentation dans la même transaction,
-            // ou de se fier au nombre de lignes affectées si la logique de blocage est simple.
-            // Cependant, pour être sûr d'avoir la valeur la plus récente *avant* de décider de bloquer :
-            $stmtCheck = $this->db->prepare("SELECT tentatives_connexion_echouees FROM utilisateur WHERE numero_utilisateur = :num_user");
-            $stmtCheck->bindParam(':num_user', $numeroUtilisateur);
-            $stmtCheck->execute();
-            $tentatives = (int)$stmtCheck->fetchColumn();
-
-            if ($tentatives >= self::MAX_LOGIN_ATTEMPTS) {
-                $dateBlocage = (new DateTimeImmutable())->add(new DateInterval(self::ACCOUNT_LOCKOUT_DURATION));
-                $stmtLock = $this->db->prepare("UPDATE utilisateur SET compte_bloque_jusqua = :date_blocage, statut_compte = 'bloque' WHERE numero_utilisateur = :num_user");
-                $stmtLock->bindValue(':date_blocage', $dateBlocage->format('Y-m-d H:i:s'));
-                $stmtLock->bindParam(':num_user', $numeroUtilisateur);
-                $stmtLock->execute();
-                $this->journaliserActionAuthentification($numeroUtilisateur, $numeroUtilisateur, 'COMPTE_BLOQUE_MAX_TENTATIVES', 'ALERTE', ['tentatives' => $tentatives]);
-            }
-            $this->utilisateurModel->validerTransaction(); // Valide la transaction via le modèle
-        } catch (PDOException $e) {
-            $this->utilisateurModel->annulerTransaction(); // Annule la transaction via le modèle
-            error_log("PDOException dans traiterTentativeConnexionEchoueePourUtilisateur pour $numeroUtilisateur: " . $e->getMessage());
-            throw $e;
+        if (!$utilisateur) {
+            $this->journaliserActionAuthentification($identifiant, 'ECHEC_LOGIN', 'Utilisateur non trouvé');
+            throw new IdentifiantsInvalidesException("Identifiants de connexion invalides.");
         }
+
+        $numeroUtilisateur = $utilisateur['numero_utilisateur'];
+
+        if ($this->estCompteActuellementBloque($numeroUtilisateur)) {
+            $this->journaliserActionAuthentification($numeroUtilisateur, 'ECHEC_LOGIN', 'Compte bloqué');
+            throw new CompteBloqueException("Votre compte est temporairement bloqué. Veuillez réessayer plus tard.");
+        }
+
+        if (!$utilisateur['email_valide']) { // Vérification de la validation de l'email
+            $this->journaliserActionAuthentification($numeroUtilisateur, 'ECHEC_LOGIN', 'Email non validé');
+            throw new CompteNonValideException("Votre compte n'a pas été validé. Veuillez vérifier votre e-mail.");
+        }
+
+        if (!password_verify($motDePasseClair, $utilisateur['mot_de_passe'])) {
+            $this->traiterTentativeConnexionEchoueePourUtilisateur($numeroUtilisateur);
+            $this->journaliserActionAuthentification($numeroUtilisateur, 'ECHEC_LOGIN', 'Mot de passe incorrect');
+            throw new IdentifiantsInvalidesException("Identifiants de connexion invalides.");
+        }
+
+        // Connexion réussie
+        $this->reinitialiserTentativesConnexion($numeroUtilisateur);
+        $this->journaliserActionAuthentification($numeroUtilisateur, 'SUCCES_LOGIN', 'Connexion réussie');
+
+        // Vérifier si 2FA est activé
+        if ($utilisateur['preferences_2fa_active']) {
+            // Ne démarre pas la session complète ici, mais stocke l'ID utilisateur pour la vérification 2FA
+            $_SESSION['2fa_user_id'] = $numeroUtilisateur;
+            $_SESSION['2fa_pending'] = true; // Indique qu'une vérification 2FA est en attente
+            return ['status' => '2fa_required'];
+        }
+
+        $this->demarrerSessionUtilisateur($numeroUtilisateur);
+        return ['status' => 'success', 'user' => $this->getUtilisateurConnecteComplet()];
     }
 
-    // ... (Le reste de vos méthodes de ServiceAuthentification.php reste identique à la version précédente) ...
-    // Assurez-vous de copier TOUT le reste du code de l'artefact précédent ici.
-    // Je vais inclure les méthodes clés de débogage et les autres pour la complétude.
-
-    public function estUtilisateurConnecteEtSessionValide(): bool
+    public function demarrerSessionUtilisateur(string $numeroUtilisateur): void
     {
-        if (session_status() === PHP_SESSION_NONE) {
-            session_start();
-        }
-
-        // ---- DEBUT DEBUG (Commenté pour éviter "Headers already sent") ----
-        /*
-        echo "<pre style='background: #f0f0f0; border: 1px solid #ccc; padding: 10px; margin: 10px;'>DEBUG ServiceAuthentification: Contenu de \$_SESSION au début de estUtilisateurConnecteEtSessionValide():<br>";
-        var_dump($_SESSION);
-        echo "</pre>";
-        */
-        // ---- FIN DEBUG ----
-
-        if (!isset($_SESSION['numero_utilisateur'])) {
-            // ---- DEBUT DEBUG (Commenté) ----
-            // echo "<p style='background: yellow; color: black; padding: 5px; border: 1px dashed red; margin: 2px;'>DEBUG ServiceAuthentification: \$_SESSION['numero_utilisateur'] N'EST PAS DÉFINI. Retour false.</p>";
-            // ---- FIN DEBUG ----
-            return false;
-        }
-
-        if (isset($_SESSION['2fa_authentication_pending']) && $_SESSION['2fa_authentication_pending'] === true) {
-            // ---- DEBUT DEBUG (Commenté) ----
-            // echo "<p style='background: orange; color: white; padding: 5px; border: 1px dashed red; margin: 2px;'>DEBUG ServiceAuthentification: Vérification 2FA en attente. Session considérée NON VALIDE pour accès complet.</p>";
-            // ---- FIN DEBUG ----
-            return false;
-        }
-
-        $sessionTimeout = 3600;
-        if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > $sessionTimeout)) {
-            // ---- DEBUT DEBUG (Commenté) ----
-            // echo "<p style='background: orange; color: white; padding: 5px; border: 1px dashed red; margin: 2px;'>DEBUG ServiceAuthentification: Session expirée (timeout). Appel de terminerSessionUtilisateur().</p>";
-            // ---- FIN DEBUG ----
-            $this->terminerSessionUtilisateur();
-            return false;
-        }
+        session_regenerate_id(true); // Régénérer l'ID de session pour prévenir les attaques de fixation de session
+        $_SESSION['user_id'] = $numeroUtilisateur;
         $_SESSION['last_activity'] = time();
-        // ---- DEBUT DEBUG (Commenté) ----
-        // echo "<p style='background: lightgreen; color: black; padding: 5px; border: 1px dashed red; margin: 2px;'>DEBUG ServiceAuthentification: \$_SESSION['numero_utilisateur'] EST DÉFINI, 2FA non en attente, et SESSION NON EXPIRÉE. Retour true.</p>";
-        // ---- FIN DEBUG ----
+        $_SESSION['user_data'] = $this->recupererUtilisateurCompletParNumero($numeroUtilisateur); // Charger les données complètes
+        $_SESSION['user_permissions'] = $this->getPermissionsForUser($numeroUtilisateur); // Charger les permissions
+
+        // Nettoyage des flags 2FA si la connexion complète est atteinte
+        if (isset($_SESSION['2fa_pending'])) {
+            unset($_SESSION['2fa_user_id']);
+            unset($_SESSION['2fa_pending']);
+        }
+
+        // Mettre à jour la dernière connexion dans la base de données
+        $this->utilisateurModel->mettreAJourChamps($numeroUtilisateur, ['derniere_connexion' => date('Y-m-d H:i:s')]);
+    }
+
+    public function logout(): void
+    {
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            $numeroUtilisateur = $_SESSION['user_id'] ?? 'N/A';
+            $_SESSION = []; // Vider toutes les variables de session
+            session_destroy(); // Détruire la session côté serveur
+            setcookie(session_name(), '', time() - 3600, '/'); // Supprimer le cookie de session
+
+            $this->journaliserActionAuthentification($numeroUtilisateur, 'LOGOUT', 'Déconnexion réussie');
+        }
+    }
+
+    public function getUtilisateurConnecteComplet(): ?array
+    {
+        if (isset($_SESSION['user_id']) && $this->estUtilisateurConnecteEtSessionValide($_SESSION['user_id'])) {
+            return $_SESSION['user_data'] ?? null;
+        }
+        return null;
+    }
+
+    public function estUtilisateurConnecteEtSessionValide(?string $numeroUtilisateur = null): bool
+    {
+        if (session_status() !== PHP_SESSION_ACTIVE || !isset($_SESSION['user_id'])) {
+            return false;
+        }
+
+        // Vérifier si c'est la bonne session si un user_id est fourni
+        if ($numeroUtilisateur && $_SESSION['user_id'] !== $numeroUtilisateur) {
+            return false;
+        }
+
+        // Vérifier l'inactivité de session (timeout)
+        if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > ini_get('session.gc_maxlifetime'))) {
+            $this->logout(); // Déconnexion automatique
+            return false;
+        }
+
+        // Mettre à jour l'activité
+        $_SESSION['last_activity'] = time();
+
+        // Vérifier si l'utilisateur existe toujours et est actif en DB
+        $utilisateur = $this->utilisateurModel->trouverParIdentifiant($_SESSION['user_id'], ['statut_compte']);
+        if (!$utilisateur || $utilisateur['statut_compte'] !== 'actif') {
+            $this->logout(); // Déconnexion si le compte est inactif/supprimé
+            return false;
+        }
+
         return true;
     }
 
-    public function terminerSessionUtilisateur(): void
+    // --- GESTION DES COMPTES UTILISATEURS (CRUD PAR ADMIN) ---
+
+    /**
+     * Crée un compte utilisateur complet avec son profil spécifique (étudiant, enseignant, etc.).
+     * Gère la génération de l'ID utilisateur unique.
+     * @param array $donneesUtilisateur Données de base de l'utilisateur (login, email_principal, mot_de_passe).
+     * @param array $donneesProfil Données spécifiques au profil (nom, prenom, etc.).
+     * @param string $typeProfilCode Code du type de profil (ex: 'TYPE_ETUD', 'TYPE_ENS', 'TYPE_PERS_ADMIN').
+     * @param bool $envoyerEmailValidation Indique si un email de validation doit être envoyé.
+     * @return string Le numéro d'utilisateur créé.
+     * @throws DoublonException Si le login ou l'email existe déjà.
+     * @throws EmailException Si l'envoi de l'email échoue.
+     * @throws \Exception Pour toute autre erreur inattendue.
+     */
+    public function creerCompteUtilisateurComplet(array $donneesUtilisateur, array $donneesProfil, string $typeProfilCode, bool $envoyerEmailValidation = true): string
     {
-        $numeroUtilisateurJournal = 'ANONYME_DECONNEXION';
-        if (session_status() === PHP_SESSION_NONE) {
-            session_start();
-        }
-
-        // ---- DEBUT DEBUG (Commenté) ----
-        /*
-        echo "<pre style='background: pink; color: black; padding: 10px; margin: 10px;'>DEBUG ServiceAuthentification: Contenu de \$_SESSION AVANT destruction dans terminerSessionUtilisateur():<br>";
-        var_dump($_SESSION);
-        echo "</pre>";
-        */
-        // ---- FIN DEBUG ----
-
-        if (isset($_SESSION['numero_utilisateur'])) {
-            $numeroUtilisateurJournal = $_SESSION['numero_utilisateur'];
-        }
-
-        $_SESSION = [];
-
-        if (ini_get("session.use_cookies")) {
-            $params = session_get_cookie_params();
-            setcookie(session_name(), '', time() - 42000,
-                $params["path"], $params["domain"],
-                $params["secure"], $params["httponly"]
-            );
-        }
-        session_destroy();
-
-        // ---- DEBUT DEBUG (Commenté) ----
-        /*
-        echo "<pre style='background: lightcoral; color: white; padding: 10px; margin: 10px;'>DEBUG ServiceAuthentification: Contenu de \$_SESSION APRES destruction dans terminerSessionUtilisateur():<br>";
-        var_dump($_SESSION);
-        echo "</pre>";
-        */
-        // ---- FIN DEBUG ----
-
+        $this->utilisateurModel->commencerTransaction();
         try {
-            $this->journaliserActionAuthentification('SYSTEM_POST_LOGOUT', $numeroUtilisateurJournal, 'DECONNEXION_SESSION', 'SUCCES');
-        } catch (\Exception $e) {
-            error_log("Erreur lors de la journalisation de la déconnexion pour $numeroUtilisateurJournal: " . $e->getMessage());
-        }
-    }
-
-    // --- Collez ici TOUTES LES AUTRES MÉTHODES de votre ServiceAuthentification.php ---
-    public function tenterConnexion(string $identifiant, string $motDePasse): object
-    {
-        $utilisateurBase = $this->utilisateurModel->trouverParLoginOuEmailPrincipal($identifiant);
-
-        if (!$utilisateurBase) {
-            $this->journaliserActionAuthentification(null, $identifiant, 'TENTATIVE_CONNEXION_IDENTIFIANT_INCONNU', 'ECHEC', ['identifiant_fourni' => $identifiant]);
-            throw new UtilisateurNonTrouveException("Identifiant ou mot de passe incorrect.");
-        }
-
-        $numeroUtilisateur = $utilisateurBase['numero_utilisateur'];
-
-        if ($this->estCompteActuellementBloque($numeroUtilisateur)) {
-            throw new CompteBloqueException("Ce compte est temporairement bloqué. Veuillez réessayer plus tard.");
-        }
-
-        if (!password_verify($motDePasse, $utilisateurBase['mot_de_passe'])) {
-            $this->traiterTentativeConnexionEchoueePourUtilisateur($numeroUtilisateur);
-            throw new IdentifiantsInvalidesException("Identifiant ou mot de passe incorrect.");
-        }
-
-        if ($utilisateurBase['statut_compte'] !== 'actif') {
-            throw new CompteNonValideException("Ce compte n'est pas actif. Veuillez contacter le support.");
-        }
-
-        if (!empty($utilisateurBase['preferences_2fa_active'])) {
-            $_SESSION['2fa_user_num_pending_verification'] = $numeroUtilisateur;
-            $_SESSION['2fa_authentication_pending'] = true;
-            throw new AuthenticationException("Authentification à deux facteurs requise.", 1001);
-        }
-
-        $this->reinitialiserTentativesConnexion($numeroUtilisateur);
-
-        $utilisateurComplet = $this->recupererUtilisateurCompletParNumero($numeroUtilisateur);
-        if (!$utilisateurComplet) {
-            throw new OperationImpossibleException("Impossible de récupérer les informations complètes de l'utilisateur.");
-        }
-
-        // CORRECTION CRUCIALE : On démarre la session sécurisée ici !
-        $this->demarrerSessionUtilisateur($utilisateurComplet);
-
-        $this->journaliserActionAuthentification($numeroUtilisateur, $numeroUtilisateur, 'CONNEXION_REUSSIE', 'SUCCES');
-        return $utilisateurComplet;
-    }
-
-    public function reinitialiserTentativesConnexion(string $numeroUtilisateur): void
-    {
-        $user = $this->utilisateurModel->trouverParNumeroUtilisateur($numeroUtilisateur, ['numero_utilisateur']);
-        if (!$user) {
-            error_log("Tentative de réinitialisation des tentatives pour un utilisateur non trouvé: $numeroUtilisateur");
-            return;
-        }
-        try {
-            $success = $this->utilisateurModel->mettreAJourChamps($numeroUtilisateur, [
-                'tentatives_connexion_echouees' => 0,
-                'compte_bloque_jusqua' => null
-            ]);
-            if (!$success) {
-                error_log("Échec de la réinitialisation des tentatives pour l'utilisateur '$numeroUtilisateur'.");
+            // 1. Vérifier unicité du login/email
+            if ($this->utilisateurModel->loginExiste($donneesUtilisateur['login_utilisateur'])) {
+                throw new DoublonException("Ce login est déjà utilisé.");
             }
-        } catch (PDOException $e) {
-            error_log("PDOException lors de la réinitialisation des tentatives pour $numeroUtilisateur: " . $e->getMessage());
-        }
-    }
-
-    public function estCompteActuellementBloque(string $numeroUtilisateur): bool
-    {
-        $user = $this->utilisateurModel->trouverParNumeroUtilisateur($numeroUtilisateur, ['compte_bloque_jusqua', 'statut_compte']);
-        if (!$user) {
-            return false;
-        }
-
-        if ($user['statut_compte'] === 'bloque' && $user['compte_bloque_jusqua']) {
-            try {
-                $dateBlocageFin = new DateTimeImmutable($user['compte_bloque_jusqua']);
-                if (new DateTimeImmutable() < $dateBlocageFin) {
-                    return true;
-                } else {
-                    $this->changerStatutDuCompte($numeroUtilisateur, 'actif', 'Déblocage automatique après expiration du délai.');
-                    return false;
-                }
-            } catch (\Exception $e) {
-                error_log("Erreur de date pour compte_bloque_jusqua pour $numeroUtilisateur: " . $e->getMessage());
-                return true;
+            if ($this->utilisateurModel->emailPrincipalExiste($donneesUtilisateur['email_principal'])) {
+                throw new DoublonException("Cet email est déjà utilisé.");
             }
-        }
-        return $user['statut_compte'] === 'bloque';
-    }
 
-    public function genererEtStockerSecret2FA(string $numeroUtilisateur): string
-    {
-        if (!extension_loaded('sodium') && !function_exists('paragonie_sodium_compat_bin2base32')) {
-            throw new \RuntimeException("L'extension Sodium ou paragonie/sodium_compat est requise pour l'encodage Base32 du secret 2FA.");
-        }
-        $user = $this->utilisateurModel->trouverParNumeroUtilisateur($numeroUtilisateur, ['numero_utilisateur', 'email_principal', 'login_utilisateur']);
-        if (!$user) {
-            throw new UtilisateurNonTrouveException("Utilisateur '$numeroUtilisateur' non trouvé pour génération secret 2FA.");
-        }
-
-        $secretBase32 = $this->tfaProvider->createSecret(160);
-
-        $success = $this->utilisateurModel->mettreAJourChamps($numeroUtilisateur, ['secret_2fa' => $secretBase32]);
-        if (!$success) {
-            throw new OperationImpossibleException("Impossible de stocker le secret 2FA pour l'utilisateur '$numeroUtilisateur'.");
-        }
-        $this->journaliserActionAuthentification($numeroUtilisateur, $numeroUtilisateur, 'GENERATION_SECRET_2FA', 'SUCCES');
-
-        $label = $user['email_principal'] ?: $user['login_utilisateur'] ?: $numeroUtilisateur;
-        return $this->tfaProvider->getQRCodeImageAsDataUri(rawurlencode(self::APP_NAME_FOR_2FA . ':' . $label), $secretBase32);
-    }
-
-    public function activerAuthentificationDeuxFacteurs(string $numeroUtilisateur, string $codeTOTPVerifie): bool
-    {
-        $user = $this->utilisateurModel->trouverParNumeroUtilisateur($numeroUtilisateur, ['numero_utilisateur', 'secret_2fa']);
-        if (!$user) {
-            throw new UtilisateurNonTrouveException("Utilisateur '$numeroUtilisateur' non trouvé.");
-        }
-        if (empty($user['secret_2fa'])) {
-            throw new OperationImpossibleException("Secret 2FA non configuré pour l'utilisateur '$numeroUtilisateur'. Veuillez d'abord générer un secret.");
-        }
-
-        if ($this->tfaProvider->verifyCode($user['secret_2fa'], $codeTOTPVerifie, 2)) {
-            $success = $this->utilisateurModel->mettreAJourChamps($numeroUtilisateur, ['preferences_2fa_active' => true]);
-            if ($success) {
-                $this->journaliserActionAuthentification($numeroUtilisateur, $numeroUtilisateur, 'ACTIVATION_2FA', 'SUCCES');
-                return true;
+            // 2. Récupérer type d'utilisateur et groupe par défaut
+            $typeUtilisateur = $this->typeUtilisateurModel->trouverUnParCritere(['id_type_utilisateur' => $typeProfilCode]);
+            if (!$typeUtilisateur) {
+                throw new \Exception("Type d'utilisateur '{$typeProfilCode}' non trouvé.");
             }
-            throw new OperationImpossibleException("Échec de la mise à jour pour activer la 2FA pour l'utilisateur '$numeroUtilisateur'.");
-        }
-        $this->journaliserActionAuthentification($numeroUtilisateur, $numeroUtilisateur, 'ACTIVATION_2FA_CODE_INVALIDE', 'ECHEC');
-        throw new MotDePasseInvalideException("Code d'authentification à deux facteurs invalide.");
-    }
 
-    public function verifierCodeAuthentificationDeuxFacteurs(string $numeroUtilisateur, string $codeTOTP): bool
-    {
-        $user = $this->utilisateurModel->trouverParNumeroUtilisateur($numeroUtilisateur, ['numero_utilisateur', 'secret_2fa', 'preferences_2fa_active']);
-        if (!$user) {
-            throw new UtilisateurNonTrouveException("Utilisateur '$numeroUtilisateur' non trouvé.");
-        }
-
-        $pref2FA = false;
-        if (isset($user['preferences_2fa_active'])) {
-            if (is_string($user['preferences_2fa_active'])) $pref2FA = ($user['preferences_2fa_active'] === '1');
-            elseif (is_int($user['preferences_2fa_active'])) $pref2FA = ($user['preferences_2fa_active'] === 1);
-            elseif (is_bool($user['preferences_2fa_active'])) $pref2FA = $user['preferences_2fa_active'];
-        }
-
-        if (!$pref2FA || empty($user['secret_2fa'])) {
-            $this->journaliserActionAuthentification($numeroUtilisateur, $numeroUtilisateur, 'VERIFICATION_2FA_NON_ACTIVE_OU_SECRET_MANQUANT', 'ECHEC');
-            throw new OperationImpossibleException("L'authentification à deux facteurs n'est pas active ou le secret n'est pas configuré pour cet utilisateur.");
-        }
-
-        $isValid = $this->tfaProvider->verifyCode($user['secret_2fa'], $codeTOTP, 2);
-        if ($isValid) {
-            $this->reinitialiserTentativesConnexion($numeroUtilisateur);
-            $this->mettreAJourDerniereConnexion($numeroUtilisateur);
-            $this->journaliserActionAuthentification($numeroUtilisateur, $numeroUtilisateur, 'VERIFICATION_2FA_REUSSIE', 'SUCCES');
-        } else {
-            $this->journaliserActionAuthentification($numeroUtilisateur, $numeroUtilisateur, 'VERIFICATION_2FA_ECHOUEE', 'ECHEC');
-            throw new MotDePasseInvalideException("Code d'authentification à deux facteurs invalide.");
-        }
-        return $isValid;
-    }
-
-    public function desactiverAuthentificationDeuxFacteurs(string $numeroUtilisateur): bool
-    {
-        $user = $this->utilisateurModel->trouverParNumeroUtilisateur($numeroUtilisateur, ['numero_utilisateur']);
-        if (!$user) {
-            throw new UtilisateurNonTrouveException("Utilisateur '$numeroUtilisateur' non trouvé.");
-        }
-        $success = $this->utilisateurModel->mettreAJourChamps($numeroUtilisateur, ['preferences_2fa_active' => false, 'secret_2fa' => null]);
-        if ($success) {
-            $this->journaliserActionAuthentification($numeroUtilisateur, $numeroUtilisateur, 'DESACTIVATION_2FA', 'SUCCES');
-        }
-        return $success;
-    }
-
-    public function demarrerSessionUtilisateur(object $utilisateurAvecProfil): void
-    {
-        if (session_status() === PHP_SESSION_NONE) {
-            session_start();
-        }
-        // Régénère l'ID pour la sécurité (prévention fixation de session)
-        session_regenerate_id(true);
-
-        $_SESSION['user'] = [
-            'numero_utilisateur' => $utilisateurAvecProfil->numero_utilisateur,
-            'login_utilisateur' => $utilisateurAvecProfil->login_utilisateur ?? null,
-            'id_type_utilisateur' => $utilisateurAvecProfil->id_type_utilisateur ?? null,
-            'id_groupe_utilisateur' => $utilisateurAvecProfil->id_groupe_utilisateur ?? null,
-            'user_complet' => (array) $utilisateurAvecProfil // Stocker en array pour la sérialisation
-        ];
-
-        $_SESSION['last_activity'] = time();
-
-        // Nettoyage des variables temporaires de 2FA
-        unset($_SESSION['2fa_user_num_pending_verification']);
-        unset($_SESSION['2fa_authentication_pending']);
-    }
-
-    public function getUtilisateurConnecteComplet(): ?object
-    {
-        if ($this->estUtilisateurConnecteEtSessionValide() && isset($_SESSION['user_complet'])) {
-            if (is_object($_SESSION['user_complet'])) {
-                return $_SESSION['user_complet'];
-            } else {
-                if(isset($_SESSION['numero_utilisateur'])) {
-                    error_log("DEBUG: \$_SESSION['user_complet'] n'était pas un objet. Tentative de reconstruction pour {$_SESSION['numero_utilisateur']}.");
-                    $_SESSION['user_complet'] = $this->recupererUtilisateurCompletParNumero($_SESSION['numero_utilisateur']);
-                    return $_SESSION['user_complet'];
-                }
+            // Déterminer le groupe par défaut basé sur le type
+            $idGroupeUtilisateur = '';
+            switch ($typeProfilCode) {
+                case 'TYPE_ADMIN':
+                    $idGroupeUtilisateur = 'GRP_ADMIN_SYS';
+                    break;
+                case 'TYPE_ETUD':
+                    $idGroupeUtilisateur = 'GRP_ETUDIANT';
+                    break;
+                case 'TYPE_ENS':
+                    $idGroupeUtilisateur = 'GRP_ENSEIGNANT';
+                    break;
+                case 'TYPE_PERS_ADMIN':
+                    $idGroupeUtilisateur = 'GRP_PERS_ADMIN';
+                    break;
+                default:
+                    throw new \Exception("Groupe utilisateur par défaut non défini pour le type '{$typeProfilCode}'.");
             }
-        }
-        return null;
-    }
-
-    public function creerCompteUtilisateurComplet(array $donneesUtilisateur, array $donneesProfil, string $typeProfilLibelle, bool $envoyerEmailValidation = true): string
-    {
-        $this->validerDonneesCreationCompteGlobale($donneesUtilisateur, $donneesProfil, $typeProfilLibelle);
-
-        $numeroUtilisateur = $this->genererNumeroUtilisateurUniqueNonSequentiel();
-        $motDePasseHache = password_hash($donneesUtilisateur['mot_de_passe'], PASSWORD_ARGON2ID ?: PASSWORD_DEFAULT);
-
-        $emailProfil = $this->extraireEmailDuProfilConcret($donneesProfil, $typeProfilLibelle);
-        if (!$emailProfil || !filter_var($emailProfil, FILTER_VALIDATE_EMAIL)) {
-            throw new EmailNonValideException("L'email fourni pour le profil ('$emailProfil') est invalide.");
-        }
-        if ($this->utilisateurModel->trouverParEmailPrincipal($emailProfil)) {
-            throw new EmailNonValideException("L'email principal '$emailProfil' est déjà utilisé par un autre compte.");
-        }
-        if ($this->utilisateurModel->trouverParLoginUtilisateur($donneesUtilisateur['login_utilisateur'])) {
-            throw new ValidationException("Le login utilisateur '{$donneesUtilisateur['login_utilisateur']}' est déjà utilisé.");
-        }
-
-        $idTypeUtilisateur = $this->getIdTypeUtilisateurParLibelle($typeProfilLibelle);
-        if ($idTypeUtilisateur === null) {
-            throw new OperationImpossibleException("Type de profil '$typeProfilLibelle' inconnu.");
-        }
-
-        if (strtolower($typeProfilLibelle) === 'etudiant') {
-            if (!isset($donneesProfil['numero_carte_etudiant']) || (isset($donneesUtilisateur['id_annee_academique']) && empty($donneesUtilisateur['id_annee_academique']))) {
-                throw new ValidationException("Numéro de carte étudiant et ID année académique d'inscription sont requis pour un étudiant.");
+            $groupeUtilisateur = $this->groupeUtilisateurModel->trouverUnParCritere(['id_groupe_utilisateur' => $idGroupeUtilisateur]);
+            if (!$groupeUtilisateur) {
+                throw new \Exception("Groupe utilisateur par défaut '{$idGroupeUtilisateur}' non trouvé.");
             }
-            // $statutScolarite = $this->serviceGestionAcademique->verifierStatutScolariteEtudiant($donneesProfil['numero_carte_etudiant'], $donneesUtilisateur['id_annee_academique']);
-            // if (!$statutScolarite || !($statutScolarite['eligible_creation_compte'] ?? false)) {
-            //     throw new OperationImpossibleException("L'étudiant (carte: {$donneesProfil['numero_carte_etudiant']}) n'est pas éligible à la création de compte selon son statut de scolarité actuel.");
-            // }
-        }
 
-        $this->db->beginTransaction();
-        try {
-            $donneesBaseUtilisateur = [
+            // 3. Générer l'ID unique (numéro_utilisateur)
+            // Le préfixe dépend du type d'utilisateur
+            $prefixeId = match($typeProfilCode) {
+                'TYPE_ETUD' => 'ETU',
+                'TYPE_ENS' => 'ENS',
+                'TYPE_PERS_ADMIN' => 'ADM', // Ex: ADM-2025-0001 pour Personnel Administratif
+                'TYPE_ADMIN' => 'SYS', // Ex: SYS-2025-0001 pour Admin Système
+                default => throw new \Exception("Préfixe d'ID non défini pour le type '{$typeProfilCode}'.")
+            };
+
+            $numeroUtilisateur = $this->idGenerator->genererIdentifiantUnique($prefixeId);
+
+            // 4. Hacher le mot de passe
+            $motDePasseHache = password_hash($donneesUtilisateur['mot_de_passe'], PASSWORD_BCRYPT);
+
+            // 5. Préparer les données de l'utilisateur de base
+            $utilisateurData = [
                 'numero_utilisateur' => $numeroUtilisateur,
                 'login_utilisateur' => $donneesUtilisateur['login_utilisateur'],
+                'email_principal' => $donneesUtilisateur['email_principal'],
                 'mot_de_passe' => $motDePasseHache,
-                'id_type_utilisateur' => $idTypeUtilisateur,
-                'id_groupe_utilisateur' => $donneesUtilisateur['id_groupe_utilisateur'] ?? $this->getDefaultGroupIdForTypeLibelle($typeProfilLibelle),
-                'email_principal' => $emailProfil,
-                'statut_compte' => $envoyerEmailValidation ? 'en_attente_validation' : 'actif',
-                'email_valide' => !$envoyerEmailValidation,
-                'photo_profil' => $donneesUtilisateur['photo_profil'] ?? null,
-                'id_niveau_acces_donne' => $donneesUtilisateur['id_niveau_acces_donne'] ?? $this->getDefaultNiveauAccesId()
+                'id_type_utilisateur' => $typeUtilisateur['id_type_utilisateur'],
+                'id_groupe_utilisateur' => $groupeUtilisateur['id_groupe_utilisateur'],
+                'id_niveau_acces_donne' => $donneesUtilisateur['id_niveau_acces_donne'] ?? 'ACCES_RESTREINT', // Valeur par défaut
+                'statut_compte' => 'en_attente_validation', // Par défaut pour les nouveaux comptes
+                'date_creation' => date('Y-m-d H:i:s')
             ];
-            $this->utilisateurModel->creer($donneesBaseUtilisateur);
 
-            $this->creerProfilSpecifiqueAssocie($numeroUtilisateur, $donneesProfil, $idTypeUtilisateur);
-            $this->ajouterMotDePasseHistorique($numeroUtilisateur, $motDePasseHache);
+            // Générer et stocker le token de validation email
+            $tokenValidationEmailClair = bin2hex(random_bytes(32));
+            $utilisateurData['token_validation_email'] = hash('sha256', $tokenValidationEmailClair);
 
-            if ($envoyerEmailValidation) {
-                $tokenValidationData = $this->genererEtStockerTokenPourUtilisateur($numeroUtilisateur, 'token_validation_email');
-                $tokenValidation = $tokenValidationData['token_clair'];
-                $this->envoyerEmailValidationCompte($numeroUtilisateur, $emailProfil, $tokenValidation);
+            // 6. Créer l'utilisateur de base
+            $this->utilisateurModel->creer($utilisateurData);
+
+            // 7. Créer le profil spécifique et le lier
+            $profilData = array_merge($donneesProfil, [
+                // Le numéro d'utilisateur généré est aussi l'ID primaire du profil
+                // pour Etudiant, Enseignant, PersonnelAdministratif, cela sera leur numéro unique
+                match($typeProfilCode) {
+                    'TYPE_ETUD' => 'numero_carte_etudiant',
+                    'TYPE_ENS' => 'numero_enseignant',
+                    'TYPE_PERS_ADMIN' => 'numero_personnel_administratif',
+                    default => '' // Pour les types sans profil dédié (ex: Admin système géré directement par Utilisateur)
+                } => $numeroUtilisateur,
+                'numero_utilisateur' => $numeroUtilisateur // Liaison FK
+            ]);
+
+            switch ($typeProfilCode) {
+                case 'TYPE_ETUD':
+                    $this->etudiantModel->creer($profilData);
+                    break;
+                case 'TYPE_ENS':
+                    $this->enseignantModel->creer($profilData);
+                    break;
+                case 'TYPE_PERS_ADMIN':
+                    $this->personnelAdminModel->creer($profilData);
+                    break;
+                // Aucun profil spécifique n'est créé pour TYPE_ADMIN (géré directement par Utilisateur)
             }
 
-            $this->db->commit();
-            $this->journaliserActionAuthentification($numeroUtilisateur, $numeroUtilisateur, 'CREATION_COMPTE_' . strtoupper(str_replace(' ', '_', $typeProfilLibelle)), 'SUCCES');
+            // 8. Journaliser l'action
+            $this->supervisionService->enregistrerAction($numeroUtilisateur, 'CREATION_COMPTE', "Compte utilisateur de type {$typeProfilCode} créé", $numeroUtilisateur, 'Utilisateur');
+
+            $this->utilisateurModel->validerTransaction();
+
+            // 9. Envoyer l'email de validation si requis
+            if ($envoyerEmailValidation) {
+                try {
+                    $this->envoyerEmailValidationCompte($numeroUtilisateur, $tokenValidationEmailClair);
+                } catch (EmailException $e) {
+                    // Log the email sending failure, but do not block user creation
+                    error_log("Échec de l'envoi de l'email de validation pour {$donneesUtilisateur['email_principal']}: " . $e->getMessage());
+                }
+            }
             return $numeroUtilisateur;
 
-        } catch (PDOException $e) {
-            $this->db->rollBack();
-            $this->journaliserActionAuthentification(null, $numeroUtilisateur ?: 'N/A_CREATION_ECHEC', 'CREATION_COMPTE_ECHEC_DB', 'ECHEC', ['erreur' => $e->getMessage()]);
-            if ((int)$e->getCode() === 23000) {
-                if (stripos($e->getMessage(), 'login_utilisateur') !== false) {
-                    throw new ValidationException("Ce login utilisateur est déjà utilisé.", [], (int)$e->getCode(), $e);
-                }
-                if (stripos($e->getMessage(), 'email_principal') !== false) {
-                    throw new EmailNonValideException("Cet email principal est déjà utilisé.", (int)$e->getCode(), $e);
-                }
-            }
-            throw new OperationImpossibleException("Erreur de base de données lors de la création du compte: " . $e->getMessage(), (int)$e->getCode(), $e);
+        } catch (DoublonException $e) {
+            $this->utilisateurModel->annulerTransaction();
+            throw $e;
         } catch (\Exception $e) {
-            $this->db->rollBack();
-            $this->journaliserActionAuthentification(null, $numeroUtilisateur ?: 'N/A_CREATION_ECHEC', 'CREATION_COMPTE_ECHEC_GENERAL', 'ECHEC', ['erreur' => $e->getMessage()]);
-            throw new OperationImpossibleException("Erreur générale lors de la création du compte: " . $e->getMessage(), (int)$e->getCode(), $e);
+            $this->utilisateurModel->annulerTransaction();
+            $this->supervisionService->enregistrerAction($donneesUtilisateur['login_utilisateur'] ?? 'N/A', 'ECHEC_CREATION_COMPTE', "Erreur lors de la création du compte: " . $e->getMessage());
+            throw $e; // Remplacer par une exception plus spécifique si possible
         }
     }
 
-    public function genererNumeroUtilisateurUniqueNonSequentiel(): string
+    /**
+     * Récupère les données complètes d'un utilisateur incluant son profil spécifique.
+     * @param string $numeroUtilisateur Le numéro unique de l'utilisateur.
+     * @return array|null Les données complètes de l'utilisateur ou null.
+     */
+    public function recupererUtilisateurCompletParNumero(string $numeroUtilisateur): ?array
     {
-        $maxTentatives = 10;
-        $tentative = 0;
-        do {
-            $entropy = bin2hex(random_bytes(6));
-            $prefix = 'U' . date('y');
-            $numero = $prefix . strtoupper($entropy);
-            if (strlen($numero) > 50) {
-                $numero = substr($numero, 0, 50);
-            }
-            $tentative++;
-            if ($tentative > $maxTentatives) {
-                throw new OperationImpossibleException("Impossible de générer un numero_utilisateur unique après $maxTentatives tentatives.");
-            }
-        } while ($this->utilisateurModel->trouverParNumeroUtilisateur($numero, ['numero_utilisateur']));
-        return $numero;
-    }
-
-    public function envoyerEmailValidationCompte(string $numeroUtilisateur, string $emailPrincipal, string $tokenValidation): void
-    {
-        $utilisateur = $this->utilisateurModel->trouverParNumeroUtilisateur($numeroUtilisateur, ['login_utilisateur']);
-        $login = $utilisateur['login_utilisateur'] ?? 'Nouvel utilisateur';
-
-        $sujet = "Validation de votre compte GestionMySoutenance";
-        $urlValidation = rtrim(getenv('APP_URL') ?: ($_SERVER['REQUEST_SCHEME'] ?? 'http') . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost'), '/') . '/validate-email?token=' . urlencode($tokenValidation);
-        $corps = "Bonjour " . htmlspecialchars($login) . ",\n\nVeuillez cliquer sur le lien suivant pour valider l'adresse email associée à votre compte : " . $urlValidation . "\n\nSi vous n'avez pas créé de compte, veuillez ignorer cet email.\n\nCordialement,\nL'équipe GestionMySoutenance";
-
-        try {
-            $this->serviceEmail->envoyerEmail($emailPrincipal, $sujet, $corps);
-            $this->journaliserActionAuthentification($numeroUtilisateur, $numeroUtilisateur, 'ENVOI_EMAIL_VALIDATION_COMPTE', 'SUCCES', ['email_destinataire' => $emailPrincipal]);
-        } catch (\Exception $e) {
-            $this->journaliserActionAuthentification($numeroUtilisateur, $numeroUtilisateur, 'ENVOI_EMAIL_VALIDATION_COMPTE_ECHEC', 'ECHEC', ['erreur' => $e->getMessage(), 'email_destinataire' => $emailPrincipal]);
-            throw new OperationImpossibleException("Erreur lors de l'envoi de l'email de validation: " . $e->getMessage(), 0, $e);
-        }
-    }
-
-    public function validerCompteEmailViaToken(string $tokenValidation): bool
-    {
-        if (empty($tokenValidation)) {
-            throw new TokenInvalideException("Token de validation manquant.");
-        }
-        $tokenHache = hash('sha256', $tokenValidation);
-
-        $user = $this->utilisateurModel->trouverUnParCritere(['token_validation_email' => $tokenHache], ['numero_utilisateur', 'statut_compte', 'email_valide']);
-
-        if (!$user) {
-            throw new TokenInvalideException("Token de validation invalide ou déjà utilisé.");
-        }
-        if ($user['email_valide'] == 1 || $user['email_valide'] === true) {
-            throw new TokenInvalideException("Ce compte a déjà été validé par email.");
-        }
-
-        $this->db->beginTransaction();
-        try {
-            $champsMaj = ['email_valide' => true, 'token_validation_email' => null];
-            if ($user['statut_compte'] === 'en_attente_validation') {
-                $champsMaj['statut_compte'] = 'actif';
-            }
-            $this->utilisateurModel->mettreAJourChamps($user['numero_utilisateur'], $champsMaj);
-            $this->db->commit();
-            $this->journaliserActionAuthentification($user['numero_utilisateur'], $user['numero_utilisateur'], 'VALIDATION_EMAIL_TOKEN_REUSSIE', 'SUCCES');
-            return true;
-        } catch (PDOException $e) {
-            $this->db->rollBack();
-            $this->journaliserActionAuthentification(null, $user['numero_utilisateur'], 'VALIDATION_EMAIL_TOKEN_ECHEC_DB', 'ECHEC', ['erreur' => $e->getMessage()]);
-            throw new OperationImpossibleException("Erreur de base de données lors de la validation du compte: " . $e->getMessage(), (int)$e->getCode(), $e);
-        }
-    }
-
-    private function construireObjetUtilisateurComplet(array $utilisateurBase): ?object
-    {
-        if (empty($utilisateurBase) || !isset($utilisateurBase['numero_utilisateur'])) {
+        $utilisateur = $this->utilisateurModel->trouverParNumeroUtilisateur($numeroUtilisateur);
+        if (!$utilisateur) {
             return null;
         }
-        $profil = [];
-        $tableProfil = $this->getTableProfilParIdType($utilisateurBase['id_type_utilisateur'] ?? null);
 
-        if ($tableProfil && isset($utilisateurBase['id_type_utilisateur'])) {
-            $modelProfil = $this->getModelPourTableProfil($tableProfil);
-            $profilsData = $modelProfil->trouverParCritere(['numero_utilisateur' => $utilisateurBase['numero_utilisateur']]);
-            if (!empty($profilsData)) {
-                $profil = $profilsData[0];
-            }
+        $profilData = [];
+        switch ($utilisateur['id_type_utilisateur']) {
+            case 'TYPE_ETUD':
+                $profilData = $this->etudiantModel->trouverParNumeroCarteEtudiant($numeroUtilisateur);
+                break;
+            case 'TYPE_ENS':
+                $profilData = $this->enseignantModel->trouverParNumeroEnseignant($numeroUtilisateur);
+                break;
+            case 'TYPE_PERS_ADMIN':
+                $profilData = $this->personnelAdminModel->trouverParNumeroPersonnelAdministratif($numeroUtilisateur);
+                break;
         }
-
-        $typeUtilisateur = $this->recupererLibelleTableRef('type_utilisateur', 'id_type_utilisateur', $utilisateurBase['id_type_utilisateur'] ?? null, 'libelle_type_utilisateur');
-        $groupeUtilisateur = $this->recupererLibelleTableRef('groupe_utilisateur', 'id_groupe_utilisateur', $utilisateurBase['id_groupe_utilisateur'] ?? null, 'libelle_groupe_utilisateur');
-        $niveauAcces = $this->recupererLibelleTableRef('niveau_acces_donne', 'id_niveau_acces_donne', $utilisateurBase['id_niveau_acces_donne'] ?? null, 'libelle_niveau_acces_donne');
-
-        $merged = array_merge($utilisateurBase, $profil);
-        $merged['libelle_type_utilisateur'] = $typeUtilisateur;
-        $merged['libelle_groupe_utilisateur'] = $groupeUtilisateur;
-        $merged['libelle_niveau_acces_donne'] = $niveauAcces;
-
-        return (object) $merged;
+        return array_merge($utilisateur, ['profil' => $profilData]);
     }
 
-    private function recupererLibelleTableRef(string $table, string $colonneId, ?string $valeurId, string $colonneLibelle): ?string
+    public function recupererUtilisateurCompletParEmailPrincipal(string $emailPrincipal): ?array
     {
-        if ($valeurId === null) return null;
-        try {
-            $stmt = $this->db->prepare("SELECT `$colonneLibelle` FROM `$table` WHERE `$colonneId` = :id LIMIT 1");
-            $stmt->bindParam(':id', $valeurId);
-            $stmt->execute();
-            return $stmt->fetchColumn() ?: null;
-        } catch (PDOException $e) {
-            error_log("Erreur SQL dans recupererLibelleTableRef pour $table.$colonneLibelle avec ID $valeurId: " . $e->getMessage());
+        $utilisateur = $this->utilisateurModel->trouverParEmailPrincipal($emailPrincipal);
+        if (!$utilisateur) {
             return null;
         }
+        return $this->recupererUtilisateurCompletParNumero($utilisateur['numero_utilisateur']);
     }
 
-    public function recupererUtilisateurCompletParNumero(string $numeroUtilisateur): ?object
+    public function recupererUtilisateurCompletParLogin(string $login): ?array
     {
-        $utilisateurBase = $this->utilisateurModel->trouverParNumeroUtilisateur($numeroUtilisateur);
-        if (!$utilisateurBase) return null;
-        return $this->construireObjetUtilisateurComplet($utilisateurBase);
+        $utilisateur = $this->utilisateurModel->trouverParLoginUtilisateur($login);
+        if (!$utilisateur) {
+            return null;
+        }
+        return $this->recupererUtilisateurCompletParNumero($utilisateur['numero_utilisateur']);
     }
 
-    public function recupererUtilisateurCompletParEmailPrincipal(string $emailPrincipal): ?object
-    {
-        $utilisateurBase = $this->utilisateurModel->trouverParEmailPrincipal($emailPrincipal);
-        if (!$utilisateurBase) return null;
-        return $this->construireObjetUtilisateurComplet($utilisateurBase);
-    }
-
-    public function recupererUtilisateurCompletParLogin(string $login): ?object
-    {
-        $utilisateurBase = $this->utilisateurModel->trouverParLoginUtilisateur($login);
-        if (!$utilisateurBase) return null;
-        return $this->construireObjetUtilisateurComplet($utilisateurBase);
-    }
-
-    public function listerUtilisateursAvecProfils(array $criteres = [], int $page = 1, int $elementsParPage = 25): array
+    /**
+     * Liste tous les utilisateurs avec leurs profils associés, avec pagination et filtres.
+     * @param array $criteres Critères de recherche (ex: ['statut_compte' => 'actif']).
+     * @param int $page Numéro de page pour la pagination.
+     * @param int $elementsParPage Nombre d'éléments par page.
+     * @return array Tableau d'utilisateurs.
+     */
+    public function listerUtilisateursAvecProfils(array $criteres = [], int $page = 1, int $elementsParPage = 20): array
     {
         $offset = ($page - 1) * $elementsParPage;
+        $utilisateurs = $this->utilisateurModel->trouverParCritere($criteres, ['*'], 'AND', null, $elementsParPage, $offset);
 
-        $idTypeEtudiant = $this->getIdTypeUtilisateurParLibelle('Etudiant');
-        $idTypeEnseignant = $this->getIdTypeUtilisateurParLibelle('Enseignant');
-        $idTypePersonnelAdmin = $this->getIdTypeUtilisateurParLibelle('Personnel Administratif');
-
-        $selectFields = [
-            "u.*",
-            "tu.libelle_type_utilisateur",
-            "gu.libelle_groupe_utilisateur",
-            "na.libelle_niveau_acces_donne",
-            "COALESCE(et.nom, en.nom, pa.nom) as nom_profil",
-            "COALESCE(et.prenom, en.prenom, pa.prenom) as prenom_profil",
-            "COALESCE(et.email_contact_secondaire, en.email_professionnel, pa.email_professionnel) as email_profil_specifique"
-        ];
-
-        $fromClause = "utilisateur u";
-        $joins = [
-            "LEFT JOIN type_utilisateur tu ON u.id_type_utilisateur = tu.id_type_utilisateur",
-            "LEFT JOIN groupe_utilisateur gu ON u.id_groupe_utilisateur = gu.id_groupe_utilisateur",
-            "LEFT JOIN niveau_acces_donne na ON u.id_niveau_acces_donne = na.id_niveau_acces_donne"
-        ];
-
-        if ($idTypeEtudiant) {
-            $joins[] = "LEFT JOIN etudiant et ON u.numero_utilisateur = et.numero_utilisateur AND u.id_type_utilisateur = " . $this->db->quote($idTypeEtudiant);
-        }
-        if ($idTypeEnseignant) {
-            $joins[] = "LEFT JOIN enseignant en ON u.numero_utilisateur = en.numero_utilisateur AND u.id_type_utilisateur = " . $this->db->quote($idTypeEnseignant);
-        }
-        if ($idTypePersonnelAdmin) {
-            $joins[] = "LEFT JOIN personnel_administratif pa ON u.numero_utilisateur = pa.numero_utilisateur AND u.id_type_utilisateur = " . $this->db->quote($idTypePersonnelAdmin);
-        }
-
-        $whereClauses = [];
-        $params = [];
-
-        if (!empty($criteres['statut_compte'])) {
-            $whereClauses[] = "u.statut_compte = :statut_compte";
-            $params[':statut_compte'] = $criteres['statut_compte'];
-        }
-        if (!empty($criteres['id_type_utilisateur'])) {
-            $whereClauses[] = "u.id_type_utilisateur = :id_type_utilisateur";
-            $params[':id_type_utilisateur'] = $criteres['id_type_utilisateur'];
-        }
-        if (!empty($criteres['id_groupe_utilisateur'])) {
-            $whereClauses[] = "u.id_groupe_utilisateur = :id_groupe_utilisateur";
-            $params[':id_groupe_utilisateur'] = $criteres['id_groupe_utilisateur'];
-        }
-
-        if (!empty($criteres['recherche_generale'])) {
-            $searchTerm = '%' . $criteres['recherche_generale'] . '%';
-            $searchConditions = [
-                "u.login_utilisateur LIKE :recherche",
-                "u.email_principal LIKE :recherche",
-                "u.numero_utilisateur LIKE :recherche",
-                "COALESCE(et.nom, en.nom, pa.nom) LIKE :recherche",
-                "COALESCE(et.prenom, en.prenom, pa.prenom) LIKE :recherche",
-                "COALESCE(et.email_contact_secondaire, en.email_professionnel, pa.email_professionnel) LIKE :recherche"
-            ];
-            if ($idTypeEtudiant) {
-                $searchConditions[] = "et.numero_carte_etudiant LIKE :recherche";
+        foreach ($utilisateurs as &$user) {
+            $user['profil'] = [];
+            switch ($user['id_type_utilisateur']) {
+                case 'TYPE_ETUD':
+                    $user['profil'] = $this->etudiantModel->trouverParNumeroCarteEtudiant($user['numero_utilisateur']) ?? [];
+                    break;
+                case 'TYPE_ENS':
+                    $user['profil'] = $this->enseignantModel->trouverParNumeroEnseignant($user['numero_utilisateur']) ?? [];
+                    break;
+                case 'TYPE_PERS_ADMIN':
+                    $user['profil'] = $this->personnelAdminModel->trouverParNumeroPersonnelAdministratif($user['numero_utilisateur']) ?? [];
+                    break;
             }
-            $whereClauses[] = "(" . implode(" OR ", $searchConditions) . ")";
-            $params[':recherche'] = $searchTerm;
         }
-
-        $sqlWhere = "";
-        if (!empty($whereClauses)) {
-            $sqlWhere = " WHERE " . implode(" AND ", $whereClauses);
-        }
-
-        $sqlCount = "SELECT COUNT(DISTINCT u.numero_utilisateur) FROM " . $fromClause . " " . implode(" ", $joins) . $sqlWhere;
-        $stmtCount = $this->db->prepare($sqlCount);
-        $stmtCount->execute($params);
-        $totalElements = (int)$stmtCount->fetchColumn();
-
-        $sqlQuery = "SELECT " . implode(", ", $selectFields) . " FROM " . $fromClause . " " . implode(" ", $joins) . $sqlWhere . " ORDER BY u.date_creation DESC LIMIT :limit OFFSET :offset";
-        $stmtQuery = $this->db->prepare($sqlQuery);
-
-        foreach ($params as $key => $value) {
-            $stmtQuery->bindValue($key, $value, is_int($value) ? PDO::PARAM_INT : PDO::PARAM_STR);
-        }
-        $stmtQuery->bindParam(':limit', $elementsParPage, PDO::PARAM_INT);
-        $stmtQuery->bindParam(':offset', $offset, PDO::PARAM_INT);
-        $stmtQuery->execute();
-
-        $utilisateursData = $stmtQuery->fetchAll(PDO::FETCH_ASSOC);
-        $utilisateurs = array_map(fn($data) => (object)$data, $utilisateursData);
-
-        return ['utilisateurs' => $utilisateurs, 'total_elements' => $totalElements];
+        return $utilisateurs;
     }
 
-    public function modifierMotDePasse(string $numeroUtilisateur, string $nouveauMotDePasseClair, ?string $ancienMotDePasseClair = null, bool $parAdmin = false): bool
+    /**
+     * Met à jour les informations d'un profil utilisateur spécifique.
+     * Ne gère PAS les changements de mot de passe, login ou email principal (ceux-ci ont des méthodes dédiées).
+     * @param string $numeroUtilisateur Le numéro unique de l'utilisateur.
+     * @param string $typeProfilCode Le code du type de profil ('TYPE_ETUD', 'TYPE_ENS', etc.).
+     * @param array $donneesProfil Les données spécifiques au profil à mettre à jour.
+     * @return bool Vrai si la mise à jour a réussi, faux sinon.
+     */
+    public function mettreAJourProfilUtilisateur(string $numeroUtilisateur, string $typeProfilCode, array $donneesProfil): bool
     {
-        $user = $this->utilisateurModel->trouverParNumeroUtilisateur($numeroUtilisateur, ['numero_utilisateur', 'mot_de_passe']);
-        if (!$user) {
-            throw new UtilisateurNonTrouveException("Utilisateur '$numeroUtilisateur' non trouvé pour modification de mot de passe.");
-        }
-
-        if (!$parAdmin) {
-            if ($ancienMotDePasseClair === null || !password_verify($ancienMotDePasseClair, $user['mot_de_passe'])) {
-                $this->journaliserActionAuthentification($numeroUtilisateur, $numeroUtilisateur, 'MODIF_MDP_ANCIEN_MDP_INCORRECT', 'ECHEC');
-                throw new MotDePasseInvalideException("L'ancien mot de passe fourni est incorrect.");
-            }
-        }
-
-        $robustesse = $this->verifierRobustesseMotDePasse($nouveauMotDePasseClair);
-        if (!$robustesse['valide']) {
-            $this->journaliserActionAuthentification($numeroUtilisateur, $numeroUtilisateur, 'MODIF_MDP_NON_ROBUSTE', 'ECHEC', ['erreurs' => $robustesse['messages_erreur']]);
-            throw new ValidationException("Le nouveau mot de passe n'est pas assez robuste: " . implode(', ', $robustesse['messages_erreur']));
-        }
-
-        if ($this->estNouveauMotDePasseDansHistorique($numeroUtilisateur, $nouveauMotDePasseClair, self::PASSWORD_HISTORY_LIMIT)) {
-            $this->journaliserActionAuthentification($numeroUtilisateur, $numeroUtilisateur, 'MODIF_MDP_DANS_HISTORIQUE', 'ECHEC');
-            throw new MotDePasseInvalideException("Le nouveau mot de passe a déjà été utilisé récemment. Veuillez en choisir un autre.");
-        }
-
-        $nouveauMotDePasseHache = password_hash($nouveauMotDePasseClair, PASSWORD_ARGON2ID ?: PASSWORD_DEFAULT);
-
-        $this->db->beginTransaction();
         try {
-            $this->utilisateurModel->mettreAJourChamps($numeroUtilisateur, ['mot_de_passe' => $nouveauMotDePasseHache, 'date_derniere_modif_mdp' => (new DateTimeImmutable())->format('Y-m-d H:i:s')]);
-            $this->ajouterMotDePasseHistorique($numeroUtilisateur, $nouveauMotDePasseHache);
-            $this->nettoyerHistoriqueMotDePasse($numeroUtilisateur);
-            $this->db->commit();
-            $this->journaliserActionAuthentification($parAdmin ? 'ADMIN' : $numeroUtilisateur, $numeroUtilisateur, 'MODIF_MDP_REUSSIE', 'SUCCES', ['par_admin' => $parAdmin]);
-            return true;
-        } catch (PDOException $e) {
-            $this->db->rollBack();
-            $this->journaliserActionAuthentification($parAdmin ? 'ADMIN' : $numeroUtilisateur, $numeroUtilisateur, 'MODIF_MDP_ECHEC_DB', 'ECHEC', ['erreur' => $e->getMessage()]);
-            throw new OperationImpossibleException("Erreur de base de données lors de la modification du mot de passe: " . $e->getMessage(), (int)$e->getCode(), $e);
-        }
-    }
+            $this->utilisateurModel->commencerTransaction();
+            $success = false;
 
-    public function mettreAJourProfilUtilisateur(string $numeroUtilisateur, string $typeProfilLibelle, array $donneesProfil): bool
-    {
-        $userBase = $this->utilisateurModel->trouverParNumeroUtilisateur($numeroUtilisateur, ['numero_utilisateur', 'id_type_utilisateur', 'email_principal']);
-        if (!$userBase) {
-            throw new UtilisateurNonTrouveException("Utilisateur '$numeroUtilisateur' non trouvé.");
-        }
-
-        $idTypeProfilAttendu = $this->getIdTypeUtilisateurParLibelle($typeProfilLibelle);
-        if ($userBase['id_type_utilisateur'] != $idTypeProfilAttendu) {
-            throw new OperationImpossibleException("Le type de profil '$typeProfilLibelle' fourni ne correspond pas à l'utilisateur '$numeroUtilisateur'.");
-        }
-
-        $tableProfil = $this->getTableProfilParIdType($userBase['id_type_utilisateur']);
-        if (!$tableProfil) {
-            return true;
-        }
-
-        $modelProfil = $this->getModelPourTableProfil($tableProfil);
-        $champsAMettreAJourProfil = [];
-        $nouvelEmailProfil = null;
-        $emailProfilChampNom = $this->getChampEmailProfilParIdType($userBase['id_type_utilisateur']);
-        $colonnesProfil = $this->getColonnesAttenduesPourTableProfil($tableProfil);
-
-        foreach ($donneesProfil as $champ => $valeur) {
-            if (!in_array($champ, $colonnesProfil) || $champ === 'numero_utilisateur' || $champ === $modelProfil->getClePrimaire()) {
-                continue;
-            }
-            $valeurTraitee = ($valeur === '') ? null : $valeur;
-            $champsAMettreAJourProfil[$champ] = $valeurTraitee;
-
-            if ($champ === $emailProfilChampNom) {
-                $nouvelEmailProfil = $valeurTraitee;
-            }
-        }
-
-        if (empty($champsAMettreAJourProfil) && ($nouvelEmailProfil === null || $nouvelEmailProfil === $userBase['email_principal'])) {
-            return true;
-        }
-
-        $this->db->beginTransaction();
-        try {
-            if(!empty($champsAMettreAJourProfil)) {
-                if (method_exists($modelProfil, 'mettreAJourParIdentifiantComposite')) {
-                    $modelProfil->mettreAJourParIdentifiantComposite(['numero_utilisateur' => $numeroUtilisateur], $champsAMettreAJourProfil);
-                } else {
-                    $modelProfil->mettreAJourParCritere(['numero_utilisateur' => $numeroUtilisateur], $champsAMettreAJourProfil);
-                }
+            switch ($typeProfilCode) {
+                case 'TYPE_ETUD':
+                    $success = $this->etudiantModel->mettreAJourParIdentifiant($numeroUtilisateur, $donneesProfil);
+                    break;
+                case 'TYPE_ENS':
+                    $success = $this->enseignantModel->mettreAJourParIdentifiant($numeroUtilisateur, $donneesProfil);
+                    break;
+                case 'TYPE_PERS_ADMIN':
+                    $success = $this->personnelAdminModel->mettreAJourParIdentifiant($numeroUtilisateur, $donneesProfil);
+                    break;
+                case 'TYPE_ADMIN': // Les admins n'ont pas de profil dédié, leurs infos sont dans Utilisateur
+                    // Gérer les champs spécifiques à Utilisateur directement ici si besoin
+                    // Ex: $success = $this->utilisateurModel->mettreAJourChamps($numeroUtilisateur, ['photo_profil' => $donneesProfil['photo_profil']]);
+                    $success = true; // Ou false si aucune mise à jour n'est appliquée
+                    break;
+                default:
+                    throw new \InvalidArgumentException("Type de profil non reconnu pour la mise à jour : {$typeProfilCode}");
             }
 
-            if ($nouvelEmailProfil !== null && $nouvelEmailProfil !== $userBase['email_principal']) {
-                if (!filter_var($nouvelEmailProfil, FILTER_VALIDATE_EMAIL)) {
-                    $this->db->rollBack();
-                    throw new EmailNonValideException("Le nouvel email de profil '$nouvelEmailProfil' est invalide.");
-                }
-                $existingUserWithEmail = $this->utilisateurModel->trouverParEmailPrincipal($nouvelEmailProfil);
-                if ($existingUserWithEmail && $existingUserWithEmail['numero_utilisateur'] !== $numeroUtilisateur) {
-                    $this->db->rollBack();
-                    throw new EmailNonValideException("Ce nouvel email '$nouvelEmailProfil' est déjà utilisé par un autre compte.");
-                }
-                $this->utilisateurModel->mettreAJourChamps($numeroUtilisateur, [
-                    'email_principal' => $nouvelEmailProfil,
-                    'email_valide' => false,
-                    'token_validation_email' => null
-                ]);
-                $tokenData = $this->genererEtStockerTokenPourUtilisateur($numeroUtilisateur, 'token_validation_email');
-                $this->envoyerEmailValidationCompte($numeroUtilisateur, $nouvelEmailProfil, $tokenData['token_clair']);
-                $this->journaliserActionAuthentification($numeroUtilisateur, $numeroUtilisateur, 'MAJ_PROFIL_NOUVEL_EMAIL_VALIDATION_REQUISE', 'INFO', ['nouvel_email' => $nouvelEmailProfil]);
+            if ($success) {
+                $this->utilisateurModel->validerTransaction();
+                $this->supervisionService->enregistrerAction($numeroUtilisateur, 'MISE_AJOUR_PROFIL', "Profil de type {$typeProfilCode} mis à jour");
+                return true;
             }
-            $this->db->commit();
-            $this->journaliserActionAuthentification($numeroUtilisateur, $numeroUtilisateur, 'MAJ_PROFIL_UTILISATEUR', 'SUCCES', ['type_profil' => $typeProfilLibelle]);
-            return true;
-        } catch (PDOException $e) {
-            $this->db->rollBack();
-            $this->journaliserActionAuthentification(null, $numeroUtilisateur, 'MAJ_PROFIL_UTILISATEUR_ECHEC_DB', 'ECHEC', ['erreur' => $e->getMessage()]);
-            throw new OperationImpossibleException("Erreur de base de données lors de la mise à jour du profil: " . $e->getMessage(), (int)$e->getCode(), $e);
+            $this->utilisateurModel->annulerTransaction();
+            return false;
+
         } catch (\Exception $e) {
-            $this->db->rollBack();
+            $this->utilisateurModel->annulerTransaction();
+            $this->supervisionService->enregistrerAction($numeroUtilisateur, 'ECHEC_MISE_AJOUR_PROFIL', "Erreur lors de la mise à jour du profil: " . $e->getMessage());
             throw $e;
         }
     }
 
+    /**
+     * Met à jour les informations de base d'un utilisateur par un administrateur.
+     * Peut inclure le login ou l'email principal, avec vérification d'unicité.
+     * @param string $numeroUtilisateur Le numéro unique de l'utilisateur à mettre à jour.
+     * @param array $donneesCompte Les données du compte utilisateur à mettre à jour.
+     * @return bool Vrai si la mise à jour a réussi, faux sinon.
+     * @throws DoublonException Si le login ou l'email est déjà utilisé par un autre utilisateur.
+     */
     public function mettreAJourCompteUtilisateurParAdmin(string $numeroUtilisateur, array $donneesCompte): bool
     {
-        $userBase = $this->utilisateurModel->trouverParNumeroUtilisateur($numeroUtilisateur, ['numero_utilisateur', 'id_type_utilisateur', 'email_principal']);
-        if (!$userBase) {
-            throw new UtilisateurNonTrouveException("Utilisateur '$numeroUtilisateur' non trouvé.");
-        }
-
-        $champsAMettreAJour = [];
-        $logDetails = [];
-
-        $champsModifiablesUtilisateur = ['login_utilisateur', 'id_groupe_utilisateur', 'photo_profil', 'statut_compte', 'id_niveau_acces_donne', 'email_principal', 'preferences_2fa_active'];
-
-        foreach ($donneesCompte as $champ => $valeur) {
-            if (in_array($champ, $champsModifiablesUtilisateur)) {
-                if ($champ === 'preferences_2fa_active') {
-                    $valeur = filter_var($valeur, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
-                }
-                $champsAMettreAJour[$champ] = $valeur;
-                $logDetails[$champ] = $valeur;
-            }
-            if ($champ === 'id_type_utilisateur' && $valeur != $userBase['id_type_utilisateur']) {
-                throw new OperationImpossibleException("Le changement de type d'utilisateur n'est pas supporté par cette méthode. Veuillez utiliser une procédure de migration dédiée.");
-            }
-        }
-
-        if (isset($champsAMettreAJour['email_principal']) && $champsAMettreAJour['email_principal'] !== $userBase['email_principal']) {
-            if (!filter_var($champsAMettreAJour['email_principal'], FILTER_VALIDATE_EMAIL)) {
-                throw new EmailNonValideException("Le nouvel email principal '{$champsAMettreAJour['email_principal']}' est invalide.");
-            }
-            $existingUserWithEmail = $this->utilisateurModel->trouverParEmailPrincipal($champsAMettreAJour['email_principal']);
-            if ($existingUserWithEmail && $existingUserWithEmail['numero_utilisateur'] !== $numeroUtilisateur) {
-                throw new EmailNonValideException("Ce nouvel email principal '{$champsAMettreAJour['email_principal']}' est déjà utilisé.");
-            }
-            $champsAMettreAJour['email_valide'] = false;
-            $champsAMettreAJour['token_validation_email'] = null;
-            $logDetails['email_valide'] = false;
-        }
-
-
-        if (empty($champsAMettreAJour)) {
-            return true;
-        }
-
+        $this->utilisateurModel->commencerTransaction();
         try {
-            $success = $this->utilisateurModel->mettreAJourChamps($numeroUtilisateur, $champsAMettreAJour);
+            $utilisateurActuel = $this->utilisateurModel->trouverParNumeroUtilisateur($numeroUtilisateur, ['login_utilisateur', 'email_principal']);
+            if (!$utilisateurActuel) {
+                throw new ElementNonTrouveException("Utilisateur non trouvé.");
+            }
+
+            // Vérifier l'unicité si login ou email est modifié
+            if (isset($donneesCompte['login_utilisateur']) && $donneesCompte['login_utilisateur'] !== $utilisateurActuel['login_utilisateur']) {
+                if ($this->utilisateurModel->loginExiste($donneesCompte['login_utilisateur'], $numeroUtilisateur)) {
+                    throw new DoublonException("Ce login est déjà utilisé par un autre compte.");
+                }
+            }
+            if (isset($donneesCompte['email_principal']) && $donneesCompte['email_principal'] !== $utilisateurActuel['email_principal']) {
+                if ($this->utilisateurModel->emailPrincipalExiste($donneesCompte['email_principal'], $numeroUtilisateur)) {
+                    throw new DoublonException("Cet email est déjà utilisé par un autre compte.");
+                }
+            }
+
+            // Mettre à jour les champs
+            $success = $this->utilisateurModel->mettreAJourChamps($numeroUtilisateur, $donneesCompte);
+
             if ($success) {
-                $this->journaliserActionAuthentification('ADMIN', $numeroUtilisateur, 'MAJ_COMPTE_UTILISATEUR_PAR_ADMIN', 'SUCCES', ['donnees_modifiees' => $logDetails]);
-                if (isset($logDetails['email_principal']) && ($champsAMettreAJour['email_valide'] ?? true) === false) {
-                    $tokenData = $this->genererEtStockerTokenPourUtilisateur($numeroUtilisateur, 'token_validation_email');
-                    $this->envoyerEmailValidationCompte($numeroUtilisateur, $logDetails['email_principal'], $tokenData['token_clair']);
+                $this->utilisateurModel->validerTransaction();
+                $this->supervisionService->enregistrerAction($numeroUtilisateur, 'MISE_AJOUR_COMPTE_ADMIN', "Compte utilisateur mis à jour par l'administrateur");
+                // Mettre à jour les permissions en temps réel si le groupe utilisateur a changé
+                if (isset($donneesCompte['id_groupe_utilisateur'])) {
+                    $this->synchroniserPermissionsSessionsUtilisateur($numeroUtilisateur);
                 }
+                return true;
             }
-            return $success;
-        } catch (PDOException $e) {
-            if ((int)$e->getCode() === 23000 ) {
-                if (stripos($e->getMessage(), 'login_utilisateur') !== false) {
-                    throw new ValidationException("Ce login utilisateur est déjà utilisé.", [], (int)$e->getCode(), $e);
-                }
-                if (stripos($e->getMessage(), 'email_principal') !== false) {
-                    throw new EmailNonValideException("Cet email principal est déjà utilisé.", (int)$e->getCode(), $e);
-                }
-            }
-            $this->journaliserActionAuthentification('ADMIN', $numeroUtilisateur, 'MAJ_COMPTE_UTILISATEUR_PAR_ADMIN_ECHEC_DB', 'ECHEC', ['erreur' => $e->getMessage()]);
-            throw new OperationImpossibleException("Erreur de base de données lors de la mise à jour du compte: " . $e->getMessage(), (int)$e->getCode(), $e);
+            $this->utilisateurModel->annulerTransaction();
+            return false;
+
+        } catch (DoublonException $e) {
+            $this->utilisateurModel->annulerTransaction();
+            throw $e;
+        } catch (\Exception $e) {
+            $this->utilisateurModel->annulerTransaction();
+            $this->supervisionService->enregistrerAction($numeroUtilisateur, 'ECHEC_MISE_AJOUR_COMPTE_ADMIN', "Erreur mise à jour compte par admin: " . $e->getMessage());
+            throw $e;
         }
     }
 
+    /**
+     * Supprime un utilisateur et son profil associé.
+     * @param string $numeroUtilisateur Le numéro unique de l'utilisateur à supprimer.
+     * @return bool Vrai si la suppression a réussi, faux sinon.
+     * @throws \Exception En cas d'erreur de suppression ou de profil non trouvé.
+     */
+    public function supprimerUtilisateur(string $numeroUtilisateur): bool
+    {
+        $this->utilisateurModel->commencerTransaction();
+        try {
+            $utilisateur = $this->utilisateurModel->trouverParNumeroUtilisateur($numeroUtilisateur, ['id_type_utilisateur']);
+            if (!$utilisateur) {
+                throw new ElementNonTrouveException("Utilisateur à supprimer non trouvé.");
+            }
+
+            // Supprimer le profil spécifique d'abord (si cascade n'est pas déjà gérée par DB)
+            switch ($utilisateur['id_type_utilisateur']) {
+                case 'TYPE_ETUD':
+                    $this->etudiantModel->supprimerParIdentifiant($numeroUtilisateur);
+                    break;
+                case 'TYPE_ENS':
+                    $this->enseignantModel->supprimerParIdentifiant($numeroUtilisateur);
+                    break;
+                case 'TYPE_PERS_ADMIN':
+                    $this->personnelAdminModel->supprimerParIdentifiant($numeroUtilisateur);
+                    break;
+            }
+
+            // Supprimer l'historique des mots de passe
+            $this->historiqueMdpModel->supprimerParCles(['numero_utilisateur' => $numeroUtilisateur]);
+
+            // Supprimer l'utilisateur de base
+            $success = $this->utilisateurModel->supprimerParIdentifiant($numeroUtilisateur);
+
+            if ($success) {
+                $this->utilisateurModel->validerTransaction();
+                $this->supervisionService->enregistrerAction($numeroUtilisateur, 'SUPPRESSION_COMPTE', "Compte utilisateur {$numeroUtilisateur} supprimé");
+                return true;
+            }
+            $this->utilisateurModel->annulerTransaction();
+            return false;
+
+        } catch (\Exception $e) {
+            $this->utilisateurModel->annulerTransaction();
+            $this->supervisionService->enregistrerAction($numeroUtilisateur, 'ECHEC_SUPPRESSION_COMPTE', "Erreur lors de la suppression du compte: " . $e->getMessage());
+            throw $e;
+        }
+    }
+
+    /**
+     * Change le statut du compte d'un utilisateur.
+     * @param string $numeroUtilisateur Le numéro unique de l'utilisateur.
+     * @param string $nouveauStatut Le nouveau statut ('actif', 'inactif', 'bloque', 'archive').
+     * @param string|null $raison Optionnel: la raison du changement de statut.
+     * @return bool Vrai si le statut a été modifié, faux sinon.
+     */
     public function changerStatutDuCompte(string $numeroUtilisateur, string $nouveauStatut, ?string $raison = null): bool
     {
-        $statutsValides = ['actif', 'inactif', 'bloque', 'en_attente_validation', 'archive'];
-        if (!in_array($nouveauStatut, $statutsValides)) {
-            throw new ValidationException("Statut de compte invalide fourni: '$nouveauStatut'.");
-        }
-        $user = $this->utilisateurModel->trouverParNumeroUtilisateur($numeroUtilisateur, ['numero_utilisateur', 'statut_compte']);
-        if (!$user) {
-            throw new UtilisateurNonTrouveException("Utilisateur '$numeroUtilisateur' non trouvé pour changement de statut.");
-        }
-
-        $champsAMettreAJour = ['statut_compte' => $nouveauStatut];
-        if ($nouveauStatut === 'actif' && ($user['statut_compte'] === 'bloque' || $user['statut_compte'] === 'en_attente_validation')) {
-            $champsAMettreAJour['tentatives_connexion_echouees'] = 0;
-            $champsAMettreAJour['compte_bloque_jusqua'] = null;
-        } elseif ($nouveauStatut === 'bloque' && $user['statut_compte'] !== 'bloque') {
-            if(empty($raison) || stripos($raison, 'automatique') === false){
-                $champsAMettreAJour['compte_bloque_jusqua'] = null;
-            }
-        }
-
-        $success = $this->utilisateurModel->mettreAJourChamps($numeroUtilisateur, $champsAMettreAJour);
-        if ($success) {
-            $this->journaliserActionAuthentification(null, $numeroUtilisateur, 'CHANGEMENT_STATUT_COMPTE', 'SUCCES', ['nouveau_statut' => $nouveauStatut, 'ancien_statut' => $user['statut_compte'], 'raison' => $raison]);
-        }
-        return $success;
-    }
-
-    public function verifierRobustesseMotDePasse(string $motDePasse): array
-    {
-        $erreurs = [];
-        $messages = [];
-        if (strlen($motDePasse) < self::PASSWORD_MIN_LENGTH) {
-            $erreurs[] = 'longueur_minimale';
-            $messages[] = 'Longueur minimale de ' . self::PASSWORD_MIN_LENGTH . ' caractères non atteinte.';
-        }
-        if (self::PASSWORD_REQ_UPPERCASE && !preg_match('/[A-Z]/u', $motDePasse)) {
-            $erreurs[] = 'manque_majuscule';
-            $messages[] = 'Doit contenir au moins une lettre majuscule.';
-        }
-        if (self::PASSWORD_REQ_LOWERCASE && !preg_match('/[a-z]/u', $motDePasse)) {
-            $erreurs[] = 'manque_minuscule';
-            $messages[] = 'Doit contenir au moins une lettre minuscule.';
-        }
-        if (self::PASSWORD_REQ_NUMBER && !preg_match('/[0-9]/u', $motDePasse)) {
-            $erreurs[] = 'manque_chiffre';
-            $messages[] = 'Doit contenir au moins un chiffre.';
-        }
-        if (self::PASSWORD_REQ_SPECIAL && !preg_match('/[\W_]/u', $motDePasse)) {
-            $erreurs[] = 'manque_special';
-            $messages[] = 'Doit contenir au moins un caractère spécial.';
-        }
-        return ['valide' => empty($erreurs), 'codes_erreur' => $erreurs, 'messages_erreur' => $messages];
-    }
-
-    public function demanderReinitialisationMotDePasse(string $emailPrincipal): bool
-    {
-        $user = $this->utilisateurModel->trouverParEmailPrincipal($emailPrincipal, ['numero_utilisateur', 'statut_compte', 'email_valide', 'login_utilisateur']);
-        if (!$user) {
-            $this->journaliserActionAuthentification(null, $emailPrincipal, 'DEMANDE_RESET_MDP_EMAIL_INCONNU', 'INFO');
-            return true;
-        }
-        if ($user['statut_compte'] !== 'actif' || !($user['email_valide'] == 1 || $user['email_valide'] === true)) {
-            $this->journaliserActionAuthentification(null, $user['numero_utilisateur'], 'DEMANDE_RESET_MDP_COMPTE_INVALIDE', 'ECHEC', ['statut' => $user['statut_compte'], 'email_valide' => $user['email_valide']]);
-            return true;
-        }
-
-        $tokenData = $this->genererEtStockerTokenPourUtilisateur($user['numero_utilisateur'], 'token_reset_mdp');
-        $tokenClair = $tokenData['token_clair'];
-
-        $sujet = "Réinitialisation de votre mot de passe - " . (getenv('APP_NAME') ?: 'GestionMySoutenance');
-        $urlReset = rtrim(getenv('APP_URL') ?: ($_SERVER['REQUEST_SCHEME'] ?? 'http') . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost'), '/') . '/reset-password?token=' . urlencode($tokenClair);
-        $corps = "Bonjour " . htmlspecialchars($user['login_utilisateur'] ?: 'Utilisateur') . ",\n\nPour réinitialiser votre mot de passe, veuillez cliquer sur le lien suivant : " . $urlReset . "\n\nCe lien expirera dans " . self::PASSWORD_RESET_TOKEN_EXPIRY_HOURS . " heure(s).\nSi vous n'avez pas demandé cette réinitialisation, veuillez ignorer cet email.\n\nCordialement,\nL'équipe " . (getenv('APP_NAME') ?: 'GestionMySoutenance');
-
+        $this->utilisateurModel->commencerTransaction();
         try {
-            $this->serviceEmail->envoyerEmail($emailPrincipal, $sujet, $corps);
-            $this->journaliserActionAuthentification(null, $user['numero_utilisateur'], 'DEMANDE_RESET_MDP_EMAIL_ENVOYE', 'SUCCES');
-            return true;
-        } catch (\Exception $e) {
-            $this->journaliserActionAuthentification(null, $user['numero_utilisateur'], 'DEMANDE_RESET_MDP_EMAIL_ENVOI_ECHEC', 'ECHEC', ['erreur' => $e->getMessage()]);
-            error_log("Échec de l'envoi de l'email de réinitialisation pour {$user['numero_utilisateur']}: " . $e->getMessage());
-            return true;
-        }
-    }
+            $success = $this->utilisateurModel->mettreAJourChamps($numeroUtilisateur, ['statut_compte' => $nouveauStatut]);
 
-    public function validerTokenReinitialisationMotDePasse(string $token): string
-    {
-        if (empty($token)) {
-            throw new TokenInvalideException("Token de réinitialisation manquant.");
-        }
-        $tokenHache = hash('sha256', $token);
-        $user = $this->utilisateurModel->trouverUnParCritere(['token_reset_mdp' => $tokenHache], ['numero_utilisateur', 'date_expiration_token_reset', 'statut_compte']);
-
-        if (!$user) {
-            throw new TokenInvalideException("Token de réinitialisation invalide ou déjà utilisé.");
-        }
-        if ($user['statut_compte'] !== 'actif') {
-            $this->utilisateurModel->mettreAJourChamps($user['numero_utilisateur'], ['token_reset_mdp' => null, 'date_expiration_token_reset' => null]);
-            throw new CompteNonValideException("Le compte associé à ce token n'est plus actif.");
-        }
-        if ($user['date_expiration_token_reset']) {
-            try {
-                $dateExpiration = new DateTimeImmutable($user['date_expiration_token_reset']);
-                if (new DateTimeImmutable() > $dateExpiration) {
-                    $this->utilisateurModel->mettreAJourChamps($user['numero_utilisateur'], ['token_reset_mdp' => null, 'date_expiration_token_reset' => null]);
-                    throw new TokenExpireException("Le token de réinitialisation a expiré.");
+            if ($success) {
+                // Si le compte est bloqué, définir la date de déblocage
+                if ($nouveauStatut === 'bloque') {
+                    $blocageJusqua = date('Y-m-d H:i:s', time() + self::LOCKOUT_TIME_MINUTES * 60);
+                    $this->utilisateurModel->mettreAJourChamps($numeroUtilisateur, ['compte_bloque_jusqua' => $blocageJusqua]);
+                } elseif ($nouveauStatut === 'actif' && $utilisateur = $this->utilisateurModel->trouverParNumeroUtilisateur($numeroUtilisateur, ['compte_bloque_jusqua'])) {
+                    // Si le compte est réactivé, annuler le blocage
+                    if ($utilisateur['compte_bloque_jusqua'] !== null) {
+                        $this->utilisateurModel->mettreAJourChamps($numeroUtilisateur, ['compte_bloque_jusqua' => null]);
+                    }
                 }
-            } catch (\Exception $e) {
-                $this->utilisateurModel->mettreAJourChamps($user['numero_utilisateur'], ['token_reset_mdp' => null, 'date_expiration_token_reset' => null]);
-                error_log("Erreur de date pour date_expiration_token_reset pour {$user['numero_utilisateur']}: " . $e->getMessage());
-                throw new TokenInvalideException("Erreur avec la date d'expiration du token.");
+
+                $this->utilisateurModel->validerTransaction();
+                $this->supervisionService->enregistrerAction($numeroUtilisateur, 'CHANGEMENT_STATUT_COMPTE', "Statut du compte changé à '{$nouveauStatut}'" . ($raison ? " ({$raison})" : ""));
+                // Mettre à jour les permissions en temps réel si le statut impacte les droits
+                $this->synchroniserPermissionsSessionsUtilisateur($numeroUtilisateur);
+                return true;
             }
-        } else {
-            $this->utilisateurModel->mettreAJourChamps($user['numero_utilisateur'], ['token_reset_mdp' => null]);
-            throw new TokenInvalideException("Token de réinitialisation invalide (date d'expiration non définie).");
+            $this->utilisateurModel->annulerTransaction();
+            return false;
+        } catch (\Exception $e) {
+            $this->utilisateurModel->annulerTransaction();
+            $this->supervisionService->enregistrerAction($numeroUtilisateur, 'ECHEC_CHANGEMENT_STATUT_COMPTE', "Erreur changement statut compte: " . $e->getMessage());
+            throw $e;
         }
-        return $user['numero_utilisateur'];
     }
 
-    public function reinitialiserMotDePasseApresValidationToken(string $token, string $nouveauMotDePasseClair): bool
+    // --- GESTION DES MOTS DE PASSE ---
+
+    public function modifierMotDePasse(string $numeroUtilisateur, string $nouveauMotDePasseClair, ?string $ancienMotDePasseClair = null, bool $isAdminReset = false): bool
     {
-        $numeroUtilisateur = $this->validerTokenReinitialisationMotDePasse($token);
+        $this->utilisateurModel->commencerTransaction();
+        try {
+            $utilisateur = $this->utilisateurModel->trouverParNumeroUtilisateur($numeroUtilisateur, ['mot_de_passe']);
+            if (!$utilisateur) {
+                throw new ElementNonTrouveException("Utilisateur non trouvé.");
+            }
 
-        $success = $this->modifierMotDePasse($numeroUtilisateur, $nouveauMotDePasseClair, null, true);
+            if (!$isAdminReset) { // Si ce n'est pas un reset par admin, vérifier l'ancien mot de passe
+                if (!password_verify($ancienMotDePasseClair, $utilisateur['mot_de_passe'])) {
+                    throw new MotDePasseInvalideException("L'ancien mot de passe est incorrect.");
+                }
+            }
 
+            $this->verifierRobustesseMotDePasse($nouveauMotDePasseClair);
+
+            // Vérifier l'historique des mots de passe
+            if ($this->estNouveauMotDePasseDansHistorique($numeroUtilisateur, $nouveauMotDePasseClair)) {
+                throw new MotDePasseInvalideException("Le nouveau mot de passe a déjà été utilisé récemment. Veuillez en choisir un autre.");
+            }
+
+            $nouveauMotDePasseHache = password_hash($nouveauMotDePasseClair, PASSWORD_BCRYPT);
+
+            // Mettre à jour le mot de passe de l'utilisateur
+            $success = $this->utilisateurModel->mettreAJourChamps($numeroUtilisateur, ['mot_de_passe' => $nouveauMotDePasseHache]);
+
+            if ($success) {
+                // Enregistrer l'ancien mot de passe dans l'historique
+                $this->historiqueMdpModel->creer([
+                    'id_historique_mdp' => $this->idGenerator->genererIdentifiantUnique('HMP'), // Générer un ID unique
+                    'numero_utilisateur' => $numeroUtilisateur,
+                    'mot_de_passe_hache' => $utilisateur['mot_de_passe']
+                ]);
+
+                // Nettoyer les tokens de réinitialisation si existants
+                $this->utilisateurModel->mettreAJourChamps($numeroUtilisateur, ['token_reset_mdp' => null, 'date_expiration_token_reset' => null]);
+
+                $this->utilisateurModel->validerTransaction();
+                $this->journaliserActionAuthentification($numeroUtilisateur, 'CHANGEMENT_MDP', $isAdminReset ? 'Mot de passe réinitialisé par admin' : 'Mot de passe modifié par utilisateur');
+                return true;
+            }
+            $this->utilisateurModel->annulerTransaction();
+            return false;
+
+        } catch (\Exception $e) { // Capturer toutes les exceptions pour rollback
+            $this->utilisateurModel->annulerTransaction();
+            $this->journaliserActionAuthentification($numeroUtilisateur, 'ECHEC_CHANGEMENT_MDP', "Erreur lors du changement de mot de passe: " . $e->getMessage());
+            throw $e;
+        }
+    }
+
+    public function demanderReinitialisationMotDePasse(string $emailPrincipal): void
+    {
+        $utilisateur = $this->utilisateurModel->trouverParEmailPrincipal($emailPrincipal);
+
+        if (!$utilisateur || !$utilisateur['email_valide']) {
+            // Pour des raisons de sécurité, ne pas indiquer si l'email existe ou non.
+            // Simplement logguer et retourner un message générique.
+            $this->journaliserActionAuthentification($emailPrincipal, 'DEMANDE_RESET_MDP', 'Tentative de réinitialisation pour email non valide/inexistant');
+            return; // Ou lancer une exception générique non informative
+        }
+
+        $numeroUtilisateur = $utilisateur['numero_utilisateur'];
+        $this->utilisateurModel->commencerTransaction();
+        try {
+            $tokenClair = bin2hex(random_bytes(32)); // Générer un token sécurisé
+            $tokenHache = hash('sha256', $tokenClair); // Hacher le token pour stockage
+            $dateExpiration = date('Y-m-d H:i:s', time() + (2 * 3600)); // Token valide 2 heures
+
+            $this->utilisateurModel->mettreAJourChamps($numeroUtilisateur, [
+                'token_reset_mdp' => $tokenHache, // Stocker le hachage
+                'date_expiration_token_reset' => $dateExpiration
+            ]);
+            $this->utilisateurModel->validerTransaction();
+
+            // Préparer les données pour l'email
+            $resetLink = 'http://localhost/reset-password?token=' . $tokenClair; // Assurez-vous que c'est l'URL réelle
+            $emailData = [
+                'destinataire_email' => $emailPrincipal,
+                'sujet' => 'Réinitialisation de votre mot de passe',
+                'corps_html' => "<p>Bonjour,</p><p>Vous avez demandé à réinitialiser votre mot de passe. Cliquez sur ce lien pour continuer : <a href=\"{$resetLink}\">{$resetLink}</a></p><p>Ce lien expirera dans 2 heures.</p>",
+                'corps_texte' => "Bonjour,\nVous avez demandé à réinitialiser votre mot de passe. Cliquez sur ce lien pour continuer : {$resetLink}\nCe lien expirera dans 2 heures.",
+                'modele_email' => 'reset_password', // Nom d'un modèle d'email si vous en avez un
+                'variables_modele' => ['reset_link' => $resetLink]
+            ];
+
+            $this->emailService->envoyerEmail($emailData);
+            $this->journaliserActionAuthentification($numeroUtilisateur, 'DEMANDE_RESET_MDP', 'Email de réinitialisation envoyé');
+
+        } catch (\Exception $e) {
+            $this->utilisateurModel->annulerTransaction();
+            $this->journaliserActionAuthentification($numeroUtilisateur, 'ECHEC_DEMANDE_RESET_MDP', "Erreur envoi email reset mdp: " . $e->getMessage());
+            throw new EmailException("Erreur lors de l'envoi de l'e-mail de réinitialisation. Veuillez réessayer plus tard.");
+        }
+    }
+
+    public function reinitialiserMotDePasseApresValidationToken(string $tokenClair, string $nouveauMotDePasseClair): bool
+    {
+        $utilisateur = $this->utilisateurModel->trouverParTokenResetMdp(hash('sha256', $tokenClair)); // Rechercher par hachage du token
+        if (!$utilisateur) {
+            throw new TokenInvalideException("Le lien de réinitialisation est invalide ou a déjà été utilisé.");
+        }
+
+        if (new \DateTime() > new \DateTime($utilisateur['date_expiration_token_reset'])) {
+            throw new TokenExpireException("Le lien de réinitialisation a expiré.");
+        }
+
+        // Appeler la méthode générique de modification de mot de passe, en indiquant que c'est un reset par admin
+        return $this->modifierMotDePasse($utilisateur['numero_utilisateur'], $nouveauMotDePasseClair, null, true);
+    }
+
+    // --- AUTHENTIFICATION A DEUX FACTEURS (2FA) ---
+
+    /**
+     * Génère et stocke le secret 2FA pour un utilisateur.
+     * @param string $numeroUtilisateur Le numéro de l'utilisateur.
+     * @return array Tableau contenant le secret et l'URL du QR code.
+     */
+    public function genererEtStockerSecret2FA(string $numeroUtilisateur): array
+    {
+        // Utiliser une bibliothèque 2FA (ex: https://github.com/RobThree/TwoFactorAuth)
+        // Pour l'exemple, nous simulerons le secret et l'URL
+        $secret = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ123456'; // Générer un secret réel de 160 bits (20 caractères)
+        $issuer = 'GestionMySoutenance';
+        $userEmail = $this->recupererEmailSourceDuProfil($numeroUtilisateur); // Obtenir l'email de l'utilisateur
+
+        // Simuler l'URL du QR code (nécessite une lib 2FA réelle)
+        $qrCodeUrl = "otpauth://totp/{$issuer}:{$userEmail}?secret={$secret}&issuer={$issuer}";
+
+        $this->utilisateurModel->mettreAJourChamps($numeroUtilisateur, ['secret_2fa' => $secret]);
+        $this->journaliserActionAuthentification($numeroUtilisateur, 'GENERATION_2FA_SECRET', 'Secret 2FA généré');
+
+        return ['secret' => $secret, 'qr_code_url' => $qrCodeUrl];
+    }
+
+    /**
+     * Active l'authentification 2FA pour un utilisateur après vérification du code.
+     * @param string $numeroUtilisateur Le numéro de l'utilisateur.
+     * @param string $codeTOTP Le code TOTP soumis par l'utilisateur.
+     * @return bool Vrai si l'activation réussit, faux sinon.
+     * @throws IdentifiantsInvalidesException Si le code TOTP est incorrect.
+     */
+    public function activerAuthentificationDeuxFacteurs(string $numeroUtilisateur, string $codeTOTP): bool
+    {
+        $utilisateur = $this->utilisateurModel->trouverParNumeroUtilisateur($numeroUtilisateur, ['secret_2fa']);
+        if (!$utilisateur || empty($utilisateur['secret_2fa'])) {
+            throw new \Exception("Impossible d'activer 2FA: secret non trouvé.");
+        }
+
+        // Vérifier le code TOTP (utiliser une lib 2FA réelle ici)
+        // Simuler la vérification pour l'exemple
+        $isCodeValid = ($codeTOTP === '123456'); // Remplacer par $tfa->verifyCode($utilisateur['secret_2fa'], $codeTOTP);
+
+        if (!$isCodeValid) {
+            $this->journaliserActionAuthentification($numeroUtilisateur, 'ECHEC_ACTIVATION_2FA', 'Code 2FA incorrect lors de l\'activation');
+            throw new IdentifiantsInvalidesException("Code de vérification 2FA incorrect.");
+        }
+
+        $success = $this->utilisateurModel->mettreAJourChamps($numeroUtilisateur, ['preferences_2fa_active' => true]);
         if ($success) {
-            $this->utilisateurModel->mettreAJourChamps($numeroUtilisateur, ['token_reset_mdp' => null, 'date_expiration_token_reset' => null]);
-            $this->journaliserActionAuthentification($numeroUtilisateur, $numeroUtilisateur, 'RESET_MDP_VIA_TOKEN_REUSSI', 'SUCCES');
-        } else {
-            $this->journaliserActionAuthentification(null, $numeroUtilisateur, 'RESET_MDP_VIA_TOKEN_ECHEC_MODIF_MDP', 'ECHEC');
+            $this->journaliserActionAuthentification($numeroUtilisateur, 'ACTIVATION_2FA', '2FA activée');
         }
         return $success;
     }
 
-    public function recupererEmailSourceDuProfil(string $numeroUtilisateur): ?string
+    /**
+     * Désactive l'authentification 2FA pour un utilisateur.
+     * @param string $numeroUtilisateur Le numéro de l'utilisateur.
+     * @return bool Vrai si la désactivation réussit, faux sinon.
+     */
+    public function desactiverAuthentificationDeuxFacteurs(string $numeroUtilisateur): bool
     {
-        $userBase = $this->utilisateurModel->trouverParNumeroUtilisateur($numeroUtilisateur, ['id_type_utilisateur']);
-        if (!$userBase || !isset($userBase['id_type_utilisateur'])) {
-            throw new UtilisateurNonTrouveException("Utilisateur '$numeroUtilisateur' non trouvé ou type manquant.");
+        $success = $this->utilisateurModel->mettreAJourChamps($numeroUtilisateur, ['preferences_2fa_active' => false, 'secret_2fa' => null]);
+        if ($success) {
+            $this->journaliserActionAuthentification($numeroUtilisateur, 'DESACTIVATION_2FA', '2FA désactivée');
         }
-
-        $idTypeUtilisateur = $userBase['id_type_utilisateur'];
-        $tableProfil = $this->getTableProfilParIdType($idTypeUtilisateur);
-        $champEmailProfil = $this->getChampEmailProfilParIdType($idTypeUtilisateur);
-
-        if ($tableProfil && $champEmailProfil) {
-            $modelProfil = $this->getModelPourTableProfil($tableProfil);
-            $profilsData = $modelProfil->trouverParCritere(['numero_utilisateur' => $numeroUtilisateur], [$champEmailProfil]);
-            if (!empty($profilsData) && isset($profilsData[0][$champEmailProfil])) {
-                return $profilsData[0][$champEmailProfil];
-            }
-        }
-        return null;
+        return $success;
     }
 
-    public function estNouveauMotDePasseDansHistorique(string $numeroUtilisateur, string $nouveauMotDePasseClair, int $limiteHistorique = 3): bool
+    /**
+     * Vérifie un code TOTP lors d'une connexion avec 2FA.
+     * @param string $numeroUtilisateur L'ID de l'utilisateur en attente de vérification 2FA.
+     * @param string $codeTOTP Le code TOTP soumis par l'utilisateur.
+     * @return bool Vrai si le code est valide, faux sinon.
+     */
+    public function verifierCodeAuthentificationDeuxFacteurs(string $numeroUtilisateur, string $codeTOTP): bool
     {
-        if ($limiteHistorique <= 0) return false;
-        $user = $this->utilisateurModel->trouverParNumeroUtilisateur($numeroUtilisateur, ['numero_utilisateur']);
-        if (!$user) {
+        $utilisateur = $this->utilisateurModel->trouverParNumeroUtilisateur($numeroUtilisateur, ['secret_2fa']);
+        if (!$utilisateur || empty($utilisateur['secret_2fa'])) {
+            return false; // Pas de secret 2FA configuré
+        }
+
+        // Utiliser une bibliothèque 2FA réelle ici
+        // Ex: $tfa = new TwoFactorAuth(); return $tfa->verifyCode($utilisateur['secret_2fa'], $codeTOTP);
+        $isCodeValid = ($codeTOTP === '123456'); // Simuler pour l'exemple
+
+        if ($isCodeValid) {
+            $this->journaliserActionAuthentification($numeroUtilisateur, 'VERIF_2FA_SUCCES', 'Code 2FA validé');
+        } else {
+            $this->journaliserActionAuthentification($numeroUtilisateur, 'VERIF_2FA_ECHEC', 'Code 2FA incorrect');
+        }
+        return $isCodeValid;
+    }
+
+    // --- METHODES UTILITAIRES ET INTERNES ---
+
+    /**
+     * Gère le nombre de tentatives de connexion échouées et bloque le compte si nécessaire.
+     * @param string $numeroUtilisateur Le numéro unique de l'utilisateur.
+     */
+    public function traiterTentativeConnexionEchoueePourUtilisateur(string $numeroUtilisateur): void
+    {
+        $utilisateur = $this->utilisateurModel->trouverParNumeroUtilisateur($numeroUtilisateur, ['tentatives_connexion_echouees']);
+        if (!$utilisateur) {
+            return;
+        }
+
+        $nouvellesTentatives = $utilisateur['tentatives_connexion_echouees'] + 1;
+        $this->utilisateurModel->mettreAJourChamps($numeroUtilisateur, ['tentatives_connexion_echouees' => $nouvellesTentatives]);
+
+        if ($nouvellesTentatives >= self::MAX_LOGIN_ATTEMPTS) {
+            $this->changerStatutDuCompte($numeroUtilisateur, 'bloque', 'Trop de tentatives de connexion échouées');
+            $this->journaliserActionAuthentification($numeroUtilisateur, 'COMPTE_BLOQUE', 'Compte bloqué après tentatives échouées');
+        }
+    }
+
+    /**
+     * Réinitialise le compteur de tentatives de connexion échouées.
+     * @param string $numeroUtilisateur Le numéro unique de l'utilisateur.
+     */
+    public function reinitialiserTentativesConnexion(string $numeroUtilisateur): void
+    {
+        $this->utilisateurModel->mettreAJourChamps($numeroUtilisateur, ['tentatives_connexion_echouees' => 0, 'compte_bloque_jusqua' => null]);
+    }
+
+    /**
+     * Vérifie si un compte est actuellement bloqué.
+     * @param string $numeroUtilisateur Le numéro unique de l'utilisateur.
+     * @return bool Vrai si le compte est bloqué, faux sinon.
+     */
+    public function estCompteActuellementBloque(string $numeroUtilisateur): bool
+    {
+        $utilisateur = $this->utilisateurModel->trouverParNumeroUtilisateur($numeroUtilisateur, ['compte_bloque_jusqua', 'statut_compte']);
+        if (!$utilisateur) {
             return false;
         }
 
-        $historiqueHaches = $this->historiqueMotDePasseModel->recupererHistoriquePourUtilisateur($numeroUtilisateur, $limiteHistorique);
+        // Si le statut est 'bloque' et qu'il y a une date de déblocage future
+        if ($utilisateur['statut_compte'] === 'bloque' && $utilisateur['compte_bloque_jusqua'] !== null) {
+            if (new \DateTime() < new \DateTime($utilisateur['compte_bloque_jusqua'])) {
+                return true;
+            } else {
+                // Le temps de blocage est écoulé, réactiver le compte
+                $this->changerStatutDuCompte($numeroUtilisateur, 'actif', 'Déblocage automatique après expiration');
+                return false;
+            }
+        }
+        // Si le statut est 'bloque' sans date de déblocage (blocage permanent ou manuel), il reste bloqué
+        if ($utilisateur['statut_compte'] === 'bloque') {
+            return true;
+        }
 
-        foreach ($historiqueHaches as $ancienHachageEnregistrement) {
-            if (isset($ancienHachageEnregistrement['mot_de_passe_hache']) && password_verify($nouveauMotDePasseClair, $ancienHachageEnregistrement['mot_de_passe_hache'])) {
+        return false;
+    }
+
+    /**
+     * Vérifie la robustesse d'un mot de passe clair.
+     * @param string $motDePasse Le mot de passe en clair.
+     * @throws MotDePasseInvalideException Si le mot de passe ne respecte pas les règles.
+     */
+    public function verifierRobustesseMotDePasse(string $motDePasse): void
+    {
+        if (strlen($motDePasse) < 8) {
+            throw new MotDePasseInvalideException("Le mot de passe doit contenir au moins 8 caractères.");
+        }
+        if (!preg_match('/[A-Z]/', $motDePasse)) {
+            throw new MotDePasseInvalideException("Le mot de passe doit contenir au moins une majuscule.");
+        }
+        if (!preg_match('/[a-z]/', $motDePasse)) {
+            throw new MotDePasseInvalideException("Le mot de passe doit contenir au moins une minuscule.");
+        }
+        if (!preg_match('/[0-9]/', $motDePasse)) {
+            throw new MotDePasseInvalideException("Le mot de passe doit contenir au moins un chiffre.");
+        }
+        if (!preg_match('/[^A-Za-z0-9]/', $motDePasse)) {
+            throw new MotDePasseInvalideException("Le mot de passe doit contenir au moins un caractère spécial.");
+        }
+    }
+
+    /**
+     * Vérifie si un nouveau mot de passe a déjà été utilisé récemment par l'utilisateur.
+     * @param string $numeroUtilisateur Le numéro de l'utilisateur.
+     * @param string $nouveauMotDePasseClair Le nouveau mot de passe en clair.
+     * @return bool Vrai si le mot de passe est dans l'historique récent, faux sinon.
+     */
+    public function estNouveauMotDePasseDansHistorique(string $numeroUtilisateur, string $nouveauMotDePasseClair): bool
+    {
+        $historique = $this->historiqueMdpModel->recupererHistoriquePourUtilisateur($numeroUtilisateur, 3); // Vérifier les 3 derniers mots de passe
+        foreach ($historique as $entry) {
+            if (password_verify($nouveauMotDePasseClair, $entry['mot_de_passe_hache'])) {
                 return true;
             }
         }
         return false;
     }
 
-    public function journaliserActionAuthentification(?string $numeroUtilisateurActeur, string $numeroUtilisateurConcerne, string $libelleAction, string $resultat, ?array $details = null): void
+    /**
+     * Envoie un email de validation de compte à l'utilisateur.
+     * @param string $numeroUtilisateur Le numéro de l'utilisateur.
+     * @param string $tokenClair Le token de validation en clair.
+     * @throws EmailException Si l'envoi de l'email échoue.
+     * @throws ElementNonTrouveException Si l'utilisateur n'est pas trouvé.
+     */
+    public function envoyerEmailValidationCompte(string $numeroUtilisateur, string $tokenClair): void
     {
-        $acteurFinal = $numeroUtilisateurActeur;
-        if ($acteurFinal === null) {
-            if (session_status() === PHP_SESSION_ACTIVE && isset($_SESSION['numero_utilisateur']) && !(isset($_SESSION['2fa_authentication_pending']) && $_SESSION['2fa_authentication_pending'] === true) ) {
-                $acteurFinal = $_SESSION['numero_utilisateur'];
-            } else {
-                if (str_starts_with($libelleAction, 'TENTATIVE_CONNEXION') || str_starts_with($libelleAction, 'DEMANDE_RESET_MDP')) {
-                    $acteurFinal = 'IP:' . ($_SERVER['REMOTE_ADDR'] ?? 'N/A');
-                } else if ($libelleAction === 'DECONNEXION_SESSION' && $numeroUtilisateurConcerne !== 'ANONYME_DECONNEXION') {
-                    $acteurFinal = $numeroUtilisateurConcerne;
-                }
-                else {
-                    $acteurFinal = 'SYSTEME_OU_ANONYME';
-                }
-            }
+        $utilisateur = $this->utilisateurModel->trouverParNumeroUtilisateur($numeroUtilisateur, ['email_principal']);
+        if (!$utilisateur || empty($utilisateur['email_principal'])) {
+            throw new ElementNonTrouveException("Email de l'utilisateur non trouvé pour l'envoi de validation.");
         }
 
-        $entiteId = $numeroUtilisateurConcerne;
-        if (filter_var($numeroUtilisateurConcerne, FILTER_VALIDATE_EMAIL) && $libelleAction === 'DEMANDE_RESET_MDP_EMAIL_INCONNU') {
-            $entiteId = 'non_applicable';
-        }
-
-        try {
-            if (!$this->serviceSupervision) {
-                error_log("ServiceSupervision non initialisé lors de la tentative de journalisation de l'action: $libelleAction");
-                return;
-            }
-            $idActionSysteme = $this->serviceSupervision->recupererOuCreerIdActionParLibelle($libelleAction, 'AUTHENTIFICATION');
-
-            $this->serviceSupervision->enregistrerAction(
-                $acteurFinal,
-                $idActionSysteme,
-                $_SERVER['REMOTE_ADDR'] ?? 'N/A',
-                $_SERVER['HTTP_USER_AGENT'] ?? 'N/A',
-                'utilisateur',
-                $entiteId,
-                array_merge($details ?? [], ['resultat_svc_auth' => $resultat])
-            );
-        } catch (\Exception $e) {
-            error_log("Erreur lors de la journalisation de l'action d'authentification ($libelleAction pour $numeroUtilisateurConcerne par $acteurFinal): " . $e->getMessage());
-        }
-    }
-
-    private function mettreAJourDerniereConnexion(string $numeroUtilisateur): void
-    {
-        try {
-            $this->utilisateurModel->mettreAJourChamps($numeroUtilisateur, ['derniere_connexion' => (new DateTimeImmutable())->format('Y-m-d H:i:s')]);
-        } catch (PDOException $e) {
-            error_log("Erreur lors de la mise à jour de la dernière connexion pour $numeroUtilisateur: " . $e->getMessage());
-        }
-    }
-
-    private function getIdTypeUtilisateurParLibelle(string $libelleTypeUtilisateur): ?string
-    {
-        try {
-            $stmt = $this->db->prepare("SELECT id_type_utilisateur FROM type_utilisateur WHERE libelle_type_utilisateur = :libelle LIMIT 1");
-            $stmt->bindParam(':libelle', $libelleTypeUtilisateur);
-            $stmt->execute();
-            $result = $stmt->fetchColumn();
-            return $result ?: null;
-        } catch (PDOException $e) {
-            error_log("Erreur SQL dans getIdTypeUtilisateurParLibelle pour '$libelleTypeUtilisateur': " . $e->getMessage());
-            return null;
-        }
-    }
-
-    private function getIdGroupeUtilisateurParLibelle(string $libelleGroupeUtilisateur): ?string
-    {
-        try {
-            $stmt = $this->db->prepare("SELECT id_groupe_utilisateur FROM groupe_utilisateur WHERE libelle_groupe_utilisateur = :libelle LIMIT 1");
-            $stmt->bindParam(':libelle', $libelleGroupeUtilisateur);
-            $stmt->execute();
-            $result = $stmt->fetchColumn();
-            return $result ?: null;
-        } catch (PDOException $e) {
-            error_log("Erreur SQL dans getIdGroupeUtilisateurParLibelle pour '$libelleGroupeUtilisateur': " . $e->getMessage());
-            return null;
-        }
-    }
-
-    private function getDefaultGroupIdForTypeLibelle(string $typeProfilLibelle): ?string
-    {
-        $mapTypeToGroupeLibelle = [
-            'Etudiant' => 'Etudiants',
-            'Enseignant' => 'Enseignants',
-            'Personnel Administratif' => 'Personnel_Admin',
-            'Administrateur' => 'Administrateur_systeme'
+        $validationLink = 'http://localhost/validate-email?token=' . $tokenClair; // Assurez-vous que c'est l'URL réelle
+        $emailData = [
+            'destinataire_email' => $utilisateur['email_principal'],
+            'sujet' => 'Validez votre compte GestionMySoutenance',
+            'corps_html' => "<p>Bonjour,</p><p>Veuillez cliquer sur ce lien pour valider votre compte : <a href=\"{$validationLink}\">{$validationLink}</a></p>",
+            'corps_texte' => "Bonjour,\nVeuillez cliquer sur ce lien pour valider votre compte : {$validationLink}",
+            'modele_email' => 'email_validation',
+            'variables_modele' => ['validation_link' => $validationLink]
         ];
-        $libelleGroupe = $mapTypeToGroupeLibelle[$typeProfilLibelle] ?? 'GRP_UTILISATEUR_STANDARD';
 
-        $idGroupe = $this->getIdGroupeUtilisateurParLibelle($libelleGroupe);
-        if ($idGroupe === null && $libelleGroupe === 'GRP_UTILISATEUR_STANDARD') {
-            $idGroupe = $this->getIdGroupeUtilisateurParLibelle('Standard') ?? $this->getIdGroupeUtilisateurParLibelle('Défaut');
+        if (!$this->emailService->envoyerEmail($emailData)) {
+            throw new EmailException("Échec de l'envoi de l'e-mail de validation.");
         }
-        if ($idGroupe === null) {
-            throw new OperationImpossibleException("Impossible de déterminer le groupe par défaut pour le type '$typeProfilLibelle' (libellé de groupe testé: '$libelleGroupe'). Veuillez configurer les groupes.");
-        }
-        return $idGroupe;
     }
 
-    private function getDefaultNiveauAccesId(): string
+    /**
+     * Valide le compte utilisateur via le token d'email.
+     * @param string $tokenClair Le token de validation en clair.
+     * @return bool Vrai si le compte est validé, faux sinon.
+     * @throws TokenInvalideException Si le token est invalide.
+     */
+    public function validerCompteEmailViaToken(string $tokenClair): bool
     {
-        return 'ACCES_STANDARD';
+        $tokenHache = hash('sha256', $tokenClair);
+        $utilisateur = $this->utilisateurModel->trouverParTokenValidationEmailHache($tokenHache);
+
+        if (!$utilisateur) {
+            throw new TokenInvalideException("Le lien de validation est invalide ou a déjà été utilisé.");
+        }
+
+        $success = $this->utilisateurModel->mettreAJourChamps($utilisateur['numero_utilisateur'], [
+            'email_valide' => true,
+            'statut_compte' => 'actif', // Passer le compte en actif après validation de l'email
+            'token_validation_email' => null // Invalider le token
+        ]);
+
+        if ($success) {
+            $this->journaliserActionAuthentification($utilisateur['numero_utilisateur'], 'VALIDATION_EMAIL', 'Email de compte validé');
+        }
+        return $success;
     }
 
-    private function getTableProfilParIdType(?string $idTypeUtilisateur): ?string
+    /**
+     * Récupère l'email principal de l'utilisateur à partir de son profil spécifique.
+     * @param string $numeroUtilisateur
+     * @return string L'email principal.
+     * @throws ElementNonTrouveException Si l'utilisateur ou son profil n'est pas trouvé.
+     */
+    private function recupererEmailSourceDuProfil(string $numeroUtilisateur): string
     {
-        if ($idTypeUtilisateur === null) return null;
-        $stmt = $this->db->prepare("SELECT libelle_type_utilisateur FROM type_utilisateur WHERE id_type_utilisateur = :id LIMIT 1");
-        $stmt->bindParam(':id', $idTypeUtilisateur);
-        $stmt->execute();
-        $libelle = $stmt->fetchColumn();
-
-        if (!$libelle) return null;
-
-        switch (strtolower($libelle)) {
-            case 'etudiant': return 'etudiant';
-            case 'enseignant': return 'enseignant';
-            case 'personnel administratif': return 'personnel_administratif';
-            case 'administrateur': return null;
-            default:
-                error_log("Aucune table de profil définie pour le type d'utilisateur ID: $idTypeUtilisateur ($libelle)");
-                return null;
+        $utilisateurComplet = $this->recupererUtilisateurCompletParNumero($numeroUtilisateur);
+        if (!$utilisateurComplet) {
+            throw new ElementNonTrouveException("Utilisateur non trouvé pour récupérer l'email.");
         }
+        return $utilisateurComplet['email_principal'];
     }
 
-    private function getChampEmailProfilParIdType(?string $idTypeUtilisateur): ?string
+    /**
+     * Récupère la liste des permissions (traitements) pour un utilisateur donné.
+     * @param string $numeroUtilisateur Le numéro unique de l'utilisateur.
+     * @return array La liste des codes de permission.
+     */
+    public function getPermissionsForUser(string $numeroUtilisateur): array
     {
-        if ($idTypeUtilisateur === null) return null;
-        $stmt = $this->db->prepare("SELECT libelle_type_utilisateur FROM type_utilisateur WHERE id_type_utilisateur = :id LIMIT 1");
-        $stmt->bindParam(':id', $idTypeUtilisateur);
-        $stmt->execute();
-        $libelle = $stmt->fetchColumn();
-
-        if (!$libelle) return null;
-
-        switch (strtolower($libelle)) {
-            case 'etudiant': return 'email_contact_secondaire';
-            case 'enseignant': return 'email_professionnel';
-            case 'personnel administratif': return 'email_professionnel';
-            default: return null;
-        }
-    }
-
-    private function validerDonneesCreationCompteGlobale(array $donneesUtilisateur, array $donneesProfil, string $typeProfilLibelle): void
-    {
-        if (empty($donneesUtilisateur['login_utilisateur']) || empty($donneesUtilisateur['mot_de_passe'])) {
-            throw new ValidationException("Login et mot de passe sont requis pour la création du compte.", ['login_utilisateur' => 'Requis', 'mot_de_passe' => 'Requis']);
-        }
-        $robustesse = $this->verifierRobustesseMotDePasse($donneesUtilisateur['mot_de_passe']);
-        if (!$robustesse['valide']) {
-            throw new ValidationException("Le mot de passe fourni n'est pas assez robuste: " . implode(' ', $robustesse['messages_erreur']), $robustesse['codes_erreur'] ?? []);
-        }
-
-        $emailProfil = $this->extraireEmailDuProfilConcret($donneesProfil, $typeProfilLibelle);
-        if (empty($emailProfil) || !filter_var($emailProfil, FILTER_VALIDATE_EMAIL)) {
-            $champEmailProfil = $this->getChampEmailProfilParIdType($this->getIdTypeUtilisateurParLibelle($typeProfilLibelle)) ?: 'email_profil';
-            throw new ValidationException("L'email du profil ($champEmailProfil) est requis et doit être un email valide.", [$champEmailProfil => "Requis et doit être un email valide."]);
-        }
-    }
-
-    private function extraireEmailDuProfilConcret(array $donneesProfil, string $typeProfilLibelle): ?string
-    {
-        $idType = $this->getIdTypeUtilisateurParLibelle($typeProfilLibelle);
-        if (!$idType) return null;
-        $champEmail = $this->getChampEmailProfilParIdType($idType);
-        if(!$champEmail) return null;
-        return $donneesProfil[$champEmail] ?? null;
-    }
-
-    private function creerProfilSpecifiqueAssocie(string $numeroUtilisateur, array $donneesProfil, string $idTypeUtilisateur): void
-    {
-        $tableProfil = $this->getTableProfilParIdType($idTypeUtilisateur);
-        if (!$tableProfil) {
-            return;
-        }
-
-        $modelProfil = $this->getModelPourTableProfil($tableProfil);
-        $donneesProfilPourTable = ['numero_utilisateur' => $numeroUtilisateur];
-        $colonnesAttendues = $this->getColonnesAttenduesPourTableProfil($tableProfil);
-
-        foreach ($colonnesAttendues as $colonneSpec) {
-            if ($colonneSpec === 'numero_utilisateur') continue;
-
-            $valeurFournie = $donneesProfil[$colonneSpec] ?? null;
-            $infoColonne = $this->getInfosColonneTableProfil($tableProfil, $colonneSpec);
-
-            $estNullable = (isset($infoColonne['Null']) && strtoupper($infoColonne['Null']) === 'YES');
-            $aValeurParDefaut = (isset($infoColonne['Default']));
-            $estClePrimaireProfil = ($infoColonne['Key'] ?? '') === 'PRI';
-
-            if (!$estNullable && !$aValeurParDefaut && ($valeurFournie === null || $valeurFournie === '')) {
-                if ($estClePrimaireProfil && $colonneSpec !== 'numero_utilisateur') {
-                    throw new ValidationException("L'identifiant métier '$colonneSpec' est requis pour le profil.");
-                }
-            }
-            $donneesProfilPourTable[$colonneSpec] = ($valeurFournie === '') ? null : $valeurFournie;
-        }
-        $modelProfil->creer($donneesProfilPourTable);
-    }
-
-    private function getInfosColonneTableProfil(string $nomTable, string $nomColonne): ?array
-    {
-        try {
-            $stmt = $this->db->prepare("SHOW COLUMNS FROM `$nomTable` LIKE :colonne");
-            $stmt->bindParam(':colonne', $nomColonne);
-            $stmt->execute();
-            $info = $stmt->fetch(PDO::FETCH_ASSOC);
-            return $info ?: null;
-        } catch (PDOException $e) {
-            error_log("Erreur lors de la description de la colonne $nomTable.$nomColonne: " . $e->getMessage());
-            return null;
-        }
-    }
-
-    private function getColonnesAttenduesPourTableProfil(string $tableProfil): array {
-        try {
-            $stmt = $this->db->query("DESCRIBE `$tableProfil`");
-            $colonnes = $stmt->fetchAll(PDO::FETCH_COLUMN);
-            return $colonnes ?: [];
-        } catch (PDOException $e) {
-            error_log("Erreur lors de la récupération des colonnes pour la table $tableProfil: " . $e->getMessage());
+        // Récupérer les informations de l'utilisateur pour connaître son groupe
+        $utilisateur = $this->utilisateurModel->trouverParNumeroUtilisateur($numeroUtilisateur, ['id_groupe_utilisateur']);
+        if (!$utilisateur || empty($utilisateur['id_groupe_utilisateur'])) {
             return [];
         }
+        // Utiliser le ServicePermissions pour récupérer les permissions du groupe
+        $servicePermissions = new \App\Backend\Service\Permissions\ServicePermissions(
+            $this->db,
+            $this->supervisionService,
+            $this->utilisateurModel, // Passez Utilisateur si besoin
+            $this->groupeUtilisateurModel, // Passé GroupeUtilisateur
+            $this->typeUtilisateurModel // Passé TypeUtilisateur
+        );
+        return $servicePermissions->recupererPermissionsPourGroupe($utilisateur['id_groupe_utilisateur']);
     }
 
-    private function getModelPourTableProfil(string $tableProfil): BaseModel
+    /**
+     * Journalise une action liée à l'authentification.
+     * @param string $idUtilisateur L'ID de l'utilisateur concerné ou un identifiant (email/login).
+     * @param string $libelleAction Le libellé de l'action (ex: 'SUCCES_LOGIN', 'ECHEC_LOGIN').
+     * @param string $details Détails supplémentaires sur l'action.
+     */
+    public function journaliserActionAuthentification(string $idUtilisateur, string $libelleAction, string $details): void
     {
-        switch ($tableProfil) {
-            case 'etudiant':
-                return $this->etudiantModel;
-            case 'enseignant':
-                return $this->enseignantModel;
-            case 'personnel_administratif':
-                return $this->personnelAdministratifModel;
-            default:
-                throw new OperationImpossibleException("Modèle de profil inconnu pour la table: '$tableProfil'.");
-        }
+        $this->supervisionService->enregistrerAction($idUtilisateur, $libelleAction, $details, $idUtilisateur, 'Utilisateur');
     }
 
-    private function ajouterMotDePasseHistorique(string $numeroUtilisateur, string $motDePasseHache): void
+    /**
+     * Synchronise les permissions d'un utilisateur dans sa session DB active.
+     * Appelé après un changement de rôle ou de statut qui impacte les permissions.
+     * @param string $numeroUtilisateur Le numéro de l'utilisateur dont les permissions doivent être rafraîchies.
+     */
+    public function synchroniserPermissionsSessionsUtilisateur(string $numeroUtilisateur): void
     {
-        $dataToCreate = [
-            'numero_utilisateur' => $numeroUtilisateur,
-            'mot_de_passe_hache' => $motDePasseHache,
-            'date_creation' => (new DateTimeImmutable())->format('Y-m-d H:i:s')
-        ];
-        // Si id_historique_mdp n'est PAS auto-incrémenté et est VARCHAR:
-        // $idHistorique = $this->genererIdUniquePourTable('historique_mot_de_passe', 'HISTMDP_');
-        // $dataToCreate['id_historique_mdp'] = $idHistorique;
+        $sessions = $this->sessionsModel->trouverSessionsParUtilisateur($numeroUtilisateur);
+        $newPermissions = $this->getPermissionsForUser($numeroUtilisateur);
 
-        $this->historiqueMotDePasseModel->creer($dataToCreate);
-    }
+        foreach ($sessions as $session) {
+            // Déserialiser les données de session
+            $sessionData = unserialize($session['session_data']);
 
-    private function nettoyerHistoriqueMotDePasse(string $numeroUtilisateur): void
-    {
-        $sql = "SELECT id_historique_mdp FROM historique_mot_de_passe 
-                WHERE numero_utilisateur = :num_user 
-                ORDER BY date_creation DESC"; // Les plus récents en premier
-        $stmt = $this->db->prepare($sql);
-        $stmt->bindParam(':num_user', $numeroUtilisateur);
-        $stmt->execute();
-        $historiqueIds = $stmt->fetchAll(PDO::FETCH_COLUMN);
-
-        if (count($historiqueIds) > self::PASSWORD_HISTORY_LIMIT) {
-            $idsASupprimer = array_slice($historiqueIds, self::PASSWORD_HISTORY_LIMIT);
-            if (!empty($idsASupprimer)) {
-                if (method_exists($this->historiqueMotDePasseModel, 'supprimerPlusieursParIdentifiants')) {
-                    $this->historiqueMotDePasseModel->supprimerPlusieursParIdentifiants($idsASupprimer);
-                } else {
-                    $placeholders = implode(',', array_fill(0, count($idsASupprimer), '?'));
-                    $stmtDelete = $this->db->prepare("DELETE FROM historique_mot_de_passe WHERE id_historique_mdp IN ($placeholders)");
-                    try {
-                        $stmtDelete->execute($idsASupprimer);
-                    } catch (PDOException $e) {
-                        error_log("Erreur lors du nettoyage de l'historique des mots de passe pour $numeroUtilisateur: " . $e->getMessage());
-                    }
-                }
+            // Mettre à jour le tableau des permissions
+            $sessionData['user_permissions'] = $newPermissions;
+            if (isset($sessionData['user_data'])) {
+                $sessionData['user_data']['user_permissions'] = $newPermissions; // Mettre à jour aussi dans user_data si stocké
             }
+
+            // Resérialiser et mettre à jour en DB
+            $this->sessionsModel->mettreAJourParIdentifiant($session['session_id'], [
+                'session_data' => serialize($sessionData),
+                'session_last_activity' => time() // Mettre à jour l'activité pour éviter un GC précoce
+            ]);
         }
-    }
-
-    private function genererEtStockerTokenPourUtilisateur(string $numeroUtilisateur, string $nomChampToken): array
-    {
-        $tokenClair = bin2hex(random_bytes(self::TOKEN_LENGHT_BYTES));
-        $tokenHache = hash('sha256', $tokenClair);
-        $champsAMettreAJour = [];
-
-        if ($nomChampToken === 'token_reset_mdp') {
-            $dateExpiration = (new DateTimeImmutable())->add(new DateInterval('PT' . self::PASSWORD_RESET_TOKEN_EXPIRY_HOURS . 'H'));
-            $champsAMettreAJour[$nomChampToken] = $tokenHache;
-            $champsAMettreAJour['date_expiration_token_reset'] = $dateExpiration->format('Y-m-d H:i:s');
-        } elseif ($nomChampToken === 'token_validation_email') {
-            $champsAMettreAJour[$nomChampToken] = $tokenHache;
-        } else {
-            throw new OperationImpossibleException("Type de token inconnu : $nomChampToken");
-        }
-
-        $success = $this->utilisateurModel->mettreAJourChamps($numeroUtilisateur, $champsAMettreAJour);
-        if (!$success) {
-            throw new OperationImpossibleException("Impossible de stocker le token '$nomChampToken' pour l'utilisateur '$numeroUtilisateur'.");
-        }
-        return ['token_clair' => $tokenClair, 'token_hache' => $tokenHache];
-    }
-
-    private function genererIdUniquePourTable(string $table, string $prefix = '', int $longueurSuffixeHex = 10): string
-    {
-        $modelGenerique = new class($this->db) extends BaseModel {
-            public function __construct(PDO $db) {
-                parent::__construct($db);
-            }
-            public function configure(string $tableName, string $primaryKeyName) {
-                $this->table = $tableName;
-                $this->clePrimaire = $primaryKeyName;
-            }
-        };
-
-        $pkName = '';
-        if ($table === 'historique_mot_de_passe') $pkName = 'id_historique_mdp';
-        else {
-            throw new \InvalidArgumentException("Configuration de clé primaire manquante pour la table $table dans genererIdUniquePourTable.");
-        }
-        $modelGenerique->configure($table, $pkName);
-
-        $longueurMaxPK = 50;
-        $prefix = strtoupper($prefix);
-        $maxTentativesGen = 10;
-        $tentativeGen = 0;
-        do {
-            $suffixe = bin2hex(random_bytes(intval(ceil($longueurSuffixeHex / 2))));
-            $idGenere = $prefix . $suffixe;
-            if (strlen($idGenere) > $longueurMaxPK) {
-                $idGenere = substr($idGenere, 0, $longueurMaxPK);
-            }
-            $tentativeGen++;
-            if ($tentativeGen > $maxTentativesGen) {
-                throw new OperationImpossibleException("Impossible de générer un ID unique pour la table $table après $maxTentativesGen tentatives.");
-            }
-        } while ($modelGenerique->trouverParIdentifiant($idGenere)); // trouverParIdentifiant utilise $this->clePrimaire
-        return $idGenere;
+        $this->journaliserActionAuthentification($numeroUtilisateur, 'SYNCHRONISATION_RBAC', 'Permissions de session synchronisées.');
     }
 }

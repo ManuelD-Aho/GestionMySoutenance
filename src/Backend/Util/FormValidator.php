@@ -1,5 +1,7 @@
 <?php
 
+namespace App\Backend\Util;
+
 /**
  * FormValidator
  * Utilitaire pour la validation des formulaires

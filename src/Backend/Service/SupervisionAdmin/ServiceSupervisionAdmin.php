@@ -1,157 +1,244 @@
 <?php
-
 namespace App\Backend\Service\SupervisionAdmin;
 
-use App\Backend\Exception\ElementNonTrouveException;
+use PDO;
 use App\Backend\Model\Action;
-use App\Backend\Model\CompteRendu;
 use App\Backend\Model\Enregistrer;
 use App\Backend\Model\Pister;
-use App\Backend\Model\RapportEtudiant;
-use PDO;
-use DateTime;
+use App\Backend\Model\Utilisateur; // Pour récupérer les détails de l'utilisateur
+use App\Backend\Model\RapportEtudiant; // Pour les détails des entités concernées
+use App\Backend\Model\CompteRendu; // Pour les détails des entités concernées
+use App\Backend\Exception\ElementNonTrouveException;
+use App\Backend\Exception\DoublonException; // Pour gerer les doublons potentiels (bien que rares ici)
 
 class ServiceSupervisionAdmin implements ServiceSupervisionAdminInterface
 {
-    private RapportEtudiant $modeleRapportEtudiant;
-    private Enregistrer $modeleEnregistrer;
-    private Pister $modelePister;
-    private CompteRendu $modeleCompteRendu;
-    private Action $modeleAction;
+    private Action $actionModel;
+    private Enregistrer $enregistrerModel;
+    private Pister $pisterModel;
+    private Utilisateur $utilisateurModel;
+    private RapportEtudiant $rapportEtudiantModel;
+    private CompteRendu $compteRenduModel;
 
-    public function __construct(
-        RapportEtudiant $modeleRapportEtudiant,
-        Enregistrer $modeleEnregistrer,
-        Pister $modelePister,
-        CompteRendu $modeleCompteRendu,
-        Action $modeleAction
-    ) {
-        $this->modeleRapportEtudiant = $modeleRapportEtudiant;
-        $this->modeleEnregistrer = $modeleEnregistrer;
-        $this->modelePister = $modelePister;
-        $this->modeleCompteRendu = $modeleCompteRendu;
-        $this->modeleAction = $modeleAction;
+    public function __construct(PDO $db)
+    {
+        $this->actionModel = new Action($db);
+        $this->enregistrerModel = new Enregistrer($db);
+        $this->pisterModel = new Pister($db);
+        $this->utilisateurModel = new Utilisateur($db);
+        $this->rapportEtudiantModel = new RapportEtudiant($db);
+        $this->compteRenduModel = new CompteRendu($db);
     }
 
-    public function recupererOuCreerIdActionParLibelle(string $libelleAction): int
+    /**
+     * Enregistre une action système dans le journal d'audit.
+     * Cette méthode est appelée par d'autres services pour journaliser leurs opérations.
+     * @param string $numeroUtilisateur L'ID de l'utilisateur qui a effectué l'action (VARCHAR).
+     * @param string $libelleAction Le code ou libellé de l'action (ex: 'SUCCES_LOGIN', 'CREATION_COMPTE') (VARCHAR).
+     * @param string $detailsAction Description détaillée de l'action.
+     * @param string|null $idEntiteConcernee L'ID de l'entité principale concernée par l'action (ex: ID rapport, ID utilisateur) (VARCHAR).
+     * @param string|null $typeEntiteConcernee Le type de l'entité concernée (ex: 'RapportEtudiant', 'Utilisateur') (VARCHAR).
+     * @param array $detailsJson Données supplémentaires à stocker en JSON (ex: modifications, anciens/nouveaux statuts).
+     * @return bool Vrai si l'action a été enregistrée.
+     */
+    public function enregistrerAction(string $numeroUtilisateur, string $libelleAction, string $detailsAction, ?string $idEntiteConcernee = null, ?string $typeEntiteConcernee = null, array $detailsJson = []): bool
     {
         try {
-            $action = $this->modeleAction->findBy(['libelle_action' => $libelleAction]);
-            if ($action) {
-                return (int)$action['id_action'];
-            }
-        } catch (ElementNonTrouveException $e) {
-            // L'action n'existe pas, on continue pour la créer
+            // S'assurer que l'action est enregistrée dans la table 'action' (si ce n'est pas déjà un référentiel statique)
+            // Idéalement, les 'id_action' seraient des IDs de référence pré-existants.
+            // Ici, nous nous assurons qu'il existe ou le créons si non.
+            $idAction = $this->recupererOuCreerIdActionParLibelle($libelleAction);
+
+            $data = [
+                'numero_utilisateur' => $numeroUtilisateur,
+                'id_action' => $idAction,
+                'date_action' => date('Y-m-d H:i:s'), // Timestamp exact de l'action
+                'adresse_ip' => $_SERVER['REMOTE_ADDR'] ?? 'N/A',
+                'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'N/A',
+                'id_entite_concernee' => $idEntiteConcernee,
+                'type_entite_concernee' => $typeEntiteConcernee,
+                'details_action' => !empty($detailsJson) ? json_encode($detailsJson) : null,
+                'session_id_utilisateur' => session_id() // Enregistrer l'ID de session si active
+            ];
+
+            $success = $this->enregistrerModel->creer($data);
+            return (bool) $success; // Retourne true ou false
+        } catch (\Exception $e) {
+            // Log l'erreur interne de journalisation, sans la relancer pour ne pas bloquer l'opération principale
+            error_log("Erreur lors de l'enregistrement de l'action {$libelleAction} pour {$numeroUtilisateur}: " . $e->getMessage());
+            return false;
         }
-
-        $idAction = $this->modeleAction->create(['libelle_action' => $libelleAction]);
-        return (int)$idAction;
     }
 
-    // CORRECTION : La signature est maintenant identique à celle de l'interface.
-    public function enregistrerAction(
-        string $loginUtilisateur,
-        string $codeAction, // Le nom et le type correspondent à l'interface
-        DateTime $dateAction, // Le paramètre de date est restauré
-        string $adresseIp,
-        string $userAgent,
-        string $contexteEntite,
-        ?string $idEntite,
-        ?array $details
-    ): bool {
-        // On utilise le paramètre $codeAction (qui est le libellé) pour récupérer l'ID
-        $idAction = $this->recupererOuCreerIdActionParLibelle($codeAction);
+    /**
+     * Méthode interne pour récupérer ou créer l'ID d'une action.
+     * @param string $libelleAction Le libellé de l'action.
+     * @return string L'ID de l'action.
+     */
+    public function recupererOuCreerIdActionParLibelle(string $libelleAction): string
+    {
+        $action = $this->actionModel->trouverUnParCritere(['libelle_action' => $libelleAction]);
+        if ($action) {
+            return $action['id_action'];
+        }
+        // Créer l'action si elle n'existe pas (par exemple, pour les libellés dynamiques)
+        // Ou s'assurer que toutes les actions sont pré-enregistrées comme référentiels
+        try {
+            $newIdAction = strtoupper(str_replace([' ', '-'], '_', $libelleAction)); // Générer un ID simple
+            if (strlen($newIdAction) > 50) $newIdAction = substr($newIdAction, 0, 50); // Tronquer si trop long
 
-        $donnees = [
-            'numero_utilisateur' => $loginUtilisateur,
-            'id_action' => $idAction,
-            'date_action' => $dateAction->format('Y-m-d H:i:s'), // On utilise l'objet $dateAction fourni
-            'adresse_ip' => $adresseIp,
-            'user_agent' => $userAgent,
-            'contexte_entite' => $contexteEntite,
-            'id_entite_concernee' => $idEntite,
-            'details' => json_encode($details)
-        ];
+            // Prévenir les doublons si l'ID généré existe déjà
+            $suffix = 0;
+            $originalId = $newIdAction;
+            while($this->actionModel->trouverParIdentifiant($newIdAction)){
+                $suffix++;
+                $newIdAction = $originalId . '_' . $suffix;
+                if (strlen($newIdAction) > 50) $newIdAction = substr($originalId, 0, 50 - strlen('_' . $suffix)) . '_' . $suffix;
+            }
 
-        $result = $this->modeleEnregistrer->create($donnees);
-        return is_string($result) || $result === true;
+            $this->actionModel->creer([
+                'id_action' => $newIdAction,
+                'libelle_action' => $libelleAction,
+                'categorie_action' => 'Dynamique' // Ou une catégorie par défaut
+            ]);
+            return $newIdAction;
+        } catch (DoublonException $e) {
+            // Si une autre transaction a créé l'ID entre-temps, le récupérer
+            $action = $this->actionModel->trouverUnParCritere(['libelle_action' => $libelleAction]);
+            if ($action) return $action['id_action'];
+            // Si toujours en échec, relancer ou gérer
+            error_log("Erreur inattendue lors de la création d'ID d'action: " . $e->getMessage());
+            return $libelleAction; // Fallback, pourrait causer des problèmes si non existant
+        } catch (\Exception $e) {
+            error_log("Erreur lors de la récupération/création d'ID d'action: " . $e->getMessage());
+            return $libelleAction; // Retourne le libellé brut comme ID en cas d'erreur grave
+        }
     }
 
+    /**
+     * Récupère les statistiques globales des rapports (nombre total, par statut).
+     * @return array Statistiques agrégées.
+     */
     public function obtenirStatistiquesGlobalesRapports(): array
     {
-        $sql = "SELECT sr.libelle_statut_rapport, COUNT(re.id_rapport_etudiant) as nombre
-                FROM statut_rapport_ref sr
-                LEFT JOIN rapport_etudiant re ON sr.id_statut_rapport = re.id_statut_rapport
-                GROUP BY sr.id_statut_rapport, sr.libelle_statut_rapport
-                ORDER BY sr.id_statut_rapport";
-        $declaration = $this->modeleRapportEtudiant->executerRequete($sql);
-        return $declaration->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        return [
+            'total_rapports_soumis' => $this->rapportEtudiantModel->compterParCritere([]),
+            'rapports_en_attente_conformite' => $this->rapportEtudiantModel->compterParCritere(['id_statut_rapport' => 'RAP_SOUMIS']),
+            'rapports_en_attente_commission' => $this->rapportEtudiantModel->compterParCritere(['id_statut_rapport' => 'RAP_EN_COMM']),
+            'rapports_finalises' => $this->rapportEtudiantModel->compterParCritere(['id_statut_rapport' => ['operator' => 'in', 'values' => ['RAP_VALID', 'RAP_REFUSE']]]),
+            // Ajoutez d'autres statistiques pertinentes
+        ];
     }
 
-    public function consulterJournauxActionsUtilisateurs(array $filtres = [], int $limite = 50, int $page = 1): array
+    /**
+     * Consulte les journaux des actions utilisateurs.
+     * @param array $filtres Critères de filtrage (ex: numero_utilisateur, id_action).
+     * @param int $limit Limite de résultats.
+     * @param int $offset Offset pour la pagination.
+     * @return array Liste des actions journalisées.
+     */
+    public function consulterJournauxActionsUtilisateurs(array $filtres = [], int $limit = 50, int $offset = 0): array
     {
-        $offset = ($page - 1) * $limite;
-        $conditions = [];
-        $parametres = [':limite' => $limite, ':offset' => $offset];
+        // Récupérer les enregistrements, potentiellement avec jointures sur utilisateur et action pour les libellés
+        $logs = $this->enregistrerModel->trouverParCritere($filtres, ['*'], 'AND', 'date_action DESC', $limit, $offset);
 
-        if (!empty($filtres['numero_utilisateur'])) {
-            $conditions[] = "e.numero_utilisateur = :num_user";
-            $parametres[':num_user'] = $filtres['numero_utilisateur'];
+        foreach ($logs as &$log) {
+            $user = $this->utilisateurModel->trouverParIdentifiant($log['numero_utilisateur'], ['login_utilisateur', 'email_principal']);
+            $actionRef = $this->actionModel->trouverParIdentifiant($log['id_action'], ['libelle_action']);
+            $log['login_utilisateur'] = $user['login_utilisateur'] ?? 'Inconnu';
+            $log['libelle_action_ref'] = $actionRef['libelle_action'] ?? 'Action inconnue';
+            // Décode les détails JSON si existants
+            if ($log['details_action']) {
+                $log['details_action_decoded'] = json_decode($log['details_action'], true);
+            }
+        }
+        return $logs;
+    }
+
+    /**
+     * Consulte les traces d'accès aux fonctionnalités (via la table `pister`).
+     * @param array $filtres Critères de filtrage (ex: numero_utilisateur, id_traitement).
+     * @param int $limit Limite de résultats.
+     * @param int $offset Offset pour la pagination.
+     * @return array Liste des traces d'accès.
+     */
+    public function consulterTracesAccesFonctionnalites(array $filtres = [], int $limit = 50, int $offset = 0): array
+    {
+        $traces = $this->pisterModel->trouverParCritere($filtres, ['*'], 'AND', 'date_pister DESC', $limit, $offset);
+
+        foreach ($traces as &$trace) {
+            $user = $this->utilisateurModel->trouverParIdentifiant($trace['numero_utilisateur'], ['login_utilisateur']);
+            $traitement = $this->traitementModel->trouverParIdentifiant($trace['id_traitement'], ['libelle_traitement']);
+            $trace['login_utilisateur'] = $user['login_utilisateur'] ?? 'Inconnu';
+            $trace['libelle_traitement_ref'] = $traitement['libelle_traitement'] ?? 'Traitement inconnu';
+        }
+        return $traces;
+    }
+
+    /**
+     * Liste les PV éligibles à l'archivage (ex: PV validés depuis plus d'un an).
+     * @param int $anneesAnciennete Le nombre d'années après lequel un PV est éligible à l'archivage.
+     * @return array Liste des PV éligibles.
+     */
+    public function listerPvEligiblesArchivage(int $anneesAnciennete = 1): array
+    {
+        $dateLimite = (new \DateTime())->modify("-{$anneesAnciennete} years")->format('Y-m-d H:i:s');
+        // Trouver les PV validés avant la date limite
+        return $this->compteRenduModel->trouverParCritere([
+            'id_statut_pv' => 'PV_VALID',
+            'date_creation_pv' => ['operator' => '<', 'value' => $dateLimite]
+        ]);
+    }
+
+    /**
+     * Implémente la logique d'archivage d'un PV (déplacement de données, compression, etc.).
+     * @param string $idCompteRendu L'ID du PV à archiver.
+     * @return bool Vrai si l'archivage a réussi.
+     * @throws ElementNonTrouveException Si le PV n'est pas trouvé.
+     * @throws OperationImpossibleException En cas d'erreur d'archivage.
+     */
+    public function archiverPv(string $idCompteRendu): bool
+    {
+        $pv = $this->compteRenduModel->trouverParIdentifiant($idCompteRendu);
+        if (!$pv) {
+            throw new ElementNonTrouveException("PV non trouvé pour archivage.");
+        }
+        if ($pv['id_statut_pv'] !== 'PV_VALID') {
+            throw new OperationImpossibleException("Seuls les PV validés peuvent être archivés.");
         }
 
-        $sqlWhere = !empty($conditions) ? "WHERE " . implode(" AND ", $conditions) : "";
+        $this->compteRenduModel->commencerTransaction();
+        try {
+            // Logique d'archivage:
+            // 1. Déplacer les données du PV vers une table d'archive (`compte_rendu_archive`)
+            // 2. Supprimer le PV de la table principale `compte_rendu`
+            // 3. Optionnel: Compresser le fichier PDF associé ou le déplacer vers un stockage froid.
 
-        $sql = "SELECT e.*, u.login_utilisateur, a.libelle_action 
-                FROM enregistrer e 
-                JOIN utilisateur u ON e.numero_utilisateur = u.numero_utilisateur
-                JOIN action a ON e.id_action = a.id_action
-                {$sqlWhere}
-                ORDER BY e.date_action DESC 
-                LIMIT :limite OFFSET :offset";
+            // Pour l'exemple, nous allons juste "marquer" comme archivé ou simuler la suppression.
+            // Dans une vraie implémentation, vous inséreriez dans une table d'archive avant de supprimer.
+            $success = $this->compteRenduModel->supprimerParIdentifiant($idCompteRendu); // Simule l'archivage par suppression
 
-        $declaration = $this->modeleEnregistrer->executerRequete($sql, $parametres);
-        return $declaration->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    }
+            if (!$success) {
+                throw new OperationImpossibleException("Échec de l'archivage du PV {$idCompteRendu}.");
+            }
 
-    public function consulterTracesAccesFonctionnalites(array $filtres = [], int $limite = 50, int $page = 1): array
-    {
-        $offset = ($page - 1) * $limite;
-        $conditions = [];
-        $parametres = [':limite' => $limite, ':offset' => $offset];
-
-        $sqlWhere = !empty($conditions) ? "WHERE " . implode(" AND ", $conditions) : "";
-
-        $sql = "SELECT p.*, u.login_utilisateur, t.libelle_traitement 
-                FROM pister p 
-                JOIN utilisateur u ON p.numero_utilisateur = u.numero_utilisateur
-                JOIN traitement t ON p.id_traitement = t.id_traitement
-                {$sqlWhere}
-                ORDER BY p.date_pister DESC 
-                LIMIT :limite OFFSET :offset";
-
-        $declaration = $this->modelePister->executerRequete($sql, $parametres);
-        return $declaration->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    }
-
-    public function listerPvEligiblesArchivage(array $criteres = []): array
-    {
-        $conditions = ["cr.id_statut_pv = 3"];
-        $parametres = [];
-
-        if (!empty($criteres['date_validation_avant'])) {
-            $conditions[] = "vp.date_validation < :date_validation_avant";
-            $parametres[':date_validation_avant'] = $criteres['date_validation_avant'];
+            $this->compteRenduModel->validerTransaction();
+            $this->supervisionService->enregistrerAction(
+                $_SESSION['user_id'] ?? 'SYSTEM',
+                'ARCHIVAGE_PV',
+                "PV '{$idCompteRendu}' archivé.",
+                $idCompteRendu,
+                'CompteRendu'
+            );
+            return true;
+        } catch (\Exception $e) {
+            $this->compteRenduModel->annulerTransaction();
+            $this->supervisionService->enregistrerAction(
+                $_SESSION['user_id'] ?? 'SYSTEM',
+                'ECHEC_ARCHIVAGE_PV',
+                "Erreur archivage PV {$idCompteRendu}: " . $e->getMessage()
+            );
+            throw $e;
         }
-
-        $sqlWhere = "WHERE " . implode(" AND ", $conditions);
-
-        $sql = "SELECT cr.* FROM compte_rendu cr
-                INNER JOIN validation_pv vp ON cr.id_compte_rendu = vp.id_compte_rendu 
-                {$sqlWhere}
-                GROUP BY cr.id_compte_rendu
-                ORDER BY MAX(vp.date_validation) ASC";
-
-        $declaration = $this->modeleCompteRendu->executerRequete($sql, $parametres);
-        return $declaration->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 }

@@ -1,81 +1,135 @@
 <?php
-
 namespace App\Backend\Service\ReportingAdmin;
 
-use App\Backend\Model\AnneeAcademique;
-use App\Backend\Model\Enregistrer;
-use App\Backend\Model\RapportEtudiant;
-use App\Backend\Model\Utilisateur;
 use PDO;
+use App\Backend\Model\RapportEtudiant;
+use App\Backend\Model\CompteRendu;
+use App\Backend\Model\Utilisateur;
+use App\Backend\Model\AnneeAcademique;
+use App\Backend\Model\Enregistrer; // Pour les statistiques d'actions
+use App\Backend\Model\Pister; // Pour les traces d'accès
+use App\Backend\Service\SupervisionAdmin\ServiceSupervisionAdmin;
+use App\Backend\Exception\OperationImpossibleException;
 
-class ServiceReportingAdmin
+class ServiceReportingAdmin implements ServiceReportingAdminInterface
 {
-    private RapportEtudiant $modeleRapportEtudiant;
-    private AnneeAcademique $modeleAnneeAcademique;
-    private Utilisateur $modeleUtilisateur;
-    private Enregistrer $modeleEnregistrer;
-    private PDO $db;
+    private RapportEtudiant $rapportEtudiantModel;
+    private CompteRendu $compteRenduModel;
+    private Utilisateur $utilisateurModel;
+    private AnneeAcademique $anneeAcademiqueModel;
+    private Enregistrer $enregistrerModel; // Nouveau pour audit
+    private Pister $pisterModel; // Nouveau pour traces
+    private ServiceSupervisionAdmin $supervisionService;
 
-    public function __construct(
-        RapportEtudiant $modeleRapportEtudiant,
-        AnneeAcademique $modeleAnneeAcademique,
-        Utilisateur $modeleUtilisateur,
-        Enregistrer $modeleEnregistrer,
-        PDO $db
-    ) {
-        $this->modeleRapportEtudiant = $modeleRapportEtudiant;
-        $this->modeleAnneeAcademique = $modeleAnneeAcademique;
-        $this->modeleUtilisateur = $modeleUtilisateur;
-        $this->modeleEnregistrer = $modeleEnregistrer;
-        $this->db = $db;
+    public function __construct(PDO $db, ServiceSupervisionAdmin $supervisionService)
+    {
+        $this->rapportEtudiantModel = new RapportEtudiant($db);
+        $this->compteRenduModel = new CompteRendu($db);
+        $this->utilisateurModel = new Utilisateur($db);
+        $this->anneeAcademiqueModel = new AnneeAcademique($db);
+        $this->enregistrerModel = new Enregistrer($db); // Initialisation
+        $this->pisterModel = new Pister($db); // Initialisation
+        $this->supervisionService = $supervisionService;
     }
 
-    public function genererRapportTauxValidation(int $idAnneeAcademique, ?string $critereSupplementaire = null): array
+    /**
+     * Génère un rapport sur les taux de validation des rapports étudiants.
+     * Inclut le nombre total de rapports, validés, refusés, en attente, etc.
+     * @param string|null $idAnneeAcademique L'ID de l'année académique pour filtrer.
+     * @return array Rapport agrégé.
+     */
+    public function genererRapportTauxValidation(?string $idAnneeAcademique = null): array
     {
-        $sql = "SELECT sr.libelle as statut_rapport, COUNT(re.id_rapport_etudiant) as nombre_rapports
-                FROM rapport_etudiant re
-                JOIN etudiant et ON re.numero_carte_etudiant = et.numero_carte_etudiant
-                JOIN inscrire i ON et.numero_carte_etudiant = i.numero_carte_etudiant AND i.id_annee_academique = :id_annee_academique
-                JOIN statut_rapport_ref sr ON re.id_statut_rapport = sr.id_statut_rapport ";
-
-        $parametres = [':id_annee_academique' => $idAnneeAcademique];
-        $conditionsSupplementaires = "";
-
-        if ($critereSupplementaire) {
-            // Exemple: $conditionsSupplementaires = " AND et.id_niveau_etude = :id_niveau";
-            // $parametres[':id_niveau'] = $valeurCritere;
+        $criteres = [];
+        if ($idAnneeAcademique) {
+            // Si les rapports ont une FK vers annee_academique, ajoutez le critère ici.
+            // Sinon, la date_soumission du rapport doit être utilisée avec les dates de l'année académique.
+            $annee = $this->anneeAcademiqueModel->trouverParIdentifiant($idAnneeAcademique);
+            if (!$annee) {
+                throw new ElementNonTrouveException("Année académique non trouvée.");
+            }
+            $criteres['date_soumission'] = ['operator' => 'BETWEEN', 'values' => ["{$annee['date_debut']} 00:00:00", "{$annee['date_fin']} 23:59:59"]];
         }
-        $sql .= $conditionsSupplementaires . " GROUP BY sr.id_statut_rapport, sr.libelle ORDER BY sr.id_statut_rapport";
 
-        $declaration = $this->db->prepare($sql);
-        $declaration->execute($parametres);
-        return $declaration->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    }
+        $totalRapports = $this->rapportEtudiantModel->compterParCritere($criteres);
+        $rapportsValides = $this->rapportEtudiantModel->compterParCritere(array_merge($criteres, ['id_statut_rapport' => 'RAP_VALID']));
+        $rapportsRefuses = $this->rapportEtudiantModel->compterParCritere(array_merge($criteres, ['id_statut_rapport' => 'RAP_REFUSE']));
+        $rapportsEnAttente = $this->rapportEtudiantModel->compterParCritere(array_merge($criteres, ['id_statut_rapport' => ['operator' => 'in', 'values' => ['RAP_SOUMIS', 'RAP_EN_COMM', 'RAP_NON_CONF', 'RAP_CORRECT']] ]));
 
-    public function genererRapportDelaisMoyensParEtape(): array
-    {
-        // Cette méthode nécessite une modélisation plus poussée du suivi des dates de changement de statut.
-        // Par exemple, une table historique des statuts de rapport.
-        // Pour l'instant, elle retourne un placeholder.
-        return ["message_informatif" => "La génération du rapport des délais moyens nécessite une table d'historique des statuts."];
-    }
+        $tauxValidation = ($totalRapports > 0) ? round(($rapportsValides / $totalRapports) * 100, 2) : 0;
+        $tauxRefus = ($totalRapports > 0) ? round(($rapportsRefuses / $totalRapports) * 100, 2) : 0;
 
-    public function genererStatistiquesUtilisation(): array
-    {
-        $nbUtilisateursActifs = $this->modeleUtilisateur->compterParCritere(['actif' => 1]);
-        $actionsRecentes = $this->modeleEnregistrer->executerRequete(
-            "SELECT a.lib_action, COUNT(e.id_action) as nombre_occurrences
-             FROM enregistrer e
-             JOIN action a ON e.id_action = a.id_action
-             WHERE e.date_action >= DATE_SUB(NOW(), INTERVAL 7 DAY)
-             GROUP BY e.id_action, a.lib_action
-             ORDER BY nombre_occurrences DESC
-             LIMIT 10"
-        )->fetchAll(PDO::FETCH_ASSOC);
+        $this->supervisionService->enregistrerAction(
+            $_SESSION['user_id'] ?? 'SYSTEM',
+            'GENERATION_RAPPORT_VALIDATION',
+            "Rapport de taux de validation généré" . ($idAnneeAcademique ? " pour l'année {$idAnneeAcademique}." : ".")
+        );
 
         return [
-            'nombre_utilisateurs_actifs' => $nbUtilisateursActifs,
-            'actions_frequentes_semaine_passee' => $actionsRecentes ?: []
+            'total_rapports' => $totalRapports,
+            'rapports_valides' => $rapportsValides,
+            'rapports_refuses' => $rapportsRefuses,
+            'rapports_en_attente' => $rapportsEnAttente,
+            'taux_validation' => $tauxValidation,
+            'taux_refus' => $tauxRefus,
+            'annee_concernee' => $idAnneeAcademique ?? 'Toutes'
+        ];
+    }
+
+    /**
+     * Génère un rapport sur les délais moyens par étape du workflow de rapport.
+     * @return array Tableau des délais moyens.
+     */
+    public function genererRapportDelaisMoyensParEtape(): array
+    {
+        // Cette fonctionnalité nécessite une logique complexe de calcul des durées entre les changements de statut.
+        // La table `enregistrer` (audit) ou des champs de date dédiés dans `rapport_etudiant` seraient nécessaires.
+        // Exemples de calculs:
+        // - Délai Soumission -> Conformité (date_soumission de rapport_etudiant vs date_verification_conformite de approuver)
+        // - Délai Conformité -> Décision Commission (date_verification_conformite de approuver vs date_vote du dernier vote de vote_commission)
+        // - Délai Décision Commission -> PV Validé (date du dernier vote de vote_commission vs date_creation_pv de compte_rendu + date_validation de validation_pv)
+
+        // Simulé pour l'exemple
+        $delais = [
+            'soumission_a_conformite_jours' => 'Non calculé', // Rapports en attente
+            'conformite_a_decision_jours' => 'Non calculé',
+            'decision_a_pv_valide_jours' => 'Non calculé'
+        ];
+
+        $this->supervisionService->enregistrerAction(
+            $_SESSION['user_id'] ?? 'SYSTEM',
+            'GENERATION_RAPPORT_DELAIS',
+            "Rapport des délais moyens généré."
+        );
+
+        return $delais;
+    }
+
+    /**
+     * Génère des statistiques globales d'utilisation du système.
+     * Ex: nombre d'utilisateurs par type, nombre d'actions journalisées, activités récentes.
+     * @return array Statistiques d'utilisation.
+     */
+    public function genererStatistiquesUtilisation(): array
+    {
+        $totalUsers = $this->utilisateurModel->compterParCritere([]);
+        $usersByRole = $this->utilisateurModel->trouverTout(['id_type_utilisateur']);
+        $userCountsByType = array_count_values(array_column($usersByRole, 'id_type_utilisateur'));
+
+        $totalActionsLogged = $this->enregistrerModel->compterParCritere([]);
+        $recentLogins = $this->enregistrerModel->compterParCritere(['libelle_action' => 'SUCCES_LOGIN', 'date_action' => ['operator' => '>', 'value' => (new \DateTime())->modify('-7 days')->format('Y-m-d H:i:s')]]);
+
+        $this->supervisionService->enregistrerAction(
+            $_SESSION['user_id'] ?? 'SYSTEM',
+            'GENERATION_RAPPORT_UTILISATION',
+            "Rapport des statistiques d'utilisation généré."
+        );
+
+        return [
+            'total_utilisateurs' => $totalUsers,
+            'utilisateurs_par_type' => $userCountsByType,
+            'total_actions_journalisees' => $totalActionsLogged,
+            'connexions_recentes_7j' => $recentLogins,
         ];
     }
 }

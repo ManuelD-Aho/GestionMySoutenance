@@ -1,133 +1,118 @@
 <?php
-
 namespace App\Backend\Service\GestionAcademique;
-
-// Il n'est généralement pas nécessaire d'importer les modèles ici,
-// mais vous pourriez vouloir ajouter des PHPDoc pour clarifier les types de retour si des objets complexes sont retournés.
 
 interface ServiceGestionAcademiqueInterface
 {
     /**
      * Crée une nouvelle inscription administrative pour un étudiant.
-     *
      * @param string $numeroCarteEtudiant Le numéro de carte de l'étudiant.
-     * @param int $idNiveauEtude L'ID du niveau d'étude.
-     * @param int $idAnneeAcademique L'ID de l'année académique.
-     * @param float $montantInscription Le montant de l'inscription.
-     * @param string $dateInscription La date de l'inscription (format YYYY-MM-DD).
-     * @param int $idStatutPaiement L'ID du statut du paiement.
-     * @param string|null $datePaiement La date du paiement (format YYYY-MM-DD), optionnelle.
-     * @param string|null $numeroRecuPaiement Le numéro du reçu de paiement, optionnel.
-     * @param int|null $idDecisionPassage L'ID de la décision de passage, optionnel.
-     * @return array|null Les données de l'inscription créée (ou une représentation) ou null en cas d'échec.
+     * @param string $idNiveauEtude L'ID du niveau d'étude.
+     * @param string $idAnneeAcademique L'ID de l'année académique.
+     * @param float $montantInscription Le montant des frais d'inscription.
+     * @param string $idStatutPaiement Le statut initial du paiement.
+     * @param string|null $numeroRecuPaiement Le numéro du reçu de paiement si payé.
+     * @return bool Vrai si l'inscription a été créée avec succès.
+     * @throws \Exception En cas d'erreur.
      */
-    public function creerInscriptionAdministrative(
-        string $numeroCarteEtudiant,
-        int $idNiveauEtude,
-        int $idAnneeAcademique,
-        float $montantInscription,
-        string $dateInscription,
-        int $idStatutPaiement,
-        ?string $datePaiement,
-        ?string $numeroRecuPaiement,
-        ?int $idDecisionPassage
-    ): ?array;
+    public function creerInscriptionAdministrative(string $numeroCarteEtudiant, string $idNiveauEtude, string $idAnneeAcademique, float $montantInscription, string $idStatutPaiement, ?string $numeroRecuPaiement = null): bool;
 
     /**
      * Met à jour une inscription administrative existante.
-     *
-     * @param string $numeroCarteEtudiant Le numéro de carte de l'étudiant.
-     * @param int $idNiveauEtude L'ID du niveau d'étude.
-     * @param int $idAnneeAcademique L'ID de l'année académique.
-     * @param array $donneesAMettreAJour Les données à mettre à jour.
-     * @return bool True si la mise à jour a réussi, false sinon.
+     * @param string $numeroCarteEtudiant L'ID de l'étudiant.
+     * @param string $idNiveauEtude L'ID du niveau d'étude.
+     * @param string $idAnneeAcademique L'ID de l'année académique.
+     * @param array $donnees Les données à mettre à jour.
+     * @return bool Vrai si la mise à jour réussit.
+     * @throws \Exception En cas d'erreur.
      */
-    public function mettreAJourInscriptionAdministrative(
-        string $numeroCarteEtudiant,
-        int $idNiveauEtude,
-        int $idAnneeAcademique,
-        array $donneesAMettreAJour
-    ): bool;
+    public function mettreAJourInscriptionAdministrative(string $numeroCarteEtudiant, string $idNiveauEtude, string $idAnneeAcademique, array $donnees): bool;
 
     /**
-     * Enregistre la note d'un ECUE pour un étudiant.
-     *
+     * Liste les inscriptions administratives, avec filtres et pagination.
+     * @param array $criteres Critères de filtre.
+     * @param int $page Numéro de page.
+     * @param int $elementsParPage Nombre d'éléments par page.
+     * @return array Liste des inscriptions.
+     */
+    public function listerInscriptionsAdministratives(array $criteres = [], int $page = 1, int $elementsParPage = 20): array;
+
+    /**
+     * Enregistre ou met à jour la note d'un étudiant pour un ECUE.
      * @param string $numeroCarteEtudiant Le numéro de carte de l'étudiant.
-     * @param string $numeroEnseignantEvaluateur Le numéro de l'enseignant évaluateur.
-     * @param int $idEcue L'ID de l'ECUE.
+     * @param string $idEcue L'ID de l'ECUE.
      * @param float $note La note obtenue.
-     * @param string $dateEvaluation La date de l'évaluation (format YYYY-MM-DD).
-     * @return bool True si l'enregistrement a réussi, false sinon.
+     * @return bool Vrai si l'opération a réussi.
+     * @throws \Exception En cas d'erreur.
      */
-    public function enregistrerNoteEcue(
-        string $numeroCarteEtudiant,
-        string $numeroEnseignantEvaluateur,
-        int $idEcue,
-        float $note,
-        string $dateEvaluation
-    ): bool;
+    public function enregistrerNoteEcue(string $numeroCarteEtudiant, string $idEcue, float $note): bool;
 
     /**
-     * Enregistre les informations d'un stage pour un étudiant.
-     *
+     * Enregistre ou met à jour les informations d'un stage pour un étudiant.
      * @param string $numeroCarteEtudiant Le numéro de carte de l'étudiant.
-     * @param int $idEntreprise L'ID de l'entreprise d'accueil.
-     * @param string $dateDebutStage La date de début du stage (format YYYY-MM-DD).
-     * @param string|null $dateFinStage La date de fin du stage (format YYYY-MM-DD), optionnelle.
-     * @param string|null $sujetStage Le sujet du stage, optionnel.
-     * @param string|null $nomTuteurEntreprise Le nom du tuteur en entreprise, optionnel.
-     * @return bool True si l'enregistrement a réussi, false sinon.
+     * @param string $idEntreprise L'ID de l'entreprise.
+     * @param string $dateDebutStage Date de début du stage (YYYY-MM-DD).
+     * @param string|null $dateFinStage Date de fin du stage (YYYY-MM-DD).
+     * @param string|null $sujetStage Sujet du stage.
+     * @param string|null $nomTuteurEntreprise Nom du tuteur en entreprise.
+     * @return bool Vrai si l'opération a réussi.
+     * @throws \Exception En cas d'erreur.
      */
-    public function enregistrerInformationsStage(
-        string $numeroCarteEtudiant,
-        int $idEntreprise,
-        string $dateDebutStage,
-        ?string $dateFinStage,
-        ?string $sujetStage,
-        ?string $nomTuteurEntreprise
-    ): bool;
+    public function enregistrerInformationsStage(string $numeroCarteEtudiant, string $idEntreprise, string $dateDebutStage, ?string $dateFinStage = null, ?string $sujetStage = null, ?string $nomTuteurEntreprise = null): bool;
 
     /**
-     * Lie un grade à un enseignant.
-     *
-     * @param string $numeroEnseignant Le numéro de l'enseignant.
-     * @param int $idGrade L'ID du grade.
-     * @param string $dateAcquisition La date d'acquisition du grade (format YYYY-MM-DD).
-     * @return bool True si la liaison a réussi, false sinon.
+     * Applique une pénalité à un étudiant.
+     * @param string $numeroCarteEtudiant Le numéro de carte de l'étudiant.
+     * @param float $montantPenalite Le montant de la pénalité.
+     * @param string $motif Le motif de la pénalité.
+     * @return string L'ID de la pénalité créée.
+     * @throws \Exception En cas d'erreur.
      */
-    public function lierGradeAEnseignant(
-        string $numeroEnseignant,
-        int $idGrade,
-        string $dateAcquisition
-    ): bool;
+    public function appliquerPenalite(string $numeroCarteEtudiant, float $montantPenalite, string $motif): string;
 
     /**
-     * Lie une fonction à un enseignant.
-     *
-     * @param string $numeroEnseignant Le numéro de l'enseignant.
-     * @param int $idFonction L'ID de la fonction.
-     * @param string $dateDebutOccupation La date de début d'occupation de la fonction (format YYYY-MM-DD).
-     * @param string|null $dateFinOccupation La date de fin d'occupation (format YYYY-MM-DD), optionnelle.
-     * @return bool True si la liaison a réussi, false sinon.
+     * Régularise une pénalité pour un étudiant.
+     * @param string $idPenalite L'ID de la pénalité à régulariser.
+     * @param string $numeroPersonnelAdministratif Le numéro du personnel qui régularise.
+     * @return bool Vrai si la pénalité a été régularisée.
+     * @throws \Exception En cas d'erreur.
      */
-    public function lierFonctionAEnseignant(
-        string $numeroEnseignant,
-        int $idFonction,
-        string $dateDebutOccupation,
-        ?string $dateFinOccupation
-    ): bool;
+    public function regulariserPenalite(string $idPenalite, string $numeroPersonnelAdministratif): bool;
+
+    /**
+     * Vérifie si un étudiant est éligible à la soumission d'un rapport.
+     * @param string $numeroCarteEtudiant Le numéro de carte de l'étudiant.
+     * @param string $idAnneeAcademique L'ID de l'année académique actuelle.
+     * @return bool Vrai si l'étudiant est éligible, faux sinon.
+     */
+    public function estEtudiantEligibleSoumission(string $numeroCarteEtudiant, string $idAnneeAcademique): bool;
+
+    /**
+     * Lie un grade à un enseignant (historise l'acquisition d'un grade).
+     * @param string $idGrade L'ID du grade.
+     * @param string $numeroEnseignant Le numéro de l'enseignant.
+     * @param string $dateAcquisition Date d'acquisition (YYYY-MM-DD).
+     * @return bool Vrai si l'opération a réussi.
+     * @throws \Exception En cas d'erreur.
+     */
+    public function lierGradeAEnseignant(string $idGrade, string $numeroEnseignant, string $dateAcquisition): bool;
+
+    /**
+     * Lie une fonction à un enseignant (historise l'occupation d'une fonction).
+     * @param string $idFonction L'ID de la fonction.
+     * @param string $numeroEnseignant Le numéro de l'enseignant.
+     * @param string $dateDebutOccupation Date de début de l'occupation (YYYY-MM-DD).
+     * @param string|null $dateFinOccupation Date de fin de l'occupation (YYYY-MM-DD).
+     * @return bool Vrai si l'opération a réussi.
+     * @throws \Exception En cas d'erreur.
+     */
+    public function lierFonctionAEnseignant(string $idFonction, string $numeroEnseignant, string $dateDebutOccupation, ?string $dateFinOccupation = null): bool;
 
     /**
      * Lie une spécialité à un enseignant.
-     *
+     * @param string $idSpecialite L'ID de la spécialité.
      * @param string $numeroEnseignant Le numéro de l'enseignant.
-     * @param int $idSpecialite L'ID de la spécialité.
-     * @return bool True si la liaison a réussi, false sinon.
+     * @return bool Vrai si l'opération a réussi.
+     * @throws \Exception En cas d'erreur.
      */
-    public function lierSpecialiteAEnseignant(
-        string $numeroEnseignant,
-        int $idSpecialite
-    ): bool;
-
-    // Ajoutez ici d'autres signatures de méthodes si votre service est censé en avoir plus.
+    public function lierSpecialiteAEnseignant(string $idSpecialite, string $numeroEnseignant): bool;
 }
