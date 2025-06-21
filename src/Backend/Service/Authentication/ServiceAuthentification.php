@@ -21,10 +21,12 @@ use App\Backend\Exception\EmailNonValideException;
 use App\Backend\Exception\TokenExpireException;
 use App\Backend\Exception\TokenInvalideException;
 use App\Backend\Exception\MotDePasseInvalideException;
-use App\Backend\Exception\DoublonException; // Importer la nouvelle exception
+use App\Backend\Exception\DoublonException;
+use App\Backend\Exception\ElementNonTrouveException;
 
 class ServiceAuthentification implements ServiceAuthenticationInterface
 {
+    private PDO $db;
     private Utilisateur $utilisateurModel;
     private HistoriqueMotDePasse $historiqueMdpModel;
     private ServiceEmail $emailService;
@@ -46,6 +48,7 @@ class ServiceAuthentification implements ServiceAuthenticationInterface
         ServiceSupervisionAdmin $supervisionService,
         IdentifiantGenerator $idGenerator // Injecter le générateur
     ) {
+        $this->db = $db;
         $this->utilisateurModel = new Utilisateur($db);
         $this->historiqueMdpModel = new HistoriqueMotDePasse($db);
         $this->typeUtilisateurModel = new TypeUtilisateur($db); // Initialiser
