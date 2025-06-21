@@ -1,186 +1,153 @@
 <?php
-// File: src/Backend/Controller/DashboardController.php
 namespace App\Backend\Controller;
 
-use App\Backend\Model\TypeUtilisateur;
-use App\Backend\Model\Utilisateur;
-use App\Backend\Model\RapportEtudiant;
-// TODO: Add other necessary models like CompteRendu, Soutenance, etc. as needed for stats
-use Config\Database;
+use App\Backend\Service\Authentication\ServiceAuthentification;
+use App\Backend\Service\Permissions\ServicePermissions;
+use App\Backend\Util\FormValidator;
+use App\Backend\Exception\ElementNonTrouveException;
+use App\Backend\Exception\AuthenticationException; // Si requireLogin() renvoie des exceptions
 
-// Assurez-vous que BaseController est correctement namespacé et inclus.
-// use Backend\Controller\BaseController; (Si BaseController est dans le même namespace)
-// ou use App\Controller\BaseController; (Si BaseController est dans un namespace App\Controller)
-
-class DashboardController extends BaseController // Assurez-vous que BaseController existe et est hérité
+class DashboardController extends BaseController
 {
+    // Les services authService et permissionService sont déjà dans BaseController, pas besoin de les redéclarer ici
+    // à moins d'avoir besoin de les réassigner pour un accès plus direct.
+
+    public function __construct(
+        ServiceAuthentification $authService,
+        ServicePermissions $permissionService,
+        FormValidator $validator
+    ) {
+        parent::__construct($authService, $permissionService, $validator);
+    }
+
+    /**
+     * Affiche le tableau de bord général, en adaptant le contenu et le menu au rôle de l'utilisateur.
+     */
     public function index(): void
     {
-        if (session_status() === PHP_SESSION_NONE) {
-            session_start();
-        }
-
-        // Vérifier si l'utilisateur est connecté
-        if (!isset($_SESSION['user'])) {
-            header('Location: /login');
-            exit;
-        }
-
-        $user = $_SESSION['user'];
-        $userTypeId = $user['id_type_utilisateur'] ?? null;
-        $userRoleLabel = $this->getUserRoleLabel($userTypeId);
-
-        $_SESSION['user_role_label'] = $userRoleLabel;
-
-        $pageTitle = 'Tableau de Bord - ' . $userRoleLabel;
-        $menuItems = $this->getMenuItemsForRole($userRoleLabel);
-        $dashboardData = $this->getDashboardDataForRole($userRoleLabel, $user);
-        $contentView = $this->getDashboardContentViewForRole($userRoleLabel);
-
-        $dataToRender = [
-            'pageTitle' => $pageTitle,
-            'menuItems' => $menuItems,
-            'currentUser' => $user,
-            'userRole' => $userRoleLabel,
-            'contentView' => $contentView,
-        ];
-
-        $renderData = array_merge($dataToRender, $dashboardData);
-        $this->render('src/Frontend/views/layout/app.php', $renderData);
-    }
-
-    private function getUserRoleLabel(?int $userTypeId): string
-    {
-        if ($userTypeId === null) return 'Invité';
+        $this->requireLogin(); // Exiger que l'utilisateur soit connecté pour accéder au tableau de bord
 
         try {
-            $pdo = Database::getInstance()->getConnection();
-            $typeUtilisateurModel = new TypeUtilisateur($pdo);
-            $typeInfo = $typeUtilisateurModel->find($userTypeId);
-            // Ensure consistency, matching the switch cases below if they use "Administrateur Systeme"
-            if ($typeInfo && $typeInfo['lib_type_utilisateur'] === 'Administrateur Système') {
-                return 'Administrateur Systeme'; 
+            $currentUser = $this->getCurrentUser();
+            if (!$currentUser) { // Ne devrait pas arriver si requireLogin() fonctionne
+                throw new AuthenticationException("Utilisateur non connecté ou session invalide.");
             }
-            return $typeInfo ? $typeInfo['lib_type_utilisateur'] : 'Rôle Inconnu';
+
+            $userType = $currentUser['id_type_utilisateur']; // Ex: 'TYPE_ADMIN', 'TYPE_ETUD', 'TYPE_ENS', 'TYPE_PERS_ADMIN'
+            $userRoleLabel = $this->getUserRoleLabel($userType);
+
+            // Récupérer les éléments de menu dynamiquement basés sur les permissions de l'utilisateur
+            $menuItems = $this->getMenuItemsForUserPermissions();
+
+            // Récupérer le contenu et les données spécifiques au rôle
+            $dashboardContentData = $this->getDashboardDataForRole($userType, $currentUser);
+            $dashboardContentView = $this->getDashboardContentViewForRole($userType);
+
+            $data = [
+                'page_title' => "Tableau de Bord " . $userRoleLabel,
+                'current_user' => $currentUser, // Passer les données de l'utilisateur à la vue/layout
+                'menu_items' => $menuItems,
+                'dashboard_content_view' => $dashboardContentView, // Chemin de la sous-vue spécifique au rôle
+                'dashboard_specific_data' => $dashboardContentData, // Données à passer à la sous-vue
+            ];
+
+            // Le layout principal (app.php) va inclure le menu et le header, puis le contenu spécifique du dashboard.
+            $this->render('common/dashboard', $data); // La vue 'common/dashboard' agira comme un conteneur
+        } catch (AuthenticationException $e) {
+            $this->setFlashMessage('error', $e->getMessage());
+            $this->redirect('/login'); // Rediriger vers la page de login en cas de problème d'authentification
         } catch (\Exception $e) {
-            error_log("Error fetching user role label: " . $e->getMessage());
-            return 'Rôle Indisponible';
+            $this->setFlashMessage('error', 'Erreur lors du chargement de votre tableau de bord: ' . $e->getMessage());
+            error_log("Dashboard error for user " . ($currentUser['numero_utilisateur'] ?? 'N/A') . ": " . $e->getMessage());
+            $this->redirect('/login'); // Rediriger en cas d'erreur grave
         }
     }
 
-    private function getMenuItemsForRole(string $role): array
+    /**
+     * Retourne le libellé du rôle de l'utilisateur pour l'affichage.
+     * @param string $userType L'ID du type d'utilisateur.
+     * @return string Le libellé du rôle.
+     */
+    private function getUserRoleLabel(string $userType): string
     {
-        $iconDashboard = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 018.25 20.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25A2.25 2.25 0 0113.5 8.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.01H15.75A2.25 2.25 0 0113.5 18v-2.25z" /></svg>';
-        $iconUsers = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" /></svg>';
-        $iconReports = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg>';
-        $iconProfile = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" /></svg>';
-        // TODO: Add other icons definitions if new essential menu items need them
-
-        $baseItems = [
-            ['label' => 'Tableau de Bord', 'url' => '/dashboard', 'icon' => $iconDashboard],
-        ];
-
-        $roleSpecificItems = [];
-        // TODO: Load role-specific menu items dynamically based on permissions.
-
-        switch ($role) {
-            case 'Administrateur Systeme': 
-                $roleSpecificItems = [
-                    ['label' => 'Gestion Utilisateurs', 'url' => '/admin/users', 'icon' => $iconUsers],
-                ];
-                break;
-            case 'Étudiant':
-                $roleSpecificItems = [
-                    ['label' => 'Mes Rapports', 'url' => '/student/my-reports', 'icon' => $iconReports],
-                    ['label' => 'Mon Profil', 'url' => '/student/profile', 'icon' => $iconProfile],
-                ];
-                break;
-            case 'Enseignant':
-                $roleSpecificItems = [
-                    ['label' => 'Rapports à Évaluer', 'url' => '/teacher/reports-to-evaluate', 'icon' => $iconReports], 
-                    ['label' => 'Mon Profil', 'url' => '/teacher/profile', 'icon' => $iconProfile],
-                ];
-                break;
-            case 'Personnel Administratif':
-                $roleSpecificItems = [
-                    ['label' => 'Validation Rapports', 'url' => '/staff/validate-reports', 'icon' => $iconReports], 
-                ];
-                break;
-        }
-        return array_merge($baseItems, $roleSpecificItems);
+        $typeUser = $this->permissionService->recupererTypeUtilisateurParCode($userType);
+        return $typeUser['libelle_type_utilisateur'] ?? 'Utilisateur';
     }
 
-    private function getDashboardDataForRole(string $role, array $userSessionData): array
+    /**
+     * Récupère les éléments de menu pertinents en fonction des permissions de l'utilisateur connecté.
+     * @return array Tableau des éléments de menu.
+     */
+    private function getMenuItemsForUserPermissions(): array
     {
-        $pdo = Database::getInstance()->getConnection();
-        $userModel = new Utilisateur($pdo);
-        $reportModel = new RapportEtudiant($pdo);
-        // TODO: Instantiate other models like CompteRendu, Soutenance as needed for specific stats.
+        $menu = [];
+        // Accéder aux permissions de l'utilisateur stockées en session
+        $userPermissions = $_SESSION['user_permissions'] ?? [];
 
-        $data = ['stats' => [], 'alerts' => [], 'notifications' => [], 'recent_activity' => []];
+        // Définir les éléments de menu conditionnellement
+        if (in_array('TRAIT_ADMIN_DASHBOARD_ACCEDER', $userPermissions)) {
+            $menu[] = ['label' => 'Admin Dashboard', 'url' => '/dashboard/admin', 'icon' => 'fas fa-cogs'];
+        }
+        if (in_array('TRAIT_ETUDIANT_DASHBOARD_ACCEDER', $userPermissions)) {
+            $menu[] = ['label' => 'Mon Espace Étudiant', 'url' => '/dashboard/etudiant', 'icon' => 'fas fa-user-graduate'];
+        }
+        if (in_array('TRAIT_PERS_ADMIN_DASHBOARD_ACCEDER', $userPermissions)) {
+            $menu[] = ['label' => 'Mon Espace Personnel', 'url' => '/dashboard/personnel-admin', 'icon' => 'fas fa-user-tie'];
+        }
+        if (in_array('TRAIT_COMMISSION_DASHBOARD_ACCEDER', $userPermissions)) {
+            $menu[] = ['label' => 'Mon Espace Commission', 'url' => '/dashboard/commission', 'icon' => 'fas fa-users-cog'];
+        }
+        // Ajoutez d'autres éléments de menu basés sur d'autres permissions
+        // Ex: if (in_array('TRAIT_COMMISSION_PV_LISTER', $userPermissions)) { $menu[] = ['label' => 'Gérer les PV', 'url' => '/dashboard/commission/pv']; }
+        // C'est une simplification. Un système de menu plus élaboré peut être configuré dans un fichier séparé
+        // et être filtré ici.
 
-        switch ($role) {
-            case 'Administrateur Systeme': 
-                $data['stats']['active_users'] = $userModel->count(['actif' => 1]);
-                // Assuming type IDs: 2 for Etudiant, 3 for Enseignant, 4 for Personnel Administratif
-                // These IDs should ideally be constants or fetched/mapped dynamically if they can change.
-                $data['stats']['active_students'] = $userModel->count(['actif' => 1, 'id_type_utilisateur' => 2]); 
-                $data['stats']['active_teachers'] = $userModel->count(['actif' => 1, 'id_type_utilisateur' => 3]); 
-                $data['stats']['active_staff'] = $userModel->count(['actif' => 1, 'id_type_utilisateur' => 4]); 
-                
-                // TODO: Implement reports_submitted_year with date filtering if BaseModel allows, or use a raw query.
-                $data['stats']['reports_submitted_year'] = $reportModel->count([]); // Counts all reports for now
-                $data['stats']['reports_pending_conformity'] = $reportModel->count(['statut_rapport' => 'SOUMIS_EN_ATTENTE_CONFORMITE']); // Use actual status from your app
-                
-                $data['stats']['reports_in_commission'] = 0; // TODO: Implement this statistic (likely needs join or specific query)
-                $data['stats']['reports_validated_commission'] = 0; // TODO: Implement this statistic
-                $data['stats']['defenses_planned'] = 0; // TODO: Implement (requires SoutenanceModel)
-                $data['stats']['defenses_done_year'] = 0; // TODO: Implement (requires SoutenanceModel with date filtering)
-                $data['stats']['pvs_pending'] = 0; // TODO: Implement (requires CompteRenduModel and status)
+        return $menu;
+    }
+
+    /**
+     * Récupère les données spécifiques au tableau de bord pour un rôle donné.
+     * @param string $userType L'ID du type d'utilisateur.
+     * @param array $currentUser Les données de l'utilisateur connecté.
+     * @return array Les données spécifiques au tableau de bord.
+     */
+    private function getDashboardDataForRole(string $userType, array $currentUser): array
+    {
+        $data = [];
+        // Exemple d'injection de services spécifiques ici si nécessaire, ou les contrôleurs spécifiques s'en chargeront
+        // Pour des données globales ou simples, on peut appeler ici.
+
+        switch ($userType) {
+            case 'TYPE_ADMIN':
+                // $reportingService = $this->container->get(ServiceReportingAdmin::class); // Si le conteneur était accessible ici
+                // $data['global_stats'] = $reportingService->genererStatistiquesUtilisation();
+                // Pour cet exemple, les contrôleurs spécifiques de Dashboard (AdminDashboardController) récupéreront leurs propres données.
+                // Ici, nous ne retournons que les données qui sont partagées ou triviales.
                 break;
-            case 'Étudiant':
-                $studentId = $userSessionData['id_etudiant'] ?? null; 
-                if ($studentId) {
-                     $myLastReport = $reportModel->findOneBy(['id_etudiant' => $studentId], ['*'], 'date_soumission DESC');
-                     $data['my_report_status'] = $myLastReport ? $myLastReport['statut_rapport'] : 'Aucun rapport déposé';
-                } else {
-                    $data['my_report_status'] = 'ID etudiant non trouve en session.'; // Corrected typo
-                }
-                $data['next_deadline'] = 'N/A'; // TODO: Implement dynamic deadline logic
+            case 'TYPE_ETUD':
+                // Simuler l'appel à ServiceRapport
+                // $rapportService = $this->container->get(ServiceRapport::class);
+                // $data['current_rapport_status'] = $rapportService->recupererInformationsRapportComplet($currentUser['numero_utilisateur']);
+                // Encore une fois, les contrôleurs spécifiques (EtudiantDashboardController) feront le travail.
                 break;
-            case 'Enseignant':
-                $teacherId = $userSessionData['id_enseignant'] ?? null; 
-                // TODO: Implement reports_to_validate_count. This is complex.
-                $data['reports_to_validate_count'] = 0; 
-                // TODO: Implement supervision_count.
-                $data['supervision_count'] = 0; 
-                // TODO: Implement upcoming_defenses_jury.
-                $data['upcoming_defenses_jury'] = 0; 
-                break;
-            case 'Personnel Administratif':
-                $data['stats']['reports_pending_conformity_staff'] = $reportModel->count(['statut_rapport' => 'SOUMIS_EN_ATTENTE_CONFORMITE']);
-                // TODO: Implement defenses_to_schedule.
-                $data['stats']['defenses_to_schedule'] = 0; 
-                break;
+            // ... autres rôles
         }
         return $data;
     }
 
-    private function getDashboardContentViewForRole(string $role): string
+    /**
+     * Retourne le chemin de la vue de contenu spécifique au rôle.
+     * @param string $userType L'ID du type d'utilisateur.
+     * @return string Le chemin de la sous-vue (ex: 'Administration/dashboard_admin').
+     */
+    private function getDashboardContentViewForRole(string $userType): string
     {
-        $baseViewPath = ROOT_PATH . '/src/Frontend/views/dashboards/';
-
-        switch ($role) {
-            case 'Administrateur Systeme': 
-                return $baseViewPath . 'admin_dashboard_content.php';
-            case 'Étudiant':
-                return $baseViewPath . 'student_dashboard_content.php';
-            case 'Enseignant':
-                return $baseViewPath . 'teacher_dashboard_content.php';
-            case 'Personnel Administratif':
-                return $baseViewPath . 'staff_dashboard_content.php';
-            default:
-                return $baseViewPath . 'default_dashboard_content.php';
-        }
+        return match($userType) {
+            'TYPE_ADMIN' => 'Administration/dashboard_admin',
+            'TYPE_ETUD' => 'Etudiant/dashboard_etudiant',
+            'TYPE_PERS_ADMIN' => 'PersonnelAdministratif/dashboard_personnel',
+            'TYPE_ENS' => 'Commission/dashboard_commission', // Si les enseignants sont uniquement membres de commission
+            default => 'common/default_dashboard_content' // Vue par défaut si le rôle n'est pas géré explicitement
+        };
     }
 }

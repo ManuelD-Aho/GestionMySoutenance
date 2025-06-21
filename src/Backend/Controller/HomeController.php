@@ -1,17 +1,32 @@
 <?php
-
 namespace App\Backend\Controller;
+
+use App\Backend\Service\Authentication\ServiceAuthentification;
+use App\Backend\Service\Permissions\ServicePermissions;
+use App\Backend\Util\FormValidator;
 
 class HomeController extends BaseController
 {
+    public function __construct(
+        ServiceAuthentification $authService,
+        ServicePermissions $permissionService,
+        FormValidator $validator
+    ) {
+        parent::__construct($authService, $permissionService, $validator);
+    }
+
+    /**
+     * Affiche la page d'accueil.
+     * Redirige vers le tableau de bord si l'utilisateur est déjà connecté.
+     */
     public function home(): void
     {
-        // Cette méthode est héritée de BaseController, mais ici tu peux la personnaliser
-        if ($this->authService && $this->authService->estUtilisateurConnecteEtSessionValide()) {
+        // Rediriger vers le tableau de bord si l'utilisateur est déjà connecté
+        if ($this->authService->estUtilisateurConnecteEtSessionValide()) {
             $this->redirect('/dashboard');
-        } else {
-            $this->redirect('/login');
         }
+
+        $data = ['page_title' => 'Bienvenue sur GestionMySoutenance'];
+        $this->render('home', $data, 'none'); // Utilisez un layout 'none' ou un layout public
     }
 }
-
