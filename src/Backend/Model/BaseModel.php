@@ -25,6 +25,15 @@ abstract class BaseModel
         return $this->primaryKey;
     }
 
+    /**
+     * Retourne l'instance de la connexion PDO associée à ce modèle.
+     * @return PDO
+     */
+    public function getDb(): PDO
+    {
+        return $this->db;
+    }
+
     public function getTable(): string
     {
         return $this->table;
@@ -193,6 +202,79 @@ abstract class BaseModel
         }
     }
 
+
+    /**
+     * Met à jour des enregistrements dans la table basés sur des critères spécifiés.
+     * Cette méthode est puissante et doit être utilisée avec précaution.
+     *
+     * @param array $criteres Tableau associatif des critères de sélection.
+     * @param array $donnees Tableau associatif des colonnes et de leurs nouvelles valeurs.
+     * @param string $operateurLogique L'opérateur logique entre les critères ('AND' ou 'OR').
+     * @return int Le nombre d'enregistrements mis à jour.
+     * @throws \PDOException Si une erreur de base de données survient.
+     * @throws DoublonException Si la mise à jour provoque une violation de contrainte d'unicité.
+     */
+    public function mettreAJourParCritere(array $criteres, array $donnees, string $operateurLogique = 'AND'): int
+    {
+        $whereParts = [];
+        $whereParams = [];
+
+        // Réutilise la logique de préparation de critères de trouverParCritere
+        foreach ($criteres as $key => $value) {
+            if (is_array($value)) {
+                if (isset($value['operator']) && strtolower($value['operator']) === 'in') {
+                    $inPlaceholders = [];
+                    foreach ($value['values'] as $i => $inValue) {
+                        $inPlaceholders[] = ":where_{$key}_in_{$i}"; // Préfixe pour éviter conflits
+                        $whereParams[":where_{$key}_in_{$i}"] = $inValue;
+                    }
+                    $whereParts[] = "`{$key}` IN (" . implode(', ', $inPlaceholders) . ")";
+                } elseif (isset($value['operator']) && strtolower($value['operator']) === 'between') {
+                    if (count($value['values']) === 2) {
+                        $whereParts[] = "`{$key}` BETWEEN :where_{$key}_start AND :where_{$key}_end";
+                        $whereParams[":where_{$key}_start"] = $value['values'][0];
+                        $whereParams[":where_{$key}_end"] = $value['values'][1];
+                    }
+                } elseif (isset($value['operator']) && strtolower($value['operator']) === 'like') {
+                    $whereParts[] = "`{$key}` LIKE :where_{$key}_like";
+                    $whereParams[":where_{$key}_like"] = $value['value'];
+                } elseif (isset($value['operator'])) { // Pour d'autres opérateurs comme '!=', '<', '>'
+                    $whereParts[] = "`{$key}` {$value['operator']} :where_{$key}_op";
+                    $whereParams[":where_{$key}_op"] = $value['value'];
+                }
+            } else { // Critère simple d'égalité
+                $whereParts[] = "`{$key}` = :where_{$key}"; // Préfixe pour éviter conflits
+                $whereParams[":where_{$key}"] = $value;
+            }
+        }
+
+        $setParts = [];
+        $setParams = [];
+        foreach ($donnees as $key => $value) {
+            $setParts[] = "`{$key}` = :set_{$key}";
+            $setParams[":set_{$key}"] = $value;
+        }
+
+        $sql = "UPDATE `{$this->table}` SET " . implode(', ', $setParts);
+        if (!empty($whereParts)) {
+            $sql .= " WHERE " . implode(" {$operateurLogique} ", $whereParts);
+        }
+
+        $params = array_merge($setParams, $whereParams);
+        $stmt = $this->db->prepare($sql);
+
+        try {
+            $stmt->execute($params);
+            return $stmt->rowCount(); // Retourne le nombre de lignes affectées
+        } catch (\PDOException $e) {
+            if ($e->getCode() == 23000) { // Code SQLSTATE pour violation de contrainte d'unicité
+                throw new DoublonException("Une violation de contrainte d'unicité est survenue lors de la mise à jour par critère dans la table '{$this->table}'.", 0, $e);
+            }
+            throw $e; // Re-lancer l'exception si ce n'est pas un doublon
+        }
+    }
+
+
     public function supprimerParIdentifiant(int|string $id): bool
     {
         if (is_array($this->primaryKey)) {
@@ -218,6 +300,64 @@ abstract class BaseModel
         $stmt = $this->db->prepare($sql);
         return $stmt->execute($whereInfo['params']);
     }
+
+
+
+
+    /**
+     * Supprime des enregistrements de la table basés sur des critères spécifiés.
+     * Cette méthode est puissante et doit être utilisée avec précaution.
+     *
+     * @param array $criteres Tableau associatif des critères de suppression (clé => valeur ou tableau pour opérateurs).
+     * @param string $operateurLogique L'opérateur logique entre les critères ('AND' ou 'OR').
+     * @return int Le nombre d'enregistrements supprimés.
+     * @throws \PDOException Si une erreur de base de données survient.
+     */
+    public function supprimerParCritere(array $criteres, string $operateurLogique = 'AND'): int
+    {
+        $whereParts = [];
+        $params = [];
+
+        // Réutilise la logique de préparation de critères de trouverParCritere
+        foreach ($criteres as $key => $value) {
+            if (is_array($value)) {
+                if (isset($value['operator']) && strtolower($value['operator']) === 'in') {
+                    $inPlaceholders = [];
+                    foreach ($value['values'] as $i => $inValue) {
+                        $inPlaceholders[] = ":{$key}_del_in_{$i}"; // Préfixe pour éviter conflits
+                        $params[":{$key}_del_in_{$i}"] = $inValue;
+                    }
+                    $whereParts[] = "`{$key}` IN (" . implode(', ', $inPlaceholders) . ")";
+                } elseif (isset($value['operator']) && strtolower($value['operator']) === 'between') {
+                    if (count($value['values']) === 2) {
+                        $whereParts[] = "`{$key}` BETWEEN :{$key}_del_start AND :{$key}_del_end";
+                        $params[":{$key}_del_start"] = $value['values'][0];
+                        $params[":{$key}_del_end"] = $value['values'][1];
+                    }
+                } elseif (isset($value['operator']) && strtolower($value['operator']) === 'like') {
+                    $whereParts[] = "`{$key}` LIKE :{$key}_del_like";
+                    $params[":{$key}_del_like"] = $value['value'];
+                } elseif (isset($value['operator'])) { // Pour d'autres opérateurs comme '!=', '<', '>'
+                    $whereParts[] = "`{$key}` {$value['operator']} :{$key}_del_op";
+                    $params[":{$key}_del_op"] = $value['value'];
+                }
+            } else { // Critère simple d'égalité
+                $whereParts[] = "`{$key}` = :{$key}_del"; // Préfixe pour éviter conflits
+                $params[":{$key}_del"] = $value;
+            }
+        }
+
+        $sql = "DELETE FROM `{$this->table}`";
+        if (!empty($whereParts)) {
+            $sql .= " WHERE " . implode(" {$operateurLogique} ", $whereParts);
+        }
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+
+        return $stmt->rowCount(); // Retourne le nombre de lignes affectées
+    }
+
 
 
     public function trouverParCritere(array $criteres, array $colonnes = ['*'], string $operateurLogique = 'AND', ?string $orderBy = null, ?int $limit = null, ?int $offset = null): array
@@ -349,7 +489,7 @@ abstract class BaseModel
      * @throws \InvalidArgumentException Si $keys est mal formé.
      * @throws DoublonException Si la mise à jour provoque une violation de contrainte d'unicité.
      */
-    protected function mettreAJourParClesInternes(string|int|array $keys, array $donnees): bool
+    public function mettreAJourParClesInternes(string|int|array $keys, array $donnees): bool
     {
         // Réutilise la logique de preparerClauseWhereParCles et le UPDATE SQL
         $whereInfo = $this->preparerClauseWhereParCles($keys);
@@ -382,7 +522,7 @@ abstract class BaseModel
      * @return bool Vrai si la suppression a réussi, faux sinon.
      * @throws \InvalidArgumentException Si $keys est mal formé.
      */
-    protected function supprimerParClesInternes(string|int|array $keys): bool
+    public function supprimerParClesInternes(string|int|array $keys): bool
     {
         $whereInfo = $this->preparerClauseWhereParCles($keys);
         $sql = "DELETE FROM `{$this->table}` WHERE {$whereInfo['clause']}";

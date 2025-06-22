@@ -1,6 +1,7 @@
 <?php
 namespace App\Backend\Service\SupervisionAdmin;
 
+use App\Backend\Exception\OperationImpossibleException;
 use PDO;
 use App\Backend\Model\Action;
 use App\Backend\Model\Enregistrer;
@@ -8,6 +9,7 @@ use App\Backend\Model\Pister;
 use App\Backend\Model\Utilisateur; // Pour récupérer les détails de l'utilisateur
 use App\Backend\Model\RapportEtudiant; // Pour les détails des entités concernées
 use App\Backend\Model\CompteRendu; // Pour les détails des entités concernées
+use App\Backend\Model\Traitement;
 use App\Backend\Exception\ElementNonTrouveException;
 use App\Backend\Exception\DoublonException; // Pour gerer les doublons potentiels (bien que rares ici)
 
@@ -19,6 +21,7 @@ class ServiceSupervisionAdmin implements ServiceSupervisionAdminInterface
     private Utilisateur $utilisateurModel;
     private RapportEtudiant $rapportEtudiantModel;
     private CompteRendu $compteRenduModel;
+    private Traitement $traitementModel; // Pour les traces d'accès aux fonctionnalités
 
     public function __construct(PDO $db)
     {
@@ -28,6 +31,7 @@ class ServiceSupervisionAdmin implements ServiceSupervisionAdminInterface
         $this->utilisateurModel = new Utilisateur($db);
         $this->rapportEtudiantModel = new RapportEtudiant($db);
         $this->compteRenduModel = new CompteRendu($db);
+        $this->traitementModel = new Traitement($db); // Pour les traces d'accès aux fonctionnalités
     }
 
     /**
@@ -209,21 +213,17 @@ class ServiceSupervisionAdmin implements ServiceSupervisionAdminInterface
 
         $this->compteRenduModel->commencerTransaction();
         try {
-            // Logique d'archivage:
-            // 1. Déplacer les données du PV vers une table d'archive (`compte_rendu_archive`)
-            // 2. Supprimer le PV de la table principale `compte_rendu`
-            // 3. Optionnel: Compresser le fichier PDF associé ou le déplacer vers un stockage froid.
+            // ... (votre logique d'archivage) ...
 
-            // Pour l'exemple, nous allons juste "marquer" comme archivé ou simuler la suppression.
-            // Dans une vraie implémentation, vous inséreriez dans une table d'archive avant de supprimer.
-            $success = $this->compteRenduModel->supprimerParIdentifiant($idCompteRendu); // Simule l'archivage par suppression
+            $success = $this->compteRenduModel->supprimerParIdentifiant($idCompteRendu);
 
             if (!$success) {
                 throw new OperationImpossibleException("Échec de l'archivage du PV {$idCompteRendu}.");
             }
 
             $this->compteRenduModel->validerTransaction();
-            $this->supervisionService->enregistrerAction(
+            // Ligne à corriger :
+            $this->enregistrerAction( // <-- CORRECTION ICI : Utilisez $this->enregistrerAction
                 $_SESSION['user_id'] ?? 'SYSTEM',
                 'ARCHIVAGE_PV',
                 "PV '{$idCompteRendu}' archivé.",
@@ -233,7 +233,8 @@ class ServiceSupervisionAdmin implements ServiceSupervisionAdminInterface
             return true;
         } catch (\Exception $e) {
             $this->compteRenduModel->annulerTransaction();
-            $this->supervisionService->enregistrerAction(
+            // Ligne à corriger :
+            $this->enregistrerAction( // <-- CORRECTION ICI : Utilisez $this->enregistrerAction
                 $_SESSION['user_id'] ?? 'SYSTEM',
                 'ECHEC_ARCHIVAGE_PV',
                 "Erreur archivage PV {$idCompteRendu}: " . $e->getMessage()

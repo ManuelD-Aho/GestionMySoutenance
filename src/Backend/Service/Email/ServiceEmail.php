@@ -1,6 +1,7 @@
 <?php
 namespace App\Backend\Service\Email;
 
+use PDO;
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\SMTP;
 use PHPMailer\PHPMailer\Exception as PHPMailerException; // Renommer pour éviter les conflits

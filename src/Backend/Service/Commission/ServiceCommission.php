@@ -62,6 +62,7 @@ class ServiceCommission implements ServiceCommissionInterface
         $this->sessionRapportModel = new SessionRapport($db); // Initialisation
         $this->utilisateurModel = new Utilisateur($db); // Initialisation
 
+
         $this->notificationService = $notificationService;
         $this->documentGenerator = $documentGenerator;
         $this->supervisionService = $supervisionService;
@@ -770,4 +771,83 @@ class ServiceCommission implements ServiceCommissionInterface
             throw $e;
         }
     }
+
+    /**
+     * Liste les PV en attente de validation par un membre spécifique de la commission.
+     * Un PV est en attente si son statut est 'PV_SOUMIS_VALID' et que le membre n'a pas encore validé.
+     * @param string $numeroEnseignant Le numéro de l'enseignant membre de la commission.
+     * @return array Liste des PV en attente.
+     */
+    public function listerPvEnAttenteValidationParMembre(string $numeroEnseignant): array
+    {
+        // 1. Trouver tous les PV qui ont le statut 'PV_SOUMIS_VALID'
+        $pvSoumis = $this->compteRenduModel->trouverParCritere(['id_statut_pv' => 'PV_SOUMIS_VALID']);
+
+        $pvEnAttentePourCeMembre = [];
+
+        foreach ($pvSoumis as $pv) {
+            // Un rédacteur ne valide pas son propre PV, donc on l'exclut ici aussi
+            if ($pv['id_redacteur'] === $numeroEnseignant) {
+                continue;
+            }
+
+            // 2. Vérifier si ce membre a déjà validé ce PV
+            $validationExistante = $this->validationPvModel->trouverValidationPvParCles($pv['id_compte_rendu'], $numeroEnseignant);
+
+            if (!$validationExistante) {
+                // Si aucune validation n'existe pour ce membre et ce PV, il est en attente
+                $pvEnAttentePourCeMembre[] = $pv;
+            }
+        }
+        return $pvEnAttentePourCeMembre;
+    }
+
+    /**
+     * Liste les sessions de validation en fonction de critères.
+     * @param array $criteres Critères de filtre (ex: ['statut_session' => 'En cours']).
+     * @return array Liste des sessions.
+     */
+    public function listerSessionsValidation(array $criteres = []): array
+    {
+        return $this->sessionValidationModel->trouverParCritere($criteres);
+    }
+
+    /**
+     * Récupère la liste des rapports assignés à un membre du jury et qui sont dans un statut nécessitant
+     * une action de correction/évaluation par la commission.
+     * @param string $numeroEnseignant Le numéro de l'enseignant membre de la commission.
+     * @return array Liste des rapports à corriger/évaluer.
+     */
+    public function recupererRapportsAssignedToJuryForCorrection(string $numeroEnseignant): array
+    {
+        // 1. Trouver tous les rapports auxquels cet enseignant est affecté
+        $affectations = $this->affecterModel->trouverParCritere(['numero_enseignant' => $numeroEnseignant], ['id_rapport_etudiant']);
+        $idsRapportsAffectes = array_column($affectations, 'id_rapport_etudiant');
+
+        if (empty($idsRapportsAffectes)) {
+            return [];
+        }
+
+        // 2. Filtrer ces rapports par les statuts qui nécessitent une action de correction/évaluation par la commission
+        // Statuts typiques: RAP_EN_COMM (en attente d'évaluation), RAP_CORRECT (corrections demandées par commission)
+        $rapportsEnAttenteCorrection = $this->rapportEtudiantModel->trouverParCritere([
+            'id_rapport_etudiant' => ['operator' => 'in', 'values' => $idsRapportsAffectes],
+            'id_statut_rapport' => ['operator' => 'in', 'values' => ['RAP_EN_COMM', 'RAP_CORRECT']]
+        ]);
+
+        return $rapportsEnAttenteCorrection;
+    }
+
+    /**
+     * Récupère le vote d'un enseignant pour un rapport spécifique et un tour de vote donné.
+     * @param string $numeroEnseignant Le numéro de l'enseignant.
+     * @param string $idRapportEtudiant L'ID du rapport étudiant.
+     * @param int $tourVote Le tour de vote.
+     * @return array|null Les détails du vote ou null si non trouvé.
+     */
+    public function getVoteByEnseignantRapportTour(string $numeroEnseignant, string $idRapportEtudiant, int $tourVote): ?array
+    {
+        return $this->voteCommissionModel->trouverVoteUnique($idRapportEtudiant, $numeroEnseignant, $tourVote);
+    }
+
 }

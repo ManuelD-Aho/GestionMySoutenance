@@ -3,12 +3,17 @@ namespace App\Backend\Service\Rapport;
 
 use PDO;
 use App\Backend\Model\RapportEtudiant;
-use App\Backend\Model\DocumentSoumis; // A REMPLACER PAR DocumentGenere
 use App\Backend\Model\StatutRapportRef;
 use App\Backend\Model\TypeDocumentRef;
 use App\Backend\Model\Utilisateur;
 use App\Backend\Model\SectionRapport; // Nouveau modèle
 use App\Backend\Model\DocumentGenere; // Nouveau modèle
+use App\Backend\Model\Approuver; // Pour la conformité
+use App\Backend\Model\StatutConformiteRef;
+use App\Backend\Model\VoteCommission;
+use App\Backend\Model\DecisionVoteRef;
+use App\Backend\Model\CompteRendu;// Pour les votes de la commission
+use App\Backend\Model\PersonnelAdministratif;
 use App\Backend\Service\Notification\ServiceNotification;
 use App\Backend\Service\SupervisionAdmin\ServiceSupervisionAdmin;
 use App\Backend\Service\IdentifiantGenerator\IdentifiantGenerator;
@@ -24,7 +29,12 @@ class ServiceRapport implements ServiceRapportInterface
     private Utilisateur $utilisateurModel; // Pour vérifier l'existence de l'utilisateur qui soumet
     private SectionRapport $sectionRapportModel; // Nouveau modèle
     private DocumentGenere $documentGenereModel; // Nouveau modèle (remplace DocumentSoumis)
-
+    private Approuver $approuverModel; // Pour la conformité
+    private StatutConformiteRef $statutConformiteRefModel; // Pour la conformité
+    private VoteCommission $voteCommissionModel; // Pour les votes de la commission
+    private DecisionVoteRef $decisionVoteRefModel; // Pour les décisions de vote
+    private CompteRendu $compteRenduModel; // Pour les PV de validation
+    private PersonnelAdministratif $personnelAdministratifModel; // Pour les actions de supervision
     private ServiceNotification $notificationService;
     private ServiceSupervisionAdmin $supervisionService;
     private IdentifiantGenerator $idGenerator;
@@ -41,6 +51,12 @@ class ServiceRapport implements ServiceRapportInterface
         $this->utilisateurModel = new Utilisateur($db);
         $this->sectionRapportModel = new SectionRapport($db); // Initialisation
         $this->documentGenereModel = new DocumentGenere($db); // Initialisation
+        $this->approuverModel = new Approuver($db); // Pour la conformité
+        $this->statutConformiteRefModel = new StatutConformiteRef($db); // Pour la conformité
+        $this->voteCommissionModel = new VoteCommission($db); // Pour les votes de la commission
+        $this->decisionVoteRefModel = new DecisionVoteRef($db); // Pour les décisions de vote
+        $this->compteRenduModel = new CompteRendu($db); // Pour les PV de validation
+        $this->personnelAdministratifModel = new PersonnelAdministratif($db); // Pour les actions de supervision
 
         $this->notificationService = $notificationService;
         $this->supervisionService = $supervisionService;
@@ -424,5 +440,20 @@ class ServiceRapport implements ServiceRapportInterface
             );
             throw $e;
         }
+    }
+
+    /**
+     * Liste des rapports étudiants en fonction de critères.
+     * @param array $criteres Critères de filtre (ex: ['id_statut_rapport' => 'RAP_VALID']).
+     * @param array $colonnes Les colonnes à sélectionner.
+     * @param string $operateurLogique L'opérateur logique entre les critères ('AND' ou 'OR').
+     * @param string|null $orderBy Colonne pour le tri.
+     * @param int|null $limit Limite de résultats.
+     * @param int|null $offset Offset pour la pagination.
+     * @return array Liste des rapports trouvés.
+     */
+    public function listerRapportsParCriteres(array $criteres = [], array $colonnes = ['*'], string $operateurLogique = 'AND', ?string $orderBy = null, ?int $limit = null, ?int $offset = null): array
+    {
+        return $this->rapportEtudiantModel->trouverParCritere($criteres, $colonnes, $operateurLogique, $orderBy, $limit, $offset);
     }
 }

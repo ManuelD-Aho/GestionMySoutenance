@@ -12,7 +12,7 @@ use App\Backend\Exception\ValidationException;
 
 class HabilitationController extends BaseController
 {
-    private ServicePermissions $permissionService;
+    protected ServicePermissions $permissionService;
 
     public function __construct(
         ServiceAuthentification $authService,

@@ -2,6 +2,7 @@
 namespace App\Backend\Controller\Commission;
 
 use App\Backend\Controller\BaseController;
+use App\Backend\Exception\DoublonException;
 use App\Backend\Service\Authentication\ServiceAuthentification;
 use App\Backend\Service\Permissions\ServicePermissions;
 use App\Backend\Util\FormValidator;
@@ -47,7 +48,7 @@ class ValidationRapportController extends BaseController
             // Rapports assignés à l'enseignant pour évaluation / vote
             $rapportsAssigned = $this->commissionService->recupererRapportsAssignedToJury($numeroEnseignant);
             // Ou lister les rapports dont le statut est 'RAP_EN_COMM' pour la commission
-            $rapportsEnCommission = $this->rapportService->trouverParCritere(['id_statut_rapport' => 'RAP_EN_COMM']);
+            $rapportsEnCommission = $this->rapportService->listerRapportsParCriteres(['id_statut_rapport' => 'RAP_EN_COMM']);
 
             $data = [
                 'page_title' => 'Rapports à Traiter par la Commission',

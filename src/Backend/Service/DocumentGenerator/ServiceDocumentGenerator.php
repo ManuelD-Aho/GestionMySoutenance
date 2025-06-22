@@ -10,6 +10,7 @@ use App\Backend\Model\Inscrire;
 use App\Backend\Model\Evaluer;
 use App\Backend\Model\AnneeAcademique;
 use App\Backend\Model\DocumentGenere; // Nouveau modèle
+use App\Backend\Model\PvSessionRapport;
 use App\Backend\Service\SupervisionAdmin\ServiceSupervisionAdmin;
 use App\Backend\Service\IdentifiantGenerator\IdentifiantGenerator;
 use App\Backend\Exception\ElementNonTrouveException;
@@ -26,13 +27,15 @@ class ServiceDocumentGenerator implements ServiceDocumentGeneratorInterface
     private Inscrire $inscrireModel;
     private Evaluer $evaluerModel;
     private AnneeAcademique $anneeAcademiqueModel;
-    private DocumentGenere $documentGenereModel; // Nouveau modèle
+    private DocumentGenere $documentGenereModel;
+    private PvSessionRapport $pvSessionRapportModel; // Nouveau modèle pour gérer les liaisons PV-Session-Rapport
     private ServiceSupervisionAdmin $supervisionService;
     private IdentifiantGenerator $idGenerator;
 
     public function __construct(
         PDO $db,
         ServiceSupervisionAdmin $supervisionService,
+        PvSessionRapport $pvSessionRapportModel,
         IdentifiantGenerator $idGenerator
     ) {
         $this->compteRenduModel = new CompteRendu($db);
@@ -42,6 +45,7 @@ class ServiceDocumentGenerator implements ServiceDocumentGeneratorInterface
         $this->evaluerModel = new Evaluer($db);
         $this->anneeAcademiqueModel = new AnneeAcademique($db);
         $this->documentGenereModel = new DocumentGenere($db); // Initialisation
+        $this->pvSessionRapportModel = new PvSessionRapport($db); // Nouveau modèle pour gérer les liaisons PV-Session-Rapport
         $this->supervisionService = $supervisionService;
         $this->idGenerator = $idGenerator;
     }
@@ -54,6 +58,7 @@ class ServiceDocumentGenerator implements ServiceDocumentGeneratorInterface
     {
         return $this->documentGenereModel;
     }
+
 
     /**
      * Génère un Procès-Verbal de validation au format PDF.
@@ -74,7 +79,8 @@ class ServiceDocumentGenerator implements ServiceDocumentGeneratorInterface
         if ($pvData['type_pv'] === 'Individuel' && $pvData['id_rapport_etudiant']) {
             $rapportsAssocies[] = $this->rapportEtudiantModel->trouverParIdentifiant($pvData['id_rapport_etudiant']);
         } elseif ($pvData['type_pv'] === 'Session') {
-            $liaisons = $this->pvSessionRapportModel->trouverRapportsDansSession($idCompteRendu);
+            // CORRECTION ICI : Utiliser trouverParCritere du modèle PvSessionRapport
+            $liaisons = $this->pvSessionRapportModel->trouverParCritere(['id_compte_rendu' => $idCompteRendu], ['id_rapport_etudiant']); // <-- LIGNE MODIFIÉE
             foreach ($liaisons as $liaison) {
                 $rapportsAssocies[] = $this->rapportEtudiantModel->trouverParIdentifiant($liaison['id_rapport_etudiant']);
             }
@@ -84,7 +90,7 @@ class ServiceDocumentGenerator implements ServiceDocumentGeneratorInterface
         $htmlContent = "<h1>Procès-Verbal de Validation : " . htmlspecialchars($pvData['libelle_compte_rendu']) . "</h1>";
         $htmlContent .= "<p>Date de création : " . htmlspecialchars($pvData['date_creation_pv']) . "</p>";
         $htmlContent .= "<p>Type : " . htmlspecialchars($pvData['type_pv']) . "</p>";
-        $htmlContent .= "<h2>Contenu du PV :</h2><p>" . nl2br(htmlspecialchars($pvData['libelle_compte_rendu'])) . "</p>"; // Assurez-vous que libelle_compte_rendu est le champ texte du PV
+        $htmlContent .= "<h2>Contenu du PV :</h2><p>" . nl2br(htmlspecialchars($pvData['libelle_compte_rendu'])) . "</p>";
 
         if (!empty($rapportsAssocies)) {
             $htmlContent .= "<h3>Rapports Associés :</h3><ul>";
@@ -96,14 +102,8 @@ class ServiceDocumentGenerator implements ServiceDocumentGeneratorInterface
             $htmlContent .= "</ul>";
         }
 
-        // Génération réelle du PDF (exemple avec Dompdf)
-        // $dompdf = new Dompdf();
-        // $dompdf->loadHtml($htmlContent);
-        // $dompdf->setPaper('A4', 'portrait');
-        // $dompdf->render();
-
         // Définir un chemin de sauvegarde sécurisé (hors du répertoire public)
-        $uploadDir = __DIR__ . '/../../../public/uploads/documents_generes/';
+        $uploadDir = __DIR__ . '/../../../Public/uploads/documents_generes/';
         if (!is_dir($uploadDir)) {
             mkdir($uploadDir, 0777, true);
         }
@@ -111,8 +111,7 @@ class ServiceDocumentGenerator implements ServiceDocumentGeneratorInterface
         $filePath = $uploadDir . $filename;
 
         // Simuler l'écriture du fichier
-        // file_put_contents($filePath, $dompdf->output()); // Enregistrer le PDF réel
-        file_put_contents($filePath, "Contenu simulé du PV pour l'ID {$idCompteRendu}."); // Pour l'exemple
+        file_put_contents($filePath, "Contenu simulé du PV pour l'ID {$idCompteRendu}.");
 
         if (!file_exists($filePath)) {
             throw new OperationImpossibleException("Échec de la sauvegarde du fichier PV.");

@@ -97,7 +97,7 @@ class EtudiantDashboardController extends BaseController
     {
         // Idéalement, une méthode dans ServiceRapport qui trouverait le rapport pertinent (ex: le brouillon, ou le dernier soumis)
         // Pour l'instant, on va chercher n'importe quel rapport pour l'étudiant
-        $rapports = $this->rapportService->trouverParCritere(['numero_carte_etudiant' => $numeroCarteEtudiant], ['id_rapport_etudiant'], 'AND', 'date_derniere_modif DESC', 1);
+        $rapports = $this->rapportService->listerRapportsParCriteres(['numero_carte_etudiant' => $numeroCarteEtudiant], ['id_rapport_etudiant'], 'AND', 'date_derniere_modif DESC', 1);
         return $rapports[0]['id_rapport_etudiant'] ?? null;
     }
 

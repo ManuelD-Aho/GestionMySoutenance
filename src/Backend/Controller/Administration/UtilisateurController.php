@@ -4,6 +4,8 @@ namespace App\Backend\Controller\Administration;
 use App\Backend\Controller\BaseController;
 use App\Backend\Service\Authentication\ServiceAuthentification;
 use App\Backend\Service\Permissions\ServicePermissions; // Pour récupérer les types et groupes
+use App\Backend\Service\GestionAcademique\ServiceGestionAcademique;
+use App\Backend\Service\ConfigurationSysteme\ServiceConfigurationSysteme; // Pour les années académiques
 use App\Backend\Util\FormValidator;
 use App\Backend\Exception\ElementNonTrouveException;
 use App\Backend\Exception\OperationImpossibleException;
@@ -13,17 +15,23 @@ use App\Backend\Exception\MotDePasseInvalideException;
 
 class UtilisateurController extends BaseController
 {
-    private ServiceAuthentification $authService;
-    private ServicePermissions $permissionService;
+    protected ServiceAuthentification $authService;
+    protected ServicePermissions $permissionService;
+    protected ServiceGestionAcademique $gestionAcadService;
+    protected ServiceConfigurationSysteme $configService;
 
     public function __construct(
         ServiceAuthentification $authService,
         ServicePermissions $permissionService,
-        FormValidator $validator
+        FormValidator $validator,
+        ServiceGestionAcademique $gestionAcadService, // Pour les niveaux d'étude, grades, fonctions, spécialités
+        ServiceConfigurationSysteme $configService // Pour les années académiques
     ) {
         parent::__construct($authService, $permissionService, $validator);
         $this->authService = $authService; // Réassignation pour un accès direct si besoin, car déjà dans parent
         $this->permissionService = $permissionService; // Réassignation
+        $this->gestionAcadService = $gestionAcadService; // Service pour la gestion académique
+        $this->configService = $configService; // Service pour la configuration système
     }
 
     /**
@@ -96,13 +104,13 @@ class UtilisateurController extends BaseController
             $view = 'Administration/Utilisateurs/form_utilisateur_generic'; // Vue générique pour les 3 types
             if ($type === 'etudiant') {
                 $view = 'Administration/Utilisateurs/form_etudiant';
-                $data['niveaux_etude_ref'] = $this->gestionAcadService->listerNiveauxEtude(); // A ajouter
+                $data['niveaux_etude_ref'] = $this->configService->listerNiveauxEtude(); // A ajouter
                 $data['annees_academiques_ref'] = $this->configService->listerAnneesAcademiques();
             } elseif ($type === 'enseignant') {
                 $view = 'Administration/Utilisateurs/form_enseignant';
-                $data['grades_ref'] = $this->gestionAcadService->listerGrades(); // A ajouter
-                $data['fonctions_ref'] = $this->gestionAcadService->listerFonctions(); // A ajouter
-                $data['specialites_ref'] = $this->gestionAcadService->listerSpecialites(); // A ajouter
+                $data['grades_ref'] = $this->configService->listerGrades(); // A ajouter
+                $data['fonctions_ref'] = $this->configService->listerFonctions(); // A ajouter
+                $data['specialites_ref'] = $this->configService->listerSpecialites(); // A ajouter
             } elseif ($type === 'personnel') {
                 $view = 'Administration/Utilisateurs/form_personnel';
                 // Pas de références spécifiques ici pour l'instant
@@ -171,8 +179,6 @@ class UtilisateurController extends BaseController
             $rules['numero_personnel_administratif'] = 'required|string|max:50'; // Sera l'ID utilisateur
             $profilData['numero_personnel_administratif'] = $this->getRequestData('numero_personnel_administratif');
             // ... autres champs personnel
-        } elseif ($type === 'admin') {
-            // Admin n'a pas de profil dédié, ses données sont dans utilisateur
         } else {
             $this->setFlashMessage('error', 'Type d\'utilisateur invalide.');
             $this->redirect('/dashboard/admin/utilisateurs/create');
@@ -248,11 +254,11 @@ class UtilisateurController extends BaseController
                     'groupes_utilisateur_ref' => $this->permissionService->listerGroupesUtilisateur(),
                     'niveaux_acces_ref' => $this->permissionService->listerNiveauxAcces(),
                     // Références spécifiques selon le type d'utilisateur (mêmes que pour la création)
-                    'niveaux_etude_ref' => $this->gestionAcadService->listerNiveauxEtude(),
+                    'niveaux_etude_ref' => $this->configService->listerNiveauxEtude(),
                     'annees_academiques_ref' => $this->configService->listerAnneesAcademiques(),
-                    'grades_ref' => $this->gestionAcadService->listerGrades(),
-                    'fonctions_ref' => $this->gestionAcadService->listerFonctions(),
-                    'specialites_ref' => $this->gestionAcadService->listerSpecialites(),
+                    'grades_ref' => $this->configService->listerGrades(),
+                    'fonctions_ref' => $this->configService->listerFonctions(),
+                    'specialites_ref' => $this->configService->listerSpecialites(),
                 ];
 
                 // Sélectionner la vue de formulaire appropriée
@@ -567,4 +573,5 @@ class UtilisateurController extends BaseController
         }
         $this->redirect('/dashboard/admin/utilisateurs');
     }
+
 }

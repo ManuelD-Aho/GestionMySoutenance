@@ -51,7 +51,7 @@ class RapportController extends BaseController
             $rapportId = $id;
             if (!$rapportId) {
                 // Tenter de trouver le rapport le plus récent ou en cours de l'étudiant
-                $rapports = $this->rapportService->trouverParCritere(['numero_carte_etudiant' => $numeroCarteEtudiant], ['id_rapport_etudiant'], 'AND', 'date_derniere_modif DESC', 1);
+                $rapports = $this->rapportService->listerRapportsParCriteres(['numero_carte_etudiant' => $numeroCarteEtudiant], ['id_rapport_etudiant'], 'AND', 'date_derniere_modif DESC', 1);
                 $rapportId = $rapports[0]['id_rapport_etudiant'] ?? null;
             }
 
@@ -111,11 +111,9 @@ class RapportController extends BaseController
                 $isEditing = true;
             } else {
                 // Vérifier si l'étudiant a déjà un rapport non finalisé (brouillon, soumis, en commission, etc.)
-                $existingRapports = $this->rapportService->trouverParCritere([
+                $existingRapports = $this->rapportService->listerRapportsParCriteres([
                     'numero_carte_etudiant' => $numeroCarteEtudiant,
-                    'id_statut_rapport' => ['operator' => '!=', 'value' => 'RAP_VALID'], // Exclure les validés
-                    'id_statut_rapport' => ['operator' => '!=', 'value' => 'RAP_REFUSE'] // Exclure les refusés
-                    // Ou mieux: compter les rapports non clôturés définitivement
+                    'id_statut_rapport' => ['operator' => 'not in', 'values' => ['RAP_VALID', 'RAP_REFUSE', 'RAP_ARCHIVE', 'RAP_FINAL_CLOTURE']] // Assurez-vous d'inclure tous les statuts "terminés" ou "clôturés"
                 ]);
                 // If you want to allow only one draft at a time for submission
                 // $currentDraft = $this->rapportService->getMostRecentRapportId($numeroCarteEtudiant); // Need a method to get active draft

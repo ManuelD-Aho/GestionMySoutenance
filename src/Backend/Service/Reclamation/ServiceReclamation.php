@@ -100,6 +100,36 @@ class ServiceReclamation implements ServiceReclamationInterface
     }
 
     /**
+     * Récupère les détails d'une réclamation spécifique par son ID.
+     * @param string $idReclamation L'ID de la réclamation.
+     * @return array|null Les détails de la réclamation ou null si non trouvée.
+     */
+    public function getDetailsReclamation(string $idReclamation): ?array
+    {
+        // Récupérer la réclamation de base
+        $reclamation = $this->reclamationModel->trouverParIdentifiant($idReclamation);
+        if (!$reclamation) {
+            return null;
+        }
+
+        // Optionnel : Joindre des informations supplémentaires si nécessaire pour l'affichage
+        // Ex: détails de l'étudiant, du personnel traitant, libellé du statut
+        $etudiant = $this->etudiantModel->trouverParIdentifiant($reclamation['numero_carte_etudiant']);
+        $statutRef = $this->statutReclamationRefModel->trouverParIdentifiant($reclamation['id_statut_reclamation']);
+        $personnelTraitant = null;
+        if ($reclamation['numero_personnel_traitant']) {
+            $personnelTraitant = $this->personnelAdministratifModel->trouverParIdentifiant($reclamation['numero_personnel_traitant']);
+        }
+
+        // Enrichir la réclamation avec ces données
+        $reclamation['etudiant_details'] = $etudiant;
+        $reclamation['statut_libelle'] = $statutRef['libelle_statut_reclamation'] ?? 'Statut inconnu';
+        $reclamation['personnel_traitant_details'] = $personnelTraitant;
+
+        return $reclamation;
+    }
+
+    /**
      * Récupère toutes les réclamations pour un étudiant donné.
      * @param string $numeroCarteEtudiant Le numéro de carte de l'étudiant.
      * @return array Liste des réclamations de l'étudiant.

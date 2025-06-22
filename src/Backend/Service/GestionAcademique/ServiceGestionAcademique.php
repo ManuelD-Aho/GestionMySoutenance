@@ -21,6 +21,7 @@ use App\Backend\Model\Fonction;
 use App\Backend\Model\Specialite;
 use App\Backend\Model\Penalite; // Nouveau
 use App\Backend\Model\StatutPenaliteRef; // Nouveau
+use App\Backend\Model\PersonnelAdministratif;
 use App\Backend\Service\Notification\ServiceNotification;
 use App\Backend\Service\SupervisionAdmin\ServiceSupervisionAdmin;
 use App\Backend\Service\IdentifiantGenerator\IdentifiantGenerator; // Si des IDs sont générés par ce service
@@ -49,6 +50,8 @@ class ServiceGestionAcademique implements ServiceGestionAcademiqueInterface
     private Specialite $specialiteModel;
     private Penalite $penaliteModel; // Nouveau
     private StatutPenaliteRef $statutPenaliteRefModel; // Nouveau
+
+    private PersonnelAdministratif $personnelAdministratifModel; // Pour les opérations administratives
 
     private ServiceNotification $notificationService;
     private ServiceSupervisionAdmin $supervisionService;
@@ -79,6 +82,7 @@ class ServiceGestionAcademique implements ServiceGestionAcademiqueInterface
         $this->specialiteModel = new Specialite($db);
         $this->penaliteModel = new Penalite($db); // Initialisation
         $this->statutPenaliteRefModel = new StatutPenaliteRef($db); // Initialisation
+        $this->personnelAdministratifModel = new PersonnelAdministratif($db); // Pour les opérations administratives
 
         $this->notificationService = $notificationService;
         $this->supervisionService = $supervisionService;
@@ -696,5 +700,43 @@ class ServiceGestionAcademique implements ServiceGestionAcademiqueInterface
             );
             throw $e;
         }
+    }
+
+    /**
+     * Liste les notes enregistrées, avec filtres et pagination.
+     * @param array $criteres Critères de filtre.
+     * @param int $page Numéro de page.
+     * @param int $elementsParPage Nombre d'éléments par page.
+     * @return array Liste des notes.
+     */
+    public function listerNotes(array $criteres = [], int $page = 1, int $elementsParPage = 20): array
+    {
+        $offset = ($page - 1) * $elementsParPage;
+        // Pour des données complètes, cette méthode pourrait joindre etudiant, ecue, etc.
+        return $this->evaluerModel->trouverParCritere($criteres, ['*'], 'AND', null, $elementsParPage, $offset);
+    }
+
+    /**
+     * Liste les pénalités pour un étudiant ou selon d'autres critères.
+     * @param array $criteres Critères de filtre (ex: ['numero_carte_etudiant' => 'ETU-2025-001']).
+     * @param int $page Numéro de page.
+     * @param int $elementsParPage Nombre d'éléments par page.
+     * @return array Liste des pénalités.
+     */
+    public function listerPenalites(array $criteres = [], int $page = 1, int $elementsParPage = 20): array
+    {
+        $offset = ($page - 1) * $elementsParPage;
+        // Pour des données complètes, cette méthode pourrait joindre etudiant, statut_penalite_ref, etc.
+        return $this->penaliteModel->trouverParCritere($criteres, ['*'], 'AND', null, $elementsParPage, $offset);
+    }
+
+    /**
+     * Liste les pénalités pour un étudiant spécifique.
+     * @param string $numeroCarteEtudiant Le numéro de carte de l'étudiant.
+     * @return array Liste des pénalités trouvées pour cet étudiant.
+     */
+    public function listerPenalitesEtudiant(string $numeroCarteEtudiant): array // <-- NOUVELLE MÉTHODE
+    {
+        return $this->listerPenalites(['numero_carte_etudiant' => $numeroCarteEtudiant]);
     }
 }

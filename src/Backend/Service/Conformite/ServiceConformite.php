@@ -173,4 +173,16 @@ class ServiceConformite implements ServiceConformiteInterface
             'id_rapport_etudiant' => ['operator' => 'in', 'values' => $idsRapports]
         ]);
     }
+
+    /**
+     * Récupère une vérification de conformité spécifique par l'agent et le rapport.
+     * @param string $numeroPersonnelAdministratif Le numéro de l'agent.
+     * @param string $idRapportEtudiant L'ID du rapport.
+     * @return array|null Les détails de la vérification ou null si non trouvée.
+     */
+    public function getVerificationByAgentAndRapport(string $numeroPersonnelAdministratif, string $idRapportEtudiant): ?array
+    {
+        // Utilise la méthode trouverApprobationParCles du modèle Approuver
+        return $this->approuverModel->trouverApprobationParCles($numeroPersonnelAdministratif, $idRapportEtudiant);
+    }
 }

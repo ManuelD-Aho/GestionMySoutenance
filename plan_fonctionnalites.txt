@@ -1045,6 +1045,10 @@ Fichier : ./src/Frontend/views/PersonnelAdministratif/Scolarite/gestion_etudiant
 Fichier : ./src/Frontend/views/PersonnelAdministratif/Scolarite/gestion_inscriptions_scolarite.php
 --------------------------------------------
 Fichier : ./src/Frontend/views/PersonnelAdministratif/Scolarite/gestion_notes_scolarite.php
+
+
+
+
 --------------------------------------------
 Fichier : ./vendor/autoload.php
 --------------------------------------------

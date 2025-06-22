@@ -477,4 +477,25 @@ class ServiceMessagerie implements ServiceMessagerieInterface
             throw $e;
         }
     }
+
+    /**
+     * Récupère les détails d'une conversation spécifique par son ID.
+     * @param string $idConversation L'ID de la conversation.
+     * @return array|null Les détails de la conversation ou null si non trouvée.
+     */
+    public function getConversationDetails(string $idConversation): ?array
+    {
+        return $this->conversationModel->trouverParIdentifiant($idConversation);
+    }
+
+    /**
+     * Vérifie si un utilisateur est participant d'une conversation donnée.
+     * @param string $idConversation L'ID de la conversation.
+     * @param string $numeroUtilisateur Le numéro de l'utilisateur.
+     * @return bool Vrai si l'utilisateur est participant, faux sinon.
+     */
+    public function estParticipant(string $idConversation, string $numeroUtilisateur): bool
+    {
+        return $this->participantConversationModel->trouverParticipantParCles($idConversation, $numeroUtilisateur) !== null;
+    }
 }

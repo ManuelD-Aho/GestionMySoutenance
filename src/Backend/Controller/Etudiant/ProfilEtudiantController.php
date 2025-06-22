@@ -12,7 +12,7 @@ use App\Backend\Exception\ValidationException;
 
 class ProfilEtudiantController extends BaseController
 {
-    private ServiceAuthentification $authService;
+    protected ServiceAuthentification $authService;
 
     public function __construct(
         ServiceAuthentification $authService,

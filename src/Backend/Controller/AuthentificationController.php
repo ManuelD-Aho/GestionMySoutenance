@@ -14,7 +14,7 @@ use App\Backend\Exception\TokenExpireException;
 
 class AuthentificationController extends BaseController
 {
-    private ServiceAuthentification $authService;
+    protected ServiceAuthentification $authService;
 
     public function __construct(
         ServiceAuthentification $authService,
@@ -177,10 +177,10 @@ class AuthentificationController extends BaseController
                 'token' => $token
             ];
             $this->render('Auth/reset_password_form', $data, 'none');
-        } catch (TokenInvalideException $e) {
+        } catch (TokenExpireException $e) {
             $this->setFlashMessage('error', $e->getMessage());
             $this->redirect('/login');
-        } catch (TokenExpireException $e) {
+        } catch (TokenInvalideException $e) {
             $this->setFlashMessage('error', $e->getMessage());
             $this->redirect('/forgot-password'); // Rediriger vers le formulaire "mot de passe oublié" pour redemander
         } catch (\Exception $e) {
@@ -221,10 +221,10 @@ class AuthentificationController extends BaseController
             $this->authService->reinitialiserMotDePasseApresValidationToken($token, $newPassword);
             $this->setFlashMessage('success', 'Votre mot de passe a été réinitialisé avec succès. Vous pouvez maintenant vous connecter.');
             $this->redirect('/login');
-        } catch (TokenInvalideException $e) {
+        } catch (TokenExpireException $e) {
             $this->setFlashMessage('error', 'Le lien de réinitialisation est invalide ou a déjà été utilisé.');
             $this->redirect('/login');
-        } catch (TokenExpireException $e) {
+        } catch (TokenInvalideException $e) {
             $this->setFlashMessage('error', 'Le lien de réinitialisation a expiré. Veuillez refaire une demande.');
             $this->redirect('/forgot-password');
         } catch (MotDePasseInvalideException $e) {

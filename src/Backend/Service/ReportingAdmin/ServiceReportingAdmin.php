@@ -1,6 +1,7 @@
 <?php
 namespace App\Backend\Service\ReportingAdmin;
 
+use App\Backend\Exception\ElementNonTrouveException;
 use PDO;
 use App\Backend\Model\RapportEtudiant;
 use App\Backend\Model\CompteRendu;

@@ -90,7 +90,7 @@ class PvController extends BaseController
                     }
                 }
                 // Charger les rapports validés ou acceptés pour les lier au PV
-                $rapportsEligibles = $this->rapportService->trouverParCritere(['id_statut_rapport' => ['operator' => 'in', 'values' => ['RAP_VALID', 'RAP_CORRECT', 'RAP_REFUSE']]]); // Rapports finalisés ou nécessitant un PV
+                $rapportsEligibles = $this->rapportService->listerRapportsParCriteres(['id_statut_rapport' => ['operator' => 'in', 'values' => ['RAP_VALID', 'RAP_CORRECT', 'RAP_REFUSE']]]); // Rapports finalisés ou nécessitant un PV
 
                 // Charger les membres de la commission (pour la liste des rédacteurs si on veut)
                 // $membresCommission = $this->authService->listerUtilisateursAvecProfils(['id_groupe_utilisateur' => 'GRP_COMMISSION']);

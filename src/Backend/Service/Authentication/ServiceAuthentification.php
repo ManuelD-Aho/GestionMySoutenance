@@ -27,7 +27,7 @@ use App\Backend\Exception\ElementNonTrouveException;
 class ServiceAuthentification implements ServiceAuthenticationInterface
 {
     private PDO $db;
-    private Utilisateur $utilisateurModel;
+    public Utilisateur $utilisateurModel;
     private HistoriqueMotDePasse $historiqueMdpModel;
     private ServiceEmail $emailService;
     private ServiceSupervisionAdmin $supervisionService;
@@ -1024,5 +1024,27 @@ class ServiceAuthentification implements ServiceAuthenticationInterface
             ]);
         }
         $this->journaliserActionAuthentification($numeroUtilisateur, 'SYNCHRONISATION_RBAC', 'Permissions de session synchronisées.');
+    }
+
+    /**
+     * Retourne l'instance du modèle Utilisateur.
+     * Utile pour les autres services ou contrôleurs qui ont besoin d'accéder
+     * directement au modèle Utilisateur ou à la connexion PDO via ce modèle.
+     * @return Utilisateur
+     */
+    public function getUtilisateurModel(): Utilisateur
+    {
+        return $this->utilisateurModel;
+    }
+
+    /**
+     * Retourne l'instance du modèle Enseignant.
+     * Utile pour les autres services ou contrôleurs qui ont besoin d'accéder
+     * directement au modèle Enseignant ou à la connexion PDO via ce modèle.
+     * @return Enseignant
+     */
+    public function getEnseignantModel(): Enseignant // <-- NOUVELLE MÉTHODE
+    {
+        return $this->enseignantModel;
     }
 }

@@ -2,6 +2,7 @@
 namespace App\Backend\Controller\Administration;
 
 use App\Backend\Controller\BaseController;
+use App\Backend\Exception\DoublonException;
 use App\Backend\Service\Authentication\ServiceAuthentification;
 use App\Backend\Service\Permissions\ServicePermissions;
 use App\Backend\Util\FormValidator;

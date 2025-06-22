@@ -41,6 +41,8 @@ COPY apache-vhost.conf /etc/apache2/sites-available/000-default.conf
 
 RUN a2enmod rewrite headers
 
+RUN docker-php-ext-install fileinfo
+
 COPY --from=composer:2.7.7 /usr/bin/composer /usr/bin/composer
 
 WORKDIR /var/www/html

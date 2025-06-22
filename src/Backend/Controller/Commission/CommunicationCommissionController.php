@@ -2,6 +2,7 @@
 namespace App\Backend\Controller\Commission;
 
 use App\Backend\Controller\BaseController;
+use App\Backend\Exception\ValidationException;
 use App\Backend\Service\Authentication\ServiceAuthentification;
 use App\Backend\Service\Permissions\ServicePermissions;
 use App\Backend\Util\FormValidator;
