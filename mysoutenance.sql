@@ -32,7 +32,7 @@ DROP TABLE IF EXISTS `enseignant`;
 DROP TABLE IF EXISTS `entreprise`;
 DROP TABLE IF EXISTS `etudiant`;
 
--- Suppression de evaluer avant recréation si modification radicale,
+-- Suppression d'evaluer avant recréation si modification radicale,
 -- sinon on peut faire un ALTER TABLE. Ici, DROP+CREATE est plus simple vu la PK.
 DROP TABLE IF EXISTS `evaluer`;
 
@@ -363,6 +363,14 @@ CREATE TABLE `inscrire` (
                             `numero_recu_paiement` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
                             `id_decision_passage` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+
+CREATE TABLE jury (
+                      id_jury INT AUTO_INCREMENT PRIMARY KEY,
+                      id_session_rapport INT NOT NULL, -- Lié à la session de soutenance
+                      date_creation DATETIME DEFAULT CURRENT_TIMESTAMP,
+                      FOREIGN KEY (id_session_rapport) REFERENCES session_rapport(id_session_rapport)
+);
 
 --
 -- Structure de la table `lecture_message`
