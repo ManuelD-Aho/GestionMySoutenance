@@ -1,114 +1,105 @@
 <?php
+
 namespace App\Backend\Service\IdentifiantGenerator;
 
 use PDO;
-use App\Backend\Model\Sequences; // Le modèle pour la table 'sequences'
-use App\Backend\Model\AnneeAcademique; // Pour récupérer l'année académique active
-use App\Backend\Service\SupervisionAdmin\ServiceSupervisionAdmin; // Pour journalisation
+use App\Backend\Model\AnneeAcademique;
 use App\Backend\Exception\OperationImpossibleException;
 use App\Backend\Exception\ElementNonTrouveException;
 
+/**
+ * Service de génération d'identifiants uniques, transactionnel et basé sur des stratégies.
+ * Utilise une table 'sequences' et un fichier de configuration pour une flexibilité maximale.
+ */
 class IdentifiantGenerator implements IdentifiantGeneratorInterface
 {
-    private Sequences $sequencesModel;
+    private PDO $db;
+    private array $strategies;
     private AnneeAcademique $anneeAcademiqueModel;
-    private ServiceSupervisionAdmin $supervisionService;
-    private PDO $db; // Injecter PDO directement pour gérer les verrous manuellement si nécessaire
 
-    public function __construct(PDO $db, ServiceSupervisionAdmin $supervisionService)
+    public function __construct(PDO $db)
     {
-        $this->db = $db; // Utilisation directe de PDO pour un contrôle fin des transactions/verrous
-        $this->sequencesModel = new Sequences($db);
+        $this->db = $db;
         $this->anneeAcademiqueModel = new AnneeAcademique($db);
-        $this->supervisionService = $supervisionService;
+
+        $configFile = __DIR__ . '/../../../Config/sequences.php';
+        if (!file_exists($configFile)) {
+            throw new OperationImpossibleException("Le fichier de configuration des séquences est introuvable.");
+        }
+        $this->strategies = require $configFile;
     }
 
     /**
-     * Génère un identifiant unique formaté pour une entité donnée (PREFIXE-ANNEE-SEQUENCE).
-     *
-     * @param string $prefixe Le préfixe de l'identifiant (ex: 'RAP', 'ETU', 'PV').
-     * @param int|null $annee Optionnel: l'année pour laquelle générer l'identifiant. Par défaut, l'année académique active.
-     * @return string L'identifiant unique généré.
-     * @throws OperationImpossibleException En cas d'échec de la génération de l'identifiant.
-     * @throws ElementNonTrouveException Si aucune année académique active n'est trouvée.
+     * {@inheritdoc}
      */
-    public function genererIdentifiantUnique(string $prefixe, ?int $annee = null): string
+    public function generate(string $entityAlias, array $context = []): string
     {
-        // Déterminer l'année académique
-        if ($annee === null) {
-            $anneeActive = $this->anneeAcademiqueModel->trouverUnParCritere(['est_active' => 1]);
-            if (!$anneeActive || !isset($anneeActive['libelle_annee_academique'])) {
-                throw new ElementNonTrouveException("Aucune année académique active trouvée pour la génération d'identifiant.");
+        if (!isset($this->strategies[$entityAlias])) {
+            throw new OperationImpossibleException("Aucune stratégie de génération d'ID n'est définie pour '{$entityAlias}'.");
+        }
+
+        $strategy = $this->strategies[$entityAlias];
+        $prefix = $strategy['prefix'];
+        $padding = $strategy['padding'];
+        $resetYearly = $strategy['reset_yearly'];
+        $sequenceName = $prefix; // Le nom de la séquence en BDD est le préfixe lui-même.
+
+        $year = 0; // Année 0 pour les séquences globales non-annuelles.
+        if ($resetYearly) {
+            if (isset($context['annee'])) {
+                $year = (int) $context['annee'];
+            } else {
+                $anneeActive = $this->anneeAcademiqueModel->trouverUnParCritere(['est_active' => 1]);
+                if (!$anneeActive) {
+                    throw new ElementNonTrouveException("Impossible de générer un ID annuel : aucune année académique n'est active.");
+                }
+                // Extrait l'année de début du libellé (ex: 2024 de "2024-2025")
+                $year = (int) substr($anneeActive['libelle_annee_academique'], 0, 4);
             }
-            // Extraire l'année numérique (ex: "2024" de "2024-2025")
-            $annee = (int) substr($anneeActive['libelle_annee_academique'], 0, 4);
         }
 
-        $currentYear = (int) date('Y');
-        // Si l'année académique active est par exemple "2024-2025", l'année courante est "2025" au deuxième semestre.
-        // Il faut s'assurer que l'année utilisée pour l'ID est l'année de DÉBUT de l'année académique.
-        // Si $anneeActive['libelle_annee_academique'] est "2024-2025", alors $annee devrait être 2024.
-        // Ajustement : si $anneeActive est une entité, elle devrait avoir une colonne `annee_debut` ou similaire.
-        // Pour l'instant, on se base sur le format "AAAA-AAAA" et on prend le début.
-        if ($anneeActive && isset($anneeActive['libelle_annee_academique'])) {
-            $anneePourID = (int) substr($anneeActive['libelle_annee_academique'], 0, 4);
-        } else {
-            $anneePourID = $currentYear; // Fallback si pas d'année académique active définie
-        }
-
-
-        // Assurer l'atomicité de la génération de séquence
         $this->db->beginTransaction();
         try {
-            // Verrouiller la ligne de la séquence pour éviter les conflits concurrentiels
-            // SELECT FOR UPDATE bloque la ligne tant que la transaction n'est pas commitée/rollbackée
-            $stmt = $this->db->prepare("SELECT `valeur_actuelle` FROM `sequences` WHERE `nom_sequence` = :prefixe AND `annee` = :annee FOR UPDATE");
-            $stmt->bindParam(':prefixe', $prefixe);
-            $stmt->bindParam(':annee', $anneeForID);
-            $stmt->execute();
-            $result = $stmt->fetch(PDO::FETCH_ASSOC);
+            // Verrouillage pessimiste de la ligne pour garantir l'atomicité et éviter les race conditions.
+            $stmt = $this->db->prepare(
+                "SELECT valeur_actuelle FROM sequences WHERE nom_sequence = :name AND annee = :year FOR UPDATE"
+            );
+            $stmt->execute([':name' => $sequenceName, ':year' => $year]);
+            $sequence = $stmt->fetch(PDO::FETCH_ASSOC);
 
-            $nextSequence = 1;
-            if ($result) {
-                // La séquence existe pour cette année, incrémenter
-                $nextSequence = $result['valeur_actuelle'] + 1;
-                $updateStmt = $this->db->prepare("UPDATE `sequences` SET `valeur_actuelle` = :valeur WHERE `nom_sequence` = :prefixe AND `annee` = :annee");
-                $updateStmt->bindParam(':valeur', $nextSequence);
-                $updateStmt->bindParam(':prefixe', $prefixe);
-                $updateStmt->bindParam(':annee', $anneeForID);
-                $updateStmt->execute();
+            $nextValue = 1;
+            if ($sequence) {
+                // La séquence existe, on l'incrémente.
+                $nextValue = $sequence['valeur_actuelle'] + 1;
+                $updateStmt = $this->db->prepare(
+                    "UPDATE sequences SET valeur_actuelle = :value WHERE nom_sequence = :name AND annee = :year"
+                );
+                $updateStmt->execute([':value' => $nextValue, ':name' => $sequenceName, ':year' => $year]);
             } else {
-                // La séquence n'existe pas pour cette année, la créer
-                $insertStmt = $this->db->prepare("INSERT INTO `sequences` (`nom_sequence`, `annee`, `valeur_actuelle`) VALUES (:prefixe, :annee, 1)");
-                $insertStmt->bindParam(':prefixe', $prefixe);
-                $insertStmt->bindParam(':annee', $anneeForID);
-                $insertStmt->execute();
+                // C'est le premier ID pour cette séquence/année, on crée la ligne.
+                $insertStmt = $this->db->prepare(
+                    "INSERT INTO sequences (nom_sequence, annee, valeur_actuelle) VALUES (:name, :year, :value)"
+                );
+                $insertStmt->execute([':name' => $sequenceName, ':year' => $year, ':value' => $nextValue]);
             }
 
-            $this->db->commit(); // Valider la transaction et libérer le verrou
+            $this->db->commit();
 
-            // Formater l'identifiant (ex: ETU-2025-0001)
-            $formattedSequence = str_pad($nextSequence, 4, '0', STR_PAD_LEFT);
-            $identifiant = "{$prefixe}-{$anneeForID}-{$formattedSequence}";
+            // Formatage final de l'identifiant
+            $paddedSequence = str_pad($nextValue, $padding, '0', STR_PAD_LEFT);
 
-            $this->supervisionService->enregistrerAction(
-                $_SESSION['user_id'] ?? 'SYSTEM',
-                'GENERATION_ID_UNIQUE',
-                "Identifiant unique '{$identifiant}' généré avec le préfixe '{$prefixe}' pour l'année '{$anneeForID}'.",
-                $identifiant,
-                'ID_GENERATED' // Ou le type d'entité spécifique (ex: 'Utilisateur', 'RapportEtudiant')
-            );
+            if ($resetYearly) {
+                return "{$prefix}-{$year}-{$paddedSequence}";
+            } else {
+                return "{$prefix}-{$paddedSequence}";
+            }
 
-            return $identifiant;
-
-        } catch (\PDOException $e) {
-            $this->db->rollBack(); // Annuler la transaction en cas d'erreur
-            $this->supervisionService->enregistrerAction(
-                $_SESSION['user_id'] ?? 'SYSTEM',
-                'ECHEC_GENERATION_ID_UNIQUE',
-                "Erreur génération ID pour préfixe '{$prefixe}': " . $e->getMessage()
-            );
-            throw new OperationImpossibleException("Échec de la génération d'identifiant unique : " . $e->getMessage(), 0, $e);
+        } catch (\Exception $e) {
+            $this->db->rollBack();
+            // Log l'erreur pour le débogage
+            error_log("ID Generation Failed for '{$entityAlias}': " . $e->getMessage());
+            // Lancer une exception claire pour la couche de service appelante
+            throw new OperationImpossibleException("Échec de la génération de l'identifiant pour '{$entityAlias}'.", 0, $e);
         }
     }
 }

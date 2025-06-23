@@ -1,115 +1,60 @@
 <?php
+
 namespace App\Config;
 
-use PDO;
 use Exception;
 use App\Backend\Util\FormValidator;
 use App\Backend\Util\DatabaseSessionHandler;
 
-// Exceptions personnalisées (s'assurer qu'elles existent dans votre projet)
-use App\Backend\Exception\AuthenticationException;
-use App\Backend\Exception\CompteBloqueException;
-use App\Backend\Exception\CompteNonValideException;
-use App\Backend\Exception\DoublonException;
-use App\Backend\Exception\ElementNonTrouveException;
-use App\Backend\Exception\EmailException;
-use App\Backend\Exception\EmailNonValideException;
-use App\Backend\Exception\IdentifiantsInvalidesException;
-// use App\Backend\Exception\ModeleNonTrouveException; // Commenté si non utilisée
-use App\Backend\Exception\MotDePasseInvalideException;
-use App\Backend\Exception\OperationImpossibleException;
-use App\Backend\Exception\PermissionException;
-use App\Backend\Exception\TokenExpireException;
-use App\Backend\Exception\TokenInvalideException;
-// use App\Backend\Exception\UtilisateurNonTrouveException; // Commenté si non utilisée
-use App\Backend\Exception\ValidationException;
+// Interfaces des Services
+use App\Backend\Service\Authentication\ServiceAuthenticationInterface;
+use App\Backend\Service\Checklist\ServiceChecklistInterface;
+use App\Backend\Service\Commission\ServiceCommissionInterface;
+use App\Backend\Service\ConfigurationSysteme\ServiceConfigurationSystemeInterface;
+use App\Backend\Service\Conformite\ServiceConformiteInterface;
+use App\Backend\Service\Delegation\ServiceDelegationInterface;
+use App\Backend\Service\DocumentGenerator\ServiceDocumentGeneratorInterface;
+use App\Backend\Service\Email\ServiceEmailInterface;
+use App\Backend\Service\GestionAcademique\ServiceGestionAcademiqueInterface;
+use App\Backend\Service\IdentifiantGenerator\IdentifiantGeneratorInterface;
+use App\Backend\Service\Importation\ServiceImportationInterface;
+use App\Backend\Service\Messagerie\ServiceMessagerieInterface;
+use App\Backend\Service\ModeleRapport\ServiceModeleRapportInterface;
+use App\Backend\Service\Notification\ServiceNotificationInterface;
+use App\Backend\Service\Permissions\ServicePermissionsInterface;
+use App\Backend\Service\Rapport\ServiceRapportInterface;
+use App\Backend\Service\Reclamation\ServiceReclamationInterface;
+use App\Backend\Service\ReportingAdmin\ServiceReportingAdminInterface;
+use App\Backend\Service\SupervisionAdmin\ServiceSupervisionAdminInterface;
+use App\Backend\Service\Transition\ServiceTransitionInterface;
 
-
-// Modèles (tous vos modèles, assurez-vous qu'ils existent)
-use App\Backend\Model\Acquerir;
-use App\Backend\Model\Action;
-use App\Backend\Model\Affecter;
-use App\Backend\Model\AnneeAcademique;
-use App\Backend\Model\Approuver;
-use App\Backend\Model\Attribuer;
-use App\Backend\Model\CompteRendu;
-use App\Backend\Model\Conversation;
-use App\Backend\Model\DecisionPassageRef;
-use App\Backend\Model\DecisionValidationPvRef;
-use App\Backend\Model\DecisionVoteRef;
-use App\Backend\Model\DocumentGenere;
-use App\Backend\Model\Ecue;
-use App\Backend\Model\Enregistrer;
-use App\Backend\Model\Enseignant;
-use App\Backend\Model\Entreprise;
-use App\Backend\Model\Etudiant;
-use App\Backend\Model\Evaluer;
-use App\Backend\Model\FaireStage;
-use App\Backend\Model\Fonction;
-use App\Backend\Model\Grade;
-use App\Backend\Model\GroupeUtilisateur;
-use App\Backend\Model\HistoriqueMotDePasse;
-use App\Backend\Model\Inscrire;
-use App\Backend\Model\LectureMessage;
-use App\Backend\Model\MessageChat;
-use App\Backend\Model\NiveauAccesDonne;
-use App\Backend\Model\NiveauEtude;
-use App\Backend\Model\Notification;
-use App\Backend\Model\Occuper;
-use App\Backend\Model\ParticipantConversation;
-use App\Backend\Model\Penalite;
-use App\Backend\Model\PersonnelAdministratif;
-use App\Backend\Model\Pister;
-use App\Backend\Model\PvSessionRapport;
-use App\Backend\Model\RapportEtudiant;
-use App\Backend\Model\Rattacher;
-use App\Backend\Model\Recevoir;
-use App\Backend\Model\Reclamation;
-use App\Backend\Model\Rendre;
-use App\Backend\Model\SectionRapport;
-use App\Backend\Model\Sequences;
-use App\Backend\Model\SessionRapport;
-use App\Backend\Model\Sessions;
-use App\Backend\Model\SessionValidation;
-use App\Backend\Model\Specialite;
-use App\Backend\Model\StatutConformiteRef;
-use App\Backend\Model\StatutJury;
-use App\Backend\Model\StatutPaiementRef;
-use App\Backend\Model\StatutPenaliteRef;
-use App\Backend\Model\StatutPvRef;
-use App\Backend\Model\StatutRapportRef;
-use App\Backend\Model\StatutReclamationRef;
-use App\Backend\Model\Traitement;
-use App\Backend\Model\TypeDocumentRef;
-use App\Backend\Model\TypeUtilisateur;
-use App\Backend\Model\Ue;
-use App\Backend\Model\Utilisateur;
-use App\Backend\Model\ValidationPv;
-use App\Backend\Model\VoteCommission;
-
-
-// Services (assurez-vous qu'ils existent et que leurs interfaces sont correctes)
+// Implémentations des Services
 use App\Backend\Service\Authentication\ServiceAuthentification;
+use App\Backend\Service\Checklist\ServiceChecklist;
 use App\Backend\Service\Commission\ServiceCommission;
 use App\Backend\Service\ConfigurationSysteme\ServiceConfigurationSysteme;
 use App\Backend\Service\Conformite\ServiceConformite;
+use App\Backend\Service\Delegation\ServiceDelegation;
 use App\Backend\Service\DocumentGenerator\ServiceDocumentGenerator;
 use App\Backend\Service\Email\ServiceEmail;
 use App\Backend\Service\GestionAcademique\ServiceGestionAcademique;
 use App\Backend\Service\IdentifiantGenerator\IdentifiantGenerator;
+use App\Backend\Service\Importation\ServiceImportation;
 use App\Backend\Service\Messagerie\ServiceMessagerie;
+use App\Backend\Service\ModeleRapport\ServiceModeleRapport;
 use App\Backend\Service\Notification\ServiceNotification;
 use App\Backend\Service\Permissions\ServicePermissions;
 use App\Backend\Service\Rapport\ServiceRapport;
 use App\Backend\Service\Reclamation\ServiceReclamation;
 use App\Backend\Service\ReportingAdmin\ServiceReportingAdmin;
 use App\Backend\Service\SupervisionAdmin\ServiceSupervisionAdmin;
+use App\Backend\Service\Transition\ServiceTransition;
 
-// Contrôleurs (tous vos contrôleurs)
+// Contrôleurs
 use App\Backend\Controller\HomeController;
 use App\Backend\Controller\AuthentificationController;
 use App\Backend\Controller\AssetController;
-use App\Backend\Controller\Admin\AnneeAcademiqueController;
+use App\Backend\Controller\DashboardController;
 use App\Backend\Controller\Administration\AdminDashboardController;
 use App\Backend\Controller\Administration\ConfigSystemeController;
 use App\Backend\Controller\Administration\GestionAcadController;
@@ -124,7 +69,6 @@ use App\Backend\Controller\Commission\CorrectionCommissionController;
 use App\Backend\Controller\Commission\PvController;
 use App\Backend\Controller\Commission\ValidationRapportController;
 use App\Backend\Controller\Common\NotificationController;
-use App\Backend\Controller\DashboardController;
 use App\Backend\Controller\Etudiant\DocumentEtudiantController;
 use App\Backend\Controller\Etudiant\EtudiantDashboardController;
 use App\Backend\Controller\Etudiant\ProfilEtudiantController;
@@ -136,7 +80,11 @@ use App\Backend\Controller\PersonnelAdministratif\ConformiteController;
 use App\Backend\Controller\PersonnelAdministratif\PersonnelDashboardController;
 use App\Backend\Controller\PersonnelAdministratif\ScolariteController;
 
-
+/**
+ * Conteneur d'Injection de Dépendances (DIC).
+ * Gère l'instanciation et la résolution des dépendances pour toutes les classes de l'application.
+ * Les définitions lient les interfaces aux implémentations concrètes.
+ */
 class Container
 {
     private array $definitions = [];
@@ -144,433 +92,85 @@ class Container
 
     public function __construct()
     {
-        // Définition de la connexion à la base de données
-        $this->definitions['PDO'] = function () {
-            // Assurez-vous que les variables d'environnement sont bien chargées (ex: via phpdotenv dans public/index.php)
-            $host = $_ENV['DB_HOST'] ?? 'localhost';
-            $db = $_ENV['DB_NAME'] ?? 'mysoutenance';
-            $user = $_ENV['DB_USER'] ?? 'user';
-            $pass = $_ENV['DB_PASSWORD'] ?? 'password';
-            $charset = 'utf8mb4';
+        // --- FONDATIONS ---
+        $this->definitions['PDO'] = fn() => Database::getInstance()->getConnection();
+        $this->definitions[DatabaseSessionHandler::class] = fn() => new DatabaseSessionHandler();
+        $this->definitions[FormValidator::class] = fn() => new FormValidator();
 
-            $dsn = "mysql:host=$host;dbname=$db;charset=$charset";
-            $options = [
-                PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
-                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-                PDO::ATTR_EMULATE_PREPARES   => false,
-            ];
-            try {
-                $pdo = new PDO($dsn, $user, $pass, $options);
-                return $pdo;
-            } catch (\PDOException $e) {
-                // Log l'erreur de connexion à la DB et lance une exception générale
-                error_log("Erreur de connexion à la base de données: " . $e->getMessage());
-                throw new Exception("Impossible de se connecter à la base de données. Veuillez réessayer plus tard.");
-            }
-        };
+        // --- SERVICES : LIAISON INTERFACE -> IMPLÉMENTATION ---
+        $this->definitions[ServiceSupervisionAdminInterface::class] = fn($c) => new ServiceSupervisionAdmin($c->get('PDO'), $c->get(IdentifiantGeneratorInterface::class));
+        $this->definitions[IdentifiantGeneratorInterface::class] = fn($c) => new IdentifiantGenerator($c->get('PDO'));
+        $this->definitions[ServiceEmailInterface::class] = fn($c) => new ServiceEmail($c->get(ServiceSupervisionAdminInterface::class));
+        $this->definitions[ServiceNotificationInterface::class] = fn($c) => new ServiceNotification($c->get('PDO'), $c->get(ServiceSupervisionAdminInterface::class), $c->get(IdentifiantGeneratorInterface::class));
+        $this->definitions[ServicePermissionsInterface::class] = fn($c) => new ServicePermissions($c->get('PDO'), $c->get(ServiceSupervisionAdminInterface::class));
+        $this->definitions[ServiceAuthenticationInterface::class] = fn($c) => new ServiceAuthentification($c->get('PDO'), $c->get(ServiceEmailInterface::class), $c->get(ServiceSupervisionAdminInterface::class), $c->get(IdentifiantGeneratorInterface::class), $c->get(ServicePermissionsInterface::class));
+        $this->definitions[ServiceDocumentGeneratorInterface::class] = fn($c) => new ServiceDocumentGenerator($c->get('PDO'), $c->get(IdentifiantGeneratorInterface::class));
+        $this->definitions[ServiceCommissionInterface::class] = fn($c) => new ServiceCommission($c->get('PDO'), $c->get(IdentifiantGeneratorInterface::class), $c->get(ServiceNotificationInterface::class));
+        $this->definitions[ServiceConfigurationSystemeInterface::class] = fn($c) => new ServiceConfigurationSysteme($c->get('PDO'));
+        $this->definitions[ServiceConformiteInterface::class] = fn($c) => new ServiceConformite($c->get('PDO'), $c->get(ServiceNotificationInterface::class));
+        $this->definitions[ServiceGestionAcademiqueInterface::class] = fn($c) => new ServiceGestionAcademique($c->get('PDO'), $c->get(IdentifiantGeneratorInterface::class));
+        $this->definitions[ServiceMessagerieInterface::class] = fn($c) => new ServiceMessagerie($c->get('PDO'), $c->get(IdentifiantGeneratorInterface::class));
+        $this->definitions[ServiceRapportInterface::class] = fn($c) => new ServiceRapport($c->get('PDO'), $c->get(ServiceNotificationInterface::class), $c->get(ServiceSupervisionAdminInterface::class), $c->get(IdentifiantGeneratorInterface::class));
+        $this->definitions[ServiceReclamationInterface::class] = fn($c) => new ServiceReclamation($c->get('PDO'), $c->get(ServiceNotificationInterface::class), $c->get(ServiceSupervisionAdminInterface::class), $c->get(IdentifiantGeneratorInterface::class));
+        $this->definitions[ServiceReportingAdminInterface::class] = fn($c) => new ServiceReportingAdmin($c->get('PDO'));
+        $this->definitions[ServiceChecklistInterface::class] = fn($c) => new ServiceChecklist($c->get('PDO'), $c->get(ServiceSupervisionAdminInterface::class), $c->get(IdentifiantGeneratorInterface::class));
+        $this->definitions[ServiceDelegationInterface::class] = fn($c) => new ServiceDelegation($c->get('PDO'), $c->get(ServiceSupervisionAdminInterface::class), $c->get(IdentifiantGeneratorInterface::class));
+        $this->definitions[ServiceImportationInterface::class] = fn($c) => new ServiceImportation($c->get('PDO'), $c->get(ServiceSupervisionAdminInterface::class));
+        $this->definitions[ServiceModeleRapportInterface::class] = fn($c) => new ServiceModeleRapport($c->get('PDO'), $c->get(ServiceSupervisionAdminInterface::class));
+        $this->definitions[ServiceTransitionInterface::class] = fn($c) => new ServiceTransition($c->get('PDO'), $c->get(ServiceSupervisionAdminInterface::class));
 
-        // Définition du gestionnaire de session personnalisé
-        $this->definitions[DatabaseSessionHandler::class] = function ($container) {
-            return new DatabaseSessionHandler($container->get('PDO'));
-        };
+        // --- CONTRÔLEURS ---
+        $this->definitions[HomeController::class] = fn($c) => new HomeController($c->get(ServiceAuthenticationInterface::class), $c->get(ServicePermissionsInterface::class), $c->get(FormValidator::class), $c->get(ServiceSupervisionAdminInterface::class));
+        $this->definitions[AuthentificationController::class] = fn($c) => new AuthentificationController($c->get(ServiceAuthenticationInterface::class), $c->get(ServicePermissionsInterface::class), $c->get(FormValidator::class), $c->get(ServiceSupervisionAdminInterface::class));
+        $this->definitions[AssetController::class] = fn($c) => new AssetController($c->get(ServiceAuthenticationInterface::class), $c->get(ServicePermissionsInterface::class), $c->get(FormValidator::class), $c->get(ServiceSupervisionAdminInterface::class));
+        $this->definitions[DashboardController::class] = fn($c) => new DashboardController($c->get(ServiceAuthenticationInterface::class), $c->get(ServicePermissionsInterface::class), $c->get(FormValidator::class), $c->get(ServiceSupervisionAdminInterface::class));
 
-        // Utilitaires
-        $this->definitions[FormValidator::class] = function () {
-            return new FormValidator();
-        };
+        // Administration
+        $this->definitions[AdminDashboardController::class] = fn($c) => new AdminDashboardController($c->get(ServiceAuthenticationInterface::class), $c->get(ServicePermissionsInterface::class), $c->get(FormValidator::class), $c->get(ServiceReportingAdminInterface::class), $c->get(ServiceSupervisionAdminInterface::class));
+        $this->definitions[ConfigSystemeController::class] = fn($c) => new ConfigSystemeController($c->get(ServiceAuthenticationInterface::class), $c->get(ServicePermissionsInterface::class), $c->get(FormValidator::class), $c->get(ServiceConfigurationSystemeInterface::class));
+        $this->definitions[GestionAcadController::class] = fn($c) => new GestionAcadController($c->get(ServiceAuthenticationInterface::class), $c->get(ServicePermissionsInterface::class), $c->get(FormValidator::class), $c->get(ServiceGestionAcademiqueInterface::class), $c->get(ServiceConfigurationSystemeInterface::class));
+        $this->definitions[HabilitationController::class] = fn($c) => new HabilitationController($c->get(ServiceAuthenticationInterface::class), $c->get(ServicePermissionsInterface::class), $c->get(FormValidator::class));
+        $this->definitions[ReferentialController::class] = fn($c) => new ReferentialController($c->get(ServiceAuthenticationInterface::class), $c->get(ServicePermissionsInterface::class), $c->get(FormValidator::class));
+        $this->definitions[ReportingController::class] = fn($c) => new ReportingController($c->get(ServiceAuthenticationInterface::class), $c->get(ServicePermissionsInterface::class), $c->get(FormValidator::class), $c->get(ServiceReportingAdminInterface::class), $c->get(ServiceConfigurationSystemeInterface::class));
+        $this->definitions[SupervisionController::class] = fn($c) => new SupervisionController($c->get(ServiceAuthenticationInterface::class), $c->get(ServicePermissionsInterface::class), $c->get(FormValidator::class), $c->get(ServiceSupervisionAdminInterface::class));
+        $this->definitions[UtilisateurController::class] = fn($c) => new UtilisateurController($c->get(ServiceAuthenticationInterface::class), $c->get(ServicePermissionsInterface::class), $c->get(FormValidator::class), $c->get(ServiceGestionAcademiqueInterface::class), $c->get(ServiceConfigurationSystemeInterface::class));
 
-        // --- Modèles ---
-        // Tous les modèles reçoivent la connexion PDO
-        $this->definitions[Acquerir::class] = fn ($c) => new Acquerir($c->get('PDO'));
-        $this->definitions[Action::class] = fn ($c) => new Action($c->get('PDO'));
-        $this->definitions[Affecter::class] = fn ($c) => new Affecter($c->get('PDO'));
-        $this->definitions[AnneeAcademique::class] = fn ($c) => new AnneeAcademique($c->get('PDO'));
-        $this->definitions[Approuver::class] = fn ($c) => new Approuver($c->get('PDO'));
-        $this->definitions[Attribuer::class] = fn ($c) => new Attribuer($c->get('PDO'));
-        $this->definitions[CompteRendu::class] = fn ($c) => new CompteRendu($c->get('PDO'));
-        $this->definitions[Conversation::class] = fn ($c) => new Conversation($c->get('PDO'));
-        $this->definitions[DecisionPassageRef::class] = fn ($c) => new DecisionPassageRef($c->get('PDO'));
-        $this->definitions[DecisionValidationPvRef::class] = fn ($c) => new DecisionValidationPvRef($c->get('PDO'));
-        $this->definitions[DecisionVoteRef::class] = fn ($c) => new DecisionVoteRef($c->get('PDO'));
-        $this->definitions[DocumentGenere::class] = fn ($c) => new DocumentGenere($c->get('PDO'));
-        $this->definitions[Ecue::class] = fn ($c) => new Ecue($c->get('PDO'));
-        $this->definitions[Enregistrer::class] = fn ($c) => new Enregistrer($c->get('PDO'));
-        $this->definitions[Enseignant::class] = fn ($c) => new Enseignant($c->get('PDO'));
-        $this->definitions[Entreprise::class] = fn ($c) => new Entreprise($c->get('PDO'));
-        $this->definitions[Etudiant::class] = fn ($c) => new Etudiant($c->get('PDO'));
-        $this->definitions[Evaluer::class] = fn ($c) => new Evaluer($c->get('PDO'));
-        $this->definitions[FaireStage::class] = fn ($c) => new FaireStage($c->get('PDO'));
-        $this->definitions[Fonction::class] = fn ($c) => new Fonction($c->get('PDO'));
-        $this->definitions[Grade::class] = fn ($c) => new Grade($c->get('PDO'));
-        $this->definitions[GroupeUtilisateur::class] = fn ($c) => new GroupeUtilisateur($c->get('PDO'));
-        $this->definitions[HistoriqueMotDePasse::class] = fn ($c) => new HistoriqueMotDePasse($c->get('PDO'));
-        $this->definitions[Inscrire::class] = fn ($c) => new Inscrire($c->get('PDO'));
-        $this->definitions[LectureMessage::class] = fn ($c) => new LectureMessage($c->get('PDO'));
-        $this->definitions[MessageChat::class] = fn ($c) => new MessageChat($c->get('PDO'));
-        $this->definitions[NiveauAccesDonne::class] = fn ($c) => new NiveauAccesDonne($c->get('PDO'));
-        $this->definitions[NiveauEtude::class] = fn ($c) => new NiveauEtude($c->get('PDO'));
-        $this->definitions[Notification::class] = fn ($c) => new Notification($c->get('PDO'));
-        $this->definitions[Occuper::class] = fn ($c) => new Occuper($c->get('PDO'));
-        $this->definitions[ParticipantConversation::class] = fn ($c) => new ParticipantConversation($c->get('PDO'));
-        $this->definitions[Penalite::class] = fn ($c) => new Penalite($c->get('PDO'));
-        $this->definitions[PersonnelAdministratif::class] = fn ($c) => new PersonnelAdministratif($c->get('PDO'));
-        $this->definitions[Pister::class] = fn ($c) => new Pister($c->get('PDO'));
-        $this->definitions[PvSessionRapport::class] = fn ($c) => new PvSessionRapport($c->get('PDO'));
-        $this->definitions[RapportEtudiant::class] = fn ($c) => new RapportEtudiant($c->get('PDO'));
-        $this->definitions[Rattacher::class] = fn ($c) => new Rattacher($c->get('PDO'));
-        $this->definitions[Recevoir::class] = fn ($c) => new Recevoir($c->get('PDO'));
-        $this->definitions[Reclamation::class] = fn ($c) => new Reclamation($c->get('PDO'));
-        $this->definitions[Rendre::class] = fn ($c) => new Rendre($c->get('PDO'));
-        $this->definitions[SectionRapport::class] = fn ($c) => new SectionRapport($c->get('PDO'));
-        $this->definitions[Sequences::class] = fn ($c) => new Sequences($c->get('PDO'));
-        $this->definitions[SessionRapport::class] = fn ($c) => new SessionRapport($c->get('PDO'));
-        $this->definitions[Sessions::class] = fn ($c) => new Sessions($c->get('PDO'));
-        $this->definitions[SessionValidation::class] = fn ($c) => new SessionValidation($c->get('PDO'));
-        $this->definitions[Specialite::class] = fn ($c) => new Specialite($c->get('PDO'));
-        $this->definitions[StatutConformiteRef::class] = fn ($c) => new StatutConformiteRef($c->get('PDO'));
-        $this->definitions[StatutJury::class] = fn ($c) => new StatutJury($c->get('PDO'));
-        $this->definitions[StatutPaiementRef::class] = fn ($c) => new StatutPaiementRef($c->get('PDO'));
-        $this->definitions[StatutPenaliteRef::class] = fn ($c) => new StatutPenaliteRef($c->get('PDO'));
-        $this->definitions[StatutPvRef::class] = fn ($c) => new StatutPvRef($c->get('PDO'));
-        $this->definitions[StatutRapportRef::class] = fn ($c) => new StatutRapportRef($c->get('PDO'));
-        $this->definitions[StatutReclamationRef::class] = fn ($c) => new StatutReclamationRef($c->get('PDO'));
-        $this->definitions[Traitement::class] = fn ($c) => new Traitement($c->get('PDO'));
-        $this->definitions[TypeDocumentRef::class] = fn ($c) => new TypeDocumentRef($c->get('PDO'));
-        $this->definitions[TypeUtilisateur::class] = fn ($c) => new TypeUtilisateur($c->get('PDO'));
-        $this->definitions[Ue::class] = fn ($c) => new Ue($c->get('PDO'));
-        $this->definitions[Utilisateur::class] = fn ($c) => new Utilisateur($c->get('PDO'));
-        $this->definitions[ValidationPv::class] = fn ($c) => new ValidationPv($c->get('PDO'));
-        $this->definitions[VoteCommission::class] = fn ($c) => new VoteCommission($c->get('PDO'));
+        // Commission
+        $this->definitions[CommissionDashboardController::class] = fn($c) => new CommissionDashboardController($c->get(ServiceAuthenticationInterface::class), $c->get(ServicePermissionsInterface::class), $c->get(FormValidator::class), $c->get(ServiceCommissionInterface::class), $c->get(ServiceNotificationInterface::class));
+        $this->definitions[CommunicationCommissionController::class] = fn($c) => new CommunicationCommissionController($c->get(ServiceAuthenticationInterface::class), $c->get(ServicePermissionsInterface::class), $c->get(FormValidator::class), $c->get(ServiceMessagerieInterface::class));
+        $this->definitions[CorrectionCommissionController::class] = fn($c) => new CorrectionCommissionController($c->get(ServiceAuthenticationInterface::class), $c->get(ServicePermissionsInterface::class), $c->get(FormValidator::class), $c->get(ServiceRapportInterface::class), $c->get(ServiceCommissionInterface::class), $c->get(ServiceNotificationInterface::class));
+        $this->definitions[PvController::class] = fn($c) => new PvController($c->get(ServiceAuthenticationInterface::class), $c->get(ServicePermissionsInterface::class), $c->get(FormValidator::class), $c->get(ServiceCommissionInterface::class), $c->get(ServiceRapportInterface::class), $c->get(ServiceGestionAcademiqueInterface::class));
+        $this->definitions[ValidationRapportController::class] = fn($c) => new ValidationRapportController($c->get(ServiceAuthenticationInterface::class), $c->get(ServicePermissionsInterface::class), $c->get(FormValidator::class), $c->get(ServiceCommissionInterface::class), $c->get(ServiceRapportInterface::class), $c->get(ServiceConfigurationSystemeInterface::class));
 
+        // Common
+        $this->definitions[NotificationController::class] = fn($c) => new NotificationController($c->get(ServiceAuthenticationInterface::class), $c->get(ServicePermissionsInterface::class), $c->get(FormValidator::class), $c->get(ServiceNotificationInterface::class));
 
-        // --- Services ---
-        // L'ordre est important ici, les dépendances doivent être définies avant d'être injectées
-        $this->definitions[ServiceSupervisionAdmin::class] = fn ($c) => new ServiceSupervisionAdmin($c->get('PDO'));
+        // Etudiant
+        $this->definitions[DocumentEtudiantController::class] = fn($c) => new DocumentEtudiantController($c->get(ServiceAuthenticationInterface::class), $c->get(ServicePermissionsInterface::class), $c->get(FormValidator::class), $c->get(ServiceDocumentGeneratorInterface::class));
+        $this->definitions[EtudiantDashboardController::class] = fn($c) => new EtudiantDashboardController($c->get(ServiceAuthenticationInterface::class), $c->get(ServicePermissionsInterface::class), $c->get(FormValidator::class), $c->get(ServiceRapportInterface::class), $c->get(ServiceNotificationInterface::class), $c->get(ServiceReclamationInterface::class), $c->get(ServiceGestionAcademiqueInterface::class), $c->get(ServiceConfigurationSystemeInterface::class));
+        $this->definitions[ProfilEtudiantController::class] = fn($c) => new ProfilEtudiantController($c->get(ServiceAuthenticationInterface::class), $c->get(ServicePermissionsInterface::class), $c->get(FormValidator::class));
+        $this->definitions[RapportController::class] = fn($c) => new RapportController($c->get(ServiceAuthenticationInterface::class), $c->get(ServicePermissionsInterface::class), $c->get(FormValidator::class), $c->get(ServiceRapportInterface::class), $c->get(ServiceGestionAcademiqueInterface::class), $c->get(ServiceConfigurationSystemeInterface::class));
+        $this->definitions[ReclamationEtudiantController::class] = fn($c) => new ReclamationEtudiantController($c->get(ServiceAuthenticationInterface::class), $c->get(ServicePermissionsInterface::class), $c->get(FormValidator::class), $c->get(ServiceReclamationInterface::class), $c->get(ServiceConfigurationSystemeInterface::class));
+        $this->definitions[RessourcesEtudiantController::class] = fn($c) => new RessourcesEtudiantController($c->get(ServiceAuthenticationInterface::class), $c->get(ServicePermissionsInterface::class), $c->get(FormValidator::class));
 
-        $this->definitions[ServiceNotification::class] = fn ($c) => new ServiceNotification(
-            $c->get('PDO'),
-            $c->get(ServiceSupervisionAdmin::class)
-        );
-
-        $this->definitions[ServiceEmail::class] = fn ($c) => new ServiceEmail(
-            $c->get('PDO'),
-            $c->get(ServiceSupervisionAdmin::class)
-        );
-
-        $this->definitions[IdentifiantGenerator::class] = fn ($c) => new IdentifiantGenerator(
-            $c->get('PDO'),
-            $c->get(ServiceSupervisionAdmin::class)
-        );
-
-        $this->definitions[ServiceAuthentification::class] = fn ($c) => new ServiceAuthentification(
-            $c->get('PDO'),
-            $c->get(ServiceEmail::class),
-            $c->get(ServiceSupervisionAdmin::class),
-            $c->get(IdentifiantGenerator::class)
-        );
-
-        $this->definitions[ServiceCommission::class] = fn ($c) => new ServiceCommission(
-            $c->get('PDO'),
-            $c->get(ServiceNotification::class),
-            $c->get(ServiceDocumentGenerator::class),
-            $c->get(ServiceSupervisionAdmin::class),
-            $c->get(IdentifiantGenerator::class)
-        );
-
-        $this->definitions[ServiceConfigurationSysteme::class] = fn ($c) => new ServiceConfigurationSysteme(
-            $c->get('PDO'),
-            $c->get(ServiceSupervisionAdmin::class),
-            $c->get(IdentifiantGenerator::class)
-        );
-
-        $this->definitions[ServiceConformite::class] = fn ($c) => new ServiceConformite(
-            $c->get('PDO'),
-            $c->get(ServiceNotification::class),
-            $c->get(ServiceSupervisionAdmin::class)
-        );
-
-        $this->definitions[ServiceDocumentGenerator::class] = fn ($c) => new ServiceDocumentGenerator(
-            $c->get('PDO'),
-            $c->get(ServiceSupervisionAdmin::class),
-            $c->get(IdentifiantGenerator::class),
-            $c->get(PvSessionRapport::class)
-        );
-
-        $this->definitions[ServiceGestionAcademique::class] = fn ($c) => new ServiceGestionAcademique(
-            $c->get('PDO'),
-            $c->get(ServiceNotification::class),
-            $c->get(ServiceSupervisionAdmin::class),
-            $c->get(IdentifiantGenerator::class)
-        );
-
-        $this->definitions[ServiceMessagerie::class] = fn ($c) => new ServiceMessagerie(
-            $c->get('PDO'),
-            $c->get(ServiceNotification::class),
-            $c->get(ServiceSupervisionAdmin::class),
-            $c->get(IdentifiantGenerator::class)
-        );
-
-        $this->definitions[ServicePermissions::class] = fn ($c) => new ServicePermissions(
-            $c->get('PDO'),
-            $c->get(ServiceSupervisionAdmin::class)
-        // Les modèles Utilisateur, GroupeUtilisateur, TypeUtilisateur sont instanciés à l'intérieur de ServicePermissions
-        // pour éviter les boucles de dépendance avec ServiceAuthentification.
-        );
-
-        $this->definitions[ServiceRapport::class] = fn ($c) => new ServiceRapport(
-            $c->get('PDO'),
-            $c->get(ServiceNotification::class),
-            $c->get(ServiceSupervisionAdmin::class),
-            $c->get(IdentifiantGenerator::class)
-        );
-
-        $this->definitions[ServiceReclamation::class] = fn ($c) => new ServiceReclamation(
-            $c->get('PDO'),
-            $c->get(ServiceNotification::class),
-            $c->get(ServiceSupervisionAdmin::class),
-            $c->get(IdentifiantGenerator::class)
-        );
-
-        $this->definitions[ServiceReportingAdmin::class] = fn ($c) => new ServiceReportingAdmin(
-            $c->get('PDO'),
-            $c->get(ServiceSupervisionAdmin::class)
-        );
-
-        // --- Contrôleurs ---
-        // Chaque contrôleur reçoit ses dépendances nécessaires
-
-        $this->definitions[HomeController::class] = fn ($c) => new HomeController(
-            $c->get(ServiceAuthentification::class),
-            $c->get(ServicePermissions::class),
-            $c->get(FormValidator::class)
-        );
-
-        $this->definitions[AuthentificationController::class] = fn ($c) => new AuthentificationController(
-            $c->get(ServiceAuthentification::class),
-            $c->get(ServicePermissions::class),
-            $c->get(FormValidator::class)
-        );
-
-        $this->definitions[AssetController::class] = fn ($c) => new AssetController(
-            $c->get(ServiceAuthentification::class),
-            $c->get(ServicePermissions::class),
-            $c->get(FormValidator::class),
-            $c->get(ServiceSupervisionAdmin::class) // Pour la journalisation des assets
-        );
-
-        // Contrôleurs de l'Administration
-        $this->definitions[AnneeAcademiqueController::class] = fn ($c) => new AnneeAcademiqueController(
-            $c->get(ServiceAuthentification::class),
-            $c->get(ServicePermissions::class),
-            $c->get(FormValidator::class),
-            $c->get(ServiceConfigurationSysteme::class)
-        );
-
-        $this->definitions[AdminDashboardController::class] = fn ($c) => new AdminDashboardController(
-            $c->get(ServiceAuthentification::class),
-            $c->get(ServicePermissions::class),
-            $c->get(FormValidator::class),
-            $c->get(ServiceReportingAdmin::class),
-            $c->get(ServiceSupervisionAdmin::class)
-        );
-
-        $this->definitions[ConfigSystemeController::class] = fn ($c) => new ConfigSystemeController(
-            $c->get(ServiceAuthentification::class),
-            $c->get(ServicePermissions::class),
-            $c->get(FormValidator::class),
-            $c->get(ServiceConfigurationSysteme::class)
-        );
-
-        $this->definitions[GestionAcadController::class] = fn ($c) => new GestionAcadController(
-            $c->get(ServiceAuthentification::class),
-            $c->get(ServicePermissions::class),
-            $c->get(FormValidator::class),
-            $c->get(ServiceGestionAcademique::class),
-            $c->get(ServiceConfigurationSysteme::class) // Pour les listes de référence
-        );
-
-        $this->definitions[HabilitationController::class] = fn ($c) => new HabilitationController(
-            $c->get(ServiceAuthentification::class),
-            $c->get(ServicePermissions::class),
-            $c->get(FormValidator::class)
-        );
-
-        $this->definitions[ReferentialController::class] = fn ($c) => new ReferentialController(
-            $c->get(ServiceAuthentification::class),
-            $c->get(ServicePermissions::class),
-            $c->get(FormValidator::class)
-        );
-
-        $this->definitions[ReportingController::class] = fn ($c) => new ReportingController(
-            $c->get(ServiceAuthentification::class),
-            $c->get(ServicePermissions::class),
-            $c->get(FormValidator::class),
-            $c->get(ServiceReportingAdmin::class),
-            $c->get(ServiceConfigurationSysteme::class) // Pour les filtres par année académique
-        );
-
-        $this->definitions[SupervisionController::class] = fn ($c) => new SupervisionController(
-            $c->get(ServiceAuthentification::class),
-            $c->get(ServicePermissions::class),
-            $c->get(FormValidator::class),
-            $c->get(ServiceSupervisionAdmin::class)
-        );
-
-        $this->definitions[UtilisateurController::class] = fn ($c) => new UtilisateurController(
-            $c->get(ServiceAuthentification::class),
-            $c->get(ServicePermissions::class),
-            $c->get(FormValidator::class),
-            $c->get(ServiceGestionAcademique::class), // Pour lister grades, fonctions etc.
-            $c->get(ServiceConfigurationSysteme::class) // Pour lister années académiques, niveaux d'étude etc.
-        );
-
-        // Contrôleurs de la Commission
-        $this->definitions[CommissionDashboardController::class] = fn ($c) => new CommissionDashboardController(
-            $c->get(ServiceAuthentification::class),
-            $c->get(ServicePermissions::class),
-            $c->get(FormValidator::class),
-            $c->get(ServiceCommission::class),
-            $c->get(ServiceNotification::class)
-        );
-
-        $this->definitions[CommunicationCommissionController::class] = fn ($c) => new CommunicationCommissionController(
-            $c->get(ServiceAuthentification::class),
-            $c->get(ServicePermissions::class),
-            $c->get(FormValidator::class),
-            $c->get(ServiceMessagerie::class)
-        );
-
-        $this->definitions[CorrectionCommissionController::class] = fn ($c) => new CorrectionCommissionController(
-            $c->get(ServiceAuthentification::class),
-            $c->get(ServicePermissions::class),
-            $c->get(FormValidator::class),
-            $c->get(ServiceRapport::class),
-            $c->get(ServiceCommission::class),
-            $c->get(ServiceNotification::class)
-        );
-
-        $this->definitions[PvController::class] = fn ($c) => new PvController(
-            $c->get(ServiceAuthentification::class),
-            $c->get(ServicePermissions::class),
-            $c->get(FormValidator::class),
-            $c->get(ServiceCommission::class),
-            $c->get(ServiceRapport::class),
-            $c->get(ServiceGestionAcademique::class) // Pour lister etudiants, etc.
-        );
-
-        $this->definitions[ValidationRapportController::class] = fn ($c) => new ValidationRapportController(
-            $c->get(ServiceAuthentification::class),
-            $c->get(ServicePermissions::class),
-            $c->get(FormValidator::class),
-            $c->get(ServiceCommission::class),
-            $c->get(ServiceRapport::class),
-            $c->get(ServiceConfigurationSysteme::class) // Pour les décisions de vote
-        );
-
-        // Contrôleurs Communs
-        $this->definitions[NotificationController::class] = fn ($c) => new NotificationController(
-            $c->get(ServiceAuthentification::class),
-            $c->get(ServicePermissions::class),
-            $c->get(FormValidator::class),
-            $c->get(ServiceNotification::class)
-        );
-
-        $this->definitions[DashboardController::class] = fn ($c) => new DashboardController(
-            $c->get(ServiceAuthentification::class),
-            $c->get(ServicePermissions::class),
-            $c->get(FormValidator::class)
-        );
-
-        // Contrôleurs des Étudiants
-        $this->definitions[DocumentEtudiantController::class] = fn ($c) => new DocumentEtudiantController(
-            $c->get(ServiceAuthentification::class),
-            $c->get(ServicePermissions::class),
-            $c->get(FormValidator::class),
-            $c->get(ServiceDocumentGenerator::class)
-        );
-
-        $this->definitions[EtudiantDashboardController::class] = fn ($c) => new EtudiantDashboardController(
-            $c->get(ServiceAuthentification::class),
-            $c->get(ServicePermissions::class),
-            $c->get(FormValidator::class),
-            $c->get(ServiceRapport::class),
-            $c->get(ServiceNotification::class),
-            $c->get(ServiceReclamation::class),
-            $c->get(ServiceGestionAcademique::class),
-            $c->get(ServiceConfigurationSysteme::class)
-        );
-
-        $this->definitions[ProfilEtudiantController::class] = fn ($c) => new ProfilEtudiantController(
-            $c->get(ServiceAuthentification::class),
-            $c->get(ServicePermissions::class),
-            $c->get(FormValidator::class)
-        );
-
-        $this->definitions[RapportController::class] = fn ($c) => new RapportController(
-            $c->get(ServiceAuthentification::class),
-            $c->get(ServicePermissions::class),
-            $c->get(FormValidator::class),
-            $c->get(ServiceRapport::class),
-            $c->get(ServiceGestionAcademique::class),
-            $c->get(ServiceConfigurationSysteme::class)
-        );
-
-        $this->definitions[ReclamationEtudiantController::class] = fn ($c) => new ReclamationEtudiantController(
-            $c->get(ServiceAuthentification::class),
-            $c->get(ServicePermissions::class),
-            $c->get(FormValidator::class),
-            $c->get(ServiceReclamation::class),
-            $c->get(ServiceConfigurationSysteme::class)
-        );
-
-        $this->definitions[RessourcesEtudiantController::class] = fn ($c) => new RessourcesEtudiantController(
-            $c->get(ServiceAuthentification::class),
-            $c->get(ServicePermissions::class),
-            $c->get(FormValidator::class)
-        );
-
-        // Contrôleurs du Personnel Administratif
-        $this->definitions[CommunicationInterneController::class] = fn ($c) => new CommunicationInterneController(
-            $c->get(ServiceAuthentification::class),
-            $c->get(ServicePermissions::class),
-            $c->get(FormValidator::class),
-            $c->get(ServiceMessagerie::class)
-        );
-
-        $this->definitions[ConformiteController::class] = fn ($c) => new ConformiteController(
-            $c->get(ServiceAuthentification::class),
-            $c->get(ServicePermissions::class),
-            $c->get(FormValidator::class),
-            $c->get(ServiceConformite::class),
-            $c->get(ServiceRapport::class),
-            $c->get(ServiceConfigurationSysteme::class)
-        );
-
-        $this->definitions[PersonnelDashboardController::class] = fn ($c) => new PersonnelDashboardController(
-            $c->get(ServiceAuthentification::class),
-            $c->get(ServicePermissions::class),
-            $c->get(FormValidator::class),
-            $c->get(ServiceConformite::class),
-            $c->get(ServiceGestionAcademique::class),
-            $c->get(ServiceReclamation::class),
-            $c->get(ServiceNotification::class)
-        );
-
-        $this->definitions[ScolariteController::class] = fn ($c) => new ScolariteController(
-            $c->get(ServiceAuthentification::class),
-            $c->get(ServicePermissions::class),
-            $c->get(FormValidator::class),
-            $c->get(ServiceGestionAcademique::class),
-            $c->get(ServiceReclamation::class),
-            $c->get(ServiceDocumentGenerator::class),
-            $c->get(ServiceConfigurationSysteme::class)
-        );
+        // Personnel Administratif
+        $this->definitions[CommunicationInterneController::class] = fn($c) => new CommunicationInterneController($c->get(ServiceAuthenticationInterface::class), $c->get(ServicePermissionsInterface::class), $c->get(FormValidator::class), $c->get(ServiceMessagerieInterface::class));
+        $this->definitions[ConformiteController::class] = fn($c) => new ConformiteController($c->get(ServiceAuthenticationInterface::class), $c->get(ServicePermissionsInterface::class), $c->get(FormValidator::class), $c->get(ServiceConformiteInterface::class), $c->get(ServiceRapportInterface::class), $c->get(ServiceConfigurationSystemeInterface::class));
+        $this->definitions[PersonnelDashboardController::class] = fn($c) => new PersonnelDashboardController($c->get(ServiceAuthenticationInterface::class), $c->get(ServicePermissionsInterface::class), $c->get(FormValidator::class), $c->get(ServiceConformiteInterface::class), $c->get(ServiceGestionAcademiqueInterface::class), $c->get(ServiceReclamationInterface::class), $c->get(ServiceNotificationInterface::class));
+        $this->definitions[ScolariteController::class] = fn($c) => new ScolariteController($c->get(ServiceAuthenticationInterface::class), $c->get(ServicePermissionsInterface::class), $c->get(FormValidator::class), $c->get(ServiceGestionAcademiqueInterface::class), $c->get(ServiceReclamationInterface::class), $c->get(ServiceDocumentGeneratorInterface::class), $c->get(ServiceConfigurationSystemeInterface::class));
     }
 
+    /**
+     * Récupère une instance d'une classe définie dans le conteneur.
+     * Utilise le lazy loading : l'instance n'est créée que lors du premier appel.
+     * @param string $id L'identifiant de la classe (son nom complet, généralement l'interface).
+     * @return mixed L'instance de la classe.
+     * @throws Exception Si la définition n'est pas trouvée.
+     */
     public function get(string $id)
     {
         if (!isset($this->definitions[$id])) {
-            throw new Exception("Service or class not found: " . $id);
+            throw new Exception("Définition de service ou de classe non trouvée dans le conteneur : " . $id);
         }
 
         if (!isset($this->instances[$id])) {

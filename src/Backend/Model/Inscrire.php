@@ -6,7 +6,6 @@ use PDO;
 class Inscrire extends BaseModel
 {
     protected string $table = 'inscrire';
-    // La clé primaire est composite et contient des VARCHAR (string en PHP)
     protected string|array $primaryKey = ['numero_carte_etudiant', 'id_niveau_etude', 'id_annee_academique'];
 
     public function __construct(PDO $db)
@@ -14,53 +13,36 @@ class Inscrire extends BaseModel
         parent::__construct($db);
     }
 
-    /**
-     * Trouve une inscription spécifique par ses clés composées.
-     * @param string $numeroCarteEtudiant Le numéro de carte de l'étudiant.
-     * @param string $idNiveauEtude L'ID du niveau d'étude.
-     * @param string $idAnneeAcademique L'ID de l'année académique.
-     * @param array $colonnes Les colonnes à sélectionner.
-     * @return array|null Les données de l'inscription ou null si non trouvée.
-     */
-    public function trouverParCleComposite(string $numeroCarteEtudiant, string $idNiveauEtude, string $idAnneeAcademique, array $colonnes = ['*']): ?array
+    public function getEtudiant(): ?array
     {
-        return $this->trouverUnParCritere([
-            'numero_carte_etudiant' => $numeroCarteEtudiant,
-            'id_niveau_etude' => $idNiveauEtude,
-            'id_annee_academique' => $idAnneeAcademique
-        ], $colonnes);
+        if (!isset($this->numero_carte_etudiant)) return null;
+        $etudiantModel = new Etudiant($this->db);
+        return $etudiantModel->trouverParIdentifiant($this->numero_carte_etudiant);
     }
 
-    /**
-     * Met à jour une inscription spécifique par ses clés composées.
-     * @param string $numeroCarteEtudiant Le numéro de carte de l'étudiant.
-     * @param string $idNiveauEtude L'ID du niveau d'étude.
-     * @param string $idAnneeAcademique L'ID de l'année académique.
-     * @param array $donnees Les données à mettre à jour.
-     * @return bool Vrai si la mise à jour a réussi, faux sinon.
-     */
-    public function mettreAJourParCleComposite(string $numeroCarteEtudiant, string $idNiveauEtude, string $idAnneeAcademique, array $donnees): bool
+    public function getNiveauEtude(): ?array
     {
-        return $this->mettreAJourParClesInternes([
-            'numero_carte_etudiant' => $numeroCarteEtudiant,
-            'id_niveau_etude' => $idNiveauEtude,
-            'id_annee_academique' => $idAnneeAcademique
-        ], $donnees);
+        if (!isset($this->id_niveau_etude)) return null;
+        $niveauModel = new NiveauEtude($this->db);
+        return $niveauModel->trouverParIdentifiant($this->id_niveau_etude);
     }
 
-    /**
-     * Supprime une inscription spécifique par ses clés composées.
-     * @param string $numeroCarteEtudiant Le numéro de carte de l'étudiant.
-     * @param string $idNiveauEtude L'ID du niveau d'étude.
-     * @param string $idAnneeAcademique L'ID de l'année académique.
-     * @return bool Vrai si la suppression a réussi, faux sinon.
-     */
-    public function supprimerParCleComposite(string $numeroCarteEtudiant, string $idNiveauEtude, string $idAnneeAcademique): bool
+    public function getAnneeAcademique(): ?array
     {
-        return $this->supprimerParClesInternes([
-            'numero_carte_etudiant' => $numeroCarteEtudiant,
-            'id_niveau_etude' => $idNiveauEtude,
-            'id_annee_academique' => $idAnneeAcademique
-        ]);
+        if (!isset($this->id_annee_academique)) return null;
+        $anneeModel = new AnneeAcademique($this->db);
+        return $anneeModel->trouverParIdentifiant($this->id_annee_academique);
+    }
+
+    public function getStatutPaiement(): ?array
+    {
+        if (!isset($this->id_statut_paiement)) return null;
+        $statutModel = new StatutPaiementRef($this->db);
+        return $statutModel->trouverParIdentifiant($this->id_statut_paiement);
+    }
+
+    public function isPaye(): bool
+    {
+        return isset($this->id_statut_paiement) && $this->id_statut_paiement === 'PAIE_OK';
     }
 }

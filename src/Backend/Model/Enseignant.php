@@ -6,21 +6,50 @@ use PDO;
 class Enseignant extends BaseModel
 {
     protected string $table = 'enseignant';
-    protected string|array $primaryKey = 'numero_enseignant'; // Clé primaire de type string
+    protected string|array $primaryKey = 'numero_enseignant';
 
     public function __construct(PDO $db)
     {
         parent::__construct($db);
     }
 
-    /**
-     * Trouve un enseignant par son numéro unique.
-     * @param string $numeroEnseignant Le numéro d'enseignant.
-     * @param array $colonnes Les colonnes à sélectionner.
-     * @return array|null Les données de l'enseignant ou null si non trouvé.
-     */
-    public function trouverParNumeroEnseignant(string $numeroEnseignant, array $colonnes = ['*']): ?array
+    public function getUtilisateur(): ?array
     {
-        return $this->trouverUnParCritere(['numero_enseignant' => $numeroEnseignant], $colonnes);
+        if (!isset($this->numero_utilisateur)) return null;
+        $userModel = new Utilisateur($this->db);
+        return $userModel->trouverParIdentifiant($this->numero_utilisateur);
+    }
+
+    public function getNomComplet(): string
+    {
+        return trim(($this->prenom ?? '') . ' ' . ($this->nom ?? ''));
+    }
+
+    public function getGradeActuel(): ?array
+    {
+        if (!isset($this->numero_enseignant)) return null;
+        $acquerirModel = new Acquerir($this->db);
+        return $acquerirModel->trouverUnParCritere(['numero_enseignant' => $this->numero_enseignant], ['*'], 'AND', 'date_acquisition DESC');
+    }
+
+    public function getGradesHistorique(): array
+    {
+        if (!isset($this->numero_enseignant)) return [];
+        $acquerirModel = new Acquerir($this->db);
+        return $acquerirModel->trouverParCritere(['numero_enseignant' => $this->numero_enseignant], ['*'], 'AND', 'date_acquisition DESC');
+    }
+
+    public function getFonctionsHistorique(): array
+    {
+        if (!isset($this->numero_enseignant)) return [];
+        $occuperModel = new Occuper($this->db);
+        return $occuperModel->trouverParCritere(['numero_enseignant' => $this->numero_enseignant], ['*'], 'AND', 'date_debut_occupation DESC');
+    }
+
+    public function getSpecialites(): array
+    {
+        if (!isset($this->numero_enseignant)) return [];
+        $attribuerModel = new Attribuer($this->db);
+        return $attribuerModel->trouverParCritere(['numero_enseignant' => $this->numero_enseignant]);
     }
 }

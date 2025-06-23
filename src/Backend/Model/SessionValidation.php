@@ -6,32 +6,39 @@ use PDO;
 class SessionValidation extends BaseModel
 {
     protected string $table = 'session_validation';
-    protected string|array $primaryKey = 'id_session'; // Clé primaire VARCHAR(50)
+    protected string|array $primaryKey = 'id_session';
 
     public function __construct(PDO $db)
     {
         parent::__construct($db);
     }
 
-    /**
-     * Trouve les sessions de validation pour un président de commission donné.
-     * @param string $numeroPresident Le numéro d'enseignant du président.
-     * @param array $colonnes Les colonnes à sélectionner.
-     * @return array Liste des sessions trouvées.
-     */
-    public function trouverSessionsParPresident(string $numeroPresident, array $colonnes = ['*']): array
+    public function getPresident(): ?array
     {
-        return $this->trouverParCritere(['numero_president_commission' => $numeroPresident], $colonnes);
+        if (!isset($this->id_president_session)) return null;
+        $enseignantModel = new Enseignant($this->db);
+        return $enseignantModel->trouverParIdentifiant($this->id_president_session);
     }
 
-    /**
-     * Trouve les sessions avec un statut donné.
-     * @param string $statut Le statut de la session (ex: 'Planifiee', 'En cours', 'Cloturee').
-     * @param array $colonnes Les colonnes à sélectionner.
-     * @return array Liste des sessions trouvées.
-     */
-    public function trouverSessionsParStatut(string $statut, array $colonnes = ['*']): array
+    public function getRapports(): array
     {
-        return $this->trouverParCritere(['statut_session' => $statut], $colonnes);
+        if (!isset($this->id_session)) return [];
+        $sessionRapportModel = new SessionRapport($this->db);
+        return $sessionRapportModel->trouverParCritere(['id_session' => $this->id_session]);
+    }
+
+    public function tousRapportsEvalues(): bool
+    {
+        $rapports = $this->getRapports();
+        if (empty($rapports)) return true;
+
+        $rapportModel = new RapportEtudiant($this->db);
+        foreach ($rapports as $sr) {
+            $rapport = $rapportModel->trouverParIdentifiant($sr['id_rapport_etudiant']);
+            if ($rapport && in_array($rapport['id_statut_rapport'], ['RAP_EN_COMM', 'RAP_SOUMIS'])) {
+                return false;
+            }
+        }
+        return true;
     }
 }

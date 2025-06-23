@@ -6,11 +6,10 @@ use PDO;
 class Specialite extends BaseModel
 {
     protected string $table = 'specialite';
-    protected string|array $primaryKey = 'id_specialite'; // Clé primaire de type string
+    protected string|array $primaryKey = 'id_specialite';
 
     public function __construct(PDO $db)
     {
         parent::__construct($db);
     }
-    // Hérite des méthodes CRUD de BaseModel. Pas de méthodes spécifiques à ajouter ici.
 }

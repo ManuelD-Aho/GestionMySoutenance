@@ -6,36 +6,36 @@ use PDO;
 class Penalite extends BaseModel
 {
     protected string $table = 'penalite';
-    protected string|array $primaryKey = 'id_penalite'; // Clé primaire VARCHAR(50)
+    protected string|array $primaryKey = 'id_penalite';
 
     public function __construct(PDO $db)
     {
         parent::__construct($db);
     }
 
-    /**
-     * Trouve les pénalités pour un étudiant donné.
-     * @param string $numeroCarteEtudiant Le numéro de carte de l'étudiant.
-     * @param array $colonnes Les colonnes à sélectionner.
-     * @return array Liste des pénalités trouvées.
-     */
-    public function trouverPenalitesEtudiant(string $numeroCarteEtudiant, array $colonnes = ['*']): array
+    public function getEtudiant(): ?array
     {
-        return $this->trouverParCritere(['numero_carte_etudiant' => $numeroCarteEtudiant], $colonnes);
+        if (!isset($this->numero_carte_etudiant)) return null;
+        $etudiantModel = new Etudiant($this->db);
+        return $etudiantModel->trouverParIdentifiant($this->numero_carte_etudiant);
     }
 
-    /**
-     * Trouve les pénalités non régularisées pour un étudiant.
-     * @param string $numeroCarteEtudiant Le numéro de carte de l'étudiant.
-     * @param array $colonnes Les colonnes à sélectionner.
-     * @return array Liste des pénalités non régularisées.
-     */
-    public function trouverPenalitesNonRegul(string $numeroCarteEtudiant, array $colonnes = ['*']): array
+    public function getStatutPenalite(): ?array
     {
-        // Supposons que 'PEN_DUE' est la valeur de référence pour les pénalités dues
-        return $this->trouverParCritere([
-            'numero_carte_etudiant' => $numeroCarteEtudiant,
-            'id_statut_penalite' => 'PEN_DUE'
-        ], $colonnes);
+        if (!isset($this->id_statut_penalite)) return null;
+        $statutModel = new StatutPenaliteRef($this->db);
+        return $statutModel->trouverParIdentifiant($this->id_statut_penalite);
+    }
+
+    public function getPersonnelTraitant(): ?array
+    {
+        if (!isset($this->numero_personnel_traitant)) return null;
+        $personnelModel = new PersonnelAdministratif($this->db);
+        return $personnelModel->trouverParIdentifiant($this->numero_personnel_traitant);
+    }
+
+    public function isDue(): bool
+    {
+        return isset($this->id_statut_penalite) && $this->id_statut_penalite === 'PEN_DUE';
     }
 }

@@ -6,21 +6,22 @@ use PDO;
 class PersonnelAdministratif extends BaseModel
 {
     protected string $table = 'personnel_administratif';
-    protected string|array $primaryKey = 'numero_personnel_administratif'; // Clé primaire de type string
+    protected string|array $primaryKey = 'numero_personnel_administratif';
 
     public function __construct(PDO $db)
     {
         parent::__construct($db);
     }
 
-    /**
-     * Trouve un membre du personnel administratif par son numéro unique.
-     * @param string $numeroPersonnelAdministratif Le numéro du personnel administratif.
-     * @param array $colonnes Les colonnes à sélectionner.
-     * @return array|null Les données du personnel ou null si non trouvé.
-     */
-    public function trouverParNumeroPersonnelAdministratif(string $numeroPersonnelAdministratif, array $colonnes = ['*']): ?array
+    public function getUtilisateur(): ?array
     {
-        return $this->trouverUnParCritere(['numero_personnel_administratif' => $numeroPersonnelAdministratif], $colonnes);
+        if (!isset($this->numero_utilisateur)) return null;
+        $userModel = new Utilisateur($this->db);
+        return $userModel->trouverParIdentifiant($this->numero_utilisateur);
+    }
+
+    public function getNomComplet(): string
+    {
+        return trim(($this->prenom ?? '') . ' ' . ($this->nom ?? ''));
     }
 }

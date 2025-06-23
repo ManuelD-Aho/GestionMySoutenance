@@ -1,47 +1,47 @@
 <?php
 // routes/web.php
-use FastRoute\RouteCollector;
-
-// Controllers
-use App\Backend\Controller\HomeController;
-use App\Backend\Controller\AuthentificationController;
-use App\Backend\Controller\AssetController;
-
-// Admin Controllers
-use App\Backend\Controller\Admin\AnneeAcademiqueController;
 use App\Backend\Controller\Administration\AdminDashboardController;
+use App\Backend\Controller\Administration\AnneeAcademiqueController;
 use App\Backend\Controller\Administration\ConfigSystemeController;
 use App\Backend\Controller\Administration\GestionAcadController;
 use App\Backend\Controller\Administration\HabilitationController;
 use App\Backend\Controller\Administration\ReferentialController;
-use App\Backend\Controller\Administration\ReportingController;
 use App\Backend\Controller\Administration\SupervisionController;
 use App\Backend\Controller\Administration\UtilisateurController;
-
-// Commission Controllers
+use App\Backend\Controller\AssetController;
+use App\Backend\Controller\AuthentificationController;
 use App\Backend\Controller\Commission\CommissionDashboardController;
 use App\Backend\Controller\Commission\CommunicationCommissionController;
 use App\Backend\Controller\Commission\CorrectionCommissionController;
 use App\Backend\Controller\Commission\PvController;
 use App\Backend\Controller\Commission\ValidationRapportController;
-
-// Common Controllers
 use App\Backend\Controller\Common\NotificationController;
 use App\Backend\Controller\DashboardController;
-
-// Etudiant Controllers
 use App\Backend\Controller\Etudiant\DocumentEtudiantController;
 use App\Backend\Controller\Etudiant\EtudiantDashboardController;
 use App\Backend\Controller\Etudiant\ProfilEtudiantController;
 use App\Backend\Controller\Etudiant\RapportController;
 use App\Backend\Controller\Etudiant\ReclamationEtudiantController;
-use App\Backend\Controller\Etudiant\RessourcesEtudiantController; // Nouveau
-
-// Personnel Administratif Controllers
+use App\Backend\Controller\Etudiant\RessourcesEtudiantController;
+use App\Backend\Controller\HomeController;
 use App\Backend\Controller\PersonnelAdministratif\CommunicationInterneController;
 use App\Backend\Controller\PersonnelAdministratif\ConformiteController;
 use App\Backend\Controller\PersonnelAdministratif\PersonnelDashboardController;
 use App\Backend\Controller\PersonnelAdministratif\ScolariteController;
+use FastRoute\RouteCollector;
+
+// Controllers
+
+// Admin Controllers
+
+// Commission Controllers
+
+// Common Controllers
+
+// Etudiant Controllers
+// Nouveau
+
+// Personnel Administratif Controllers
 
 
 return function (RouteCollector $r) {

@@ -1,14 +1,16 @@
 <?php
-namespace App\Backend\Controller\Admin;
+namespace App\Backend\Controller\Administration;
 
 use App\Backend\Controller\BaseController;
-use App\Backend\Service\Authentication\ServiceAuthentification;
-use App\Backend\Service\Permissions\ServicePermissions;
-use App\Backend\Util\FormValidator;
-use App\Backend\Service\ConfigurationSysteme\ServiceConfigurationSysteme; // Importer le service
+use App\Backend\Exception\DoublonException;
 use App\Backend\Exception\ElementNonTrouveException;
 use App\Backend\Exception\OperationImpossibleException;
-use App\Backend\Exception\DoublonException;
+use App\Backend\Service\Authentication\ServiceAuthentification;
+use App\Backend\Service\ConfigurationSysteme\ServiceConfigurationSysteme;
+use App\Backend\Service\Permissions\ServicePermissions;
+use App\Backend\Util\FormValidator;
+
+// Importer le service
 
 class AnneeAcademiqueController extends BaseController
 {
