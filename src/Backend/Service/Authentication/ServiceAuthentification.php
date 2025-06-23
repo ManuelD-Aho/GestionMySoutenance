@@ -3,10 +3,6 @@ namespace App\Backend\Service\Authentication;
 
 use PDO;
 use RobThree\Auth\TwoFactorAuth;
-use BaconQrCode\Renderer\ImageRenderer;
-use BaconQrCode\Renderer\Image\SvgImageBackEnd;
-use BaconQrCode\Renderer\RendererStyle\RendererStyle;
-use BaconQrCode\Writer;
 use App\Backend\Model\Utilisateur;
 use App\Backend\Model\HistoriqueMotDePasse;
 use App\Backend\Model\Enseignant;
@@ -25,6 +21,7 @@ use App\Backend\Exception\TokenInvalideException;
 use App\Backend\Exception\MotDePasseInvalideException;
 use App\Backend\Exception\DoublonException;
 use App\Backend\Exception\ElementNonTrouveException;
+use App\Backend\Exception\OperationImpossibleException;
 
 class ServiceAuthentification implements ServiceAuthenticationInterface
 {
@@ -282,7 +279,8 @@ class ServiceAuthentification implements ServiceAuthenticationInterface
     {
         $secret = $this->tfa->createSecret();
         $this->utilisateurModel->mettreAJourParIdentifiant($numeroUtilisateur, ['secret_2fa' => $secret]);
-        $qrCodeUrl = $this->tfa->getQRCodeImageAsDataUri($this->utilisateurModel->trouverParIdentifiant($numeroUtilisateur)['email_principal'], $secret);
+        $user = $this->utilisateurModel->trouverParIdentifiant($numeroUtilisateur);
+        $qrCodeUrl = $this->tfa->getQRCodeImageAsDataUri($user['email_principal'], $secret);
         return ['secret' => $secret, 'qr_code_url' => $qrCodeUrl];
     }
 

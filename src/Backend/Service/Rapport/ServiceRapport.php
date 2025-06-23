@@ -103,7 +103,7 @@ class ServiceRapport implements ServiceRapportInterface
         $this->rapportEtudiantModel->commencerTransaction();
         try {
             foreach ($sectionsContenuCorriges as $titreSection => $contenu) {
-                $this->sectionRapportModel->mettreAJourParCritere(
+                $this->sectionRapportModel->mettreAJourParClesInternes(
                     ['id_rapport_etudiant' => $idRapportEtudiant, 'titre_section' => $titreSection],
                     ['contenu_section' => $contenu]
                 );

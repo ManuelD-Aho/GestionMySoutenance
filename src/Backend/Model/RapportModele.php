@@ -29,11 +29,13 @@ class RapportModele extends BaseModel
 
     public function publier(): bool
     {
+        if (!isset($this->id_modele)) return false;
         return $this->mettreAJourParIdentifiant($this->id_modele, ['statut' => 'Publié']);
     }
 
     public function archiver(): bool
     {
+        if (!isset($this->id_modele)) return false;
         return $this->mettreAJourParIdentifiant($this->id_modele, ['statut' => 'Archivé']);
     }
 }

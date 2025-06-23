@@ -48,7 +48,7 @@ class ServiceConfigurationSysteme implements ServiceConfigurationSystemeInterfac
     {
         $this->anneeAcademiqueModel->commencerTransaction();
         try {
-            $this->anneeAcademiqueModel->executerRequete("UPDATE annee_academique SET est_active = 0");
+            $this->anneeAcademiqueModel->executerRequete("UPDATE annee_academique SET est_active = 0 WHERE est_active = 1");
             $this->anneeAcademiqueModel->mettreAJourParIdentifiant($idAnneeAcademique, ['est_active' => 1]);
             $this->anneeAcademiqueModel->validerTransaction();
             return true;
@@ -71,4 +71,24 @@ class ServiceConfigurationSysteme implements ServiceConfigurationSystemeInterfac
     public function listerSpecialites(): array { return $this->specialiteModel->trouverTout(); }
     public function listerStatutsReclamation(): array { return $this->statutReclamationRefModel->trouverTout(); }
     public function listerStatutsConformite(): array { return $this->statutConformiteRefModel->trouverTout(); }
+
+    public function creerAnneeAcademique(string $idAnneeAcademique, string $libelleAnneeAcademique, string $dateDebut, string $dateFin, bool $estActive): bool
+    {
+        return (bool) $this->anneeAcademiqueModel->creer(compact('idAnneeAcademique', 'libelleAnneeAcademique', 'dateDebut', 'dateFin', 'estActive'));
+    }
+
+    public function modifierAnneeAcademique(string $idAnneeAcademique, array $donnees): bool
+    {
+        return $this->anneeAcademiqueModel->mettreAJourParIdentifiant($idAnneeAcademique, $donnees);
+    }
+
+    public function supprimerAnneeAcademique(string $idAnneeAcademique): bool
+    {
+        return $this->anneeAcademiqueModel->supprimerParIdentifiant($idAnneeAcademique);
+    }
+
+    public function recupererAnneeAcademiqueParId(string $idAnneeAcademique): ?array
+    {
+        return $this->anneeAcademiqueModel->trouverParIdentifiant($idAnneeAcademique);
+    }
 }
