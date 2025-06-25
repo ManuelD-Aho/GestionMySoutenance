@@ -6,11 +6,11 @@ use PDO;
 class Notification extends BaseModel
 {
     protected string $table = 'notification';
-    protected string|array $primaryKey = 'id_notification'; // Clé primaire de type string
+    protected string|array $primaryKey = 'id_notification';
 
     public function __construct(PDO $db)
     {
         parent::__construct($db);
     }
-    // Hérite des méthodes CRUD de BaseModel. Pas de méthodes spécifiques à ajouter ici.
+    // La colonne 'contenu' est maintenant supposée exister dans la DDL et est gérée par BaseModel.
 }
