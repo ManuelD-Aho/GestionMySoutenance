@@ -74,16 +74,14 @@ class Utilisateur extends BaseModel
     }
 
     /**
-     * Trouve un utilisateur par un token de réinitialisation de mot de passe (clair).
-     * @param string $tokenClair Le token de réinitialisation de mot de passe en clair.
+     * Trouve un utilisateur par un token de réinitialisation de mot de passe (haché).
+     * @param string $tokenHache Le token de réinitialisation de mot de passe haché.
      * @param array $colonnes Les colonnes à sélectionner.
      * @return array|null Les données de l'utilisateur ou null si non trouvé.
      */
-    public function trouverParTokenResetMdp(string $tokenClair, array $colonnes = ['*']): ?array
+    public function trouverParTokenResetMdp(string $tokenHache, array $colonnes = ['*']): ?array
     {
-        // Note: En général, on stocke un hachage du token dans la DB et on compare le token clair avec le hachage.
-        // Si le token clair est directement stocké, des mesures de sécurité supplémentaires sont nécessaires.
-        return $this->trouverUnParCritere(['token_reset_mdp' => $tokenClair], $colonnes);
+        return $this->trouverUnParCritere(['token_reset_mdp' => $tokenHache], $colonnes);
     }
 
     /**
@@ -106,7 +104,9 @@ class Utilisateur extends BaseModel
      */
     public function mettreAJourChamps(string $numeroUtilisateur, array $champsValeurs): bool
     {
-        return $this->mettreAJourParClesInternes(['numero_utilisateur' => $numeroUtilisateur], $champsValeurs);
+        // CORRECTION APPLIQUÉE :
+        // On utilise la méthode de BaseModel conçue pour les clés primaires simples.
+        return $this->mettreAJourParIdentifiant($numeroUtilisateur, $champsValeurs);
     }
 
     /**
@@ -119,7 +119,7 @@ class Utilisateur extends BaseModel
     {
         $criteres = ['login_utilisateur' => $login];
         if ($numeroUtilisateurExclure !== null) {
-            $criteres['numero_utilisateur'] = ['operator' => '!=', 'value' => $numeroUtilisateurExclure]; // Utilisation de la nouvelle fonctionnalité de BaseModel
+            $criteres['numero_utilisateur'] = ['operator' => '!=', 'value' => $numeroUtilisateurExclure];
         }
         return $this->compterParCritere($criteres) > 0;
     }
@@ -134,7 +134,7 @@ class Utilisateur extends BaseModel
     {
         $criteres = ['email_principal' => $email];
         if ($numeroUtilisateurExclure !== null) {
-            $criteres['numero_utilisateur'] = ['operator' => '!=', 'value' => $numeroUtilisateurExclure]; // Utilisation de la nouvelle fonctionnalité de BaseModel
+            $criteres['numero_utilisateur'] = ['operator' => '!=', 'value' => $numeroUtilisateurExclure];
         }
         return $this->compterParCritere($criteres) > 0;
     }
