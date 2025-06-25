@@ -27,6 +27,6 @@ class HomeController extends BaseController
         }
 
         $data = ['page_title' => 'Bienvenue sur GestionMySoutenance'];
-        $this->render('home', $data, 'none'); // Utilisez un layout 'none' ou un layout public
+        $this->render('Auth/login', $data, 'none'); // CHANGEMENT ICI
     }
 }

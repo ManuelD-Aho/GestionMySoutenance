@@ -229,15 +229,22 @@ return function (RouteCollector $r) {
             $r->post('/profile/2fa/deactivate', [ProfilEtudiantController::class, 'manage2FA']); // Désactiver 2FA
 
             // Gestion des Rapports
+            // Gestion des Rapports
             $r->addGroup('/rapport', function (RouteCollector $r) {
-                $r->get('', [RapportController::class, 'index']); // Suivi du rapport (dernier rapport ou ID spécifié)
-                $r->get('/{id}', [RapportController::class, 'index']); // Suivi d'un rapport spécifique
+                // MODIFICATION DE L'ORDRE POUR ÉVITER LES CONFLITS FastRoute
                 $r->get('/create-edit-draft', [RapportController::class, 'createOrEditDraft']); // Formulaire brouillon (nouveau)
-                $r->get('/create-edit-draft/{id}', [RapportController::class, 'createOrEditDraft']); // Formulaire brouillon (édition)
                 $r->post('/save-submit', [RapportController::class, 'saveOrSubmit']); // Sauvegarde brouillon / Soumission finale
-                $r->post('/{id}/save-submit', [RapportController::class, 'saveOrSubmit']); // Sauvegarde brouillon / Soumission finale (pour rapport existant)
+
                 $r->get('/{id}/submit-corrections', [RapportController::class, 'showCorrectionForm']); // Formulaire de soumission de corrections
                 $r->post('/{id}/submit-corrections', [RapportController::class, 'submitCorrections']); // Traitement soumission corrections
+
+                $r->get('/{id}/edit', [RapportController::class, 'createOrEditDraft']); // Pour l'édition d'un brouillon existant
+                $r->post('/{id}/save-submit', [RapportController::class, 'saveOrSubmit']); // Sauvegarde brouillon / Soumission finale (pour rapport existant)
+
+                // La route la plus générique doit être la dernière pour les GET
+                $r->get('/{id}', [RapportController::class, 'index']); // Suivi d'un rapport spécifique
+                $r->get('', [RapportController::class, 'index']); // Suivi du rapport (dernier rapport ou ID spécifié)
+
             });
 
             // Gestion des Réclamations
@@ -264,11 +271,17 @@ return function (RouteCollector $r) {
 
             // Communication Interne
             $r->addGroup('/communication', function (RouteCollector $r) {
-                $r->get('', [CommunicationInterneController::class, 'index']); // Liste des conversations
-                $r->get('/{idConversation}', [CommunicationInterneController::class, 'index']); // Afficher conversation
-                $r->post('/{idConversation}/send', [CommunicationInterneController::class, 'sendMessage']); // Envoyer message
+                // C'est CRUCIAL : les routes spécifiques (comme '/create') DOIVENT être définies
+                // AVANT les routes génériques (comme '/{idConversation}').
                 $r->get('/create', [CommunicationInterneController::class, 'createConversation']); // Créer conv (directe/groupe)
                 $r->post('/create', [CommunicationInterneController::class, 'createConversation']); // Traiter création conv
+
+                // Ensuite, la route variable générique pour afficher une conversation spécifique
+                $r->get('/{idConversation}', [CommunicationInterneController::class, 'index']); // Afficher conversation
+                $r->post('/{idConversation}/send', [CommunicationInterneController::class, 'sendMessage']); // Envoyer message
+
+                // Enfin, la route par défaut pour lister toutes les conversations (si non déjà interceptée)
+                $r->get('', [CommunicationInterneController::class, 'index']); // Liste des conversations
             });
 
             // Vérification de Conformité
@@ -314,11 +327,17 @@ return function (RouteCollector $r) {
 
             // Communication Commission
             $r->addGroup('/communication', function (RouteCollector $r) {
-                $r->get('', [CommunicationCommissionController::class, 'index']);
-                $r->get('/{idConversation}', [CommunicationCommissionController::class, 'index']);
-                $r->post('/{idConversation}/send', [CommunicationCommissionController::class, 'sendMessage']);
-                $r->get('/create', [CommunicationCommissionController::class, 'createConversation']);
-                $r->post('/create', [CommunicationCommissionController::class, 'createConversation']);
+                // C'est CRUCIAL : les routes spécifiques (comme '/create') DOIVENT être définies
+                // AVANT les routes génériques (comme '/{idConversation}').
+                $r->get('/create', [CommunicationCommissionController::class, 'createConversation']); // Créer conv (directe/groupe)
+                $r->post('/create', [CommunicationCommissionController::class, 'createConversation']); // Traiter création conv
+
+                // Ensuite, la route variable générique pour afficher une conversation spécifique
+                $r->get('/{idConversation}', [CommunicationCommissionController::class, 'index']); // Afficher conversation
+                $r->post('/{idConversation}/send', [CommunicationCommissionController::class, 'sendMessage']); // Envoyer message
+
+                // Enfin, la route par défaut pour lister toutes les conversations (si non déjà interceptée)
+                $r->get('', [CommunicationCommissionController::class, 'index']); // Liste des conversations
             });
 
             // Corrections des Rapports (par la Commission)

@@ -52,16 +52,21 @@ class DatabaseSessionHandler implements SessionHandlerInterface
         $lifetime = (int) ini_get('session.gc_maxlifetime');
         $userId = $_SESSION['user']['numero_utilisateur'] ?? null;
 
+        // REQUÊTE SQL CORRIGÉE : Utilise `session_last_activity` et `session_lifetime`
         $stmt = $this->getDb()->prepare(
-            'REPLACE INTO sessions (session_id, session_data, session_lifetime, session_time, user_id) 
-             VALUES (:id, :data, :lifetime, :time, :user_id)'
+            'REPLACE INTO sessions (session_id, session_data, session_last_activity, session_lifetime, user_id)
+             VALUES (:id, :data, :last_activity_time, :lifetime, :user_id)'
         );
 
-        $stmt->bindParam(':id', $id);
-        $stmt->bindParam(':data', $data);
-        $stmt->bindParam(':lifetime', $lifetime);
-        $stmt->bindParam(':time', $time);
-        $stmt->bindParam(':user_id', $userId);
+
+        // BINDINGS DES PARAMÈTRES CORRIGÉS :
+        // Le paramètre pour le temps doit CORRESPONDRE au placeholder dans la requête SQL
+        $stmt->bindParam(':id', $id, PDO::PARAM_STR);
+        $stmt->bindParam(':data', $data, PDO::PARAM_LOB); // Utiliser PARAM_LOB pour les BLOB/LONGBLOB
+        $stmt->bindParam(':last_activity_time', $time, PDO::PARAM_INT); // CORRECTION ICI : le nom du paramètre
+        $stmt->bindParam(':lifetime', $lifetime, PDO::PARAM_INT);
+        $stmt->bindParam(':user_id', $userId, PDO::PARAM_STR);
+
 
         return $stmt->execute();
     }
@@ -76,7 +81,8 @@ class DatabaseSessionHandler implements SessionHandlerInterface
     public function gc(int $max_lifetime): int|false
     {
         $old = time() - $max_lifetime;
-        $stmt = $this->getDb()->prepare('DELETE FROM sessions WHERE session_time < :old');
+        // REQUÊTE SQL CORRIGÉE : Utilise `session_last_activity`
+        $stmt = $this->getDb()->prepare('DELETE FROM sessions WHERE session_last_activity < :old');$stmt = $this->getDb()->prepare('DELETE FROM sessions WHERE session_time < :old');
         $stmt->bindParam(':old', $old);
         $stmt->execute();
 
