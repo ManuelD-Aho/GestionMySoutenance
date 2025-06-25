@@ -1,0 +1,9 @@
+docker-compose exec app php seeds.php
+// This command is used to execute the `seeds.php` script within the Docker container named `app`.
+
+Mot de passe : Password123!
+admin_sys
+etu_martin
+prof_dupont
+agent_conf
+resp_sco
