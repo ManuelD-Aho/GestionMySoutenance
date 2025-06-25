@@ -109,6 +109,10 @@ abstract class BaseController
         // Assurez-vous que l'utilisateur est toujours connecté et ses permissions sont à jour pour le header/menu
         $data['current_user'] = $this->authService->getUtilisateurConnecteComplet();
 
+        // Définir le titre de la page pour le layout si le contrôleur l'a défini
+        // (Assure que $pageTitle est toujours disponible pour le layout)
+        $data['pageTitle'] = $data['page_title'] ?? ($data['pageTitle'] ?? 'GestionMySoutenance');
+
         // Chemin de base pour les vues
         $viewPath = ROOT_PATH . '/src/Frontend/views/' . $view . '.php'; // Utilisation de ROOT_PATH
 
@@ -126,10 +130,23 @@ abstract class BaseController
             if (!file_exists($layoutPath)) {
                 throw new \RuntimeException("Le layout '{$layout}' n'existe pas: {$layoutPath}");
             }
-            // IMPORTANT: Dans le layout, 'require $content;' ne fonctionne pas.
-            /* Le layout doit contenir `<?= $content ?>' ou `<?php echo $content; ?>`*/
+            // Préparer les variables pour le layout.
+            // On s'assure que $content est disponible, ainsi que d'autres variables de $data
+            // que le layout pourrait utiliser (comme $pageTitle).
+            // La variable $content est déjà dans la portée. Pour les autres variables,
+            // on peut les passer explicitement ou extraire un sous-ensemble de $data.
+            // Le plus simple et robuste est de ré-extraire un ensemble de données pour le layout.
+            $layoutVariables = [
+                'content' => $content,
+                'pageTitle' => $data['pageTitle'], // Passer le titre au layout
+                'flash_messages' => $data['flash_messages'], // Passer les flash messages au layout
+                'current_user' => $data['current_user'], // Passer l'utilisateur au layout
+                // Ajoutez ici d'autres variables globales que vos layouts pourraient utiliser
+            ];
+
             ob_start();
-            require $layoutPath;
+            extract($layoutVariables); // Extrait les variables nécessaires pour le layout
+            require $layoutPath; // Inclut et exécute le fichier de layout
             echo ob_get_clean();
         } else {
             echo $content;

@@ -11,10 +11,12 @@ use App\Backend\Exception\MotDePasseInvalideException;
 use App\Backend\Exception\EmailException;
 use App\Backend\Exception\TokenInvalideException;
 use App\Backend\Exception\TokenExpireException;
+use App\Backend\Exception\ValidationException;
+use Exception;
 
 class AuthentificationController extends BaseController
 {
-    protected ServiceAuthentification $authService;
+
 
     public function __construct(
         ServiceAuthentification $authService,
@@ -22,7 +24,7 @@ class AuthentificationController extends BaseController
         FormValidator $validator
     ) {
         parent::__construct($authService, $permissionService, $validator);
-        $this->authService = $authService; // Réassignation pour un accès direct
+        //$this->authService = $authService; // Réassignation pour un accès direct
     }
 
     /**
@@ -44,7 +46,7 @@ class AuthentificationController extends BaseController
         $this->requireNoLogin(); // Assurer que l'utilisateur n'est pas déjà connecté
 
         $data = ['page_title' => 'Connexion'];
-        $this->render('Auth/login', $data, 'none'); // Pas de layout pour la page de login pour être simple
+        $this->render('Auth/login', $data, 'Auth/layout_auth'); // Pas de layout pour la page de login pour être simple
     }
 
     /**
@@ -56,21 +58,34 @@ class AuthentificationController extends BaseController
 
         if (!$this->isPostRequest()) {
             $this->redirect('/login');
+            return;
         }
 
-        $identifiant = $this->getRequestData('login_email');
-        $motDePasse = $this->getRequestData('password');
+        // VÉRIFICATION CSRF : Ajout de cette ligne
+        if (!$this->verifyCsrfToken($this->post('csrf_token'))) {
+            $this->setFlashMessage('error', "Jeton de sécurité invalide ou expiré. Veuillez réessayer.");
+            $this->redirect('/login');
+            return;
+        }
+
+        // MODIFICATION : Remplacement de getRequestData par post()
+        $identifiant = $this->post('login_email');
+        $motDePasse = $this->post('password');
+
 
         // Validation simple côté contrôleur (règles plus complexes dans le service)
+        // La validation doit être faite sur les données après nettoyage par post().
+        // Assurez-vous que votre FormValidator est bien injecté.
         $rules = [
-            'login_email' => 'required|string',
-            'password' => 'required|string',
+            'login_email' => 'required|string|min:3', // Ajout d'une min_length pour un exemple
+            'password' => 'required|string|min:8', // Min 8 caractères pour le mot de passe
         ];
         $this->validator->validate(['login_email' => $identifiant, 'password' => $motDePasse], $rules);
 
         if (!$this->validator->isValid()) {
             $this->setFlashMessage('error', implode('<br>', $this->validator->getErrors()));
             $this->redirect('/login');
+            return;
         }
 
         try {
@@ -85,13 +100,13 @@ class AuthentificationController extends BaseController
         } catch (IdentifiantsInvalidesException $e) {
             $this->setFlashMessage('error', 'Identifiants invalides. Veuillez réessayer.');
             $this->redirect('/login');
-        } catch (CompteBloqueException $e) {
+        } catch (CompteBloqueException|CompteNonValideException $e) {
             $this->setFlashMessage('error', $e->getMessage());
             $this->redirect('/login');
-        } catch (CompteNonValideException $e) {
+        } catch (ValidationException $e) { // Capture ValidationException si le service en lève une
             $this->setFlashMessage('error', $e->getMessage());
             $this->redirect('/login');
-        } catch (\Exception $e) { // Capturer d'autres erreurs inattendues
+        } catch (Exception $e) { // Capturer d'autres erreurs inattendues
             $this->setFlashMessage('error', 'Une erreur inattendue est survenue lors de la connexion.');
             error_log("Login error: " . $e->getMessage()); // Log l'erreur pour le débogage
             $this->redirect('/login');
@@ -127,15 +142,25 @@ class AuthentificationController extends BaseController
 
         if (!$this->isPostRequest()) {
             $this->redirect('/forgot-password');
+            return;
         }
 
-        $email = $this->getRequestData('email');
+        // VÉRIFICATION CSRF : Ajout de cette ligne
+        if (!$this->verifyCsrfToken($this->post('csrf_token'))) {
+            $this->setFlashMessage('error', "Jeton de sécurité invalide ou expiré. Veuillez réessayer.");
+            $this->redirect('/forgot-password');
+            return;
+        }
+
+        // MODIFICATION : Remplacement de getRequestData par post()
+        $email = $this->post('email');
         $rules = ['email' => 'required|email'];
         $this->validator->validate(['email' => $email], $rules);
 
         if (!$this->validator->isValid()) {
             $this->setFlashMessage('error', implode('<br>', $this->validator->getErrors()));
             $this->redirect('/forgot-password');
+            return;
         }
 
         try {
@@ -146,7 +171,10 @@ class AuthentificationController extends BaseController
         } catch (EmailException $e) {
             $this->setFlashMessage('error', 'Impossible d\'envoyer l\'e-mail de réinitialisation. Veuillez contacter l\'administrateur.');
             $this->redirect('/forgot-password');
-        } catch (\Exception $e) {
+        } catch (ValidationException $e) { // Ajout pour capturer les exceptions de validation du service
+            $this->setFlashMessage('error', $e->getMessage());
+            $this->redirect('/forgot-password');
+        } catch (Exception $e) {
             $this->setFlashMessage('error', 'Une erreur inattendue est survenue.');
             error_log("Forgot password error: " . $e->getMessage());
             $this->redirect('/forgot-password');
@@ -183,7 +211,10 @@ class AuthentificationController extends BaseController
         } catch (TokenInvalideException $e) {
             $this->setFlashMessage('error', $e->getMessage());
             $this->redirect('/forgot-password'); // Rediriger vers le formulaire "mot de passe oublié" pour redemander
-        } catch (\Exception $e) {
+        } catch (ValidationException $e) { // Ajout pour capturer les exceptions de validation
+            $this->setFlashMessage('error', $e->getMessage());
+            $this->redirect('/forgot-password');
+        } catch (Exception $e) {
             $this->setFlashMessage('error', 'Une erreur est survenue lors de la validation du lien.');
             error_log("Reset password form error: " . $e->getMessage());
             $this->redirect('/login');
@@ -199,22 +230,32 @@ class AuthentificationController extends BaseController
 
         if (!$this->isPostRequest()) {
             $this->redirect('/login');
+            return;
         }
 
-        $token = $this->getRequestData('token');
-        $newPassword = $this->getRequestData('new_password');
-        $confirmPassword = $this->getRequestData('confirm_password');
+        // VÉRIFICATION CSRF : Ajout de cette ligne
+        if (!$this->verifyCsrfToken($this->post('csrf_token'))) {
+            $this->setFlashMessage('error', "Jeton de sécurité invalide ou expiré. Veuillez réessayer.");
+            $this->redirect('/forgot-password'); // Ou rediriger vers showResetPasswordForm avec le token si possible
+            return;
+        }
+
+        // MODIFICATION : Remplacement de getRequestData par post()
+        $token = $this->post('token');
+        $newPassword = $this->post('new_password');
+        $confirmPassword = $this->post('confirm_password');
 
         $rules = [
             'token' => 'required|string',
             'new_password' => 'required|string|min:8',
-            'confirm_password' => 'required|same:new_password',
+            'confirm_password' => 'required|string|same:new_password', // Assurez-vous que 'same' est géré par votre FormValidator
         ];
         $this->validator->validate(['token' => $token, 'new_password' => $newPassword, 'confirm_password' => $confirmPassword], $rules);
 
         if (!$this->validator->isValid()) {
             $this->setFlashMessage('error', implode('<br>', $this->validator->getErrors()));
-            $this->redirect('/reset-password?token=' . urlencode($token));
+            $this->redirect('/reset-password' . urlencode($token));
+            return;
         }
 
         try {
@@ -222,15 +263,19 @@ class AuthentificationController extends BaseController
             $this->setFlashMessage('success', 'Votre mot de passe a été réinitialisé avec succès. Vous pouvez maintenant vous connecter.');
             $this->redirect('/login');
         } catch (TokenExpireException $e) {
-            $this->setFlashMessage('error', 'Le lien de réinitialisation est invalide ou a déjà été utilisé.');
+            $this->setFlashMessage('error', 'Le lien de réinitialisation a expiré. Veuillez refaire une demande.');
             $this->redirect('/login');
         } catch (TokenInvalideException $e) {
-            $this->setFlashMessage('error', 'Le lien de réinitialisation a expiré. Veuillez refaire une demande.');
+            $this->setFlashMessage('error', 'Le lien de réinitialisation est invalide ou a déjà été utilisé.');
             $this->redirect('/forgot-password');
         } catch (MotDePasseInvalideException $e) {
             $this->setFlashMessage('error', 'Mot de passe invalide: ' . $e->getMessage());
-            $this->redirect('/reset-password?token=' . urlencode($token));
-        } catch (\Exception $e) {
+            $this->redirect('/reset-password' . urlencode($token));
+        } catch (ValidationException $e) { // Ajout pour capturer les exceptions de validation du service
+            $this->setFlashMessage('error', $e->getMessage());
+            $this->redirect('/reset-password/' . urlencode($token));
+
+        } catch (Exception $e) {
             $this->setFlashMessage('error', 'Une erreur inattendue est survenue lors de la réinitialisation.');
             error_log("Reset password submission error: " . $e->getMessage());
             $this->redirect('/login');
@@ -248,7 +293,7 @@ class AuthentificationController extends BaseController
             $this->redirect('/login');
         }
         $data = ['page_title' => 'Vérification 2FA'];
-        $this->render('Auth/form_2fa', $data, 'none');
+        $this->render('Auth/form_2fa', $data, 'Auth/layout_auth');
     }
 
     /**
@@ -260,14 +305,23 @@ class AuthentificationController extends BaseController
         if (!isset($_SESSION['2fa_pending']) || !isset($_SESSION['2fa_user_id'])) {
             $this->setFlashMessage('error', 'Session 2FA expirée ou accès non autorisé.');
             $this->redirect('/login');
+            return;
         }
 
         if (!$this->isPostRequest()) {
             $this->redirect('/2fa');
+            return;
+        }
+
+        // VÉRIFICATION CSRF : Ajout de cette ligne
+        if (!$this->verifyCsrfToken($this->post('csrf_token'))) {
+            $this->setFlashMessage('error', "Jeton de sécurité invalide ou expiré. Veuillez réessayer.");
+            $this->redirect('/2fa');
+            return;
         }
 
         $userId = $_SESSION['2fa_user_id'];
-        $codeTOTP = $this->getRequestData('code_2fa');
+        $codeTOTP = $this->post('code_2fa');
 
         $rules = ['code_2fa' => 'required|numeric|length:6']; // Le code TOTP est généralement à 6 chiffres
         $this->validator->validate(['code_2fa' => $codeTOTP], $rules);
@@ -275,6 +329,7 @@ class AuthentificationController extends BaseController
         if (!$this->validator->isValid()) {
             $this->setFlashMessage('error', implode('<br>', $this->validator->getErrors()));
             $this->redirect('/2fa');
+            return;
         }
 
         try {
@@ -288,7 +343,10 @@ class AuthentificationController extends BaseController
         } catch (IdentifiantsInvalidesException $e) {
             $this->setFlashMessage('error', $e->getMessage());
             $this->redirect('/2fa');
-        } catch (\Exception $e) {
+        } catch (ValidationException $e) { // Ajout pour capturer les exceptions de validation du service
+            $this->setFlashMessage('error', $e->getMessage());
+            $this->redirect('/2fa');
+        } catch (Exception $e) {
             $this->setFlashMessage('error', 'Une erreur inattendue est survenue lors de la vérification 2FA.');
             error_log("2FA submission error: " . $e->getMessage());
             $this->redirect('/login');
@@ -303,7 +361,7 @@ class AuthentificationController extends BaseController
         $this->requireLogin(); // Exiger que l'utilisateur soit connecté
 
         $data = ['page_title' => 'Changer votre mot de passe'];
-        $this->render('Auth/change_password_form', $data); // Créer cette vue
+        $this->render('Auth/change_password_form', $data, 'Auth/layout_auth'); // Utilisez un layout adaptée vue
     }
 
     /**
@@ -315,16 +373,25 @@ class AuthentificationController extends BaseController
 
         if (!$this->isPostRequest()) {
             $this->redirect('/dashboard/profile/change-password');
+            return;
         }
 
-        $ancienMotDePasse = $this->getRequestData('old_password');
-        $nouveauMotDePasse = $this->getRequestData('new_password');
-        $confirmNouveauMotDePasse = $this->getRequestData('confirm_new_password');
+        // VÉRIFICATION CSRF : Ajout de cette ligne
+        if (!$this->verifyCsrfToken($this->post('csrf_token'))) {
+            $this->setFlashMessage('error', "Jeton de sécurité invalide ou expiré. Veuillez réessayer.");
+            $this->redirect('/dashboard/profile/change-password');
+            return;
+        }
+
+        // MODIFICATION : Remplacement de getRequestData par post()
+        $ancienMotDePasse = $this->post('old_password');
+        $nouveauMotDePasse = $this->post('new_password');
+        $confirmNouveauMotDePasse = $this->post('confirm_new_password');
 
         $rules = [
             'old_password' => 'required|string',
             'new_password' => 'required|string|min:8',
-            'confirm_new_password' => 'required|same:new_password',
+            'confirm_new_password' => 'required|string|same:new_password',
         ];
         $this->validator->validate([
             'old_password' => $ancienMotDePasse,
@@ -335,17 +402,22 @@ class AuthentificationController extends BaseController
         if (!$this->validator->isValid()) {
             $this->setFlashMessage('error', implode('<br>', $this->validator->getErrors()));
             $this->redirect('/dashboard/profile/change-password');
+            return;
         }
 
         try {
-            $userId = $this->getCurrentUser()['numero_utilisateur'];
-            $this->authService->modifierMotDePasse($userId, $nouveauMotDePasse, $ancienMotDePasse);
+            $currentUser = $this->getCurrentUser(); // Utilise la méthode du BaseController
+            $userId = $currentUser['numero_utilisateur']; // Accès sécurisé
+
             $this->setFlashMessage('success', 'Votre mot de passe a été modifié avec succès.');
             $this->redirect('/dashboard/profile'); // Rediriger vers la page de profil
         } catch (MotDePasseInvalideException $e) {
             $this->setFlashMessage('error', $e->getMessage());
             $this->redirect('/dashboard/profile/change-password');
-        } catch (\Exception $e) {
+        } catch (ValidationException $e) { // Ajout pour capturer les exceptions de validation du service
+            $this->setFlashMessage('error', $e->getMessage());
+            $this->redirect('/dashboard/profile/change-password');
+        } catch (Exception $e) {
             $this->setFlashMessage('error', 'Une erreur inattendue est survenue lors du changement de mot de passe.');
             error_log("Change password error: " . $e->getMessage());
             $this->redirect('/dashboard/profile/change-password');
