@@ -1,10 +1,11 @@
 -- phpMyAdmin SQL Dump
--- version 5.2.1
+-- version 5.2.2
 -- https://www.phpmyadmin.net/
 --
--- Hôte : 127.0.0.1
--- Version du serveur : 10.4.32-MariaDB
--- Version de PHP : 8.2.12
+-- Hôte : db:3306
+-- Généré le : mer. 25 juin 2025 à 11:04
+-- Version du serveur : 8.3.0
+-- Version de PHP : 8.2.27
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 START TRANSACTION;
@@ -54,8 +55,8 @@ CREATE TABLE `affecter` (
                             `numero_enseignant` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
                             `id_rapport_etudiant` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
                             `id_statut_jury` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
-                            `directeur_memoire` tinyint(1) NOT NULL DEFAULT 0,
-                            `date_affectation` datetime NOT NULL DEFAULT current_timestamp()
+                            `directeur_memoire` tinyint(1) NOT NULL DEFAULT '0',
+                            `date_affectation` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -69,7 +70,7 @@ CREATE TABLE `annee_academique` (
                                     `libelle_annee_academique` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
                                     `date_debut` date DEFAULT NULL,
                                     `date_fin` date DEFAULT NULL,
-                                    `est_active` tinyint(1) NOT NULL DEFAULT 0
+                                    `est_active` tinyint(1) NOT NULL DEFAULT '0'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -82,7 +83,7 @@ CREATE TABLE `approuver` (
                              `numero_personnel_administratif` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
                              `id_rapport_etudiant` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
                              `id_statut_conformite` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
-                             `commentaire_conformite` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
+                             `commentaire_conformite` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci,
                              `date_verification_conformite` datetime NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
@@ -108,7 +109,7 @@ CREATE TABLE `compte_rendu` (
                                 `id_rapport_etudiant` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
                                 `type_pv` enum('Individuel','Session') CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL DEFAULT 'Individuel',
                                 `libelle_compte_rendu` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
-                                `date_creation_pv` datetime NOT NULL DEFAULT current_timestamp(),
+                                `date_creation_pv` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
                                 `id_statut_pv` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
                                 `id_redacteur` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
                                 `date_limite_approbation` datetime DEFAULT NULL
@@ -121,12 +122,12 @@ CREATE TABLE `compte_rendu` (
 --
 
 CREATE TABLE `conformite_rapport_details` (
-                                              `id_conformite_detail` varchar(50) NOT NULL,
-                                              `id_rapport_etudiant` varchar(50) NOT NULL,
-                                              `id_critere` varchar(50) NOT NULL,
-                                              `statut_validation` enum('Conforme','Non Conforme','Non Applicable') NOT NULL,
-                                              `commentaire` text DEFAULT NULL,
-                                              `date_verification` datetime NOT NULL DEFAULT current_timestamp()
+                                              `id_conformite_detail` varchar(50) COLLATE utf8mb4_general_ci NOT NULL,
+                                              `id_rapport_etudiant` varchar(50) COLLATE utf8mb4_general_ci NOT NULL,
+                                              `id_critere` varchar(50) COLLATE utf8mb4_general_ci NOT NULL,
+                                              `statut_validation` enum('Conforme','Non Conforme','Non Applicable') COLLATE utf8mb4_general_ci NOT NULL,
+                                              `commentaire` text COLLATE utf8mb4_general_ci,
+                                              `date_verification` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -138,7 +139,7 @@ CREATE TABLE `conformite_rapport_details` (
 CREATE TABLE `conversation` (
                                 `id_conversation` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
                                 `nom_conversation` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
-                                `date_creation_conv` datetime NOT NULL DEFAULT current_timestamp(),
+                                `date_creation_conv` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
                                 `type_conversation` enum('Direct','Groupe') CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL DEFAULT 'Direct'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
@@ -149,10 +150,10 @@ CREATE TABLE `conversation` (
 --
 
 CREATE TABLE `critere_conformite_ref` (
-                                          `id_critere` varchar(50) NOT NULL,
-                                          `libelle_critere` varchar(255) NOT NULL,
-                                          `description` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL, -- CORRECTION: Type ajusté
-                                          `est_actif` tinyint(1) NOT NULL DEFAULT 1
+                                          `id_critere` varchar(50) COLLATE utf8mb4_general_ci NOT NULL,
+                                          `libelle_critere` varchar(255) COLLATE utf8mb4_general_ci NOT NULL,
+                                          `description` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
+                                          `est_actif` tinyint(1) NOT NULL DEFAULT '1'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -195,15 +196,15 @@ CREATE TABLE `decision_vote_ref` (
 --
 
 CREATE TABLE `delegation` (
-                              `id_delegation` varchar(50) NOT NULL,
-                              `id_delegant` varchar(50) NOT NULL,
-                              `id_delegue` varchar(50) NOT NULL,
-                              `id_traitement` varchar(100) NOT NULL,
+                              `id_delegation` varchar(50) COLLATE utf8mb4_general_ci NOT NULL,
+                              `id_delegant` varchar(50) COLLATE utf8mb4_general_ci NOT NULL,
+                              `id_delegue` varchar(50) COLLATE utf8mb4_general_ci NOT NULL,
+                              `id_traitement` varchar(100) COLLATE utf8mb4_general_ci NOT NULL,
                               `date_debut` datetime NOT NULL,
                               `date_fin` datetime NOT NULL,
-                              `statut` enum('Active','Inactive','Révoquée') NOT NULL,
-                              `contexte_id` varchar(50) DEFAULT NULL,
-                              `contexte_type` varchar(50) DEFAULT NULL
+                              `statut` enum('Active','Inactive','Révoquée') COLLATE utf8mb4_general_ci NOT NULL,
+                              `contexte_id` varchar(50) COLLATE utf8mb4_general_ci DEFAULT NULL,
+                              `contexte_type` varchar(50) COLLATE utf8mb4_general_ci DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -213,14 +214,14 @@ CREATE TABLE `delegation` (
 --
 
 CREATE TABLE `document_genere` (
-                                   `id_document_genere` varchar(50) NOT NULL, -- CORRECTION: Renommé la colonne PK
-                                   `id_type_document` varchar(50) NOT NULL,
-                                   `chemin_fichier` varchar(512) NOT NULL,
-                                   `date_generation` datetime NOT NULL DEFAULT current_timestamp(),
-                                   `version` int NOT NULL DEFAULT 1,
-                                   `id_entite_concernee` varchar(50) NOT NULL,
-                                   `type_entite_concernee` varchar(50) NOT NULL,
-                                   `numero_utilisateur_concerne` varchar(50) DEFAULT NULL -- CORRECTION: Ajout de la colonne
+                                   `id_document_genere` varchar(50) COLLATE utf8mb4_general_ci NOT NULL,
+                                   `id_type_document` varchar(50) COLLATE utf8mb4_general_ci NOT NULL,
+                                   `chemin_fichier` varchar(512) COLLATE utf8mb4_general_ci NOT NULL,
+                                   `date_generation` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                   `version` int NOT NULL DEFAULT '1',
+                                   `id_entite_concernee` varchar(50) COLLATE utf8mb4_general_ci NOT NULL,
+                                   `type_entite_concernee` varchar(50) COLLATE utf8mb4_general_ci NOT NULL,
+                                   `numero_utilisateur_concerne` varchar(50) COLLATE utf8mb4_general_ci DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -248,7 +249,7 @@ CREATE TABLE `enregistrer` (
                                `id_action` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
                                `date_action` datetime NOT NULL,
                                `adresse_ip` varchar(45) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
-                               `user_agent` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
+                               `user_agent` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci,
                                `id_entite_concernee` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
                                `type_entite_concernee` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
                                `details_action` json DEFAULT NULL,
@@ -273,7 +274,7 @@ CREATE TABLE `enseignant` (
                               `pays_naissance` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
                               `nationalite` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
                               `sexe` enum('Masculin','Féminin','Autre') CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
-                              `adresse_postale` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
+                              `adresse_postale` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci,
                               `ville` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
                               `code_postal` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
                               `telephone_personnel` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
@@ -290,7 +291,7 @@ CREATE TABLE `entreprise` (
                               `id_entreprise` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
                               `libelle_entreprise` varchar(200) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
                               `secteur_activite` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
-                              `adresse_entreprise` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
+                              `adresse_entreprise` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci,
                               `contact_nom` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
                               `contact_email` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
                               `contact_telephone` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL
@@ -311,7 +312,7 @@ CREATE TABLE `etudiant` (
                             `pays_naissance` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
                             `nationalite` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
                             `sexe` enum('Masculin','Féminin','Autre') CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
-                            `adresse_postale` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
+                            `adresse_postale` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci,
                             `ville` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
                             `code_postal` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
                             `telephone` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
@@ -331,7 +332,7 @@ CREATE TABLE `etudiant` (
 CREATE TABLE `evaluer` (
                            `numero_carte_etudiant` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
                            `id_ecue` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
-                           `id_annee_academique` varchar(50) NOT NULL, -- CORRECTION: Ajouté à la PK
+                           `id_annee_academique` varchar(50) COLLATE utf8mb4_general_ci NOT NULL,
                            `date_evaluation` datetime NOT NULL,
                            `note` decimal(5,2) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
@@ -347,7 +348,7 @@ CREATE TABLE `faire_stage` (
                                `numero_carte_etudiant` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
                                `date_debut_stage` date NOT NULL,
                                `date_fin_stage` date DEFAULT NULL,
-                               `sujet_stage` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
+                               `sujet_stage` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci,
                                `nom_tuteur_entreprise` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
@@ -395,7 +396,7 @@ CREATE TABLE `historique_mot_de_passe` (
                                            `id_historique_mdp` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
                                            `numero_utilisateur` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
                                            `mot_de_passe_hache` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
-                                           `date_changement` datetime NOT NULL DEFAULT current_timestamp()
+                                           `date_changement` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -425,7 +426,7 @@ CREATE TABLE `inscrire` (
 CREATE TABLE `lecture_message` (
                                    `id_message_chat` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
                                    `numero_utilisateur` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
-                                   `date_lecture` datetime NOT NULL DEFAULT current_timestamp()
+                                   `date_lecture` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -435,11 +436,11 @@ CREATE TABLE `lecture_message` (
 --
 
 CREATE TABLE `matrice_notification_regles` (
-                                               `id_regle` varchar(50) NOT NULL,
-                                               `id_action_declencheur` varchar(50) NOT NULL,
-                                               `id_groupe_destinataire` varchar(50) NOT NULL,
-                                               `canal_notification` enum('Interne','Email','Tous') NOT NULL,
-                                               `est_active` tinyint(1) NOT NULL DEFAULT 1
+                                               `id_regle` varchar(50) COLLATE utf8mb4_general_ci NOT NULL,
+                                               `id_action_declencheur` varchar(50) COLLATE utf8mb4_general_ci NOT NULL,
+                                               `id_groupe_destinataire` varchar(50) COLLATE utf8mb4_general_ci NOT NULL,
+                                               `canal_notification` enum('Interne','Email','Tous') COLLATE utf8mb4_general_ci NOT NULL,
+                                               `est_active` tinyint(1) NOT NULL DEFAULT '1'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -453,7 +454,7 @@ CREATE TABLE `message_chat` (
                                 `id_conversation` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
                                 `numero_utilisateur_expediteur` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
                                 `contenu_message` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
-                                `date_envoi` datetime NOT NULL DEFAULT current_timestamp()
+                                `date_envoi` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -487,7 +488,7 @@ CREATE TABLE `niveau_etude` (
 CREATE TABLE `notification` (
                                 `id_notification` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
                                 `libelle_notification` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
-                                `contenu` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL -- CORRECTION: Ajout de la colonne
+                                `contenu` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -521,16 +522,16 @@ CREATE TABLE `participant_conversation` (
 --
 
 CREATE TABLE `penalite` (
-                            `id_penalite` varchar(50) NOT NULL,
-                            `numero_carte_etudiant` varchar(50) NOT NULL,
-                            `id_annee_academique` varchar(50) NOT NULL,
-                            `type_penalite` enum('Financière','Administrative') NOT NULL,
+                            `id_penalite` varchar(50) COLLATE utf8mb4_general_ci NOT NULL,
+                            `numero_carte_etudiant` varchar(50) COLLATE utf8mb4_general_ci NOT NULL,
+                            `id_annee_academique` varchar(50) COLLATE utf8mb4_general_ci NOT NULL,
+                            `type_penalite` enum('Financière','Administrative') COLLATE utf8mb4_general_ci NOT NULL,
                             `montant_du` decimal(10,2) DEFAULT NULL,
-                            `motif` text DEFAULT NULL,
-                            `id_statut_penalite` varchar(50) NOT NULL,
-                            `date_creation` datetime NOT NULL DEFAULT current_timestamp(),
+                            `motif` text COLLATE utf8mb4_general_ci,
+                            `id_statut_penalite` varchar(50) COLLATE utf8mb4_general_ci NOT NULL,
+                            `date_creation` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
                             `date_regularisation` datetime DEFAULT NULL,
-                            `numero_personnel_traitant` varchar(50) DEFAULT NULL
+                            `numero_personnel_traitant` varchar(50) COLLATE utf8mb4_general_ci DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -546,14 +547,14 @@ CREATE TABLE `personnel_administratif` (
                                            `telephone_professionnel` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
                                            `email_professionnel` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
                                            `date_affectation_service` date DEFAULT NULL,
-                                           `responsabilites_cles` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
+                                           `responsabilites_cles` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci,
                                            `numero_utilisateur` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
                                            `date_naissance` date DEFAULT NULL,
                                            `lieu_naissance` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
                                            `pays_naissance` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
                                            `nationalite` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
                                            `sexe` enum('Masculin','Féminin','Autre') CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
-                                           `adresse_postale` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
+                                           `adresse_postale` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci,
                                            `ville` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
                                            `code_postal` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
                                            `telephone_personnel` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
@@ -593,9 +594,9 @@ CREATE TABLE `pv_session_rapport` (
 
 CREATE TABLE `rapport_etudiant` (
                                     `id_rapport_etudiant` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
-                                    `libelle_rapport_etudiant` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL, -- CORRECTION: Type ajusté
+                                    `libelle_rapport_etudiant` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
                                     `theme` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
-                                    `resume` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
+                                    `resume` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci,
                                     `numero_attestation_stage` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
                                     `numero_carte_etudiant` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
                                     `nombre_pages` int DEFAULT NULL,
@@ -611,11 +612,11 @@ CREATE TABLE `rapport_etudiant` (
 --
 
 CREATE TABLE `rapport_modele` (
-                                  `id_modele` varchar(50) NOT NULL,
-                                  `nom_modele` varchar(255) NOT NULL,
-                                  `description` text DEFAULT NULL,
-                                  `version` varchar(10) NOT NULL,
-                                  `statut` enum('Brouillon','Publié','Archivé') NOT NULL
+                                  `id_modele` varchar(50) COLLATE utf8mb4_general_ci NOT NULL,
+                                  `nom_modele` varchar(255) COLLATE utf8mb4_general_ci NOT NULL,
+                                  `description` text COLLATE utf8mb4_general_ci,
+                                  `version` varchar(10) COLLATE utf8mb4_general_ci NOT NULL,
+                                  `statut` enum('Brouillon','Publié','Archivé') COLLATE utf8mb4_general_ci NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -625,8 +626,8 @@ CREATE TABLE `rapport_modele` (
 --
 
 CREATE TABLE `rapport_modele_assignation` (
-                                              `id_modele` varchar(50) NOT NULL,
-                                              `id_niveau_etude` varchar(50) NOT NULL
+                                              `id_modele` varchar(50) COLLATE utf8mb4_general_ci NOT NULL,
+                                              `id_niveau_etude` varchar(50) COLLATE utf8mb4_general_ci NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -636,10 +637,10 @@ CREATE TABLE `rapport_modele_assignation` (
 --
 
 CREATE TABLE `rapport_modele_section` (
-                                          `id_section_modele` varchar(50) NOT NULL,
-                                          `id_modele` varchar(50) NOT NULL,
-                                          `titre_section` varchar(255) NOT NULL,
-                                          `contenu_par_defaut` text DEFAULT NULL,
+                                          `id_section_modele` varchar(50) COLLATE utf8mb4_general_ci NOT NULL,
+                                          `id_modele` varchar(50) COLLATE utf8mb4_general_ci NOT NULL,
+                                          `titre_section` varchar(255) COLLATE utf8mb4_general_ci NOT NULL,
+                                          `contenu_par_defaut` text COLLATE utf8mb4_general_ci,
                                           `ordre` int NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
@@ -665,7 +666,7 @@ CREATE TABLE `recevoir` (
                             `numero_utilisateur` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
                             `id_notification` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
                             `date_reception` datetime NOT NULL,
-                            `lue` tinyint(1) NOT NULL DEFAULT 0,
+                            `lue` tinyint(1) NOT NULL DEFAULT '0',
                             `date_lecture` datetime DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
@@ -680,9 +681,9 @@ CREATE TABLE `reclamation` (
                                `numero_carte_etudiant` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
                                `sujet_reclamation` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
                                `description_reclamation` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
-                               `date_soumission` datetime NOT NULL DEFAULT current_timestamp(),
+                               `date_soumission` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
                                `id_statut_reclamation` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
-                               `reponse_reclamation` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
+                               `reponse_reclamation` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci,
                                `date_reponse` datetime DEFAULT NULL,
                                `numero_personnel_traitant` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
@@ -696,7 +697,7 @@ CREATE TABLE `reclamation` (
 CREATE TABLE `rendre` (
                           `numero_enseignant` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
                           `id_compte_rendu` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
-                          `date_action_sur_pv` datetime DEFAULT current_timestamp()
+                          `date_action_sur_pv` datetime DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -706,12 +707,12 @@ CREATE TABLE `rendre` (
 --
 
 CREATE TABLE `section_rapport` (
-                                   `id_rapport_etudiant` varchar(50) NOT NULL, -- CORRECTION: Fait partie de la PK
-                                   `titre_section` varchar(255) NOT NULL,     -- CORRECTION: Fait partie de la PK
-                                   `contenu_section` longtext DEFAULT NULL,
-                                   `ordre` int NOT NULL DEFAULT 0,
-                                   `date_creation` datetime NOT NULL DEFAULT current_timestamp(),
-                                   `date_derniere_modif` datetime DEFAULT NULL ON UPDATE current_timestamp()
+                                   `id_rapport_etudiant` varchar(50) COLLATE utf8mb4_general_ci NOT NULL,
+                                   `titre_section` varchar(255) COLLATE utf8mb4_general_ci NOT NULL,
+                                   `contenu_section` longtext COLLATE utf8mb4_general_ci,
+                                   `ordre` int NOT NULL DEFAULT '0',
+                                   `date_creation` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                   `date_derniere_modif` datetime DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -721,38 +722,9 @@ CREATE TABLE `section_rapport` (
 --
 
 CREATE TABLE `sequences` (
-                             `nom_sequence` varchar(50) NOT NULL,
-                             `annee` int NOT NULL, -- CORRECTION: Type ajusté de YEAR à INT
-                             `valeur_actuelle` int UNSIGNED NOT NULL DEFAULT 0
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
--- --------------------------------------------------------
-
---
--- Structure de la table `session_rapport`
---
-
-CREATE TABLE `session_rapport` (
-                                   `id_session` varchar(50) NOT NULL,
-                                   `id_rapport_etudiant` varchar(50) NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
--- --------------------------------------------------------
-
---
--- Structure de la table `session_validation`
---
-
-CREATE TABLE `session_validation` (
-                                      `id_session` varchar(50) NOT NULL,
-                                      `nom_session` varchar(255) NOT NULL,
-                                      `date_debut_session` datetime DEFAULT NULL,
-                                      `date_fin_prevue` datetime DEFAULT NULL,
-                                      `date_creation` datetime NOT NULL DEFAULT current_timestamp(),
-                                      `id_president_session` varchar(50) NOT NULL,
-                                      `mode_session` enum('presentiel','en_ligne') NOT NULL,
-                                      `statut_session` enum('planifiee','en_cours','cloturee') NOT NULL DEFAULT 'planifiee',
-                                      `nombre_votants_requis` int DEFAULT NULL
+                             `nom_sequence` varchar(50) COLLATE utf8mb4_general_ci NOT NULL,
+                             `annee` int NOT NULL,
+                             `valeur_actuelle` int UNSIGNED NOT NULL DEFAULT '0'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -762,10 +734,40 @@ CREATE TABLE `session_validation` (
 --
 
 CREATE TABLE `sessions` (
-                            `session_id` varchar(128) NOT NULL,
-                            `user_id` varchar(50) DEFAULT NULL,
-                            `session_data` blob DEFAULT NULL,
-                            `session_last_access` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+                            `session_id` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+                            `session_data` longblob NOT NULL,
+                            `session_last_activity` int UNSIGNED NOT NULL,
+                            `session_lifetime` int UNSIGNED NOT NULL,
+                            `user_id` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Structure de la table `session_rapport`
+--
+
+CREATE TABLE `session_rapport` (
+                                   `id_session` varchar(50) COLLATE utf8mb4_general_ci NOT NULL,
+                                   `id_rapport_etudiant` varchar(50) COLLATE utf8mb4_general_ci NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Structure de la table `session_validation`
+--
+
+CREATE TABLE `session_validation` (
+                                      `id_session` varchar(50) COLLATE utf8mb4_general_ci NOT NULL,
+                                      `nom_session` varchar(255) COLLATE utf8mb4_general_ci NOT NULL,
+                                      `date_debut_session` datetime DEFAULT NULL,
+                                      `date_fin_prevue` datetime DEFAULT NULL,
+                                      `date_creation` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                      `id_president_session` varchar(50) COLLATE utf8mb4_general_ci NOT NULL,
+                                      `mode_session` enum('presentiel','en_ligne') COLLATE utf8mb4_general_ci NOT NULL,
+                                      `statut_session` enum('planifiee','en_cours','cloturee') COLLATE utf8mb4_general_ci NOT NULL DEFAULT 'planifiee',
+                                      `nombre_votants_requis` int DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -820,8 +822,8 @@ CREATE TABLE `statut_paiement_ref` (
 --
 
 CREATE TABLE `statut_penalite_ref` (
-                                       `id_statut_penalite` varchar(50) NOT NULL,
-                                       `libelle_statut_penalite` varchar(100) NOT NULL
+                                       `id_statut_penalite` varchar(50) COLLATE utf8mb4_general_ci NOT NULL,
+                                       `libelle_statut_penalite` varchar(100) COLLATE utf8mb4_general_ci NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -878,7 +880,7 @@ CREATE TABLE `traitement` (
 CREATE TABLE `type_document_ref` (
                                      `id_type_document` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
                                      `libelle_type_document` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
-                                     `requis_ou_non` tinyint(1) DEFAULT 0
+                                     `requis_ou_non` tinyint(1) DEFAULT '0'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -915,15 +917,15 @@ CREATE TABLE `utilisateur` (
                                `login_utilisateur` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
                                `email_principal` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
                                `mot_de_passe` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
-                               `date_creation` datetime NOT NULL DEFAULT current_timestamp(),
+                               `date_creation` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
                                `derniere_connexion` datetime DEFAULT NULL,
                                `token_reset_mdp` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL,
                                `date_expiration_token_reset` datetime DEFAULT NULL,
                                `token_validation_email` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL,
-                               `email_valide` tinyint(1) NOT NULL DEFAULT 0,
-                               `tentatives_connexion_echouees` int UNSIGNED NOT NULL DEFAULT 0,
+                               `email_valide` tinyint(1) NOT NULL DEFAULT '0',
+                               `tentatives_connexion_echouees` int UNSIGNED NOT NULL DEFAULT '0',
                                `compte_bloque_jusqua` datetime DEFAULT NULL,
-                               `preferences_2fa_active` tinyint(1) NOT NULL DEFAULT 0,
+                               `preferences_2fa_active` tinyint(1) NOT NULL DEFAULT '0',
                                `secret_2fa` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
                                `photo_profil` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
                                `statut_compte` enum('actif','inactif','bloque','en_attente_validation','archive') CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL DEFAULT 'en_attente_validation',
@@ -942,8 +944,8 @@ CREATE TABLE `validation_pv` (
                                  `id_compte_rendu` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
                                  `numero_enseignant` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
                                  `id_decision_validation_pv` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
-                                 `date_validation` datetime NOT NULL DEFAULT current_timestamp(),
-                                 `commentaire_validation_pv` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL
+                                 `date_validation` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                 `commentaire_validation_pv` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -954,13 +956,13 @@ CREATE TABLE `validation_pv` (
 
 CREATE TABLE `vote_commission` (
                                    `id_vote` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
-                                   `id_session` varchar(50) NOT NULL,
+                                   `id_session` varchar(50) COLLATE utf8mb4_general_ci NOT NULL,
                                    `id_rapport_etudiant` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
                                    `numero_enseignant` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
                                    `id_decision_vote` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
-                                   `commentaire_vote` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
-                                   `date_vote` datetime NOT NULL DEFAULT current_timestamp(),
-                                   `tour_vote` int NOT NULL DEFAULT 1
+                                   `commentaire_vote` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci,
+                                   `date_vote` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                   `tour_vote` int NOT NULL DEFAULT '1'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
@@ -1069,10 +1071,10 @@ ALTER TABLE `delegation`
 -- Index pour la table `document_genere`
 --
 ALTER TABLE `document_genere`
-    ADD PRIMARY KEY (`id_document_genere`), -- CORRECTION: Index sur la nouvelle PK
+    ADD PRIMARY KEY (`id_document_genere`),
     ADD KEY `idx_docgen_type` (`id_type_document`),
     ADD KEY `idx_docgen_entite` (`id_entite_concernee`,`type_entite_concernee`),
-    ADD KEY `idx_docgen_user_concerne` (`numero_utilisateur_concerne`); -- CORRECTION: Ajout de l'index pour la nouvelle colonne
+    ADD KEY `idx_docgen_user_concerne` (`numero_utilisateur_concerne`);
 
 --
 -- Index pour la table `ecue`
@@ -1115,7 +1117,7 @@ ALTER TABLE `etudiant`
 -- Index pour la table `evaluer`
 --
 ALTER TABLE `evaluer`
-    ADD PRIMARY KEY (`numero_carte_etudiant`,`id_ecue`,`id_annee_academique`), -- CORRECTION: PK mise à jour
+    ADD PRIMARY KEY (`numero_carte_etudiant`,`id_ecue`,`id_annee_academique`),
     ADD KEY `idx_evaluer_ecue` (`id_ecue`),
     ADD KEY `fk_evaluer_annee_academique` (`id_annee_academique`);
 
@@ -1225,7 +1227,9 @@ ALTER TABLE `participant_conversation`
 ALTER TABLE `penalite`
     ADD PRIMARY KEY (`id_penalite`),
     ADD KEY `idx_penalite_etudiant` (`numero_carte_etudiant`),
-    ADD KEY `idx_penalite_statut` (`id_statut_penalite`);
+    ADD KEY `idx_penalite_statut` (`id_statut_penalite`),
+    ADD KEY `fk_penalite_annee` (`id_annee_academique`),
+    ADD KEY `fk_penalite_personnel` (`numero_personnel_traitant`);
 
 --
 -- Index pour la table `personnel_administratif`
@@ -1315,13 +1319,21 @@ ALTER TABLE `rendre`
 -- Index pour la table `section_rapport`
 --
 ALTER TABLE `section_rapport`
-    ADD PRIMARY KEY (`id_rapport_etudiant`,`titre_section`); -- CORRECTION: PK mise à jour
+    ADD PRIMARY KEY (`id_rapport_etudiant`,`titre_section`);
 
 --
 -- Index pour la table `sequences`
 --
 ALTER TABLE `sequences`
     ADD PRIMARY KEY (`nom_sequence`,`annee`);
+
+--
+-- Index pour la table `sessions`
+--
+ALTER TABLE `sessions`
+    ADD PRIMARY KEY (`session_id`),
+    ADD KEY `idx_session_last_activity` (`session_last_activity`),
+    ADD KEY `idx_session_user_id` (`user_id`);
 
 --
 -- Index pour la table `session_rapport`
@@ -1336,13 +1348,6 @@ ALTER TABLE `session_rapport`
 ALTER TABLE `session_validation`
     ADD PRIMARY KEY (`id_session`),
     ADD KEY `fk_session_president` (`id_president_session`);
-
---
--- Index pour la table `sessions`
---
-ALTER TABLE `sessions`
-    ADD PRIMARY KEY (`session_id`),
-    ADD KEY `idx_sessions_user_id` (`user_id`);
 
 --
 -- Index pour la table `specialite`
@@ -1512,7 +1517,7 @@ ALTER TABLE `delegation`
 --
 ALTER TABLE `document_genere`
     ADD CONSTRAINT `fk_docgen_type` FOREIGN KEY (`id_type_document`) REFERENCES `type_document_ref` (`id_type_document`) ON DELETE RESTRICT ON UPDATE CASCADE,
-    ADD CONSTRAINT `fk_docgen_user_concerne` FOREIGN KEY (`numero_utilisateur_concerne`) REFERENCES `utilisateur` (`numero_utilisateur`) ON DELETE SET NULL ON UPDATE CASCADE; -- CORRECTION: Ajout de la FK
+    ADD CONSTRAINT `fk_docgen_user_concerne` FOREIGN KEY (`numero_utilisateur_concerne`) REFERENCES `utilisateur` (`numero_utilisateur`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 --
 -- Contraintes pour la table `ecue`
@@ -1690,6 +1695,12 @@ ALTER TABLE `section_rapport`
     ADD CONSTRAINT `fk_section_rapport_etudiant` FOREIGN KEY (`id_rapport_etudiant`) REFERENCES `rapport_etudiant` (`id_rapport_etudiant`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 --
+-- Contraintes pour la table `sessions`
+--
+ALTER TABLE `sessions`
+    ADD CONSTRAINT `fk_sessions_user` FOREIGN KEY (`user_id`) REFERENCES `utilisateur` (`numero_utilisateur`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+--
 -- Contraintes pour la table `session_rapport`
 --
 ALTER TABLE `session_rapport`
@@ -1701,12 +1712,6 @@ ALTER TABLE `session_rapport`
 --
 ALTER TABLE `session_validation`
     ADD CONSTRAINT `fk_session_president` FOREIGN KEY (`id_president_session`) REFERENCES `enseignant` (`numero_enseignant`) ON DELETE RESTRICT ON UPDATE CASCADE;
-
---
--- Contraintes pour la table `sessions`
---
-ALTER TABLE `sessions`
-    ADD CONSTRAINT `fk_sessions_user` FOREIGN KEY (`user_id`) REFERENCES `utilisateur` (`numero_utilisateur`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 --
 -- Contraintes pour la table `specialite`
