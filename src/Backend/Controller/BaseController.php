@@ -6,13 +6,19 @@ use App\Backend\Service\Permissions\ServicePermissions;
 use App\Backend\Util\FormValidator;
 use App\Backend\Exception\PermissionException; // Importez l'exception de permission
 use App\Backend\Exception\AuthenticationException; // Importez l'exception d'authentification
+use Dotenv\Exception;
 
 abstract class BaseController
 {
     protected ServiceAuthentification $authService;
     protected ServicePermissions $permissionService;
     protected FormValidator $validator; // Injection du FormValidator
-    protected array $requestData; // Pour stocker les données de la requête GET/POST
+
+    // Constante pour le nom de la clé CSRF en session
+    protected const CSRF_TOKEN_KEY = 'csrf_token';
+    // Durée de vie du token CSRF en secondes
+    protected const CSRF_TOKEN_LIFETIME = 3600; // 1 heure
+
 
     public function __construct(
         ServiceAuthentification $authService,
@@ -22,36 +28,49 @@ abstract class BaseController
         $this->authService = $authService;
         $this->permissionService = $permissionService;
         $this->validator = $validator;
-        $this->requestData = $this->parseRequestData(); // Parse les données dès la construction
     }
 
     /**
-     * Parse les données de la requête (GET et POST) en les nettoyant.
-     * @return array
-     */
-    protected function parseRequestData(): array
-    {
-        $data = [];
-        // Nettoyage des données GET
-        foreach ($_GET as $key => $value) {
-            $data[$key] = htmlspecialchars(stripslashes(trim($value)));
-        }
-        // Nettoyage des données POST
-        foreach ($_POST as $key => $value) {
-            $data[$key] = htmlspecialchars(stripslashes(trim($value)));
-        }
-        return $data;
-    }
-
-    /**
-     * Récupère une donnée spécifique de la requête (GET ou POST).
-     * @param string $key La clé de la donnée.
+     * Récupère un paramètre GET de manière sécurisée.
+     * @param string $key La clé du paramètre.
      * @param mixed $default La valeur par défaut si la clé n'existe pas.
-     * @return mixed La valeur de la donnée ou la valeur par défaut.
+     * @return mixed La valeur du paramètre.
      */
-    protected function getRequestData(string $key, mixed $default = null): mixed
+    protected function get(string $key, mixed $default = null): mixed
     {
-        return $this->requestData[$key] ?? $default;
+        return isset($_GET[$key]) ? htmlspecialchars(stripslashes(trim((string)$_GET[$key]))) : $default;
+    }
+
+    /**
+     * Récupère un paramètre POST de manière sécurisée.
+     * @param string $key La clé du paramètre.
+     * @param mixed $default La valeur par défaut si la clé n'existe pas.
+     * @return mixed La valeur du paramètre.
+     */
+    protected function post(string $key, mixed $default = null): mixed
+    {
+        return isset($_POST[$key]) ? htmlspecialchars(stripslashes(trim((string)$_POST[$key]))) : $default;
+    }
+
+    /**
+     * Récupère un paramètre de requête (GET ou POST) de manière sécurisée.
+     * @param string $key La clé du paramètre.
+     * @param mixed $default La valeur par défaut si la clé n'existe pas.
+     * @return mixed La valeur du paramètre.
+     */
+    protected function request(string $key, mixed $default = null): mixed
+    {
+        return isset($_REQUEST[$key]) ? htmlspecialchars(stripslashes(trim((string)$_REQUEST[$key]))) : $default;
+    }
+
+    /**
+     * Récupère un fichier uploadé de manière sécurisée.
+     * @param string $key La clé du fichier.
+     * @return array|null Le tableau du fichier ou null si non trouvé.
+     */
+    protected function file(string $key): ?array
+    {
+        return $_FILES[$key] ?? null;
     }
 
     /**
@@ -65,44 +84,50 @@ abstract class BaseController
 
     /**
      * Rend une vue avec les données fournies et un layout optionnel.
+     * GÉNERATION ET PASSAGE AUTOMATIQUE DU CSRF À LA VUE.
+     *
      * @param string $view Le chemin de la vue (ex: 'Auth/login').
      * @param array $data Les données à passer à la vue.
      * @param string $layout Le layout à utiliser (ex: 'layout/app'). 'none' pour pas de layout.
      */
     protected function render(string $view, array $data = [], string $layout = 'layout/app'): void
     {
+        // AJOUT : Générer le jeton CSRF et l'ajouter aux données de la vue
+        $data['csrf_token'] = $this->generateCsrfToken();
+
         // Les messages flash doivent être récupérés et passés à la vue/layout
-        $data['flash_messages'] = $_SESSION['flash_messages'] ?? [];
-        unset($_SESSION['flash_messages']); // Une fois lus, on les efface
+        // REMPLACÉ : Utiliser un système de messages flash plus générique
+        $data['flash_messages'] = [
+            'success' => $_SESSION['flash_messages']['success'] ?? null,
+            'error' => $_SESSION['flash_messages']['error'] ?? null,
+            'warning' => $_SESSION['flash_messages']['warning'] ?? null,
+            'info' => $_SESSION['flash_messages']['info'] ?? null,
+        ];
+        // MODIFICATION : Effacer tous les messages flash après les avoir passés à la vue
+        unset($_SESSION['flash_messages']);
 
         // Assurez-vous que l'utilisateur est toujours connecté et ses permissions sont à jour pour le header/menu
         $data['current_user'] = $this->authService->getUtilisateurConnecteComplet();
 
-        // Inclure les assets CSS/JS ici ou via le layout
-        // $data['assets_css'] = [];
-        // $data['assets_js'] = [];
-
         // Chemin de base pour les vues
-        $viewPath = __DIR__ . '/../../Frontend/views/' . $view . '.php';
+        $viewPath = ROOT_PATH . '/src/Frontend/views/' . $view . '.php'; // Utilisation de ROOT_PATH
 
         if (!file_exists($viewPath)) {
-            // Gérer l'erreur, par exemple charger une vue 404 ou lancer une exception
-            // Pour l'instant, on lance une exception, le routeur doit la catcher
             throw new \RuntimeException("La vue '{$view}' n'existe pas: {$viewPath}");
         }
 
-        // Démarrer la mise en mémoire tampon de la sortie
         ob_start();
-        extract($data); // Extrait le tableau $data en variables
+        extract($data);
         require $viewPath;
-        $content = ob_get_clean(); // Récupérer le contenu de la vue
+        $content = ob_get_clean();
 
-        // Si un layout est spécifié, l'inclure
         if ($layout !== 'none') {
-            $layoutPath = __DIR__ . '/../../Frontend/views/' . $layout . '.php';
+            $layoutPath = ROOT_PATH . '/src/Frontend/views/' . $layout . '.php'; // Utilisation de ROOT_PATH
             if (!file_exists($layoutPath)) {
                 throw new \RuntimeException("Le layout '{$layout}' n'existe pas: {$layoutPath}");
             }
+            // IMPORTANT: Dans le layout, 'require $content;' ne fonctionne pas.
+            /* Le layout doit contenir `<?= $content ?>' ou `<?php echo $content; ?>`*/
             ob_start();
             require $layoutPath;
             echo ob_get_clean();
@@ -132,20 +157,6 @@ abstract class BaseController
             $_SESSION['flash_messages'] = [];
         }
         $_SESSION['flash_messages'][$key] = $message;
-    }
-
-    /**
-     * Récupère un message flash s'il existe.
-     * @param string $key La clé du message.
-     * @return string|null Le message ou null si non trouvé.
-     */
-    protected function getFlashMessage(string $key): ?string
-    {
-        $message = $_SESSION['flash_messages'][$key] ?? null;
-        if ($message) {
-            unset($_SESSION['flash_messages'][$key]);
-        }
-        return $message;
     }
 
     /**
@@ -192,5 +203,43 @@ abstract class BaseController
     protected function getCurrentUser(): ?array
     {
         return $this->authService->getUtilisateurConnecteComplet();
+    }
+
+    /**
+     * Génère un jeton CSRF unique et le stocke en session.
+     * Le jeton est associé à une date d'expiration.
+     * @return string Le jeton CSRF généré.
+     */
+    protected function generateCsrfToken(): string
+    {
+        if (empty($_SESSION[self::CSRF_TOKEN_KEY]) || $_SESSION[self::CSRF_TOKEN_KEY]['expires_at'] < time()) {
+            $_SESSION[self::CSRF_TOKEN_KEY] = [
+                'value' => bin2hex(random_bytes(32)),
+                'expires_at' => time() + self::CSRF_TOKEN_LIFETIME
+            ];
+        }
+        return $_SESSION[self::CSRF_TOKEN_KEY]['value'];
+    }
+
+    /**
+     * Vérifie la validité d'un jeton CSRF soumis via POST.
+     * @param string|null $token Le jeton soumis.
+     * @return bool Vrai si le jeton est valide et non expiré.
+     */
+    protected function verifyCsrfToken(?string $token): bool
+    {
+        if (empty($token) || empty($_SESSION[self::CSRF_TOKEN_KEY])) {
+            return false;
+        }
+        if ($token !== $_SESSION[self::CSRF_TOKEN_KEY]['value']) {
+            return false;
+        }
+        if ($_SESSION[self::CSRF_TOKEN_KEY]['expires_at'] < time()) {
+            unset($_SESSION[self::CSRF_TOKEN_KEY]); // Expired token
+            return false;
+        }
+        // Jeton valide et non expiré, on le consomme (pour usage unique)
+        unset($_SESSION[self::CSRF_TOKEN_KEY]);
+        return true;
     }
 }

@@ -1,9 +1,10 @@
 <?php
+// src/Frontend/views/Auth/forgot_password_form.php - Version FINALEMENT corrigée
 // Variables attendues du contrôleur :
 // $title (string) - Titre de la page
-// $success_message (string|null) - Message de succès
-// $error_message (string|null) - Message d'erreur
+// $flash_messages (array) - Messages flash (success, error, warning, info)
 // $form_data (array) - Données du formulaire précédemment soumises
+// $csrf_token (string) - Jeton CSRF généré par le BaseController
 
 // Assurer la compatibilité avec le layout app.php qui attend $pageTitle
 if (!isset($pageTitle) && isset($title)) {
@@ -21,20 +22,34 @@ $email_value = isset($form_data['email_principal']) ? htmlspecialchars($form_dat
             Entrez votre adresse e-mail et nous vous enverrons un lien pour réinitialiser votre mot de passe.
         </p>
 
-        <?php if (isset($success_message) && $success_message): ?>
+        <?php if (isset($flash_messages['success']) && $flash_messages['success']): ?>
             <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative mb-4" role="alert">
-                <span class="block sm:inline"><?= htmlspecialchars($success_message, ENT_QUOTES, 'UTF-8') ?></span>
+                <span class="block sm:inline"><?= htmlspecialchars($flash_messages['success'], ENT_QUOTES, 'UTF-8') ?></span>
             </div>
         <?php endif; ?>
 
-        <?php if (isset($error_message) && $error_message): ?>
+        <?php if (isset($flash_messages['error']) && $flash_messages['error']): ?>
             <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
-                <span class="block sm:inline"><?= htmlspecialchars($error_message, ENT_QUOTES, 'UTF-8') ?></span>
+                <span class="block sm:inline"><?= htmlspecialchars($flash_messages['error'], ENT_QUOTES, 'UTF-8') ?></span>
             </div>
         <?php endif; ?>
+
+        <?php /* Vous pouvez ajouter des messages info et warning si nécessaire */ ?>
+        <?php if (isset($flash_messages['info']) && $flash_messages['info']): ?>
+            <div class="bg-blue-100 border border-blue-400 text-blue-700 px-4 py-3 rounded relative mb-4" role="alert">
+                <span class="block sm:inline"><?= htmlspecialchars($flash_messages['info'], ENT_QUOTES, 'UTF-8') ?></span>
+            </div>
+        <?php endif; ?>
+        <?php if (isset($flash_messages['warning']) && $flash_messages['warning']): ?>
+            <div class="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded relative mb-4" role="alert">
+                <span class="block sm:inline"><?= htmlspecialchars($flash_messages['warning'], ENT_QUOTES, 'UTF-8') ?></span>
+            </div>
+        <?php endif; ?>
+
 
         <form action="/forgot-password" method="POST">
-            <?= $this->getCsrfInput() ?>
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf_token ?? '', ENT_QUOTES, 'UTF-8') ?>">
+
             <div class="mb-4">
                 <label class="block text-gray-700 text-sm font-bold mb-2" for="email_principal">
                     Adresse E-mail
@@ -62,4 +77,3 @@ $email_value = isset($form_data['email_principal']) ? htmlspecialchars($form_dat
         &copy;<?= date('Y') ?> GestionMySoutenance. Tous droits réservés.
     </p>
 </div>
-
