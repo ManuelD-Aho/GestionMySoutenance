@@ -1,12 +1,10 @@
-<!-- src/Frontend/views/Auth/login.php -->
 <!DOCTYPE html>
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Connexion à GestionMySoutenance</title>
-    <link rel="stylesheet" href="/assets/css/style.css"> <!-- Votre CSS principal -->
-    <style>
+    <link rel="stylesheet" href="/assets/css/style.css"> <style>
         /* Styles spécifiques à la page de login */
         body { background-color: #f0f2f5; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
         .login-container { background-color: #fff; padding: 40px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); width: 100%; max-width: 400px; text-align: center; }
@@ -24,6 +22,7 @@
         .alert-error { background-color: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
         .alert-success { background-color: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
         .alert-warning { background-color: #fff3cd; border: 1px solid #ffeeba; color: #856404; }
+        .alert-info { background-color: #d1ecf1; border: 1px solid #bee5eb; color: #0c5460; } /* Ajouté pour les messages 'info' */
     </style>
 </head>
 <body>
@@ -31,15 +30,21 @@
     <h1>Connexion</h1>
 
     <?php
-    // Affichage des messages flash (passés par BaseController)
+    // Affichage des messages flash (passés par BaseController via $flash_messages)
+    // J'ai mis à jour le code ici pour correspondre au format $flash_messages['type']
     if (isset($flash_messages) && is_array($flash_messages)) {
         foreach ($flash_messages as $type => $message) {
-            echo '<div class="alert alert-' . htmlspecialchars($type) . '">' . htmlspecialchars($message) . '</div>';
+            // S'assurer que le message n'est pas vide avant de l'afficher
+            if ($message) {
+                echo '<div class="alert alert-' . htmlspecialchars($type) . '">' . htmlspecialchars($message) . '</div>';
+            }
         }
     }
     ?>
 
     <form action="/login" method="POST">
+        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf_token ?? '', ENT_QUOTES, 'UTF-8') ?>">
+
         <div class="form-group">
             <label for="login_email">Login ou Email :</label>
             <input type="text" id="login_email" name="login_email" required autocomplete="username">

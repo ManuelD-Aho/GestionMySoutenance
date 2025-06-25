@@ -1,7 +1,9 @@
 <?php
+// src/Frontend/views/Auth/form_2fa.php - Version corrigée
 // Variables attendues du contrôleur :
 // $title (string) - Titre de la page
-// $error (string|null) - Message d'erreur à afficher
+// $flash_messages (array) - Messages flash (success, error, warning, info)
+// $csrf_token (string) - Jeton CSRF généré par le BaseController
 
 // Assurer la compatibilité avec le layout app.php qui attend $pageTitle
 if (!isset($pageTitle) && isset($title)) {
@@ -17,14 +19,26 @@ if (!isset($pageTitle) && isset($title)) {
             Veuillez entrer le code généré par votre application d'authentification.
         </p>
 
-        <?php if (isset($error) && $error): ?>
-            <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
-                <span class="block sm:inline"><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?></span>
-            </div>
-        <?php endif; ?>
+        <?php
+        // Affichage des messages flash (passés par BaseController via $flash_messages)
+        if (isset($flash_messages) && is_array($flash_messages)) {
+            foreach ($flash_messages as $type => $message) {
+                // S'assurer que le message n'est pas vide avant de l'afficher
+                if ($message) {
+                    echo '<div class="bg-' . htmlspecialchars($type) . '-100 border border-' . htmlspecialchars($type) . '-400 text-' . htmlspecialchars($type) . '-700 px-4 py-3 rounded relative mb-4" role="alert">';
+                    echo '<span class="block sm:inline">' . htmlspecialchars($message, ENT_QUOTES, 'UTF-8') . '</span>';
+                    echo '</div>';
+                }
+            }
+        }
+        ?>
 
-        <form action="/login-2fa" method="POST">
-            <?= $this->getCsrfInput() ?>
+        <!-- L'action du formulaire doit pointer vers la route POST /2fa -->
+        <form action="/2fa" method="POST">
+            <!-- CHAMP CSRF CACHÉ - AJOUT ESSENTIEL POUR LA SÉCURITÉ -->
+            <!-- La variable $csrf_token est passée automatiquement par le BaseController::render() -->
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf_token ?? '', ENT_QUOTES, 'UTF-8') ?>">
+
             <div class="mb-4">
                 <label class="block text-gray-700 text-sm font-bold mb-2" for="code_2fa">
                     Code d'Authentification
@@ -51,4 +65,3 @@ if (!isset($pageTitle) && isset($title)) {
         &copy;<?= date('Y') ?> GestionMySoutenance. Tous droits réservés.
     </p>
 </div>
-
