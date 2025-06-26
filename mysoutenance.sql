@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Hôte : db:3306
--- Généré le : mer. 25 juin 2025 à 11:04
+-- Généré le : jeu. 26 juin 2025 à 09:01
 -- Version du serveur : 8.3.0
 -- Version de PHP : 8.2.27
 
@@ -45,6 +45,24 @@ CREATE TABLE `action` (
                           `categorie_action` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+--
+-- Déchargement des données de la table `action`
+--
+
+INSERT INTO `action` (`id_action`, `libelle_action`, `categorie_action`) VALUES
+                                                                             ('ATTRIB_PERM_GROUPE', 'ATTRIB_PERM_GROUPE', 'Dynamique'),
+                                                                             ('CHANGEMENT_STATUT_COMPTE', 'CHANGEMENT_STATUT_COMPTE', 'Dynamique'),
+                                                                             ('CREATION_ANNEE_ACADEMIQUE', 'CREATION_ANNEE_ACADEMIQUE', 'Dynamique'),
+                                                                             ('CREATION_COMPTE', 'CREATION_COMPTE', 'Dynamique'),
+                                                                             ('CREATION_GROUPE_UTILISATEUR', 'CREATION_GROUPE_UTILISATEUR', 'Dynamique'),
+                                                                             ('CREATION_NIVEAU_ACCES', 'CREATION_NIVEAU_ACCES', 'Dynamique'),
+                                                                             ('CREATION_TRAITEMENT', 'CREATION_TRAITEMENT', 'Dynamique'),
+                                                                             ('CREATION_TYPE_UTILISATEUR', 'CREATION_TYPE_UTILISATEUR', 'Dynamique'),
+                                                                             ('ECHEC_LOGIN', 'ECHEC_LOGIN', 'Dynamique'),
+                                                                             ('GENERATION_ID_UNIQUE', 'GENERATION_ID_UNIQUE', 'Dynamique'),
+                                                                             ('SUCCES_LOGIN', 'SUCCES_LOGIN', 'Dynamique'),
+                                                                             ('SYNCHRONISATION_RBAC', 'SYNCHRONISATION_RBAC', 'Dynamique');
+
 -- --------------------------------------------------------
 
 --
@@ -72,6 +90,13 @@ CREATE TABLE `annee_academique` (
                                     `date_fin` date DEFAULT NULL,
                                     `est_active` tinyint(1) NOT NULL DEFAULT '0'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Déchargement des données de la table `annee_academique`
+--
+
+INSERT INTO `annee_academique` (`id_annee_academique`, `libelle_annee_academique`, `date_debut`, `date_fin`, `est_active`) VALUES
+    ('ANNEE-2025-2026', '2025-2026', '2025-09-01', '2026-08-31', 1);
 
 -- --------------------------------------------------------
 
@@ -155,6 +180,17 @@ CREATE TABLE `critere_conformite_ref` (
                                           `description` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
                                           `est_actif` tinyint(1) NOT NULL DEFAULT '1'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Déchargement des données de la table `critere_conformite_ref`
+--
+
+INSERT INTO `critere_conformite_ref` (`id_critere`, `libelle_critere`, `description`, `est_actif`) VALUES
+                                                                                                       ('BIBLIO_FORMAT', 'Bibliographie formatée', 'La bibliographie respecte-t-elle la norme APA 7ème édition ?', 1),
+                                                                                                       ('PAGE_GARDE', 'Respect de la page de garde', 'La page de garde contient-elle le logo, le titre, le nom de l\'étudiant, le nom du tuteur et l\'année académique ?', 1),
+                                                                                                       ('PAGINATION', 'Pagination correcte', 'Le document est-il correctement paginé, en commençant après la page de garde ?', 1),
+                                                                                                       ('PRESENCE_RESUME', 'Présence du résumé', 'Un résumé (abstract) en français et en anglais est-il présent au début du document ?', 1),
+                                                                                                       ('VALIDITE_STAGE', 'Validité du stage associé', 'Le stage associé au rapport a-t-il été administrativement validé par la scolarité ?', 1);
 
 -- --------------------------------------------------------
 
@@ -281,6 +317,13 @@ CREATE TABLE `enseignant` (
                               `email_personnel_secondaire` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+--
+-- Déchargement des données de la table `enseignant`
+--
+
+INSERT INTO `enseignant` (`numero_enseignant`, `nom`, `prenom`, `telephone_professionnel`, `email_professionnel`, `numero_utilisateur`, `date_naissance`, `lieu_naissance`, `pays_naissance`, `nationalite`, `sexe`, `adresse_postale`, `ville`, `code_postal`, `telephone_personnel`, `email_personnel_secondaire`) VALUES
+    ('ENS-2025-0001', 'Dupont', 'Jean', '0611223344', NULL, 'ENS-2025-0001', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+
 -- --------------------------------------------------------
 
 --
@@ -322,6 +365,13 @@ CREATE TABLE `etudiant` (
                             `contact_urgence_telephone` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
                             `contact_urgence_relation` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Déchargement des données de la table `etudiant`
+--
+
+INSERT INTO `etudiant` (`numero_carte_etudiant`, `nom`, `prenom`, `date_naissance`, `lieu_naissance`, `pays_naissance`, `nationalite`, `sexe`, `adresse_postale`, `ville`, `code_postal`, `telephone`, `email_contact_secondaire`, `numero_utilisateur`, `contact_urgence_nom`, `contact_urgence_telephone`, `contact_urgence_relation`) VALUES
+    ('ETU-2025-0001', 'Martin', 'Sophie', '2002-05-15', NULL, NULL, NULL, NULL, NULL, NULL, NULL, '0788990011', NULL, 'ETU-2025-0001', NULL, NULL, NULL);
 
 -- --------------------------------------------------------
 
@@ -385,6 +435,19 @@ CREATE TABLE `groupe_utilisateur` (
                                       `id_groupe_utilisateur` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
                                       `libelle_groupe_utilisateur` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Déchargement des données de la table `groupe_utilisateur`
+--
+
+INSERT INTO `groupe_utilisateur` (`id_groupe_utilisateur`, `libelle_groupe_utilisateur`) VALUES
+                                                                                             ('GRP_ADMIN_SYS', 'Administrateur Système'),
+                                                                                             ('GRP_AGENT_CONFORMITE', 'Agent de Conformité'),
+                                                                                             ('GRP_ENSEIGNANT', 'Enseignant (Rôle de base)'),
+                                                                                             ('GRP_ETUDIANT', 'Étudiant'),
+                                                                                             ('GRP_COMMISSION', 'Membre de Commission'),
+                                                                                             ('GRP_PERS_ADMIN', 'Personnel Administratif (Rôle de base)'),
+                                                                                             ('GRP_RS', 'Responsable Scolarité');
 
 -- --------------------------------------------------------
 
@@ -468,6 +531,15 @@ CREATE TABLE `niveau_acces_donne` (
                                       `libelle_niveau_acces_donne` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+--
+-- Déchargement des données de la table `niveau_acces_donne`
+--
+
+INSERT INTO `niveau_acces_donne` (`id_niveau_acces_donne`, `libelle_niveau_acces_donne`) VALUES
+                                                                                             ('ACCES_PERSONNEL', 'Accès aux Données Personnelles Uniquement'),
+                                                                                             ('ACCES_DEPARTEMENT', 'Accès Niveau Département'),
+                                                                                             ('ACCES_TOTAL', 'Accès Total (Admin)');
+
 -- --------------------------------------------------------
 
 --
@@ -503,6 +575,37 @@ CREATE TABLE `occuper` (
                            `date_debut_occupation` date NOT NULL,
                            `date_fin_occupation` date DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Structure de la table `parametres_systeme`
+--
+
+CREATE TABLE `parametres_systeme` (
+                                      `cle` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+                                      `valeur` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci,
+                                      `description` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
+                                      `type` enum('string','integer','boolean','json') CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL DEFAULT 'string'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Déchargement des données de la table `parametres_systeme`
+--
+
+INSERT INTO `parametres_systeme` (`cle`, `valeur`, `description`, `type`) VALUES
+                                                                              ('LOCKOUT_TIME_MINUTES', '30', 'Durée en minutes du blocage de compte après trop de tentatives.', 'integer'),
+                                                                              ('MAX_LOGIN_ATTEMPTS', '5', 'Nombre maximum de tentatives de connexion avant blocage du compte.', 'integer'),
+                                                                              ('PASSWORD_MIN_LENGTH', '8', 'Longueur minimale requise pour les mots de passe.', 'integer'),
+                                                                              ('SMTP_FROM_EMAIL', 'no-reply@gestionsoutenance.com', 'Adresse email de l\'expéditeur par défaut.', 'string'),
+                                                                              ('SMTP_FROM_NAME', 'GestionMySoutenance', 'Nom de l\'expéditeur par défaut.', 'string'),
+                                                                              ('SMTP_HOST', 'smtp.example.com', 'Hôte du serveur SMTP pour l\'envoi d\'emails.', 'string'),
+                                                                              ('SMTP_PASS', 'password', 'Mot de passe pour l\'authentification SMTP.', 'string'),
+                                                                              ('SMTP_PORT', '587', 'Port du serveur SMTP.', 'integer'),
+                                                                              ('SMTP_SECURE', 'tls', 'Type de chiffrement SMTP (tls, ssl, ou vide).', 'string'),
+                                                                              ('SMTP_USER', 'user@example.com', 'Nom d\'utilisateur pour l\'authentification SMTP.', 'string'),
+                                                                              ('UPLOADS_PATH_DOCUMENTS_GENERES', '/var/www/html/Public/uploads/documents_generes/', 'Chemin de stockage des documents PDF générés.', 'string'),
+                                                                              ('UPLOADS_PATH_PROFILE_PICTURES', '/var/www/html/Public/uploads/profile_pictures/', 'Chemin de stockage des photos de profil.', 'string');
 
 -- --------------------------------------------------------
 
@@ -561,6 +664,14 @@ CREATE TABLE `personnel_administratif` (
                                            `email_personnel_secondaire` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+--
+-- Déchargement des données de la table `personnel_administratif`
+--
+
+INSERT INTO `personnel_administratif` (`numero_personnel_administratif`, `nom`, `prenom`, `telephone_professionnel`, `email_professionnel`, `date_affectation_service`, `responsabilites_cles`, `numero_utilisateur`, `date_naissance`, `lieu_naissance`, `pays_naissance`, `nationalite`, `sexe`, `adresse_postale`, `ville`, `code_postal`, `telephone_personnel`, `email_personnel_secondaire`) VALUES
+                                                                                                                                                                                                                                                                                                                                                                                                       ('ADM-2025-0001', 'Scolarité', 'Responsable', '0123456789', NULL, NULL, NULL, 'ADM-2025-0001', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
+                                                                                                                                                                                                                                                                                                                                                                                                       ('ADM-2025-0002', 'Conformité', 'Agent', '0123456788', NULL, NULL, NULL, 'ADM-2025-0002', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+
 -- --------------------------------------------------------
 
 --
@@ -584,6 +695,24 @@ CREATE TABLE `pister` (
 CREATE TABLE `pv_session_rapport` (
                                       `id_compte_rendu` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
                                       `id_rapport_etudiant` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Structure de la table `queue_jobs`
+--
+
+CREATE TABLE `queue_jobs` (
+                              `id` bigint UNSIGNED NOT NULL,
+                              `job_name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+                              `payload` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+                              `status` enum('pending','processing','completed','failed') CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL DEFAULT 'pending',
+                              `attempts` tinyint UNSIGNED NOT NULL DEFAULT '0',
+                              `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                              `started_at` timestamp NULL DEFAULT NULL,
+                              `completed_at` timestamp NULL DEFAULT NULL,
+                              `error_message` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -654,6 +783,26 @@ CREATE TABLE `rattacher` (
                              `id_groupe_utilisateur` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
                              `id_traitement` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Déchargement des données de la table `rattacher`
+--
+
+INSERT INTO `rattacher` (`id_groupe_utilisateur`, `id_traitement`) VALUES
+                                                                       ('GRP_ADMIN_SYS', 'TRAIT_ADMIN_DASHBOARD_ACCEDER'),
+                                                                       ('GRP_ADMIN_SYS', 'TRAIT_ADMIN_GERER_UTILISATEURS_CREER'),
+                                                                       ('GRP_ADMIN_SYS', 'TRAIT_ADMIN_GERER_UTILISATEURS_LISTER'),
+                                                                       ('GRP_COMMISSION', 'TRAIT_COMMISSION_DASHBOARD_ACCEDER'),
+                                                                       ('GRP_COMMISSION', 'TRAIT_COMMISSION_VALIDATION_RAPPORT_VOTER'),
+                                                                       ('GRP_ETUDIANT', 'TRAIT_ETUDIANT_DASHBOARD_ACCEDER'),
+                                                                       ('GRP_ETUDIANT', 'TRAIT_ETUDIANT_RAPPORT_SOUMETTRE'),
+                                                                       ('GRP_ETUDIANT', 'TRAIT_ETUDIANT_RAPPORT_SUIVRE'),
+                                                                       ('GRP_AGENT_CONFORMITE', 'TRAIT_PERS_ADMIN_CONFORMITE_LISTER'),
+                                                                       ('GRP_AGENT_CONFORMITE', 'TRAIT_PERS_ADMIN_CONFORMITE_VERIFIER'),
+                                                                       ('GRP_AGENT_CONFORMITE', 'TRAIT_PERS_ADMIN_DASHBOARD_ACCEDER'),
+                                                                       ('GRP_RS', 'TRAIT_PERS_ADMIN_DASHBOARD_ACCEDER'),
+                                                                       ('GRP_RS', 'TRAIT_PERS_ADMIN_SCOLARITE_ACCEDER'),
+                                                                       ('GRP_RS', 'TRAIT_PERS_ADMIN_SCOLARITE_PENALITE_GERER');
 
 -- --------------------------------------------------------
 
@@ -727,6 +876,16 @@ CREATE TABLE `sequences` (
                              `valeur_actuelle` int UNSIGNED NOT NULL DEFAULT '0'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+--
+-- Déchargement des données de la table `sequences`
+--
+
+INSERT INTO `sequences` (`nom_sequence`, `annee`, `valeur_actuelle`) VALUES
+                                                                         ('ADM', 2025, 2),
+                                                                         ('ENS', 2025, 1),
+                                                                         ('ETU', 2025, 1),
+                                                                         ('SYS', 2025, 1);
+
 -- --------------------------------------------------------
 
 --
@@ -740,6 +899,16 @@ CREATE TABLE `sessions` (
                             `session_lifetime` int UNSIGNED NOT NULL,
                             `user_id` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Déchargement des données de la table `sessions`
+--
+
+INSERT INTO `sessions` (`session_id`, `session_data`, `session_last_activity`, `session_lifetime`, `user_id`) VALUES
+                                                                                                                  ('48a9c24bceac4bce2ede9384efa155f1', 0x637372665f746f6b656e7c613a323a7b733a353a2276616c7565223b733a36343a2266343661346134623339316565636434643732353065666162646166356566613939666639313236383735633766326232363837393031316438373361336639223b733a31303a22657870697265735f6174223b693a313735303839383134373b7d, 1750894547, 1440, NULL),
+                                                                                                                  ('688dfce7e884b5d1ee845a341e52d902', '', 1750884748, 1440, NULL),
+                                                                                                                  ('71d5286f7891ce152c6acbc696bd9da1', 0x637372665f746f6b656e7c613a323a7b733a353a2276616c7565223b733a36343a2238383636666535616164373838666231303838343863623730396232336563663665353466393732303534376534373737633034633232343538663435646234223b733a31303a22657870697265735f6174223b693a313735303836313031323b7d, 1750857665, 1440, NULL),
+                                                                                                                  ('8541c295e774b21384373157918ec820', 0x637372665f746f6b656e7c613a323a7b733a353a2276616c7565223b733a36343a2230383931333134393836616630396637626433383064306166643537346566663737386638303139373239626662356335393762643561303632313662616637223b733a31303a22657870697265735f6174223b693a313735303837353939393b7d, 1750872399, 1440, NULL);
 
 -- --------------------------------------------------------
 
@@ -871,6 +1040,25 @@ CREATE TABLE `traitement` (
                               `libelle_traitement` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+--
+-- Déchargement des données de la table `traitement`
+--
+
+INSERT INTO `traitement` (`id_traitement`, `libelle_traitement`) VALUES
+                                                                     ('TRAIT_ADMIN_DASHBOARD_ACCEDER', 'Accéder au Dashboard Admin'),
+                                                                     ('TRAIT_ADMIN_GERER_UTILISATEURS_CREER', 'Créer un utilisateur'),
+                                                                     ('TRAIT_ADMIN_GERER_UTILISATEURS_LISTER', 'Lister les utilisateurs'),
+                                                                     ('TRAIT_COMMISSION_DASHBOARD_ACCEDER', 'Accéder au Dashboard Commission'),
+                                                                     ('TRAIT_COMMISSION_VALIDATION_RAPPORT_VOTER', 'Voter pour un rapport'),
+                                                                     ('TRAIT_ETUDIANT_DASHBOARD_ACCEDER', 'Accéder au Dashboard Étudiant'),
+                                                                     ('TRAIT_ETUDIANT_RAPPORT_SOUMETTRE', 'Soumettre son rapport'),
+                                                                     ('TRAIT_ETUDIANT_RAPPORT_SUIVRE', 'Suivre son rapport'),
+                                                                     ('TRAIT_PERS_ADMIN_CONFORMITE_LISTER', 'Lister les rapports à vérifier'),
+                                                                     ('TRAIT_PERS_ADMIN_CONFORMITE_VERIFIER', 'Vérifier la conformité d\'un rapport'),
+                                                                     ('TRAIT_PERS_ADMIN_DASHBOARD_ACCEDER', 'Accéder au Dashboard Personnel Admin'),
+                                                                     ('TRAIT_PERS_ADMIN_SCOLARITE_ACCEDER', 'Accéder à la gestion de la scolarité'),
+                                                                     ('TRAIT_PERS_ADMIN_SCOLARITE_PENALITE_GERER', 'Gérer les pénalités');
+
 -- --------------------------------------------------------
 
 --
@@ -893,6 +1081,16 @@ CREATE TABLE `type_utilisateur` (
                                     `id_type_utilisateur` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
                                     `libelle_type_utilisateur` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Déchargement des données de la table `type_utilisateur`
+--
+
+INSERT INTO `type_utilisateur` (`id_type_utilisateur`, `libelle_type_utilisateur`) VALUES
+                                                                                       ('TYPE_ADMIN', 'Administrateur Système'),
+                                                                                       ('TYPE_ENS', 'Enseignant'),
+                                                                                       ('TYPE_ETUD', 'Étudiant'),
+                                                                                       ('TYPE_PERS_ADMIN', 'Personnel Administratif');
 
 -- --------------------------------------------------------
 
@@ -933,6 +1131,17 @@ CREATE TABLE `utilisateur` (
                                `id_groupe_utilisateur` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
                                `id_type_utilisateur` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Déchargement des données de la table `utilisateur`
+--
+
+INSERT INTO `utilisateur` (`numero_utilisateur`, `login_utilisateur`, `email_principal`, `mot_de_passe`, `date_creation`, `derniere_connexion`, `token_reset_mdp`, `date_expiration_token_reset`, `token_validation_email`, `email_valide`, `tentatives_connexion_echouees`, `compte_bloque_jusqua`, `preferences_2fa_active`, `secret_2fa`, `photo_profil`, `statut_compte`, `id_niveau_acces_donne`, `id_groupe_utilisateur`, `id_type_utilisateur`) VALUES
+                                                                                                                                                                                                                                                                                                                                                                                                                                                           ('ADM-2025-0001', 'resp_sco', 'resp.sco@gestionsoutenance.dev', '$2y$10$LDuzMmrtuMbEqttVvPYU1uSktwQqdN90QDtHDupQ1Kl/I/8i0USbC', '2025-06-25 15:14:10', NULL, NULL, NULL, '97e6ef85e67dcd66490fa09ec9d4b8fc0ca078ace86f8e735473f2f1a3d4581d', 0, 0, NULL, 0, NULL, NULL, 'actif', 'ACCES_DEPARTEMENT', 'GRP_PERS_ADMIN', 'TYPE_PERS_ADMIN'),
+                                                                                                                                                                                                                                                                                                                                                                                                                                                           ('ADM-2025-0002', 'agent_conf', 'agent.conf@gestionsoutenance.dev', '$2y$10$gBN1V1WXin91Xu.JCnIFEO6q1Arp59VBN74BzcFrAh1G2iaL.4DA2', '2025-06-25 15:14:10', NULL, NULL, NULL, '791236265f9efb7db230137992b3e235dbe8b33ef35a4bd0096fc0f971b8ccaf', 0, 0, NULL, 0, NULL, NULL, 'actif', 'ACCES_DEPARTEMENT', 'GRP_PERS_ADMIN', 'TYPE_PERS_ADMIN'),
+                                                                                                                                                                                                                                                                                                                                                                                                                                                           ('ENS-2025-0001', 'prof_dupont', 'prof.dupont@gestionsoutenance.dev', '$2y$10$h9nEwZdBepRRQedg1tuvJujjrdmZ2jBgaAMc/r9dbDjjKMRg66dJq', '2025-06-25 15:14:10', NULL, NULL, NULL, 'daa4318f9c7a1322c4ec4840f02bbd590d1c26ba79baedc99dcd03d76bc3d0c6', 0, 0, NULL, 0, NULL, NULL, 'actif', 'ACCES_DEPARTEMENT', 'GRP_ENSEIGNANT', 'TYPE_ENS'),
+                                                                                                                                                                                                                                                                                                                                                                                                                                                           ('ETU-2025-0001', 'etu_martin', 'etu.martin@gestionsoutenance.dev', '$2y$10$64kSHQbLa9cEe3hXJ0RDHOVdOrkW9CTQjOYaghSOHsziy16BXog2i', '2025-06-25 15:14:10', NULL, NULL, NULL, '977ec8fa3bee1590f68e02a3e5c2fb1212d2aac484ae1d4d11fb19d85cacd124', 0, 0, NULL, 0, NULL, NULL, 'actif', 'ACCES_PERSONNEL', 'GRP_ETUDIANT', 'TYPE_ETUD'),
+                                                                                                                                                                                                                                                                                                                                                                                                                                                           ('SYS-2025-0001', 'admin_sys', 'admin.sys@gestionsoutenance.dev', '$2y$10$Yz7cffYIpq574/BIed87R.UV85F.GG9VNF0JOX4bTcs/kTBOxeOQC', '2025-06-25 15:14:10', NULL, NULL, NULL, 'e8eb0345a1ea3f8858d2f0396a3efae8552dcb469d6a3a6b1c69a3cd523577fc', 1, 0, NULL, 0, NULL, NULL, 'actif', 'ACCES_TOTAL', 'GRP_ADMIN_SYS', 'TYPE_ADMIN');
 
 -- --------------------------------------------------------
 
@@ -1215,6 +1424,12 @@ ALTER TABLE `occuper`
     ADD KEY `idx_occuper_enseignant` (`numero_enseignant`);
 
 --
+-- Index pour la table `parametres_systeme`
+--
+ALTER TABLE `parametres_systeme`
+    ADD PRIMARY KEY (`cle`);
+
+--
 -- Index pour la table `participant_conversation`
 --
 ALTER TABLE `participant_conversation`
@@ -1254,6 +1469,13 @@ ALTER TABLE `pister`
 ALTER TABLE `pv_session_rapport`
     ADD PRIMARY KEY (`id_compte_rendu`,`id_rapport_etudiant`),
     ADD KEY `idx_pvsr_rapport` (`id_rapport_etudiant`);
+
+--
+-- Index pour la table `queue_jobs`
+--
+ALTER TABLE `queue_jobs`
+    ADD PRIMARY KEY (`id`),
+    ADD KEY `idx_status_created_at` (`status`,`created_at`);
 
 --
 -- Index pour la table `rapport_etudiant`
@@ -1454,6 +1676,16 @@ ALTER TABLE `vote_commission`
     ADD KEY `idx_vote_enseignant` (`numero_enseignant`),
     ADD KEY `fk_vote_decision` (`id_decision_vote`),
     ADD KEY `fk_vote_session` (`id_session`);
+
+--
+-- AUTO_INCREMENT pour les tables déchargées
+--
+
+--
+-- AUTO_INCREMENT pour la table `queue_jobs`
+--
+ALTER TABLE `queue_jobs`
+    MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- Contraintes pour les tables déchargées
