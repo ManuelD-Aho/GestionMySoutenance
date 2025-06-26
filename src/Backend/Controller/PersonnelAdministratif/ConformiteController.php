@@ -125,8 +125,8 @@ class ConformiteController extends BaseController
         }
         $numeroPersonnelAdministratif = $currentUser['numero_utilisateur'];
 
-        $idStatutConformite = $this->getRequestData('id_statut_conformite');
-        $commentaireConformite = $this->getRequestData('commentaire_conformite');
+        $idStatutConformite = $this->post('id_statut_conformite');
+        $commentaireConformite = $this->post('commentaire_conformite');
 
         $rules = [
             'id_statut_conformite' => 'required|string|in:CONF_OK,CONF_NOK', // Assurez-vous que ces codes existent
@@ -136,7 +136,11 @@ class ConformiteController extends BaseController
         if ($idStatutConformite === 'CONF_NOK') {
             $rules['commentaire_conformite'] = 'required|string|min:10';
         }
-        $this->validator->validate($this->requestData, $rules);
+        $validationData = [
+            'id_statut_conformite' => $idStatutConformite,
+            'commentaire_conformite' => $commentaireConformite,
+        ];
+        $this->validator->validate($validationData, $rules);
 
         if (!$this->validator->isValid()) {
             $this->setFlashMessage('error', implode('<br>', $this->validator->getErrors()));

@@ -7,6 +7,7 @@ use Exception;
 use App\Backend\Util\FormValidator;
 use App\Backend\Util\DatabaseSessionHandler;
 
+// Importation de tous les modèles
 use App\Backend\Model\Acquerir;
 use App\Backend\Model\Action;
 use App\Backend\Model\Affecter;
@@ -73,6 +74,7 @@ use App\Backend\Model\Utilisateur;
 use App\Backend\Model\ValidationPv;
 use App\Backend\Model\VoteCommission;
 
+// Importation de tous les services
 use App\Backend\Service\AnneeAcademique\ServiceAnneeAcademique;
 use App\Backend\Service\Authentication\ServiceAuthentication;
 use App\Backend\Service\Commission\ServiceCommission;
@@ -98,6 +100,7 @@ use App\Backend\Service\RessourcesEtudiant\ServiceRessourcesEtudiant;
 use App\Backend\Service\SupervisionAdmin\ServiceSupervisionAdmin;
 use App\Backend\Service\TransitionRole\ServiceTransitionRole;
 
+// Importation de tous les contrôleurs
 use App\Backend\Controller\HomeController;
 use App\Backend\Controller\AuthentificationController;
 use App\Backend\Controller\AssetController;
@@ -179,6 +182,7 @@ class Container
         $this->definitions[ServiceDocumentGenerator::class] = fn ($c) => new ServiceDocumentGenerator($c->get('PDO'), $c->get(CompteRendu::class), $c->get(RapportEtudiant::class), $c->get(Etudiant::class), $c->get(Inscrire::class), $c->get(Evaluer::class), $c->get(AnneeAcademique::class), $c->get(DocumentGenere::class), $c->get(PvSessionRapport::class), $c->get(ServiceSupervisionAdmin::class), $c->get(IdentifiantGenerator::class), $c->get(ServiceConfigurationSysteme::class));
         $this->definitions[ServiceFichier::class] = fn ($c) => new ServiceFichier($c->get(ServiceSupervisionAdmin::class), $c->get(ServiceConfigurationSysteme::class));
         $this->definitions[ServiceLogger::class] = fn ($c) => new ServiceLogger($c->get(ServiceSupervisionAdmin::class));
+        $this->definitions[ServiceDocumentAdministratif::class] = fn ($c) => new ServiceDocumentAdministratif($c->get('PDO'), $c->get(ServiceDocumentGenerator::class), $c->get(ServiceSupervisionAdmin::class), $c->get(DocumentGenere::class), $c->get(Inscrire::class));
         $this->definitions[ServiceQueue::class] = fn ($c) => new ServiceQueue($c->get('PDO'), $c->get(ServiceSupervisionAdmin::class), $c->get(ServiceEmail::class), $c->get(ServiceDocumentAdministratif::class));
         $this->definitions[ServiceMessagerie::class] = fn ($c) => new ServiceMessagerie($c->get('PDO'), $c->get(Conversation::class), $c->get(MessageChat::class), $c->get(ParticipantConversation::class), $c->get(LectureMessage::class), $c->get(Utilisateur::class), $c->get(ServiceNotification::class), $c->get(ServiceSupervisionAdmin::class), $c->get(IdentifiantGenerator::class));
         $this->definitions[ServiceReclamation::class] = fn ($c) => new ServiceReclamation($c->get('PDO'), $c->get(Reclamation::class), $c->get(StatutReclamationRef::class), $c->get(Etudiant::class), $c->get(PersonnelAdministratif::class), $c->get(ServiceNotification::class), $c->get(ServiceSupervisionAdmin::class), $c->get(IdentifiantGenerator::class));
@@ -190,7 +194,6 @@ class Container
         $this->definitions[ServiceTransitionRole::class] = fn ($c) => new ServiceTransitionRole($c->get('PDO'), $c->get(Delegation::class), $c->get(Utilisateur::class), $c->get(VoteCommission::class), $c->get(Approuver::class), $c->get(CompteRendu::class), $c->get(ValidationPv::class), $c->get(Reclamation::class), $c->get(ServiceSupervisionAdmin::class), $c->get(ServiceNotification::class), $c->get(ServicePermissions::class), $c->get(IdentifiantGenerator::class));
         $this->definitions[ServiceProfilEtudiant::class] = fn ($c) => new ServiceProfilEtudiant($c->get('PDO'), $c->get(Etudiant::class), $c->get(Utilisateur::class), $c->get(ServiceSupervisionAdmin::class), $c->get(ServiceFichier::class));
         $this->definitions[ServiceRessourcesEtudiant::class] = fn ($c) => new ServiceRessourcesEtudiant($c->get('PDO'), $c->get(ServiceSupervisionAdmin::class), $c->get(CritereConformiteRef::class), $c->get(ParametreSysteme::class));
-        $this->definitions[ServiceDocumentAdministratif::class] = fn ($c) => new ServiceDocumentAdministratif($c->get('PDO'), $c->get(ServiceDocumentGenerator::class), $c->get(ServiceSupervisionAdmin::class), $c->get(DocumentGenere::class), $c->get(Inscrire::class));
 
         $controllers = [
             HomeController::class, AuthentificationController::class, AssetController::class,

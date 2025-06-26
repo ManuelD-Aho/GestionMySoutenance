@@ -130,9 +130,9 @@ class ValidationRapportController extends BaseController
         if (!$currentUser) { throw new ElementNonTrouveException("Utilisateur non trouvé."); }
         $numeroEnseignant = $currentUser['numero_utilisateur'];
 
-        $idDecisionVote = $this->getRequestData('id_decision_vote');
-        $commentaireVote = $this->getRequestData('commentaire_vote');
-        $tourVote = (int)$this->getRequestData('tour_vote', 1);
+        $idDecisionVote = $this->post('id_decision_vote');
+        $commentaireVote = $this->post('commentaire_vote');
+        $tourVote = (int)$this->post('tour_vote', 1);
 
         $rules = [
             'id_decision_vote' => 'required|string|max:50',
@@ -140,7 +140,12 @@ class ValidationRapportController extends BaseController
             'commentaire_vote' => 'nullable|string',
             'tour_vote' => 'required|integer|min:1',
         ];
-        $this->validator->validate($this->requestData, $rules);
+        $validationData = [
+            'id_decision_vote' => $idDecisionVote,
+            'commentaire_vote' => $commentaireVote,
+            'tour_vote' => $tourVote,
+        ];
+        $this->validator->validate($validationData, $rules);
 
         if (!$this->validator->isValid()) {
             $this->setFlashMessage('error', implode('<br>', $this->validator->getErrors()));
@@ -154,7 +159,7 @@ class ValidationRapportController extends BaseController
                 $idDecisionVote,
                 $commentaireVote,
                 $tourVote,
-                $this->getRequestData('id_session', null) // Si le vote est lié à une session spécifique
+                $this->post('id_session', null) // Si le vote est lié à une session spécifique
             );
             $this->setFlashMessage('success', 'Votre vote a été enregistré avec succès.');
             $this->redirect('/dashboard/commission/validation/rapports');

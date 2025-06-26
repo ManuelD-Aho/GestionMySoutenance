@@ -94,8 +94,8 @@ class ReclamationEtudiantController extends BaseController
         }
         $numeroCarteEtudiant = $currentUser['numero_utilisateur'];
 
-        $sujet = $this->getRequestData('sujet_reclamation');
-        $description = $this->getRequestData('description_reclamation');
+        $sujet = $this->post('sujet_reclamation');
+        $description = $this->post('description_reclamation');
         // Assurez-vous que la table `reclamation` peut stocker des pièces jointes si nécessaire.
         // Si oui, gérer l'upload ici.
 
@@ -103,7 +103,11 @@ class ReclamationEtudiantController extends BaseController
             'sujet_reclamation' => 'required|string|min:5|max:255',
             'description_reclamation' => 'required|string|min:10',
         ];
-        $this->validator->validate($this->requestData, $rules);
+        $validationData = [
+            'sujet_reclamation' => $sujet,
+            'description_reclamation' => $description,
+        ];
+        $this->validator->validate($validationData, $rules);
 
         if (!$this->validator->isValid()) {
             $this->setFlashMessage('error', implode('<br>', $this->validator->getErrors()));

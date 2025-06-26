@@ -39,16 +39,9 @@ use App\Config\Container;
 
 $container = new Container();
 
-// =======================================================================
-// DÉMARRAGE SÉCURISÉ DE LA SESSION (CORRIGÉ)
-// =======================================================================
-
-// 1. Récupérer le gestionnaire de session depuis le conteneur.
-// Le conteneur va lui injecter automatiquement la connexion PDO.
 $handler = $container->get(DatabaseSessionHandler::class);
 session_set_save_handler($handler, true);
 
-// 2. Configuration des cookies de session
 session_set_cookie_params([
     'lifetime' => (int)($_ENV['SESSION_LIFETIME'] ?? 3600),
     'path' => '/',
@@ -58,10 +51,7 @@ session_set_cookie_params([
     'samesite' => 'Lax'
 ]);
 
-// 3. Démarrage effectif de la session
 session_start();
-// =======================================================================
-
 
 $dispatcher = FastRoute\simpleDispatcher(function(FastRoute\RouteCollector $r) {
     $routesFilePath = ROOT_PATH . '/routes/web.php';

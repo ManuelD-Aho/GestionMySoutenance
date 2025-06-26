@@ -73,7 +73,7 @@ class ScolariteController extends BaseController
         $this->requirePermission('TRAIT_PERS_ADMIN_SCOLARITE_ETUDIANT_LISTER');
 
         try {
-            $page = (int) $this->getRequestData('page', 1);
+            $page = (int) $this->get('page', 1);
             $limit = 20;
             $criteres = ['id_type_utilisateur' => 'TYPE_ETUD']; // Seuls les étudiants
 
@@ -140,11 +140,11 @@ class ScolariteController extends BaseController
             $this->redirect("/dashboard/personnel-admin/scolarite/etudiants/{$idEtudiant}/validate-stage");
         }
 
-        $idEntreprise = $this->getRequestData('id_entreprise');
-        $dateDebutStage = $this->getRequestData('date_debut_stage');
-        $dateFinStage = $this->getRequestData('date_fin_stage');
-        $sujetStage = $this->getRequestData('sujet_stage');
-        $nomTuteurEntreprise = $this->getRequestData('nom_tuteur_entreprise');
+        $idEntreprise = $this->post('id_entreprise');
+        $dateDebutStage = $this->post('date_debut_stage');
+        $dateFinStage = $this->post('date_fin_stage');
+        $sujetStage = $this->post('sujet_stage');
+        $nomTuteurEntreprise = $this->post('nom_tuteur_entreprise');
 
         $rules = [
             'id_entreprise' => 'required|string|max:50',
@@ -153,7 +153,14 @@ class ScolariteController extends BaseController
             'sujet_stage' => 'nullable|string|max:500',
             'nom_tuteur_entreprise' => 'nullable|string|max:100',
         ];
-        $this->validator->validate($this->requestData, $rules);
+        $validationData = [
+            'id_entreprise' => $idEntreprise,
+            'date_debut_stage' => $dateDebutStage,
+            'date_fin_stage' => $dateFinStage,
+            'sujet_stage' => $sujetStage,
+            'nom_tuteur_entreprise' => $nomTuteurEntreprise,
+        ];
+        $this->validator->validate($validationData, $rules);
 
         if (!$this->validator->isValid()) {
             $this->setFlashMessage('error', implode('<br>', $this->validator->getErrors()));
@@ -222,14 +229,18 @@ class ScolariteController extends BaseController
             $this->redirect("/dashboard/personnel-admin/scolarite/etudiants/{$idEtudiant}/penalites");
         }
 
-        $montant = (float)$this->getRequestData('montant_penalite');
-        $motif = $this->getRequestData('motif');
+        $montant = (float)$this->post('montant_penalite');
+        $motif = $this->post('motif');
 
         $rules = [
             'montant_penalite' => 'required|numeric|min:0.01',
             'motif' => 'required|string|min:10',
         ];
-        $this->validator->validate($this->requestData, $rules);
+        $validationData = [
+            'montant_penalite' => $montant,
+            'motif' => $motif,
+        ];
+        $this->validator->validate($validationData, $rules);
 
         if (!$this->validator->isValid()) {
             $this->setFlashMessage('error', implode('<br>', $this->validator->getErrors()));
@@ -282,7 +293,7 @@ class ScolariteController extends BaseController
         $this->requirePermission('TRAIT_PERS_ADMIN_SCOLARITE_RECLAMATION_TRAITER');
 
         try {
-            $page = (int) $this->getRequestData('page', 1);
+            $page = (int) $this->get('page', 1);
             $limit = 20;
             $filters = ['id_statut_reclamation' => ['operator' => 'in', 'values' => ['RECLAM_RECUE', 'RECLAM_EN_COURS']]];
 
@@ -351,18 +362,21 @@ class ScolariteController extends BaseController
         }
         $numeroPersonnelTraitant = $currentUser['numero_utilisateur'];
 
-        $newStatut = $this->getRequestData('new_statut');
-        $reponse = $this->getRequestData('reponse_reclamation');
+        $newStatut = $this->post('new_statut');
+        $reponse = $this->post('reponse_reclamation');
 
         $rules = [
             'new_statut' => 'required|string|in:RECLAM_RECUE,RECLAM_EN_COURS,RECLAM_REPONDUE,RECLAM_CLOTUREE',
             'reponse_reclamation' => 'nullable|string',
         ];
-        // Si le statut est "Répondue", la réponse est obligatoire
         if ($newStatut === 'RECLAM_REPONDUE') {
             $rules['reponse_reclamation'] = 'required|string|min:10';
         }
-        $this->validator->validate($this->requestData, $rules);
+        $validationData = [
+            'new_statut' => $newStatut,
+            'reponse_reclamation' => $reponse,
+        ];
+        $this->validator->validate($validationData, $rules);
 
         if (!$this->validator->isValid()) {
             $this->setFlashMessage('error', implode('<br>', $this->validator->getErrors()));
@@ -419,16 +433,21 @@ class ScolariteController extends BaseController
             $this->redirect('/dashboard/personnel-admin/scolarite/documents');
         }
 
-        $documentType = $this->getRequestData('document_type'); // Ex: 'attestation_scolarite', 'bulletin_notes'
-        $numeroEtudiant = $this->getRequestData('numero_carte_etudiant');
-        $idAnneeAcademique = $this->getRequestData('id_annee_academique');
+        $documentType = $this->post('document_type'); // Ex: 'attestation_scolarite', 'bulletin_notes'
+        $numeroEtudiant = $this->post('numero_carte_etudiant');
+        $idAnneeAcademique = $this->post('id_annee_academique');
 
         $rules = [
             'document_type' => 'required|string',
             'numero_carte_etudiant' => 'required|string|max:50',
             'id_annee_academique' => 'nullable|string|max:50', // Année requise pour bulletins
         ];
-        $this->validator->validate($this->requestData, $rules);
+        $validationData = [
+            'document_type' => $documentType,
+            'numero_carte_etudiant' => $numeroEtudiant,
+            'id_annee_academique' => $idAnneeAcademique,
+        ];
+        $this->validator->validate($validationData, $rules);
 
         if (!$this->validator->isValid()) {
             $this->setFlashMessage('error', implode('<br>', $this->validator->getErrors()));

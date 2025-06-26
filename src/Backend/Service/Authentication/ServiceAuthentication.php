@@ -559,6 +559,22 @@ class ServiceAuthentication implements ServiceAuthenticationInterface
         return $isCodeValid;
     }
 
+    /**
+     * Retourne le modèle Utilisateur
+     */
+    public function getUtilisateurModel(): Utilisateur
+    {
+        return $this->utilisateurModel;
+    }
+
+    /**
+     * Retourne le modèle Enseignant
+     */
+    public function getEnseignantModel(): Enseignant
+    {
+        return $this->enseignantModel;
+    }
+
     private function traiterTentativeConnexionEchoueePourUtilisateur(string $numeroUtilisateur): void
     {
         $utilisateur = $this->utilisateurModel->trouverParNumeroUtilisateur($numeroUtilisateur, ['tentatives_connexion_echouees']);
@@ -675,7 +691,7 @@ class ServiceAuthentication implements ServiceAuthenticationInterface
         return $success;
     }
 
-    private function recupererUtilisateurCompletParNumero(string $numeroUtilisateur): ?array
+    public function recupererUtilisateurCompletParNumero(string $numeroUtilisateur): ?array
     {
         $utilisateur = $this->utilisateurModel->trouverParNumeroUtilisateur($numeroUtilisateur);
         if (!$utilisateur) {
@@ -720,3 +736,4 @@ class ServiceAuthentication implements ServiceAuthenticationInterface
         $this->supervisionService->enregistrerAction($numeroUtilisateur, 'SYNCHRONISATION_RBAC', 'Permissions de session synchronisées.');
     }
 }
+

@@ -41,7 +41,7 @@ class PvController extends BaseController
         $this->requirePermission('TRAIT_COMMISSION_PV_LISTER'); // Exiger la permission
 
         try {
-            $page = (int) $this->getRequestData('page', 1);
+            $page = (int) $this->get('page', 1);
             $limit = 20;
             // Vous pouvez ajouter des filtres ici (par statut, par rédacteur, par rapport)
             $filtres = [];
@@ -120,10 +120,10 @@ class PvController extends BaseController
         if (!$currentUser) { throw new ElementNonTrouveException("Utilisateur non trouvé."); }
         $numeroRedacteur = $currentUser['numero_utilisateur'];
 
-        $libellePv = $this->getRequestData('libelle_pv');
-        $typePv = $this->getRequestData('type_pv');
-        $idRapportEtudiant = $this->getRequestData('id_rapport_etudiant'); // Pour PV individuel
-        $idsRapportsSession = $this->getRequestData('ids_rapports_session', []); // Pour PV session (tableau d'IDs)
+        $libellePv = $this->post('libelle_pv');
+        $typePv = $this->post('type_pv');
+        $idRapportEtudiant = $this->post('id_rapport_etudiant'); // Pour PV individuel
+        $idsRapportsSession = $this->post('ids_rapports_session', []); // Pour PV session (tableau d'IDs)
 
         $rules = [
             'libelle_pv' => 'required|string|min:10',
@@ -134,7 +134,13 @@ class PvController extends BaseController
         } elseif ($typePv === 'Session') {
             $rules['ids_rapports_session'] = 'required|array|min:1';
         }
-        $this->validator->validate($this->requestData, $rules); // Utilise $this->requestData qui contient tout
+        $validationData = [
+            'libelle_pv' => $libellePv,
+            'type_pv' => $typePv,
+            'id_rapport_etudiant' => $idRapportEtudiant,
+            'ids_rapports_session' => $idsRapportsSession,
+        ];
+        $this->validator->validate($validationData, $rules); // Utilise $this->requestData qui contient tout
 
         if (!$this->validator->isValid()) {
             $this->setFlashMessage('error', implode('<br>', $this->validator->getErrors()));
@@ -224,8 +230,8 @@ class PvController extends BaseController
         if (!$currentUser) { throw new ElementNonTrouveException("Utilisateur non trouvé."); }
         $numeroEnseignantValidateur = $currentUser['numero_utilisateur'];
 
-        $decisionValidation = $this->getRequestData('decision_validation_pv');
-        $commentaire = $this->getRequestData('commentaire_validation_pv');
+        $decisionValidation = $this->post('decision_validation_pv');
+        $commentaire = $this->post('commentaire_validation_pv');
 
         $rules = [
             'decision_validation_pv' => 'required|string|max:50',
