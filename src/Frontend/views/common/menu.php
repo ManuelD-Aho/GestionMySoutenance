@@ -6,18 +6,12 @@ use App\Backend\Service\Permissions\ServicePermissions;
 
 $menuItems = []; // Tableau qui contiendra la structure hiérarchique finale du menu
 
-// ... (DEBUG SESSION reste inchangé) ...
-echo '<div style="background-color: #ffe0b2; padding: 10px; border: 1px solid #ff9800; margin-bottom: 15px;">';
-echo '<strong>DEBUG SESSION:</strong><br>';
+
 if (isset($_SESSION['user_id'])) {
     $loggedInUserId = $_SESSION['user_id'];
-    echo 'ID Utilisateur connecté (SESSION): ' . htmlspecialchars($loggedInUserId) . '<br>';
 } else {
     $loggedInUserId = null;
-    echo 'Aucun ID utilisateur trouvé dans la session.<br>';
 }
-echo '</div>';
-// --- FIN DÉBOGAGE SESSION ---
 
 if ($loggedInUserId) {
     try {
@@ -26,16 +20,9 @@ if ($loggedInUserId) {
 
         $userPermissions = $permissionsService->getPermissionsForUser($loggedInUserId);
 
-        // ... (DEBUG PERMISSIONS (RAW FROM DB) reste inchangé) ...
-        echo '<div style="background-color: #c8e6c9; padding: 10px; border: 1px solid #4caf50; margin-bottom: 15px;">';
-        echo '<strong>DEBUG PERMISSIONS (RAW FROM DB):</strong><br>';
-        if (!empty($userPermissions)) {
-            echo '<pre>' . htmlspecialchars(print_r($userPermissions, true)) . '</pre>';
-        } else {
-            echo 'Aucune permission récupérée pour l\'utilisateur ' . htmlspecialchars($loggedInUserId) . '.<br>';
-        }
-        echo '</div>';
-        // --- FIN DÉBOGAGE PERMISSIONS ---
+
+
+
 
         // ======================================================================
         // NOUVELLE LOGIQUE DE CONSTRUCTION DE L'ARBRE DU MENU
@@ -75,27 +62,27 @@ if ($loggedInUserId) {
         // ======================================================================
 
         // ... (DEBUG MENU ITEMS (BEFORE FILTER/SORT) et les autres debugs restent inchangés) ...
-        echo '<div style="background-color: #bbdefb; padding: 10px; border: 1px solid #2196f3; margin-bottom: 15px;">';
-        echo '<strong>DEBUG MENU ITEMS (BEFORE FILTER/SORT):</strong><br>';
-        if (!empty($menuItems)) {
-            echo '<pre>' . htmlspecialchars(print_r($menuItems, true)) . '</pre>';
-        } else {
-            echo 'Le tableau $menuItems est vide avant le filtre et le tri.';
-        }
-        echo '</div>';
+//        echo '<div style="background-color: #bbdefb; padding: 10px; border: 1px solid #2196f3; margin-bottom: 15px;">';
+//        echo '<strong>DEBUG MENU ITEMS (BEFORE FILTER/SORT):</strong><br>';
+//        if (!empty($menuItems)) {
+//            echo '<pre>' . htmlspecialchars(print_r($menuItems, true)) . '</pre>';
+//        } else {
+//            echo 'Le tableau $menuItems est vide avant le filtre et le tri.';
+//        }
+//        echo '</div>';
 
         $menuItems = array_filter($menuItems, function($item) {
             return !empty($item['url_associee']) || !empty($item['children']);
         });
 
-        echo '<div style="background-color: #ffccbc; padding: 10px; border: 1px solid #ff5722; margin-bottom: 15px;">';
-        echo '<strong>DEBUG MENU ITEMS (AFTER FILTER):</strong><br>';
-        if (!empty($menuItems)) {
-            echo '<pre>' . htmlspecialchars(print_r($menuItems, true)) . '</pre>';
-        } else {
-            echo 'Le tableau $menuItems est vide après le filtre.';
-        }
-        echo '</div>';
+//        echo '<div style="background-color: #ffccbc; padding: 10px; border: 1px solid #ff5722; margin-bottom: 15px;">';
+//        echo '<strong>DEBUG MENU ITEMS (AFTER FILTER):</strong><br>';
+//        if (!empty($menuItems)) {
+//            echo '<pre>' . htmlspecialchars(print_r($menuItems, true)) . '</pre>';
+//        } else {
+//            echo 'Le tableau $menuItems est vide après le filtre.';
+//        }
+//        echo '</div>';
 
         // Tri des éléments de menu principaux et de leurs enfants par libellé
         usort($menuItems, function($a, $b) {
