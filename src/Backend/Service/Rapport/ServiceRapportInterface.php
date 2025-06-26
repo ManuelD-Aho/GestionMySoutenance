@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Backend\Service\Rapport;
 
 interface ServiceRapportInterface
@@ -56,4 +57,16 @@ interface ServiceRapportInterface
      * @throws \Exception En cas d'erreur.
      */
     public function reactiverEditionRapport(string $idRapportEtudiant, string $motifActivation = 'Reprise demandée'): bool;
+
+    /**
+     * Liste des rapports étudiants en fonction de critères.
+     * @param array $criteres Critères de filtre.
+     * @param array $colonnes Les colonnes à sélectionner.
+     * @param string $operateurLogique L'opérateur logique entre les critères ('AND' ou 'OR').
+     * @param string|null $orderBy Colonne pour le tri.
+     * @param int|null $limit Limite de résultats.
+     * @param int|null $offset Offset pour la pagination.
+     * @return array Liste des rapports trouvés.
+     */
+    public function listerRapportsParCriteres(array $criteres = [], array $colonnes = ['*'], string $operateurLogique = 'AND', ?string $orderBy = null, ?int $limit = null, ?int $offset = null): array;
 }

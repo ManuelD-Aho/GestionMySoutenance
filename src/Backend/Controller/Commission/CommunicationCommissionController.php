@@ -3,7 +3,7 @@ namespace App\Backend\Controller\Commission;
 
 use App\Backend\Controller\BaseController;
 use App\Backend\Exception\ValidationException;
-use App\Backend\Service\Authentication\ServiceAuthentification;
+use App\Backend\Service\Authentication\ServiceAuthentication;
 use App\Backend\Service\Permissions\ServicePermissions;
 use App\Backend\Util\FormValidator;
 use App\Backend\Service\Messagerie\ServiceMessagerie; // Importer le service
@@ -15,10 +15,10 @@ class CommunicationCommissionController extends BaseController
     private ServiceMessagerie $messagerieService;
 
     public function __construct(
-        ServiceAuthentification $authService,
-        ServicePermissions $permissionService,
-        FormValidator $validator,
-        ServiceMessagerie $messagerieService // Injection
+        ServiceAuthentication $authService,
+        ServicePermissions    $permissionService,
+        FormValidator         $validator,
+        ServiceMessagerie     $messagerieService // Injection
     ) {
         parent::__construct($authService, $permissionService, $validator);
         $this->messagerieService = $messagerieService;

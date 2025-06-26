@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Backend\Service\GestionAcademique;
 
 interface ServiceGestionAcademiqueInterface
@@ -28,6 +29,16 @@ interface ServiceGestionAcademiqueInterface
     public function mettreAJourInscriptionAdministrative(string $numeroCarteEtudiant, string $idNiveauEtude, string $idAnneeAcademique, array $donnees): bool;
 
     /**
+     * Supprime une inscription administrative.
+     * @param string $numeroCarteEtudiant L'ID de l'étudiant.
+     * @param string $idNiveauEtude L'ID du niveau d'étude.
+     * @param string $idAnneeAcademique L'ID de l'année académique.
+     * @return bool Vrai si la suppression a réussi.
+     * @throws \Exception En cas d'erreur.
+     */
+    public function supprimerInscriptionAdministrative(string $numeroCarteEtudiant, string $idNiveauEtude, string $idAnneeAcademique): bool;
+
+    /**
      * Liste les inscriptions administratives, avec filtres et pagination.
      * @param array $criteres Critères de filtre.
      * @param int $page Numéro de page.
@@ -35,6 +46,16 @@ interface ServiceGestionAcademiqueInterface
      * @return array Liste des inscriptions.
      */
     public function listerInscriptionsAdministratives(array $criteres = [], int $page = 1, int $elementsParPage = 20): array;
+
+    /**
+     * Enregistre la décision de passage d'un étudiant pour une année académique.
+     * @param string $numeroCarteEtudiant L'ID de l'étudiant.
+     * @param string $idAnneeAcademique L'ID de l'année académique.
+     * @param string $idDecisionPassage L'ID de la décision de passage.
+     * @return bool Vrai si l'enregistrement a réussi.
+     * @throws \Exception En cas d'erreur.
+     */
+    public function enregistrerDecisionPassage(string $numeroCarteEtudiant, string $idAnneeAcademique, string $idDecisionPassage): bool;
 
     /**
      * Enregistre ou met à jour la note d'un étudiant pour un ECUE.
@@ -45,6 +66,24 @@ interface ServiceGestionAcademiqueInterface
      * @throws \Exception En cas d'erreur.
      */
     public function enregistrerNoteEcue(string $numeroCarteEtudiant, string $idEcue, float $note): bool;
+
+    /**
+     * Supprime une note d'ECUE.
+     * @param string $numeroCarteEtudiant L'ID de l'étudiant.
+     * @param string $idEcue L'ID de l'ECUE.
+     * @return bool Vrai si la suppression a réussi.
+     * @throws \Exception En cas d'erreur.
+     */
+    public function supprimerNoteEcue(string $numeroCarteEtudiant, string $idEcue): bool;
+
+    /**
+     * Liste les notes enregistrées, avec filtres et pagination.
+     * @param array $criteres Critères de filtre.
+     * @param int $page Numéro de page.
+     * @param int $elementsParPage Nombre d'éléments par page.
+     * @return array Liste des notes.
+     */
+    public function listerNotes(array $criteres = [], int $page = 1, int $elementsParPage = 20): array;
 
     /**
      * Enregistre ou met à jour les informations d'un stage pour un étudiant.
@@ -58,6 +97,16 @@ interface ServiceGestionAcademiqueInterface
      * @throws \Exception En cas d'erreur.
      */
     public function enregistrerInformationsStage(string $numeroCarteEtudiant, string $idEntreprise, string $dateDebutStage, ?string $dateFinStage = null, ?string $sujetStage = null, ?string $nomTuteurEntreprise = null): bool;
+
+    /**
+     * Marque un stage comme validé par le personnel administratif.
+     * @param string $idEntreprise L'ID de l'entreprise.
+     * @param string $numeroCarteEtudiant L'ID de l'étudiant.
+     * @param string $numeroPersonnelValidateur L'ID du personnel qui valide.
+     * @return bool Vrai si la validation a réussi.
+     * @throws \Exception En cas d'erreur.
+     */
+    public function validerStage(string $idEntreprise, string $numeroCarteEtudiant, string $numeroPersonnelValidateur): bool;
 
     /**
      * Applique une pénalité à un étudiant.
@@ -77,6 +126,28 @@ interface ServiceGestionAcademiqueInterface
      * @throws \Exception En cas d'erreur.
      */
     public function regulariserPenalite(string $idPenalite, string $numeroPersonnelAdministratif): bool;
+
+    /**
+     * Liste les pénalités avec filtres et pagination.
+     * @param array $criteres Critères de filtre.
+     * @param int $page Numéro de page.
+     * @param int $elementsParPage Nombre d'éléments par page.
+     * @return array Liste des pénalités.
+     */
+    public function listerPenalites(array $criteres = [], int $page = 1, int $elementsParPage = 20): array;
+
+    /**
+     * Liste les pénalités pour un étudiant spécifique.
+     * @param string $numeroCarteEtudiant Le numéro de carte de l'étudiant.
+     * @return array Liste des pénalités trouvées pour cet étudiant.
+     */
+    public function listerPenalitesEtudiant(string $numeroCarteEtudiant): array;
+
+    /**
+     * Identifie les étudiants en situation de pénalité et appelle `appliquerPenalite()`.
+     * @return int Le nombre de pénalités appliquées.
+     */
+    public function detecterEtAppliquerPenalitesAutomatiquement(): int;
 
     /**
      * Vérifie si un étudiant est éligible à la soumission d'un rapport.

@@ -7,7 +7,7 @@ namespace App\Backend\Controller;
 // Pour cet exemple, je vais le faire étendre BaseController pour la cohérence des imports,
 // mais vous pouvez le faire "stand-alone" si vous le souhaitez.
 
-use App\Backend\Service\Authentication\ServiceAuthentification;
+use App\Backend\Service\Authentication\ServiceAuthentication;
 use App\Backend\Service\Permissions\ServicePermissions;
 use App\Backend\Util\FormValidator;
 use App\Backend\Service\SupervisionAdmin\ServiceSupervisionAdmin; // Ajout pour la journalisation (optionnel)
@@ -17,9 +17,9 @@ class AssetController extends BaseController
     private ServiceSupervisionAdmin $supervisionService; // Optionnel, si vous voulez journaliser l'accès aux assets
 
     public function __construct(
-        ServiceAuthentification $authService, // Ces services ne sont pas utilisés directement, mais requis par BaseController
-        ServicePermissions $permissionService, // Idem
-        FormValidator $validator, // Idem
+        ServiceAuthentication   $authService, // Ces services ne sont pas utilisés directement, mais requis par BaseController
+        ServicePermissions      $permissionService, // Idem
+        FormValidator           $validator, // Idem
         ServiceSupervisionAdmin $supervisionService // Injection optionnelle
     ) {
         parent::__construct($authService, $permissionService, $validator);

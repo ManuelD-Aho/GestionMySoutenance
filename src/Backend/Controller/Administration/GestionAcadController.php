@@ -2,7 +2,7 @@
 namespace App\Backend\Controller\Administration;
 
 use App\Backend\Controller\BaseController;
-use App\Backend\Service\Authentication\ServiceAuthentification;
+use App\Backend\Service\Authentication\ServiceAuthentication;
 use App\Backend\Service\Permissions\ServicePermissions;
 use App\Backend\Util\FormValidator;
 use App\Backend\Service\GestionAcademique\ServiceGestionAcademique; // Importer le service
@@ -18,10 +18,10 @@ class GestionAcadController extends BaseController
     private ServiceConfigurationSysteme $configService; // Pour récupérer des listes de référence (années, niveaux, etc.)
 
     public function __construct(
-        ServiceAuthentification $authService,
-        ServicePermissions $permissionService,
-        FormValidator $validator,
-        ServiceGestionAcademique $gestionAcadService, // Injection
+        ServiceAuthentication       $authService,
+        ServicePermissions          $permissionService,
+        FormValidator               $validator,
+        ServiceGestionAcademique    $gestionAcadService, // Injection
         ServiceConfigurationSysteme $configService // Injection
     ) {
         parent::__construct($authService, $permissionService, $validator);

@@ -2,7 +2,7 @@
 namespace App\Backend\Controller\PersonnelAdministratif;
 
 use App\Backend\Controller\BaseController;
-use App\Backend\Service\Authentication\ServiceAuthentification;
+use App\Backend\Service\Authentication\ServiceAuthentication;
 use App\Backend\Service\Permissions\ServicePermissions;
 use App\Backend\Util\FormValidator;
 use App\Backend\Service\Conformite\ServiceConformite; // Importer le service
@@ -20,13 +20,13 @@ class PersonnelDashboardController extends BaseController
     private ServiceNotification $notificationService;
 
     public function __construct(
-        ServiceAuthentification $authService,
-        ServicePermissions $permissionService,
-        FormValidator $validator,
-        ServiceConformite $conformiteService,
+        ServiceAuthentication    $authService,
+        ServicePermissions       $permissionService,
+        FormValidator            $validator,
+        ServiceConformite        $conformiteService,
         ServiceGestionAcademique $gestionAcadService,
-        ServiceReclamation $reclamationService,
-        ServiceNotification $notificationService
+        ServiceReclamation       $reclamationService,
+        ServiceNotification      $notificationService
     ) {
         parent::__construct($authService, $permissionService, $validator);
         $this->conformiteService = $conformiteService;

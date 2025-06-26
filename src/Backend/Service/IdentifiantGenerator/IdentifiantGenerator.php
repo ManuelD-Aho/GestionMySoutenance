@@ -1,10 +1,11 @@
 <?php
+
 namespace App\Backend\Service\IdentifiantGenerator;
 
 use PDO;
 use App\Backend\Model\Sequences;
 use App\Backend\Model\AnneeAcademique;
-use App\Backend\Service\SupervisionAdmin\ServiceSupervisionAdmin;
+use App\Backend\Service\SupervisionAdmin\ServiceSupervisionAdminInterface;
 use App\Backend\Exception\OperationImpossibleException;
 use App\Backend\Exception\ElementNonTrouveException;
 
@@ -12,14 +13,18 @@ class IdentifiantGenerator implements IdentifiantGeneratorInterface
 {
     private Sequences $sequencesModel;
     private AnneeAcademique $anneeAcademiqueModel;
-    private ServiceSupervisionAdmin $supervisionService;
+    private ServiceSupervisionAdminInterface $supervisionService;
     private PDO $db;
 
-    public function __construct(PDO $db, ServiceSupervisionAdmin $supervisionService)
-    {
+    public function __construct(
+        PDO $db,
+        Sequences $sequencesModel,
+        AnneeAcademique $anneeAcademiqueModel,
+        ServiceSupervisionAdminInterface $supervisionService
+    ) {
         $this->db = $db;
-        $this->sequencesModel = new Sequences($db);
-        $this->anneeAcademiqueModel = new AnneeAcademique($db);
+        $this->sequencesModel = $sequencesModel;
+        $this->anneeAcademiqueModel = $anneeAcademiqueModel;
         $this->supervisionService = $supervisionService;
     }
 
@@ -33,9 +38,7 @@ class IdentifiantGenerator implements IdentifiantGeneratorInterface
             $annee = (int) substr($anneeActive['libelle_annee_academique'], 0, 4);
         }
 
-        // La transaction est maintenant gérée par le service appelant (ex: ServiceAuthentification)
         try {
-            // Verrouiller la ligne de la séquence pour éviter les conflits concurrentiels
             $stmt = $this->db->prepare("SELECT `valeur_actuelle` FROM `sequences` WHERE `nom_sequence` = :prefixe AND `annee` = :annee FOR UPDATE");
             $stmt->bindParam(':prefixe', $prefixe);
             $stmt->bindParam(':annee', $annee);
@@ -57,8 +60,7 @@ class IdentifiantGenerator implements IdentifiantGeneratorInterface
                 $insertStmt->execute();
             }
 
-            // Formater l'identifiant
-            $formattedSequence = str_pad($nextSequence, 4, '0', STR_PAD_LEFT);
+            $formattedSequence = str_pad((string)$nextSequence, 4, '0', STR_PAD_LEFT);
             $identifiant = "{$prefixe}-{$annee}-{$formattedSequence}";
 
             $this->supervisionService->enregistrerAction(
@@ -72,8 +74,6 @@ class IdentifiantGenerator implements IdentifiantGeneratorInterface
             return $identifiant;
 
         } catch (\PDOException $e) {
-            // Ne pas faire de rollback ici, laisser le service appelant le gérer.
-            // Simplement relancer l'exception pour que le service parent puisse l'attraper.
             $this->supervisionService->enregistrerAction(
                 $_SESSION['user_id'] ?? 'SYSTEM',
                 'ECHEC_GENERATION_ID_UNIQUE',

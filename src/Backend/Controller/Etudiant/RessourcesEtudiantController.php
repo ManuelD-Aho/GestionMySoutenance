@@ -3,7 +3,7 @@ namespace App\Backend\Controller\Etudiant;
 
 use App\Backend\Controller\BaseController;
 use App\Backend\Exception\OperationImpossibleException;
-use App\Backend\Service\Authentication\ServiceAuthentification;
+use App\Backend\Service\Authentication\ServiceAuthentication;
 use App\Backend\Service\Permissions\ServicePermissions;
 use App\Backend\Util\FormValidator;
 // use App\Backend\Service\RessourcePartageeService; // Si vous avez un service pour des ressources dynamiques
@@ -13,9 +13,9 @@ class RessourcesEtudiantController extends BaseController
     // private RessourcePartageeService $ressourceService; // Si les ressources sont dynamiques
 
     public function __construct(
-        ServiceAuthentification $authService,
-        ServicePermissions $permissionService,
-        FormValidator $validator
+        ServiceAuthentication $authService,
+        ServicePermissions    $permissionService,
+        FormValidator         $validator
         // RessourcePartageeService $ressourceService = null // Injection optionnelle
     ) {
         parent::__construct($authService, $permissionService, $validator);

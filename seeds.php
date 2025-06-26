@@ -26,7 +26,7 @@ if (file_exists(ROOT_PATH . '/.env')) {
 }
 
 use App\Config\Container;
-use App\Backend\Service\Authentication\ServiceAuthentification;
+use App\Backend\Service\Authentication\ServiceAuthentication;
 use App\Backend\Service\Permissions\ServicePermissions;
 use App\Backend\Service\ConfigurationSysteme\ServiceConfigurationSysteme;
 use App\Backend\Exception\DoublonException;
@@ -189,7 +189,7 @@ function seedPermissions(ServicePermissions $permissionService): void
 /**
  * Crée les utilisateurs par défaut.
  */
-function seedUsers(ServiceAuthentification $authService): void
+function seedUsers(ServiceAuthentication $authService): void
 {
     echo "\n--- Début du seeding des utilisateurs par défaut ---\n";
 
@@ -251,7 +251,7 @@ function seedUsers(ServiceAuthentification $authService): void
 try {
     $container = new Container();
     $permissionService = $container->get(ServicePermissions::class);
-    $authService = $container->get(ServiceAuthentification::class);
+    $authService = $container->get(ServiceAuthentication::class);
     $configService = $container->get(ServiceConfigurationSysteme::class);
 
     // <-- ORDRE D'EXÉCUTION CORRIGÉ -->

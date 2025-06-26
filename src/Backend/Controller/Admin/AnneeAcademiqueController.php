@@ -2,7 +2,7 @@
 namespace App\Backend\Controller\Admin;
 
 use App\Backend\Controller\BaseController;
-use App\Backend\Service\Authentication\ServiceAuthentification;
+use App\Backend\Service\Authentication\ServiceAuthentication;
 use App\Backend\Service\Permissions\ServicePermissions;
 use App\Backend\Util\FormValidator;
 use App\Backend\Service\ConfigurationSysteme\ServiceConfigurationSysteme; // Importer le service
@@ -15,9 +15,9 @@ class AnneeAcademiqueController extends BaseController
     private ServiceConfigurationSysteme $configService;
 
     public function __construct(
-        ServiceAuthentification $authService,
-        ServicePermissions $permissionService,
-        FormValidator $validator,
+        ServiceAuthentication       $authService,
+        ServicePermissions          $permissionService,
+        FormValidator               $validator,
         ServiceConfigurationSysteme $configService // Injection du service
     ) {
         parent::__construct($authService, $permissionService, $validator);

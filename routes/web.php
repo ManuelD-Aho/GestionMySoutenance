@@ -1,14 +1,16 @@
 <?php
-// routes/web.php
+
 use FastRoute\RouteCollector;
 
-// Controllers
+// Contrôleurs de base
 use App\Backend\Controller\HomeController;
 use App\Backend\Controller\AuthentificationController;
 use App\Backend\Controller\AssetController;
+use App\Backend\Controller\DashboardController;
+use App\Backend\Controller\Common\NotificationController;
 
-// Admin Controllers
-use App\Backend\Controller\Admin\AnneeAcademiqueController;
+// Contrôleurs de l'Administration
+use App\Backend\Controller\Admin\AnneeAcademiqueController; // Nouveau contrôleur pour ServiceAnneeAcademique
 use App\Backend\Controller\Administration\AdminDashboardController;
 use App\Backend\Controller\Administration\ConfigSystemeController;
 use App\Backend\Controller\Administration\GestionAcadController;
@@ -17,57 +19,65 @@ use App\Backend\Controller\Administration\ReferentialController;
 use App\Backend\Controller\Administration\ReportingController;
 use App\Backend\Controller\Administration\SupervisionController;
 use App\Backend\Controller\Administration\UtilisateurController;
+// Nouveaux contrôleurs pour les nouveaux services d'administration
+use App\Backend\Controller\Administration\NotificationConfigurationController; // Nouveau
+use App\Backend\Controller\Administration\TransitionRoleController; // Nouveau
+use App\Backend\Controller\Administration\FichierController; // Nouveau (pour gestion des fichiers génériques)
+use App\Backend\Controller\Administration\LoggerController; // Nouveau (pour ServiceLogger)
+use App\Backend\Controller\Administration\QueueController; // Nouveau (pour ServiceQueue)
 
-// Commission Controllers
+
+// Contrôleurs de la Commission
 use App\Backend\Controller\Commission\CommissionDashboardController;
 use App\Backend\Controller\Commission\CommunicationCommissionController;
 use App\Backend\Controller\Commission\CorrectionCommissionController;
 use App\Backend\Controller\Commission\PvController;
 use App\Backend\Controller\Commission\ValidationRapportController;
 
-// Common Controllers
-use App\Backend\Controller\Common\NotificationController;
-use App\Backend\Controller\DashboardController;
-
-// Etudiant Controllers
+// Contrôleurs de l'Étudiant
 use App\Backend\Controller\Etudiant\DocumentEtudiantController;
 use App\Backend\Controller\Etudiant\EtudiantDashboardController;
-use App\Backend\Controller\Etudiant\ProfilEtudiantController;
+use App\Backend\Controller\Etudiant\ProfilEtudiantController; // Nouveau contrôleur pour ServiceProfilEtudiant
 use App\Backend\Controller\Etudiant\RapportController;
 use App\Backend\Controller\Etudiant\ReclamationEtudiantController;
-use App\Backend\Controller\Etudiant\RessourcesEtudiantController; // Nouveau
+use App\Backend\Controller\Etudiant\RessourcesEtudiantController; // Nouveau contrôleur pour ServiceRessourcesEtudiant
 
-// Personnel Administratif Controllers
+// Contrôleurs du Personnel Administratif
 use App\Backend\Controller\PersonnelAdministratif\CommunicationInterneController;
 use App\Backend\Controller\PersonnelAdministratif\ConformiteController;
 use App\Backend\Controller\PersonnelAdministratif\PersonnelDashboardController;
 use App\Backend\Controller\PersonnelAdministratif\ScolariteController;
+// Nouveau contrôleur pour le nouveau service de documents administratifs
+use App\Backend\Controller\PersonnelAdministratif\DocumentAdministratifController; // Nouveau
 
 
 return function (RouteCollector $r) {
-    // --- Routes Publiques (non nécessitant une connexion) ---
+    // --- Routes Publiques (ne nécessitant pas de connexion) ---
     $r->get('/', [HomeController::class, 'home']);
+
+    // Authentification
     $r->get('/login', [AuthentificationController::class, 'showLoginForm']);
     $r->post('/login', [AuthentificationController::class, 'handleLogin']);
-    $r->get('/logout', [AuthentificationController::class, 'logout']); // Utiliser GET pour la déconnexion simple, POST pour plus de sécurité (CSRF)
+    $r->post('/logout', [AuthentificationController::class, 'logout']); // Utilisation de POST pour la sécurité CSRF
 
-    // Routes pour la récupération/réinitialisation de mot de passe
+    // Récupération/Réinitialisation de mot de passe
     $r->get('/forgot-password', [AuthentificationController::class, 'showForgotPasswordForm']);
     $r->post('/forgot-password', [AuthentificationController::class, 'handleForgotPasswordRequest']);
-    $r->get('/reset-password/{token}', [AuthentificationController::class, 'showResetPasswordForm']); // Le token est passé dans l'URL
+    $r->get('/reset-password/{token}', [AuthentificationController::class, 'showResetPasswordForm']);
     $r->post('/reset-password', [AuthentificationController::class, 'handleResetPasswordSubmission']);
 
-    // Route pour la validation d'email (si besoin)
-    $r->get('/validate-email/{token}', [AuthentificationController::class, 'validateEmail']); // Méthode à ajouter si pas déjà
+    // Validation d'email
+    $r->get('/validate-email/{token}', [AuthentificationController::class, 'validateEmail']); // Méthode à implémenter dans AuthentificationController
 
-    // Route pour l'authentification 2FA
+    // Authentification 2FA
     $r->get('/2fa', [AuthentificationController::class, 'show2FAForm']);
     $r->post('/2fa', [AuthentificationController::class, 'handle2FASubmission']);
 
     // --- Routes pour les Assets (CSS, JS, images) ---
     $r->get('/assets/css/{filename:.+}', [AssetController::class, 'serveCss']);
     $r->get('/assets/js/{filename:.+}', [AssetController::class, 'serveJs']);
-    // Ajoutez d'autres routes pour les images, fonts, etc. si nécessaire (ex: /assets/img/{filename:.+})
+    $r->get('/assets/img/{filename:.+}', [AssetController::class, 'serveImg']); // Pour les images (ex: photos de profil, logos)
+    $r->get('/assets/uploads/{type}/{filename:.+}', [AssetController::class, 'serveUpload']); // Pour les fichiers uploadés (sécurisé par AssetController)
 
 
     // --- Routes Protégées (nécessitant une connexion) ---
@@ -80,24 +90,18 @@ return function (RouteCollector $r) {
             // Changement de mot de passe (pour utilisateur connecté)
             $r->get('/change-password', [AuthentificationController::class, 'showChangePasswordForm']);
             $r->post('/change-password', [AuthentificationController::class, 'handleChangePassword']);
-            // Gestion 2FA (pour utilisateur connecté)
-            // Note: La vue pour générer le secret 2FA est maintenant dans ProfilEtudiantController
-            // Si vous voulez une gestion 2FA pour TOUS les utilisateurs connectés, déplacez la logique dans ProfilController (à créer si besoin)
-            // ou assurez-vous que les routes ci-dessous mènent à la gestion 2FA du profil.
-            // Par simplification, les routes 2FA sont pour l'instant uniquement pour l'authentification.
-            // La gestion du setup/disable 2FA sera dans les contrôleurs de profil spécifiques.
+            // Note: La gestion du setup/disable 2FA est maintenant dans les contrôleurs de profil spécifiques (ex: ProfilEtudiantController)
         });
 
         // --- Routes pour les NOTIFICATIONS (commun) ---
         $r->addGroup('/notifications', function (RouteCollector $r) {
             $r->get('', [NotificationController::class, 'index']);
-            $r->post('/mark-as-read/{idNotificationTemplate}/{dateReception}', [NotificationController::class, 'markAsRead']); // Via AJAX
-            $r->post('/delete/{idNotificationTemplate}/{dateReception}', [NotificationController::class, 'deleteNotification']); // Via AJAX
+            $r->post('/mark-as-read/{idReception}', [NotificationController::class, 'markAsRead']); // Utilise idReception comme PK
+            $r->post('/delete/{idReception}', [NotificationController::class, 'deleteNotification']); // Utilise idReception comme PK
         });
 
 
         // --- Groupe de Routes pour l'ADMINISTRATION ---
-        // Le doublon de /admin dans votre arborescence de routes a été retiré, ne gardons qu'un seul groupe /admin.
         $r->addGroup('/admin', function (RouteCollector $r) {
             $r->get('', [AdminDashboardController::class, 'index']); // Tableau de bord Admin
 
@@ -151,7 +155,7 @@ return function (RouteCollector $r) {
                 $r->post('/groupes/{idGroupe}/rattachements/update', [HabilitationController::class, 'updateRattachements']);
             });
 
-            // Gestion des Référentiels
+            // Gestion des Référentiels (Générique)
             $r->addGroup('/referentiels', function (RouteCollector $r) {
                 $r->get('', [ReferentialController::class, 'index']); // Liste des catégories de référentiels
                 $r->get('/{referentielCode}/list', [ReferentialController::class, 'listItems']); // Liste items d'un référentiel
@@ -162,38 +166,38 @@ return function (RouteCollector $r) {
                 $r->post('/{referentielCode}/delete/{id}', [ReferentialController::class, 'deleteItem']); // Suppression
             });
 
-            // Configuration du Système
+            // Configuration du Système (Paramètres Généraux, Modèles de Docs/Notifications, Années Académiques)
             $r->addGroup('/config', function (RouteCollector $r) {
                 $r->get('', [ConfigSystemeController::class, 'index']); // Page principale de config
-                // Années Académiques
+                // Années Académiques (maintenant géré par un contrôleur dédié)
                 $r->get('/annee-academique', [AnneeAcademiqueController::class, 'index']); // Liste années académiques
                 $r->get('/annee-academique/create', [AnneeAcademiqueController::class, 'create']);
                 $r->post('/annee-academique/create', [AnneeAcademiqueController::class, 'create']);
                 $r->get('/annee-academique/{id}/edit', [AnneeAcademiqueController::class, 'edit']);
                 $r->post('/annee-academique/{id}/edit', [AnneeAcademiqueController::class, 'edit']);
                 $r->post('/annee-academique/{id}/delete', [AnneeAcademiqueController::class, 'delete']);
-                $r->post('/annee-academique/{id}/set-active', [AnneeAcademiqueController::class, 'setActive']); // Nouvelle route pour activer (si ajoutée)
+                $r->post('/annee-academique/{id}/set-active', [AnneeAcademiqueController::class, 'setActive']); // Nouvelle route pour activer
                 // Paramètres Généraux
                 $r->post('/general-parameters/update', [ConfigSystemeController::class, 'updateGeneralParameters']);
-                // Modèles de Documents / Notifications
+                // Modèles de Documents / Notifications (géré par ConfigSystemeController)
                 $r->get('/templates', [ConfigSystemeController::class, 'showDocumentTemplates']);
                 $r->get('/templates/create', [ConfigSystemeController::class, 'handleDocumentTemplate']);
                 $r->post('/templates/create', [ConfigSystemeController::class, 'handleDocumentTemplate']);
                 $r->get('/templates/edit/{id}', [ConfigSystemeController::class, 'handleDocumentTemplate']);
                 $r->post('/templates/edit/{id}', [ConfigSystemeController::class, 'handleDocumentTemplate']);
                 $r->post('/templates/delete/{id}', [ConfigSystemeController::class, 'deleteDocumentTemplate']);
+                // Configuration des Notifications (Matrice de diffusion, préférences)
+                $r->get('/notifications-config', [NotificationConfigurationController::class, 'index']); // Nouvelle route
+                $r->post('/notifications-config/update-matrix', [NotificationConfigurationController::class, 'updateMatrix']); // Nouvelle route
             });
 
-            // Gestion Académique
+            // Gestion Académique (Inscriptions, Notes, Stages, Pénalités, Carrières Enseignants)
             $r->addGroup('/gestion-acad', function (RouteCollector $r) {
                 $r->get('', [GestionAcadController::class, 'index']); // Page d'accueil Gestion Académique
                 // Inscriptions
                 $r->get('/inscriptions', [GestionAcadController::class, 'listInscriptions']);
                 $r->get('/inscriptions/create', [GestionAcadController::class, 'createInscription']);
                 $r->post('/inscriptions/create', [GestionAcadController::class, 'createInscription']);
-                // Note: Pour edit/delete inscription, les clés composites doivent être passées dans l'URL.
-                // C'est plus complexe. On peut les passer via des paramètres de requête ou les concaténer.
-                // Exemple avec paramètres de requête (plus simple pour des clés composites)
                 $r->get('/inscriptions/{numeroCarteEtudiant}/{idNiveauEtude}/{idAnneeAcademique}/edit', [GestionAcadController::class, 'editInscription']);
                 $r->post('/inscriptions/{numeroCarteEtudiant}/{idNiveauEtude}/{idAnneeAcademique}/edit', [GestionAcadController::class, 'editInscription']);
                 $r->post('/inscriptions/{numeroCarteEtudiant}/{idNiveauEtude}/{idAnneeAcademique}/delete', [GestionAcadController::class, 'deleteInscription']);
@@ -204,6 +208,26 @@ return function (RouteCollector $r) {
                 $r->get('/notes/{numeroCarteEtudiant}/{idEcue}/edit', [GestionAcadController::class, 'handleNoteForm']);
                 $r->post('/notes/{numeroCarteEtudiant}/{idEcue}/edit', [GestionAcadController::class, 'handleNoteForm']);
                 $r->post('/notes/{numeroCarteEtudiant}/{idEcue}/delete', [GestionAcadController::class, 'deleteNote']);
+                // Stages (CRUD complet si nécessaire, sinon juste validation par ScolariteController)
+                $r->get('/stages', [GestionAcadController::class, 'listStages']); // Nouvelle route
+                $r->get('/stages/create', [GestionAcadController::class, 'createStage']); // Nouvelle route
+                $r->post('/stages/create', [GestionAcadController::class, 'createStage']); // Nouvelle route
+                $r->get('/stages/{idEntreprise}/{numeroCarteEtudiant}/edit', [GestionAcadController::class, 'editStage']); // Nouvelle route
+                $r->post('/stages/{idEntreprise}/{numeroCarteEtudiant}/edit', [GestionAcadController::class, 'editStage']); // Nouvelle route
+                $r->post('/stages/{idEntreprise}/{numeroCarteEtudiant}/delete', [GestionAcadController::class, 'deleteStage']); // Nouvelle route
+                // Carrières Enseignants (Grades, Fonctions, Spécialités)
+                $r->get('/enseignants/carrieres', [GestionAcadController::class, 'manageEnseignantCarrieres']); // Nouvelle route
+                $r->post('/enseignants/carrieres/add-grade', [GestionAcadController::class, 'addEnseignantGrade']); // Nouvelle route
+                $r->post('/enseignants/carrieres/add-fonction', [GestionAcadController::class, 'addEnseignantFonction']); // Nouvelle route
+                $r->post('/enseignants/carrieres/add-specialite', [GestionAcadController::class, 'addEnseignantSpecialite']); // Nouvelle route
+                // Gestion des UE/ECUEs
+                $r->get('/ues', [GestionAcadController::class, 'listUes']); // Nouvelle route
+                $r->get('/ues/create', [GestionAcadController::class, 'createUe']); // Nouvelle route
+                $r->post('/ues/create', [GestionAcadController::class, 'createUe']); // Nouvelle route
+                $r->get('/ecues', [GestionAcadController::class, 'listEcues']); // Nouvelle route
+                $r->get('/ecues/create', [GestionAcadController::class, 'createEcue']); // Nouvelle route
+                $r->post('/ecues/create', [GestionAcadController::class, 'createEcue']); // Nouvelle route
+                $r->post('/ecues/{idEcue}/link-ue/{idUe}', [GestionAcadController::class, 'linkEcueToUe']); // Nouvelle route
             });
 
             // Supervision et Audit
@@ -213,6 +237,36 @@ return function (RouteCollector $r) {
                 $r->get('/suivi-workflows', [SupervisionController::class, 'showWorkflowTraces']);
                 $r->get('/maintenance', [SupervisionController::class, 'showMaintenanceTools']);
                 $r->post('/maintenance/archive-pv', [SupervisionController::class, 'archivePv']);
+                // Gestion des logs PHP (via ServiceLogger)
+                $r->get('/logs', [LoggerController::class, 'index']); // Nouvelle route
+                $r->post('/logs/clear', [LoggerController::class, 'clearLogs']); // Nouvelle route
+                // Gestion des tâches en file d'attente (via ServiceQueue)
+                $r->get('/queue', [QueueController::class, 'index']); // Nouvelle route
+                $r->post('/queue/process-next', [QueueController::class, 'processNextJob']); // Nouvelle route
+            });
+
+            // Reporting
+            $r->addGroup('/reporting', function (RouteCollector $r) {
+                $r->get('', [ReportingController::class, 'index']); // Page des rapports
+                $r->post('/filter', [ReportingController::class, 'filterReports']); // Filtrage des rapports
+            });
+
+            // Gestion des Fichiers (générique pour l'admin)
+            $r->addGroup('/files', function (RouteCollector $r) {
+                $r->get('', [FichierController::class, 'index']); // Nouvelle route: Lister les fichiers uploadés
+                $r->post('/upload', [FichierController::class, 'upload']); // Nouvelle route: Upload de fichier
+                $r->post('/delete/{idFichier}', [FichierController::class, 'delete']); // Nouvelle route: Suppression de fichier
+            });
+
+            // Gestion des Transitions de Rôles et Délégations
+            $r->addGroup('/transition-roles', function (RouteCollector $r) {
+                $r->get('', [TransitionRoleController::class, 'index']); // Nouvelle route: Tableau de bord des transitions
+                $r->get('/detect-orphans/{idUser}', [TransitionRoleController::class, 'detectOrphanTasks']); // Nouvelle route
+                $r->post('/reassign-task/{idTask}', [TransitionRoleController::class, 'reassignTask']); // Nouvelle route
+                $r->get('/delegations', [TransitionRoleController::class, 'listDelegations']); // Nouvelle route
+                $r->get('/delegations/create', [TransitionRoleController::class, 'createDelegation']); // Nouvelle route
+                $r->post('/delegations/create', [TransitionRoleController::class, 'createDelegation']); // Nouvelle route
+                $r->post('/delegations/{idDelegation}/cancel', [TransitionRoleController::class, 'cancelDelegation']); // Nouvelle route
             });
         });
 
@@ -224,14 +278,13 @@ return function (RouteCollector $r) {
             // Gestion du Profil Étudiant
             $r->get('/profile', [ProfilEtudiantController::class, 'index']); // Afficher/Modifier le profil
             $r->post('/profile', [ProfilEtudiantController::class, 'index']); // Traiter la modification du profil
+            $r->post('/profile/upload-photo', [ProfilEtudiantController::class, 'uploadPhoto']); // Nouvelle route pour upload photo
             $r->get('/profile/2fa', [ProfilEtudiantController::class, 'manage2FA']); // Gérer le setup 2FA
             $r->post('/profile/2fa/activate', [ProfilEtudiantController::class, 'manage2FA']); // Activer 2FA
             $r->post('/profile/2fa/deactivate', [ProfilEtudiantController::class, 'manage2FA']); // Désactiver 2FA
 
             // Gestion des Rapports
-            // Gestion des Rapports
             $r->addGroup('/rapport', function (RouteCollector $r) {
-                // MODIFICATION DE L'ORDRE POUR ÉVITER LES CONFLITS FastRoute
                 $r->get('/create-edit-draft', [RapportController::class, 'createOrEditDraft']); // Formulaire brouillon (nouveau)
                 $r->post('/save-submit', [RapportController::class, 'saveOrSubmit']); // Sauvegarde brouillon / Soumission finale
 
@@ -241,10 +294,8 @@ return function (RouteCollector $r) {
                 $r->get('/{id}/edit', [RapportController::class, 'createOrEditDraft']); // Pour l'édition d'un brouillon existant
                 $r->post('/{id}/save-submit', [RapportController::class, 'saveOrSubmit']); // Sauvegarde brouillon / Soumission finale (pour rapport existant)
 
-                // La route la plus générique doit être la dernière pour les GET
                 $r->get('/{id}', [RapportController::class, 'index']); // Suivi d'un rapport spécifique
                 $r->get('', [RapportController::class, 'index']); // Suivi du rapport (dernier rapport ou ID spécifié)
-
             });
 
             // Gestion des Réclamations
@@ -271,16 +322,10 @@ return function (RouteCollector $r) {
 
             // Communication Interne
             $r->addGroup('/communication', function (RouteCollector $r) {
-                // C'est CRUCIAL : les routes spécifiques (comme '/create') DOIVENT être définies
-                // AVANT les routes génériques (comme '/{idConversation}').
                 $r->get('/create', [CommunicationInterneController::class, 'createConversation']); // Créer conv (directe/groupe)
                 $r->post('/create', [CommunicationInterneController::class, 'createConversation']); // Traiter création conv
-
-                // Ensuite, la route variable générique pour afficher une conversation spécifique
                 $r->get('/{idConversation}', [CommunicationInterneController::class, 'index']); // Afficher conversation
                 $r->post('/{idConversation}/send', [CommunicationInterneController::class, 'sendMessage']); // Envoyer message
-
-                // Enfin, la route par défaut pour lister toutes les conversations (si non déjà interceptée)
                 $r->get('', [CommunicationInterneController::class, 'index']); // Liste des conversations
             });
 
@@ -314,9 +359,9 @@ return function (RouteCollector $r) {
                 $r->get('/reclamations/{idReclamation}/process', [ScolariteController::class, 'showReclamationDetails']); // Détails et form traitement
                 $r->post('/reclamations/{idReclamation}/process', [ScolariteController::class, 'showReclamationDetails']); // Traitement
 
-                // Génération de Documents
-                $r->get('/documents', [ScolariteController::class, 'showDocumentGenerationForm']);
-                $r->post('/documents/generate', [ScolariteController::class, 'generateDocument']);
+                // Génération de Documents (pour RS)
+                $r->get('/documents', [DocumentAdministratifController::class, 'showDocumentGenerationForm']); // Utilise le nouveau contrôleur
+                $r->post('/documents/generate', [DocumentAdministratifController::class, 'generateDocument']); // Utilise le nouveau contrôleur
             });
         });
 
@@ -327,45 +372,42 @@ return function (RouteCollector $r) {
 
             // Communication Commission
             $r->addGroup('/communication', function (RouteCollector $r) {
-                // C'est CRUCIAL : les routes spécifiques (comme '/create') DOIVENT être définies
-                // AVANT les routes génériques (comme '/{idConversation}').
-                $r->get('/create', [CommunicationCommissionController::class, 'createConversation']); // Créer conv (directe/groupe)
-                $r->post('/create', [CommunicationCommissionController::class, 'createConversation']); // Traiter création conv
-
-                // Ensuite, la route variable générique pour afficher une conversation spécifique
-                $r->get('/{idConversation}', [CommunicationCommissionController::class, 'index']); // Afficher conversation
-                $r->post('/{idConversation}/send', [CommunicationCommissionController::class, 'sendMessage']); // Envoyer message
-
-                // Enfin, la route par défaut pour lister toutes les conversations (si non déjà interceptée)
-                $r->get('', [CommunicationCommissionController::class, 'index']); // Liste des conversations
+                $r->get('/create', [CommunicationCommissionController::class, 'createConversation']);
+                $r->post('/create', [CommunicationCommissionController::class, 'createConversation']);
+                $r->get('/{idConversation}', [CommunicationCommissionController::class, 'index']);
+                $r->post('/{idConversation}/send', [CommunicationCommissionController::class, 'sendMessage']);
+                $r->get('', [CommunicationCommissionController::class, 'index']);
             });
 
             // Corrections des Rapports (par la Commission)
             $r->addGroup('/corrections', function (RouteCollector $r) {
-                $r->get('', [CorrectionCommissionController::class, 'index']); // Rapports à corriger
-                $r->get('/{idRapport}/view', [CorrectionCommissionController::class, 'showReportCorrectionForm']); // Voir détails et soumettre corrections
-                $r->post('/{idRapport}/submit', [CorrectionCommissionController::class, 'submitCorrection']); // Traitement soumission
+                $r->get('', [CorrectionCommissionController::class, 'index']);
+                $r->get('/{idRapport}/view', [CorrectionCommissionController::class, 'showReportCorrectionForm']);
+                $r->post('/{idRapport}/submit', [CorrectionCommissionController::class, 'submitCorrection']);
             });
 
             // Gestion des PV
             $r->addGroup('/pv', function (RouteCollector $r) {
-                $r->get('', [PvController::class, 'index']); // Liste des PV
-                $r->get('/create', [PvController::class, 'create']); // Formulaire création
-                $r->post('/create', [PvController::class, 'create']); // Traitement création
-                $r->get('/edit/{id}', [PvController::class, 'create']); // Formulaire modification (réutilise create)
-                $r->post('/edit/{id}', [PvController::class, 'create']); // Traitement modification
-                $r->post('/submit-for-validation/{id}', [PvController::class, 'submitForValidation']); // Soumettre pour validation
-                $r->get('/validate/{id}', [PvController::class, 'validatePv']); // Formulaire validation (par membre)
-                $r->post('/validate/{id}', [PvController::class, 'validatePv']); // Traitement validation (par membre)
-                $r->post('/delete/{id}', [PvController::class, 'delete']); // Suppression
+                $r->get('', [PvController::class, 'index']);
+                $r->get('/create', [PvController::class, 'create']);
+                $r->post('/create', [PvController::class, 'create']);
+                $r->get('/edit/{id}', [PvController::class, 'create']);
+                $r->post('/edit/{id}', [PvController::class, 'create']);
+                $r->post('/submit-for-validation/{id}', [PvController::class, 'submitForValidation']);
+                $r->get('/validate/{id}', [PvController::class, 'validatePv']);
+                $r->post('/validate/{id}', [PvController::class, 'validatePv']);
+                $r->post('/delete/{id}', [PvController::class, 'delete']);
+                $r->post('/{id}/delegate-redaction', [PvController::class, 'delegateRedaction']); // Nouvelle route
+                $r->post('/{id}/manage-approvals', [PvController::class, 'manageApprovals']); // Nouvelle route pour gérer les approbations bloquées
             });
 
             // Validation des Rapports (Vote)
             $r->addGroup('/validation/rapports', function (RouteCollector $r) {
-                $r->get('', [ValidationRapportController::class, 'index']); // Rapports à voter/valider
-                $r->get('/{idRapport}/vote', [ValidationRapportController::class, 'showVoteInterface']); // Interface de vote
-                $r->post('/{idRapport}/vote', [ValidationRapportController::class, 'submitVote']); // Traitement du vote
-                $r->post('/{idRapport}/new-round', [ValidationRapportController::class, 'newVoteRound']); // Nouveau tour de vote
+                $r->get('', [ValidationRapportController::class, 'index']);
+                $r->get('/{idRapport}/vote', [ValidationRapportController::class, 'showVoteInterface']);
+                $r->post('/{idRapport}/vote', [ValidationRapportController::class, 'submitVote']);
+                $r->post('/{idRapport}/new-round', [ValidationRapportController::class, 'newVoteRound']);
+                $r->post('/{idRapport}/withdraw-from-session', [ValidationRapportController::class, 'withdrawFromSession']); // Nouvelle route
             });
         });
     });

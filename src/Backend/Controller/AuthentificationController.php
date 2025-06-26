@@ -1,7 +1,7 @@
 <?php
 namespace App\Backend\Controller;
 
-use App\Backend\Service\Authentication\ServiceAuthentification;
+use App\Backend\Service\Authentication\ServiceAuthentication;
 use App\Backend\Service\Permissions\ServicePermissions; // Requis par BaseController
 use App\Backend\Util\FormValidator;
 use App\Backend\Exception\IdentifiantsInvalidesException;
@@ -19,9 +19,9 @@ class AuthentificationController extends BaseController
 
 
     public function __construct(
-        ServiceAuthentification $authService,
-        ServicePermissions $permissionService, // Requis par BaseController
-        FormValidator $validator
+        ServiceAuthentication $authService,
+        ServicePermissions    $permissionService, // Requis par BaseController
+        FormValidator         $validator
     ) {
         parent::__construct($authService, $permissionService, $validator);
         //$this->authService = $authService; // Réassignation pour un accès direct

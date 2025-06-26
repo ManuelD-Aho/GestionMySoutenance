@@ -2,7 +2,7 @@
 namespace App\Backend\Controller\Administration;
 
 use App\Backend\Controller\BaseController;
-use App\Backend\Service\Authentication\ServiceAuthentification;
+use App\Backend\Service\Authentication\ServiceAuthentication;
 use App\Backend\Service\Permissions\ServicePermissions; // Pour récupérer les types et groupes
 use App\Backend\Service\GestionAcademique\ServiceGestionAcademique;
 use App\Backend\Service\ConfigurationSysteme\ServiceConfigurationSysteme; // Pour les années académiques
@@ -15,16 +15,16 @@ use App\Backend\Exception\MotDePasseInvalideException;
 
 class UtilisateurController extends BaseController
 {
-    protected ServiceAuthentification $authService;
+    protected ServiceAuthentication $authService;
     protected ServicePermissions $permissionService;
     protected ServiceGestionAcademique $gestionAcadService;
     protected ServiceConfigurationSysteme $configService;
 
     public function __construct(
-        ServiceAuthentification $authService,
-        ServicePermissions $permissionService,
-        FormValidator $validator,
-        ServiceGestionAcademique $gestionAcadService, // Pour les niveaux d'étude, grades, fonctions, spécialités
+        ServiceAuthentication       $authService,
+        ServicePermissions          $permissionService,
+        FormValidator               $validator,
+        ServiceGestionAcademique    $gestionAcadService, // Pour les niveaux d'étude, grades, fonctions, spécialités
         ServiceConfigurationSysteme $configService // Pour les années académiques
     ) {
         parent::__construct($authService, $permissionService, $validator);
@@ -48,7 +48,7 @@ class UtilisateurController extends BaseController
 
             $utilisateurs = $this->authService->listerUtilisateursAvecProfils($criteres, $page, $limit);
             // Vous pouvez aussi récupérer le total pour la pagination
-            // $totalUtilisateurs = $this->authService->countUtilisateurs([]); // Méthode à créer dans ServiceAuthentification
+            // $totalUtilisateurs = $this->authService->countUtilisateurs([]); // Méthode à créer dans ServiceAuthentication
 
             $data = [
                 'page_title' => 'Gestion des Utilisateurs',

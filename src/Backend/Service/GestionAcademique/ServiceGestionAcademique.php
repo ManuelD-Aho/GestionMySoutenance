@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Backend\Service\GestionAcademique;
 
 use PDO;
@@ -19,15 +20,15 @@ use App\Backend\Model\Entreprise;
 use App\Backend\Model\Grade;
 use App\Backend\Model\Fonction;
 use App\Backend\Model\Specialite;
-use App\Backend\Model\Penalite; // Nouveau
-use App\Backend\Model\StatutPenaliteRef; // Nouveau
+use App\Backend\Model\Penalite;
+use App\Backend\Model\StatutPenaliteRef;
 use App\Backend\Model\PersonnelAdministratif;
-use App\Backend\Service\Notification\ServiceNotification;
-use App\Backend\Service\SupervisionAdmin\ServiceSupervisionAdmin;
-use App\Backend\Service\IdentifiantGenerator\IdentifiantGenerator; // Si des IDs sont générés par ce service
+use App\Backend\Service\Notification\ServiceNotificationInterface;
+use App\Backend\Service\SupervisionAdmin\ServiceSupervisionAdminInterface;
+use App\Backend\Service\IdentifiantGenerator\IdentifiantGeneratorInterface;
 use App\Backend\Exception\ElementNonTrouveException;
 use App\Backend\Exception\OperationImpossibleException;
-use App\Backend\Exception\DoublonException; // Pour les cas de doublons (ex: double inscription)
+use App\Backend\Exception\DoublonException;
 
 class ServiceGestionAcademique implements ServiceGestionAcademiqueInterface
 {
@@ -48,66 +49,68 @@ class ServiceGestionAcademique implements ServiceGestionAcademiqueInterface
     private Grade $gradeModel;
     private Fonction $fonctionModel;
     private Specialite $specialiteModel;
-    private Penalite $penaliteModel; // Nouveau
-    private StatutPenaliteRef $statutPenaliteRefModel; // Nouveau
-
-    private PersonnelAdministratif $personnelAdministratifModel; // Pour les opérations administratives
-
-    private ServiceNotification $notificationService;
-    private ServiceSupervisionAdmin $supervisionService;
-    private IdentifiantGenerator $idGenerator; // Pour générer des IDs si besoin
+    private Penalite $penaliteModel;
+    private StatutPenaliteRef $statutPenaliteRefModel;
+    private PersonnelAdministratif $personnelAdministratifModel;
+    private ServiceNotificationInterface $notificationService;
+    private ServiceSupervisionAdminInterface $supervisionService;
+    private IdentifiantGeneratorInterface $idGenerator;
 
     public function __construct(
         PDO $db,
-        ServiceNotification $notificationService,
-        ServiceSupervisionAdmin $supervisionService,
-        IdentifiantGenerator $idGenerator
+        Inscrire $inscrireModel,
+        Evaluer $evaluerModel,
+        FaireStage $faireStageModel,
+        Acquerir $acquerirModel,
+        Occuper $occuperModel,
+        Attribuer $attribuerModel,
+        Etudiant $etudiantModel,
+        NiveauEtude $niveauEtudeModel,
+        AnneeAcademique $anneeAcademiqueModel,
+        StatutPaiementRef $statutPaiementRefModel,
+        DecisionPassageRef $decisionPassageRefModel,
+        Enseignant $enseignantModel,
+        Ecue $ecueModel,
+        Entreprise $entrepriseModel,
+        Grade $gradeModel,
+        Fonction $fonctionModel,
+        Specialite $specialiteModel,
+        Penalite $penaliteModel,
+        StatutPenaliteRef $statutPenaliteRefModel,
+        PersonnelAdministratif $personnelAdministratifModel,
+        ServiceNotificationInterface $notificationService,
+        ServiceSupervisionAdminInterface $supervisionService,
+        IdentifiantGeneratorInterface $idGenerator
     ) {
-        $this->inscrireModel = new Inscrire($db);
-        $this->evaluerModel = new Evaluer($db);
-        $this->faireStageModel = new FaireStage($db);
-        $this->acquerirModel = new Acquerir($db);
-        $this->occuperModel = new Occuper($db);
-        $this->attribuerModel = new Attribuer($db);
-        $this->etudiantModel = new Etudiant($db);
-        $this->niveauEtudeModel = new NiveauEtude($db);
-        $this->anneeAcademiqueModel = new AnneeAcademique($db);
-        $this->statutPaiementRefModel = new StatutPaiementRef($db);
-        $this->decisionPassageRefModel = new DecisionPassageRef($db);
-        $this->enseignantModel = new Enseignant($db);
-        $this->ecueModel = new Ecue($db);
-        $this->entrepriseModel = new Entreprise($db);
-        $this->gradeModel = new Grade($db);
-        $this->fonctionModel = new Fonction($db);
-        $this->specialiteModel = new Specialite($db);
-        $this->penaliteModel = new Penalite($db); // Initialisation
-        $this->statutPenaliteRefModel = new StatutPenaliteRef($db); // Initialisation
-        $this->personnelAdministratifModel = new PersonnelAdministratif($db); // Pour les opérations administratives
-
+        $this->inscrireModel = $inscrireModel;
+        $this->evaluerModel = $evaluerModel;
+        $this->faireStageModel = $faireStageModel;
+        $this->acquerirModel = $acquerirModel;
+        $this->occuperModel = $occuperModel;
+        $this->attribuerModel = $attribuerModel;
+        $this->etudiantModel = $etudiantModel;
+        $this->niveauEtudeModel = $niveauEtudeModel;
+        $this->anneeAcademiqueModel = $anneeAcademiqueModel;
+        $this->statutPaiementRefModel = $statutPaiementRefModel;
+        $this->decisionPassageRefModel = $decisionPassageRefModel;
+        $this->enseignantModel = $enseignantModel;
+        $this->ecueModel = $ecueModel;
+        $this->entrepriseModel = $entrepriseModel;
+        $this->gradeModel = $gradeModel;
+        $this->fonctionModel = $fonctionModel;
+        $this->specialiteModel = $specialiteModel;
+        $this->penaliteModel = $penaliteModel;
+        $this->statutPenaliteRefModel = $statutPenaliteRefModel;
+        $this->personnelAdministratifModel = $personnelAdministratifModel;
         $this->notificationService = $notificationService;
         $this->supervisionService = $supervisionService;
         $this->idGenerator = $idGenerator;
     }
 
-    // --- GESTION DES INSCRIPTIONS ---
-
-    /**
-     * Crée une nouvelle inscription administrative pour un étudiant.
-     * @param string $numeroCarteEtudiant Le numéro de carte de l'étudiant.
-     * @param string $idNiveauEtude L'ID du niveau d'étude.
-     * @param string $idAnneeAcademique L'ID de l'année académique.
-     * @param float $montantInscription Le montant des frais d'inscription.
-     * @param string $idStatutPaiement Le statut initial du paiement (ex: 'PAIE_NOK').
-     * @param string|null $numeroRecuPaiement Le numéro du reçu de paiement si payé.
-     * @return bool Vrai si l'inscription a été créée avec succès.
-     * @throws ElementNonTrouveException Si étudiant, niveau, année, ou statut paiement n'existe pas.
-     * @throws DoublonException Si l'étudiant est déjà inscrit à ce niveau pour cette année.
-     */
     public function creerInscriptionAdministrative(string $numeroCarteEtudiant, string $idNiveauEtude, string $idAnneeAcademique, float $montantInscription, string $idStatutPaiement, ?string $numeroRecuPaiement = null): bool
     {
         $this->inscrireModel->commencerTransaction();
         try {
-            // Vérifier l'existence des entités liées
             if (!$this->etudiantModel->trouverParIdentifiant($numeroCarteEtudiant)) {
                 throw new ElementNonTrouveException("Étudiant non trouvé.");
             }
@@ -121,7 +124,6 @@ class ServiceGestionAcademique implements ServiceGestionAcademiqueInterface
                 throw new ElementNonTrouveException("Statut de paiement non reconnu.");
             }
 
-            // Vérifier si l'inscription existe déjà pour cette clé composite
             if ($this->inscrireModel->trouverParCleComposite($numeroCarteEtudiant, $idNiveauEtude, $idAnneeAcademique)) {
                 throw new DoublonException("L'étudiant est déjà inscrit à ce niveau pour cette année académique.");
             }
@@ -151,30 +153,12 @@ class ServiceGestionAcademique implements ServiceGestionAcademiqueInterface
                 'Etudiant'
             );
             return true;
-        } catch (DoublonException $e) {
-            $this->inscrireModel->annulerTransaction();
-            throw $e;
         } catch (\Exception $e) {
             $this->inscrireModel->annulerTransaction();
-            $this->supervisionService->enregistrerAction(
-                $_SESSION['user_id'] ?? 'SYSTEM',
-                'ECHEC_CREATION_INSCRIPTION',
-                "Erreur création inscription pour {$numeroCarteEtudiant}: " . $e->getMessage()
-            );
             throw $e;
         }
     }
 
-    /**
-     * Met à jour une inscription administrative existante.
-     * @param string $numeroCarteEtudiant L'ID de l'étudiant.
-     * @param string $idNiveauEtude L'ID du niveau d'étude.
-     * @param string $idAnneeAcademique L'ID de l'année académique.
-     * @param array $donnees Les données à mettre à jour.
-     * @return bool Vrai si la mise à jour réussit.
-     * @throws ElementNonTrouveException Si l'inscription n'est pas trouvée.
-     * @throws DoublonException Si la mise à jour provoque une violation d'unicité (ex: numéro de reçu).
-     */
     public function mettreAJourInscriptionAdministrative(string $numeroCarteEtudiant, string $idNiveauEtude, string $idAnneeAcademique, array $donnees): bool
     {
         $inscription = $this->inscrireModel->trouverParCleComposite($numeroCarteEtudiant, $idNiveauEtude, $idAnneeAcademique);
@@ -182,19 +166,12 @@ class ServiceGestionAcademique implements ServiceGestionAcademiqueInterface
             throw new ElementNonTrouveException("Inscription non trouvée pour la mise à jour.");
         }
 
-        // Mettre à jour la date_paiement si le statut passe à PAIE_OK et qu'elle n'est pas déjà définie
         if (isset($donnees['id_statut_paiement']) && $donnees['id_statut_paiement'] === 'PAIE_OK' && empty($inscription['date_paiement'])) {
             $donnees['date_paiement'] = date('Y-m-d H:i:s');
         }
 
-        $this->inscrireModel->commencerTransaction();
-        try {
-            $success = $this->inscrireModel->mettreAJourParCleComposite($numeroCarteEtudiant, $idNiveauEtude, $idAnneeAcademique, $donnees);
-            if (!$success) {
-                throw new OperationImpossibleException("Échec de la mise à jour de l'inscription.");
-            }
-
-            $this->inscrireModel->validerTransaction();
+        $success = $this->inscrireModel->mettreAJourParCleComposite($numeroCarteEtudiant, $idNiveauEtude, $idAnneeAcademique, $donnees);
+        if ($success) {
             $this->supervisionService->enregistrerAction(
                 $_SESSION['user_id'] ?? 'SYSTEM',
                 'MAJ_INSCRIPTION',
@@ -202,46 +179,40 @@ class ServiceGestionAcademique implements ServiceGestionAcademiqueInterface
                 $numeroCarteEtudiant,
                 'Etudiant'
             );
-            return true;
-        } catch (DoublonException $e) {
-            $this->inscrireModel->annulerTransaction();
-            throw $e;
-        } catch (\Exception $e) {
-            $this->inscrireModel->annulerTransaction();
-            $this->supervisionService->enregistrerAction(
-                $_SESSION['user_id'] ?? 'SYSTEM',
-                'ECHEC_MAJ_INSCRIPTION',
-                "Erreur mise à jour inscription pour {$numeroCarteEtudiant}: " . $e->getMessage()
-            );
-            throw $e;
         }
+        return $success;
     }
 
-    /**
-     * Liste les inscriptions administratives, avec filtres et pagination.
-     * @param array $criteres Critères de filtre.
-     * @param int $page Numéro de page.
-     * @param int $elementsParPage Nombre d'éléments par page.
-     * @return array Liste des inscriptions.
-     */
+    public function supprimerInscriptionAdministrative(string $numeroCarteEtudiant, string $idNiveauEtude, string $idAnneeAcademique): bool
+    {
+        $success = $this->inscrireModel->supprimerParCleComposite($numeroCarteEtudiant, $idNiveauEtude, $idAnneeAcademique);
+        if ($success) {
+            $this->supervisionService->enregistrerAction(
+                $_SESSION['user_id'] ?? 'SYSTEM',
+                'SUPPRESSION_INSCRIPTION',
+                "Inscription de {$numeroCarteEtudiant} au niveau {$idNiveauEtude} pour l'année {$idAnneeAcademique} supprimée.",
+                $numeroCarteEtudiant,
+                'Etudiant'
+            );
+        }
+        return $success;
+    }
+
     public function listerInscriptionsAdministratives(array $criteres = [], int $page = 1, int $elementsParPage = 20): array
     {
         $offset = ($page - 1) * $elementsParPage;
-        // Pour des données complètes, cette méthode pourrait joindre etudiant, niveau_etude, annee_academique, statut_paiement_ref
         return $this->inscrireModel->trouverParCritere($criteres, ['*'], 'AND', null, $elementsParPage, $offset);
     }
 
-    // --- GESTION DES NOTES ---
+    public function enregistrerDecisionPassage(string $numeroCarteEtudiant, string $idAnneeAcademique, string $idDecisionPassage): bool
+    {
+        $inscription = $this->inscrireModel->trouverUnParCritere(['numero_carte_etudiant' => $numeroCarteEtudiant, 'id_annee_academique' => $idAnneeAcademique]);
+        if (!$inscription) {
+            throw new ElementNonTrouveException("Aucune inscription trouvée pour cet étudiant pour cette année.");
+        }
+        return $this->mettreAJourInscriptionAdministrative($numeroCarteEtudiant, $inscription['id_niveau_etude'], $idAnneeAcademique, ['id_decision_passage' => $idDecisionPassage]);
+    }
 
-    /**
-     * Enregistre ou met à jour la note d'un étudiant pour un ECUE.
-     * @param string $numeroCarteEtudiant Le numéro de carte de l'étudiant.
-     * @param string $idEcue L'ID de l'ECUE.
-     * @param float $note La note obtenue.
-     * @return bool Vrai si l'opération a réussi.
-     * @throws ElementNonTrouveException Si étudiant ou ECUE n'est pas trouvé.
-     * @throws OperationImpossibleException Si la note est invalide.
-     */
     public function enregistrerNoteEcue(string $numeroCarteEtudiant, string $idEcue, float $note): bool
     {
         $this->evaluerModel->commencerTransaction();
@@ -252,24 +223,29 @@ class ServiceGestionAcademique implements ServiceGestionAcademiqueInterface
             if (!$this->ecueModel->trouverParIdentifiant($idEcue)) {
                 throw new ElementNonTrouveException("ECUE non trouvé.");
             }
-            if ($note < 0 || $note > 20) { // Exemple de validation de note
+            if ($note < 0 || $note > 20) {
                 throw new OperationImpossibleException("La note doit être entre 0 et 20.");
             }
 
-            $existingEvaluation = $this->evaluerModel->trouverEvaluationParCles($numeroCarteEtudiant, $idEcue);
+            $anneeActive = $this->anneeAcademiqueModel->trouverUnParCritere(['est_active' => 1]);
+            if (!$anneeActive) {
+                throw new OperationImpossibleException("Aucune année académique active trouvée.");
+            }
+            $idAnneeAcademique = $anneeActive['id_annee_academique'];
 
-            $data = [
-                'date_evaluation' => date('Y-m-d H:i:s'),
-                'note' => $note
-            ];
+            $existingEvaluation = $this->evaluerModel->trouverEvaluationParCles($numeroCarteEtudiant, $idEcue, $idAnneeAcademique);
+
+            $data = ['note' => $note];
 
             if ($existingEvaluation) {
-                $success = $this->evaluerModel->mettreAJourEvaluationParCles($numeroCarteEtudiant, $idEcue, $data);
+                $success = $this->evaluerModel->mettreAJourEvaluationParCles($numeroCarteEtudiant, $idEcue, $idAnneeAcademique, $data);
                 $actionType = 'MAJ_NOTE';
                 $actionDetails = "Note de {$numeroCarteEtudiant} pour {$idEcue} mise à jour.";
             } else {
                 $data['numero_carte_etudiant'] = $numeroCarteEtudiant;
                 $data['id_ecue'] = $idEcue;
+                $data['id_annee_academique'] = $idAnneeAcademique;
+                $data['date_evaluation'] = date('Y-m-d H:i:s');
                 $success = $this->evaluerModel->creer($data);
                 $actionType = 'CREATION_NOTE';
                 $actionDetails = "Note de {$numeroCarteEtudiant} pour {$idEcue} créée.";
@@ -290,30 +266,37 @@ class ServiceGestionAcademique implements ServiceGestionAcademiqueInterface
             return true;
         } catch (\Exception $e) {
             $this->evaluerModel->annulerTransaction();
-            $this->supervisionService->enregistrerAction(
-                $_SESSION['user_id'] ?? 'SYSTEM',
-                'ECHEC_ENREG_NOTE',
-                "Erreur enregistrement note pour {$numeroCarteEtudiant}: " . $e->getMessage()
-            );
             throw $e;
         }
     }
 
-    // --- GESTION DES STAGES ---
+    public function supprimerNoteEcue(string $numeroCarteEtudiant, string $idEcue): bool
+    {
+        $anneeActive = $this->anneeAcademiqueModel->trouverUnParCritere(['est_active' => 1]);
+        if (!$anneeActive) {
+            throw new OperationImpossibleException("Aucune année académique active trouvée.");
+        }
+        $idAnneeAcademique = $anneeActive['id_annee_academique'];
 
-    /**
-     * Enregistre ou met à jour les informations d'un stage pour un étudiant.
-     * @param string $numeroCarteEtudiant Le numéro de carte de l'étudiant.
-     * @param string $idEntreprise L'ID de l'entreprise.
-     * @param string $dateDebutStage Date de début du stage (YYYY-MM-DD).
-     * @param string|null $dateFinStage Date de fin du stage (YYYY-MM-DD).
-     * @param string|null $sujetStage Sujet du stage.
-     * @param string|null $nomTuteurEntreprise Nom du tuteur en entreprise.
-     * @return bool Vrai si l'opération a réussi.
-     * @throws ElementNonTrouveException Si l'étudiant ou l'entreprise n'est pas trouvée.
-     * @throws OperationImpossibleException Si les dates du stage sont invalides.
-     * @throws DoublonException Si le même stage existe déjà pour la même entreprise et étudiant.
-     */
+        $success = $this->evaluerModel->supprimerEvaluationParCles($numeroCarteEtudiant, $idEcue, $idAnneeAcademique);
+        if ($success) {
+            $this->supervisionService->enregistrerAction(
+                $_SESSION['user_id'] ?? 'SYSTEM',
+                'SUPPRESSION_NOTE',
+                "Note de {$numeroCarteEtudiant} pour {$idEcue} supprimée.",
+                $numeroCarteEtudiant,
+                'Etudiant'
+            );
+        }
+        return $success;
+    }
+
+    public function listerNotes(array $criteres = [], int $page = 1, int $elementsParPage = 20): array
+    {
+        $offset = ($page - 1) * $elementsParPage;
+        return $this->evaluerModel->trouverParCritere($criteres, ['*'], 'AND', null, $elementsParPage, $offset);
+    }
+
     public function enregistrerInformationsStage(string $numeroCarteEtudiant, string $idEntreprise, string $dateDebutStage, ?string $dateFinStage = null, ?string $sujetStage = null, ?string $nomTuteurEntreprise = null): bool
     {
         $this->faireStageModel->commencerTransaction();
@@ -361,39 +344,36 @@ class ServiceGestionAcademique implements ServiceGestionAcademiqueInterface
                 $numeroCarteEtudiant,
                 'Etudiant'
             );
-            // Notifier l'étudiant si le stage est enregistré/validé pour la soumission de rapport
-            $this->notificationService->envoyerNotificationUtilisateur(
-                $numeroCarteEtudiant,
-                'STAGE_ENREGISTRE',
-                "Votre stage avec {$idEntreprise} a été enregistré."
-            );
-
             return true;
-        } catch (DoublonException $e) {
-            $this->faireStageModel->annulerTransaction();
-            throw $e;
         } catch (\Exception $e) {
             $this->faireStageModel->annulerTransaction();
-            $this->supervisionService->enregistrerAction(
-                $_SESSION['user_id'] ?? 'SYSTEM',
-                'ECHEC_ENREG_STAGE',
-                "Erreur enregistrement stage pour {$numeroCarteEtudiant}: " . $e->getMessage()
-            );
             throw $e;
         }
     }
 
-    // --- GESTION DES PÉNALITÉS ---
+    public function validerStage(string $idEntreprise, string $numeroCarteEtudiant, string $numeroPersonnelValidateur): bool
+    {
+        $stage = $this->faireStageModel->trouverStageParCles($idEntreprise, $numeroCarteEtudiant);
+        if (!$stage) {
+            throw new ElementNonTrouveException("Stage non trouvé.");
+        }
+        if (!$this->personnelAdministratifModel->trouverParIdentifiant($numeroPersonnelValidateur)) {
+            throw new ElementNonTrouveException("Personnel validateur non trouvé.");
+        }
 
-    /**
-     * Applique une pénalité à un étudiant.
-     * @param string $numeroCarteEtudiant Le numéro de carte de l'étudiant.
-     * @param float $montantPenalite Le montant de la pénalité.
-     * @param string $motif Le motif de la pénalité.
-     * @return string L'ID de la pénalité créée.
-     * @throws ElementNonTrouveException Si l'étudiant n'est pas trouvé.
-     * @throws OperationImpossibleException En cas d'échec de l'application de la pénalité.
-     */
+        $success = $this->faireStageModel->mettreAJourStageParCles($idEntreprise, $numeroCarteEtudiant, ['statut_stage' => 'VALIDE']);
+        if ($success) {
+            $this->supervisionService->enregistrerAction(
+                $numeroPersonnelValidateur,
+                'VALIDATION_STAGE',
+                "Stage de {$numeroCarteEtudiant} validé.",
+                $numeroCarteEtudiant,
+                'Etudiant'
+            );
+        }
+        return $success;
+    }
+
     public function appliquerPenalite(string $numeroCarteEtudiant, float $montantPenalite, string $motif): string
     {
         $this->penaliteModel->commencerTransaction();
@@ -401,19 +381,17 @@ class ServiceGestionAcademique implements ServiceGestionAcademiqueInterface
             if (!$this->etudiantModel->trouverParIdentifiant($numeroCarteEtudiant)) {
                 throw new ElementNonTrouveException("Étudiant non trouvé.");
             }
-            // Vérifier que le statut par défaut 'PEN_DUE' existe
             if (!$this->statutPenaliteRefModel->trouverParIdentifiant('PEN_DUE')) {
                 throw new OperationImpossibleException("Statut de pénalité 'PEN_DUE' non défini.");
             }
 
-            $idPenalite = $this->idGenerator->genererIdentifiantUnique('PEN'); // PEN-AAAA-SSSS
+            $idPenalite = $this->idGenerator->genererIdentifiantUnique('PEN');
 
             $data = [
                 'id_penalite' => $idPenalite,
                 'numero_carte_etudiant' => $numeroCarteEtudiant,
-                'id_statut_penalite' => 'PEN_DUE', // Pénalité due par défaut
-                'montant_penalite' => $montantPenalite,
-                'date_application' => date('Y-m-d'),
+                'id_statut_penalite' => 'PEN_DUE',
+                'montant_du' => $montantPenalite,
                 'motif' => $motif
             ];
 
@@ -437,23 +415,10 @@ class ServiceGestionAcademique implements ServiceGestionAcademiqueInterface
             return $idPenalite;
         } catch (\Exception $e) {
             $this->penaliteModel->annulerTransaction();
-            $this->supervisionService->enregistrerAction(
-                $_SESSION['user_id'] ?? 'SYSTEM',
-                'ECHEC_APPLICATION_PENALITE',
-                "Erreur application pénalité pour {$numeroCarteEtudiant}: " . $e->getMessage()
-            );
             throw $e;
         }
     }
 
-    /**
-     * Régularise une pénalité pour un étudiant.
-     * @param string $idPenalite L'ID de la pénalité à régulariser.
-     * @param string $numeroPersonnelAdministratif Le numéro du personnel qui régularise.
-     * @return bool Vrai si la pénalité a été régularisée.
-     * @throws ElementNonTrouveException Si la pénalité ou le personnel n'est pas trouvé.
-     * @throws OperationImpossibleException Si la pénalité est déjà réglée ou non due.
-     */
     public function regulariserPenalite(string $idPenalite, string $numeroPersonnelAdministratif): bool
     {
         $this->penaliteModel->commencerTransaction();
@@ -470,9 +435,9 @@ class ServiceGestionAcademique implements ServiceGestionAcademiqueInterface
             }
 
             $success = $this->penaliteModel->mettreAJourParIdentifiant($idPenalite, [
-                'id_statut_penalite' => 'PEN_REGLEE', // Statut réglé
-                'date_regularisation' => date('Y-m-d'),
-                // Ajouter le numéro du personnel traitant si besoin dans la table penalite
+                'id_statut_penalite' => 'PEN_REGLEE',
+                'date_regularisation' => date('Y-m-d H:i:s'),
+                'numero_personnel_traitant' => $numeroPersonnelAdministratif
             ]);
 
             if (!$success) {
@@ -495,66 +460,56 @@ class ServiceGestionAcademique implements ServiceGestionAcademiqueInterface
             return true;
         } catch (\Exception $e) {
             $this->penaliteModel->annulerTransaction();
-            $this->supervisionService->enregistrerAction(
-                $numeroPersonnelAdministratif,
-                'ECHEC_REGULARISATION_PENALITE',
-                "Erreur régularisation pénalité {$idPenalite}: " . $e->getMessage()
-            );
             throw $e;
         }
     }
 
-    /**
-     * Vérifie si un étudiant est éligible à la soumission d'un rapport (inscription, stage validé, pénalités régularisées).
-     * @param string $numeroCarteEtudiant Le numéro de carte de l'étudiant.
-     * @param string $idAnneeAcademique L'ID de l'année académique actuelle.
-     * @return bool Vrai si l'étudiant est éligible, faux sinon.
-     */
-    public function estEtudiantEligibleSoumission(string $numeroCarteEtudiant, string $idAnneeAcademique): bool
+    public function listerPenalites(array $criteres = [], int $page = 1, int $elementsParPage = 20): array
     {
-        $etudiant = $this->etudiantModel->trouverParIdentifiant($numeroCarteEtudiant);
-        if (!$etudiant) {
-            return false; // Étudiant non trouvé
-        }
-
-        // 1. Vérifier l'inscription pour l'année académique en cours
-        $inscription = $this->inscrireModel->trouverParCleComposite($numeroCarteEtudiant, $etudiant['id_niveau_etude'] ?? '', $idAnneeAcademique);
-        // Assurez-vous que l'étudiant a un champ 'id_niveau_etude' ou qu'il est récupéré via une autre méthode d'inscription
-        if (!$inscription || $inscription['id_statut_paiement'] !== 'PAIE_OK') {
-            return false; // Non inscrit ou paiement non réglé
-        }
-
-        // 2. Vérifier la validation du stage (présence d'un stage et son statut si géré)
-        $stages = $this->faireStageModel->trouverParCritere(['numero_carte_etudiant' => $numeroCarteEtudiant]);
-        // On suppose qu'il doit y avoir au moins un stage enregistré et 'validé' si un champ statut_stage existait
-        if (empty($stages)) {
-            return false; // Aucun stage enregistré
-        }
-        // Si la table faire_stage avait un statut de validation, il faudrait le vérifier ici.
-        // Ex: $stageValide = array_filter($stages, fn($s) => $s['statut_stage'] === 'VALIDE'); if(empty($stageValide)) return false;
-
-
-        // 3. Vérifier les pénalités non régularisées
-        $penalitesNonRegul = $this->penaliteModel->trouverPenalitesNonRegul($numeroCarteEtudiant);
-        if (!empty($penalitesNonRegul)) {
-            return false; // Pénalités non régularisées
-        }
-
-        return true; // Tous les critères sont remplis
+        $offset = ($page - 1) * $elementsParPage;
+        return $this->penaliteModel->trouverParCritere($criteres, ['*'], 'AND', null, $elementsParPage, $offset);
     }
 
+    public function listerPenalitesEtudiant(string $numeroCarteEtudiant): array
+    {
+        return $this->listerPenalites(['numero_carte_etudiant' => $numeroCarteEtudiant]);
+    }
 
-    // --- GESTION DES CARRIÈRES ENSEIGNANTS (GRADES, FONCTIONS, SPÉCIALITÉS) ---
+    public function detecterEtAppliquerPenalitesAutomatiquement(): int
+    {
+        $etudiantsEnRetard = $this->etudiantModel->trouverParCritere([]); // Logique de détection à affiner
+        $count = 0;
+        foreach ($etudiantsEnRetard as $etudiant) {
+            try {
+                $this->appliquerPenalite($etudiant['numero_carte_etudiant'], 100.00, "Retard de soumission automatique");
+                $count++;
+            } catch (\Exception $e) {
+                error_log("Échec de l'application de pénalité automatique pour {$etudiant['numero_carte_etudiant']}: " . $e->getMessage());
+            }
+        }
+        return $count;
+    }
 
-    /**
-     * Lie un grade à un enseignant (historise l'acquisition d'un grade).
-     * @param string $idGrade L'ID du grade.
-     * @param string $numeroEnseignant Le numéro de l'enseignant.
-     * @param string $dateAcquisition Date d'acquisition (YYYY-MM-DD).
-     * @return bool Vrai si l'opération a réussi.
-     * @throws ElementNonTrouveException Si grade ou enseignant non trouvé.
-     * @throws DoublonException Si l'acquisition existe déjà.
-     */
+    public function estEtudiantEligibleSoumission(string $numeroCarteEtudiant, string $idAnneeAcademique): bool
+    {
+        $inscription = $this->inscrireModel->trouverUnParCritere(['numero_carte_etudiant' => $numeroCarteEtudiant, 'id_annee_academique' => $idAnneeAcademique]);
+        if (!$inscription || $inscription['id_statut_paiement'] !== 'PAIE_OK') {
+            return false;
+        }
+
+        $stage = $this->faireStageModel->trouverUnParCritere(['numero_carte_etudiant' => $numeroCarteEtudiant, 'statut_stage' => 'VALIDE']);
+        if (!$stage) {
+            return false;
+        }
+
+        $penalitesNonRegul = $this->penaliteModel->trouverPenalitesNonRegul($numeroCarteEtudiant);
+        if (!empty($penalitesNonRegul)) {
+            return false;
+        }
+
+        return true;
+    }
+
     public function lierGradeAEnseignant(string $idGrade, string $numeroEnseignant, string $dateAcquisition): bool
     {
         $this->acquerirModel->commencerTransaction();
@@ -565,9 +520,8 @@ class ServiceGestionAcademique implements ServiceGestionAcademiqueInterface
             if (!$this->enseignantModel->trouverParIdentifiant($numeroEnseignant)) {
                 throw new ElementNonTrouveException("Enseignant non trouvé.");
             }
-            // Vérifier si cette acquisition de grade existe déjà pour cette date ou si déjà un grade supérieur (logique métier)
             if ($this->acquerirModel->trouverAcquisitionParCles($idGrade, $numeroEnseignant)) {
-                throw new DoublonException("L'enseignant a déjà acquis ce grade à cette date.");
+                throw new DoublonException("L'enseignant a déjà acquis ce grade.");
             }
 
             $success = $this->acquerirModel->creer([
@@ -582,32 +536,15 @@ class ServiceGestionAcademique implements ServiceGestionAcademiqueInterface
             $this->supervisionService->enregistrerAction(
                 $_SESSION['user_id'] ?? 'SYSTEM',
                 'LIER_GRADE_ENSEIGNANT',
-                "Grade '{$idGrade}' lié à l'enseignant {$numeroEnseignant}",
-                $numeroEnseignant,
-                'Enseignant'
+                "Grade '{$idGrade}' lié à l'enseignant {$numeroEnseignant}"
             );
             return true;
         } catch (\Exception $e) {
             $this->acquerirModel->annulerTransaction();
-            $this->supervisionService->enregistrerAction(
-                $_SESSION['user_id'] ?? 'SYSTEM',
-                'ECHEC_LIER_GRADE_ENSEIGNANT',
-                "Erreur liaison grade à enseignant {$numeroEnseignant}: " . $e->getMessage()
-            );
             throw $e;
         }
     }
 
-    /**
-     * Lie une fonction à un enseignant (historise l'occupation d'une fonction).
-     * @param string $idFonction L'ID de la fonction.
-     * @param string $numeroEnseignant Le numéro de l'enseignant.
-     * @param string $dateDebutOccupation Date de début de l'occupation (YYYY-MM-DD).
-     * @param string|null $dateFinOccupation Date de fin de l'occupation (YYYY-MM-DD).
-     * @return bool Vrai si l'opération a réussi.
-     * @throws ElementNonTrouveException Si fonction ou enseignant non trouvé.
-     * @throws DoublonException Si l'occupation existe déjà.
-     */
     public function lierFonctionAEnseignant(string $idFonction, string $numeroEnseignant, string $dateDebutOccupation, ?string $dateFinOccupation = null): bool
     {
         $this->occuperModel->commencerTransaction();
@@ -618,10 +555,11 @@ class ServiceGestionAcademique implements ServiceGestionAcademiqueInterface
             if (!$this->enseignantModel->trouverParIdentifiant($numeroEnseignant)) {
                 throw new ElementNonTrouveException("Enseignant non trouvé.");
             }
-            // Vérifier si cette occupation existe déjà
-            if ($this->occuperModel->trouverOccupationParCles($idFonction, $numeroEnseignant)) { // Peut-être vérifier par date aussi si plusieurs fois la même fonction.
-                throw new DoublonException("L'enseignant occupe déjà cette fonction.");
-            }
+
+            $this->occuperModel->mettreAJourParCritere(
+                ['numero_enseignant' => $numeroEnseignant, 'date_fin_occupation' => null],
+                ['date_fin_occupation' => date('Y-m-d')]
+            );
 
             $success = $this->occuperModel->creer([
                 'id_fonction' => $idFonction,
@@ -636,30 +574,15 @@ class ServiceGestionAcademique implements ServiceGestionAcademiqueInterface
             $this->supervisionService->enregistrerAction(
                 $_SESSION['user_id'] ?? 'SYSTEM',
                 'LIER_FONCTION_ENSEIGNANT',
-                "Fonction '{$idFonction}' liée à l'enseignant {$numeroEnseignant}",
-                $numeroEnseignant,
-                'Enseignant'
+                "Fonction '{$idFonction}' liée à l'enseignant {$numeroEnseignant}"
             );
             return true;
         } catch (\Exception $e) {
             $this->occuperModel->annulerTransaction();
-            $this->supervisionService->enregistrerAction(
-                $_SESSION['user_id'] ?? 'SYSTEM',
-                'ECHEC_LIER_FONCTION_ENSEIGNANT',
-                "Erreur liaison fonction à enseignant {$numeroEnseignant}: " . $e->getMessage()
-            );
             throw $e;
         }
     }
 
-    /**
-     * Lie une spécialité à un enseignant.
-     * @param string $idSpecialite L'ID de la spécialité.
-     * @param string $numeroEnseignant Le numéro de l'enseignant.
-     * @return bool Vrai si l'opération a réussi.
-     * @throws ElementNonTrouveException Si spécialité ou enseignant non trouvé.
-     * @throws DoublonException Si l'enseignant a déjà cette spécialité.
-     */
     public function lierSpecialiteAEnseignant(string $idSpecialite, string $numeroEnseignant): bool
     {
         $this->attribuerModel->commencerTransaction();
@@ -670,7 +593,6 @@ class ServiceGestionAcademique implements ServiceGestionAcademiqueInterface
             if (!$this->enseignantModel->trouverParIdentifiant($numeroEnseignant)) {
                 throw new ElementNonTrouveException("Enseignant non trouvé.");
             }
-            // Vérifier si cette spécialité est déjà attribuée à l'enseignant
             if ($this->attribuerModel->trouverAttributionParCles($numeroEnseignant, $idSpecialite)) {
                 throw new DoublonException("L'enseignant a déjà cette spécialité.");
             }
@@ -686,57 +608,12 @@ class ServiceGestionAcademique implements ServiceGestionAcademiqueInterface
             $this->supervisionService->enregistrerAction(
                 $_SESSION['user_id'] ?? 'SYSTEM',
                 'LIER_SPECIALITE_ENSEIGNANT',
-                "Spécialité '{$idSpecialite}' liée à l'enseignant {$numeroEnseignant}",
-                $numeroEnseignant,
-                'Enseignant'
+                "Spécialité '{$idSpecialite}' liée à l'enseignant {$numeroEnseignant}"
             );
             return true;
         } catch (\Exception $e) {
             $this->attribuerModel->annulerTransaction();
-            $this->supervisionService->enregistrerAction(
-                $_SESSION['user_id'] ?? 'SYSTEM',
-                'ECHEC_LIER_SPECIALITE_ENSEIGNANT',
-                "Erreur liaison spécialité à enseignant {$numeroEnseignant}: " . $e->getMessage()
-            );
             throw $e;
         }
-    }
-
-    /**
-     * Liste les notes enregistrées, avec filtres et pagination.
-     * @param array $criteres Critères de filtre.
-     * @param int $page Numéro de page.
-     * @param int $elementsParPage Nombre d'éléments par page.
-     * @return array Liste des notes.
-     */
-    public function listerNotes(array $criteres = [], int $page = 1, int $elementsParPage = 20): array
-    {
-        $offset = ($page - 1) * $elementsParPage;
-        // Pour des données complètes, cette méthode pourrait joindre etudiant, ecue, etc.
-        return $this->evaluerModel->trouverParCritere($criteres, ['*'], 'AND', null, $elementsParPage, $offset);
-    }
-
-    /**
-     * Liste les pénalités pour un étudiant ou selon d'autres critères.
-     * @param array $criteres Critères de filtre (ex: ['numero_carte_etudiant' => 'ETU-2025-001']).
-     * @param int $page Numéro de page.
-     * @param int $elementsParPage Nombre d'éléments par page.
-     * @return array Liste des pénalités.
-     */
-    public function listerPenalites(array $criteres = [], int $page = 1, int $elementsParPage = 20): array
-    {
-        $offset = ($page - 1) * $elementsParPage;
-        // Pour des données complètes, cette méthode pourrait joindre etudiant, statut_penalite_ref, etc.
-        return $this->penaliteModel->trouverParCritere($criteres, ['*'], 'AND', null, $elementsParPage, $offset);
-    }
-
-    /**
-     * Liste les pénalités pour un étudiant spécifique.
-     * @param string $numeroCarteEtudiant Le numéro de carte de l'étudiant.
-     * @return array Liste des pénalités trouvées pour cet étudiant.
-     */
-    public function listerPenalitesEtudiant(string $numeroCarteEtudiant): array // <-- NOUVELLE MÉTHODE
-    {
-        return $this->listerPenalites(['numero_carte_etudiant' => $numeroCarteEtudiant]);
     }
 }

@@ -1,7 +1,7 @@
 <?php
 namespace App\Backend\Controller;
 
-use App\Backend\Service\Authentication\ServiceAuthentification;
+use App\Backend\Service\Authentication\ServiceAuthentication;
 use App\Backend\Service\Permissions\ServicePermissions;
 use App\Backend\Util\FormValidator;
 use App\Backend\Exception\ElementNonTrouveException;
@@ -13,9 +13,9 @@ class DashboardController extends BaseController
     // à moins d'avoir besoin de les réassigner pour un accès plus direct.
 
     public function __construct(
-        ServiceAuthentification $authService,
-        ServicePermissions $permissionService,
-        FormValidator $validator
+        ServiceAuthentication $authService,
+        ServicePermissions    $permissionService,
+        FormValidator         $validator
     ) {
         parent::__construct($authService, $permissionService, $validator);
     }

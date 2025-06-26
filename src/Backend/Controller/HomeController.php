@@ -1,16 +1,16 @@
 <?php
 namespace App\Backend\Controller;
 
-use App\Backend\Service\Authentication\ServiceAuthentification;
+use App\Backend\Service\Authentication\ServiceAuthentication;
 use App\Backend\Service\Permissions\ServicePermissions;
 use App\Backend\Util\FormValidator;
 
 class HomeController extends BaseController
 {
     public function __construct(
-        ServiceAuthentification $authService,
-        ServicePermissions $permissionService,
-        FormValidator $validator
+        ServiceAuthentication $authService,
+        ServicePermissions    $permissionService,
+        FormValidator         $validator
     ) {
         parent::__construct($authService, $permissionService, $validator);
     }

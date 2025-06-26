@@ -2,7 +2,7 @@
 namespace App\Backend\Controller\Etudiant;
 
 use App\Backend\Controller\BaseController;
-use App\Backend\Service\Authentication\ServiceAuthentification;
+use App\Backend\Service\Authentication\ServiceAuthentication;
 use App\Backend\Service\Permissions\ServicePermissions;
 use App\Backend\Util\FormValidator;
 use App\Backend\Service\Reclamation\ServiceReclamation; // Importer le service
@@ -17,10 +17,10 @@ class ReclamationEtudiantController extends BaseController
     private ServiceConfigurationSysteme $configService; // Pour les référentiels de réclamation
 
     public function __construct(
-        ServiceAuthentification $authService,
-        ServicePermissions $permissionService,
-        FormValidator $validator,
-        ServiceReclamation $reclamationService,
+        ServiceAuthentication       $authService,
+        ServicePermissions          $permissionService,
+        FormValidator               $validator,
+        ServiceReclamation          $reclamationService,
         ServiceConfigurationSysteme $configService
     ) {
         parent::__construct($authService, $permissionService, $validator);

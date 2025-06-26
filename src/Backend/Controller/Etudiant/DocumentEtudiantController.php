@@ -2,7 +2,7 @@
 namespace App\Backend\Controller\Etudiant;
 
 use App\Backend\Controller\BaseController;
-use App\Backend\Service\Authentication\ServiceAuthentification;
+use App\Backend\Service\Authentication\ServiceAuthentication;
 use App\Backend\Service\Permissions\ServicePermissions;
 use App\Backend\Util\FormValidator;
 use App\Backend\Service\DocumentGenerator\ServiceDocumentGenerator; // Importer le service
@@ -14,9 +14,9 @@ class DocumentEtudiantController extends BaseController
     private ServiceDocumentGenerator $documentGeneratorService;
 
     public function __construct(
-        ServiceAuthentification $authService,
-        ServicePermissions $permissionService,
-        FormValidator $validator,
+        ServiceAuthentication    $authService,
+        ServicePermissions       $permissionService,
+        FormValidator            $validator,
         ServiceDocumentGenerator $documentGeneratorService // Injection
     ) {
         parent::__construct($authService, $permissionService, $validator);

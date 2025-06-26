@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Backend\Model;
 
 use PDO;
@@ -104,8 +105,8 @@ class Utilisateur extends BaseModel
      */
     public function mettreAJourChamps(string $numeroUtilisateur, array $champsValeurs): bool
     {
-        // CORRECTION APPLIQUÉE :
-        // On utilise la méthode de BaseModel conçue pour les clés primaires simples.
+        // CORRECTION : Utiliser la méthode de BaseModel conçue pour les clés primaires simples.
+        // C'est plus sûr et sémantiquement correct.
         return $this->mettreAJourParIdentifiant($numeroUtilisateur, $champsValeurs);
     }
 

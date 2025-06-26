@@ -2,7 +2,7 @@
 namespace App\Backend\Controller\Commission;
 
 use App\Backend\Controller\BaseController;
-use App\Backend\Service\Authentication\ServiceAuthentification;
+use App\Backend\Service\Authentication\ServiceAuthentication;
 use App\Backend\Service\Permissions\ServicePermissions;
 use App\Backend\Util\FormValidator;
 use App\Backend\Service\Commission\ServiceCommission; // Importer le service
@@ -15,11 +15,11 @@ class CommissionDashboardController extends BaseController
     private ServiceNotification $notificationService;
 
     public function __construct(
-        ServiceAuthentification $authService,
-        ServicePermissions $permissionService,
-        FormValidator $validator,
-        ServiceCommission $commissionService, // Injection
-        ServiceNotification $notificationService // Injection
+        ServiceAuthentication $authService,
+        ServicePermissions    $permissionService,
+        FormValidator         $validator,
+        ServiceCommission     $commissionService, // Injection
+        ServiceNotification   $notificationService // Injection
     ) {
         parent::__construct($authService, $permissionService, $validator);
         $this->commissionService = $commissionService;

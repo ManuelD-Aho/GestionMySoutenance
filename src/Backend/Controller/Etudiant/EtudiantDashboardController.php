@@ -2,7 +2,7 @@
 namespace App\Backend\Controller\Etudiant;
 
 use App\Backend\Controller\BaseController;
-use App\Backend\Service\Authentication\ServiceAuthentification;
+use App\Backend\Service\Authentication\ServiceAuthentication;
 use App\Backend\Service\Permissions\ServicePermissions;
 use App\Backend\Util\FormValidator;
 use App\Backend\Service\Rapport\ServiceRapport; // Importer le service
@@ -22,13 +22,13 @@ class EtudiantDashboardController extends BaseController
     private ServiceConfigurationSysteme $configService;
 
     public function __construct(
-        ServiceAuthentification $authService,
-        ServicePermissions $permissionService,
-        FormValidator $validator,
-        ServiceRapport $rapportService,
-        ServiceNotification $notificationService,
-        ServiceReclamation $reclamationService,
-        ServiceGestionAcademique $gestionAcadService,
+        ServiceAuthentication       $authService,
+        ServicePermissions          $permissionService,
+        FormValidator               $validator,
+        ServiceRapport              $rapportService,
+        ServiceNotification         $notificationService,
+        ServiceReclamation          $reclamationService,
+        ServiceGestionAcademique    $gestionAcadService,
         ServiceConfigurationSysteme $configService
     ) {
         parent::__construct($authService, $permissionService, $validator);

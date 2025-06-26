@@ -2,7 +2,7 @@
 namespace App\Backend\Controller\Common;
 
 use App\Backend\Controller\BaseController;
-use App\Backend\Service\Authentication\ServiceAuthentification;
+use App\Backend\Service\Authentication\ServiceAuthentication;
 use App\Backend\Service\Permissions\ServicePermissions;
 use App\Backend\Util\FormValidator;
 use App\Backend\Service\Notification\ServiceNotification; // Importer le service
@@ -14,10 +14,10 @@ class NotificationController extends BaseController
     private ServiceNotification $notificationService;
 
     public function __construct(
-        ServiceAuthentification $authService,
-        ServicePermissions $permissionService,
-        FormValidator $validator,
-        ServiceNotification $notificationService // Injection
+        ServiceAuthentication $authService,
+        ServicePermissions    $permissionService,
+        FormValidator         $validator,
+        ServiceNotification   $notificationService // Injection
     ) {
         parent::__construct($authService, $permissionService, $validator);
         $this->notificationService = $notificationService;

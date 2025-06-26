@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Backend\Model;
 
 use PDO;
@@ -6,8 +7,8 @@ use PDO;
 class Recevoir extends BaseModel
 {
     protected string $table = 'recevoir';
-    // La clé primaire est composite et contient des VARCHAR/DATETIME (string en PHP)
-    protected string|array $primaryKey = ['numero_utilisateur', 'id_notification', 'date_reception'];
+    // CORRECTION : La clé primaire est 'id_reception' (VARCHAR) selon la DDL, et non une clé composite.
+    protected string|array $primaryKey = 'id_reception';
 
     public function __construct(PDO $db)
     {
@@ -15,14 +16,15 @@ class Recevoir extends BaseModel
     }
 
     /**
-     * Trouve une entrée de réception de notification spécifique par ses clés composées.
+     * Trouve une entrée de réception de notification spécifique par ses clés logiques.
+     * NOTE : Cette méthode reste utile pour la logique métier, mais n'utilise pas la clé primaire de la table.
      * @param string $numeroUtilisateur Le numéro de l'utilisateur.
      * @param string $idNotification L'ID de la notification.
      * @param string $dateReception La date et heure de réception (format YYYY-MM-DD HH:MM:SS).
      * @param array $colonnes Les colonnes à sélectionner.
      * @return array|null Les données de réception ou null si non trouvée.
      */
-    public function trouverReceptionParCles(string $numeroUtilisateur, string $idNotification, string $dateReception, array $colonnes = ['*']): ?array
+    public function trouverReceptionParClesLogiques(string $numeroUtilisateur, string $idNotification, string $dateReception, array $colonnes = ['*']): ?array
     {
         return $this->trouverUnParCritere([
             'numero_utilisateur' => $numeroUtilisateur,
@@ -32,35 +34,23 @@ class Recevoir extends BaseModel
     }
 
     /**
-     * Met à jour une entrée de réception de notification spécifique par ses clés composées.
-     * @param string $numeroUtilisateur Le numéro de l'utilisateur.
-     * @param string $idNotification L'ID de la notification.
-     * @param string $dateReception La date et heure de réception.
+     * Met à jour une entrée de réception de notification spécifique par sa clé primaire.
+     * @param string $idReception L'ID de la réception.
      * @param array $donnees Les données à mettre à jour.
      * @return bool Vrai si la mise à jour a réussi, faux sinon.
      */
-    public function mettreAJourReceptionParCles(string $numeroUtilisateur, string $idNotification, string $dateReception, array $donnees): bool
+    public function mettreAJourReception(string $idReception, array $donnees): bool
     {
-        return $this->mettreAJourParClesInternes([
-            'numero_utilisateur' => $numeroUtilisateur,
-            'id_notification' => $idNotification,
-            'date_reception' => $dateReception
-        ], $donnees);
+        return $this->mettreAJourParIdentifiant($idReception, $donnees);
     }
 
     /**
-     * Supprime une entrée de réception de notification spécifique par ses clés composées.
-     * @param string $numeroUtilisateur Le numéro de l'utilisateur.
-     * @param string $idNotification L'ID de la notification.
-     * @param string $dateReception La date et heure de réception.
+     * Supprime une entrée de réception de notification spécifique par sa clé primaire.
+     * @param string $idReception L'ID de la réception.
      * @return bool Vrai si la suppression a réussi, faux sinon.
      */
-    public function supprimerReceptionParCles(string $numeroUtilisateur, string $idNotification, string $dateReception): bool
+    public function supprimerReception(string $idReception): bool
     {
-        return $this->supprimerParClesInternes([
-            'numero_utilisateur' => $numeroUtilisateur,
-            'id_notification' => $idNotification,
-            'date_reception' => $dateReception
-        ]);
+        return $this->supprimerParIdentifiant($idReception);
     }
 }

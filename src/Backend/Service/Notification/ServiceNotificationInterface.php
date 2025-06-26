@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Backend\Service\Notification;
 
 interface ServiceNotificationInterface
@@ -33,13 +34,11 @@ interface ServiceNotificationInterface
 
     /**
      * Marque une notification spécifique comme lue pour un utilisateur.
-     * @param string $numeroUtilisateur Le numéro de l'utilisateur.
-     * @param string $idNotificationTemplate L'ID du modèle de notification.
-     * @param string $dateReception La date exacte de réception de la notification à marquer (clé composée).
+     * @param string $idReception L'ID de la réception de la notification.
      * @return bool Vrai si la notification a été marquée comme lue.
      * @throws \Exception En cas d'erreur.
      */
-    public function marquerNotificationCommeLue(string $numeroUtilisateur, string $idNotificationTemplate, string $dateReception): bool;
+    public function marquerNotificationCommeLue(string $idReception): bool;
 
     /**
      * Compte le nombre de notifications non lues pour un utilisateur.

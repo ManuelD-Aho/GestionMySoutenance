@@ -2,7 +2,7 @@
 namespace App\Backend\Controller\Etudiant;
 
 use App\Backend\Controller\BaseController;
-use App\Backend\Service\Authentication\ServiceAuthentification;
+use App\Backend\Service\Authentication\ServiceAuthentication;
 use App\Backend\Service\Permissions\ServicePermissions;
 use App\Backend\Util\FormValidator;
 use App\Backend\Exception\ElementNonTrouveException;
@@ -12,12 +12,12 @@ use App\Backend\Exception\ValidationException;
 
 class ProfilEtudiantController extends BaseController
 {
-    protected ServiceAuthentification $authService;
+    protected ServiceAuthentication $authService;
 
     public function __construct(
-        ServiceAuthentification $authService,
-        ServicePermissions $permissionService,
-        FormValidator $validator
+        ServiceAuthentication $authService,
+        ServicePermissions    $permissionService,
+        FormValidator         $validator
     ) {
         parent::__construct($authService, $permissionService, $validator);
         $this->authService = $authService; // Réassignation pour un accès direct

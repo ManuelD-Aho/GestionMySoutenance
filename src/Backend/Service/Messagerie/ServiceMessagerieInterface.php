@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Backend\Service\Messagerie;
 
 interface ServiceMessagerieInterface
@@ -74,4 +75,19 @@ interface ServiceMessagerieInterface
      * @throws \Exception En cas d'erreur.
      */
     public function retirerParticipant(string $idConversation, array $numerosUtilisateurs): bool;
+
+    /**
+     * Récupère les détails d'une conversation spécifique par son ID.
+     * @param string $idConversation L'ID de la conversation.
+     * @return array|null Les détails de la conversation ou null si non trouvée.
+     */
+    public function getConversationDetails(string $idConversation): ?array;
+
+    /**
+     * Vérifie si un utilisateur est participant d'une conversation donnée.
+     * @param string $idConversation L'ID de la conversation.
+     * @param string $numeroUtilisateur Le numéro de l'utilisateur.
+     * @return bool Vrai si l'utilisateur est participant, faux sinon.
+     */
+    public function estParticipant(string $idConversation, string $numeroUtilisateur): bool;
 }

@@ -2,7 +2,7 @@
 namespace App\Backend\Controller\Administration;
 
 use App\Backend\Controller\BaseController;
-use App\Backend\Service\Authentication\ServiceAuthentification;
+use App\Backend\Service\Authentication\ServiceAuthentication;
 use App\Backend\Service\Permissions\ServicePermissions;
 use App\Backend\Util\FormValidator;
 use App\Backend\Service\SupervisionAdmin\ServiceSupervisionAdmin; // Importer le service
@@ -14,9 +14,9 @@ class SupervisionController extends BaseController
     private ServiceSupervisionAdmin $supervisionService;
 
     public function __construct(
-        ServiceAuthentification $authService,
-        ServicePermissions $permissionService,
-        FormValidator $validator,
+        ServiceAuthentication   $authService,
+        ServicePermissions      $permissionService,
+        FormValidator           $validator,
         ServiceSupervisionAdmin $supervisionService // Injection
     ) {
         parent::__construct($authService, $permissionService, $validator);

@@ -1,7 +1,7 @@
 <?php
 namespace App\Backend\Controller;
 
-use App\Backend\Service\Authentication\ServiceAuthentification;
+use App\Backend\Service\Authentication\ServiceAuthentication;
 use App\Backend\Service\Permissions\ServicePermissions;
 use App\Backend\Util\FormValidator;
 use App\Backend\Exception\PermissionException; // Importez l'exception de permission
@@ -10,7 +10,7 @@ use Dotenv\Exception;
 
 abstract class BaseController
 {
-    protected ServiceAuthentification $authService;
+    protected ServiceAuthentication $authService;
     protected ServicePermissions $permissionService;
     protected FormValidator $validator; // Injection du FormValidator
 
@@ -21,9 +21,9 @@ abstract class BaseController
 
 
     public function __construct(
-        ServiceAuthentification $authService,
-        ServicePermissions $permissionService,
-        FormValidator $validator // Injectez le FormValidator
+        ServiceAuthentication $authService,
+        ServicePermissions    $permissionService,
+        FormValidator         $validator // Injectez le FormValidator
     ) {
         $this->authService = $authService;
         $this->permissionService = $permissionService;

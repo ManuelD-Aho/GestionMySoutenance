@@ -2,7 +2,7 @@
 namespace App\Backend\Controller\Commission;
 
 use App\Backend\Controller\BaseController;
-use App\Backend\Service\Authentication\ServiceAuthentification;
+use App\Backend\Service\Authentication\ServiceAuthentication;
 use App\Backend\Service\Permissions\ServicePermissions;
 use App\Backend\Service\Notification\ServiceNotification;
 use App\Backend\Util\FormValidator;
@@ -18,12 +18,12 @@ class CorrectionCommissionController extends BaseController
     private ServiceNotification $notificationService;// Pour vérifier les affectations du jury
 
     public function __construct(
-        ServiceAuthentification $authService,
-        ServicePermissions $permissionService,
-        FormValidator $validator,
-        ServiceRapport $rapportService, // Injection
-        ServiceCommission $commissionService, // Injection
-        ServiceNotification $notificationService  // Si vous avez besoin de notifier les étudiants
+        ServiceAuthentication $authService,
+        ServicePermissions    $permissionService,
+        FormValidator         $validator,
+        ServiceRapport        $rapportService, // Injection
+        ServiceCommission     $commissionService, // Injection
+        ServiceNotification   $notificationService  // Si vous avez besoin de notifier les étudiants
     ) {
         parent::__construct($authService, $permissionService, $validator);
         $this->rapportService = $rapportService;

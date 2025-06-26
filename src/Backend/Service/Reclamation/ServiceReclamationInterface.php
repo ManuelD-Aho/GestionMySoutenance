@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Backend\Service\Reclamation;
 
 interface ServiceReclamationInterface
@@ -12,6 +13,13 @@ interface ServiceReclamationInterface
      * @throws \Exception En cas d'erreur.
      */
     public function soumettreReclamation(string $numeroCarteEtudiant, string $sujetReclamation, string $descriptionReclamation): string;
+
+    /**
+     * Récupère les détails d'une réclamation spécifique par son ID.
+     * @param string $idReclamation L'ID de la réclamation.
+     * @return array|null Les détails de la réclamation ou null si non trouvée.
+     */
+    public function getDetailsReclamation(string $idReclamation): ?array;
 
     /**
      * Récupère toutes les réclamations pour un étudiant donné.

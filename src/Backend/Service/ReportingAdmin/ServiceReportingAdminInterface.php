@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Backend\Service\ReportingAdmin;
 
 interface ServiceReportingAdminInterface
@@ -12,9 +13,10 @@ interface ServiceReportingAdminInterface
 
     /**
      * Génère un rapport sur les délais moyens par étape du workflow de rapport.
+     * @param string|null $idAnneeAcademique L'ID de l'année académique pour filtrer.
      * @return array Tableau des délais moyens.
      */
-    public function genererRapportDelaisMoyensParEtape(): array;
+    public function genererRapportDelaisMoyensParEtape(?string $idAnneeAcademique = null): array;
 
     /**
      * Génère des statistiques globales d'utilisation du système.

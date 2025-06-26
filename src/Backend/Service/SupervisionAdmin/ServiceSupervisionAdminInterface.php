@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Backend\Service\SupervisionAdmin;
 
 interface ServiceSupervisionAdminInterface

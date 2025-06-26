@@ -3,7 +3,7 @@ namespace App\Backend\Controller\PersonnelAdministratif;
 
 use App\Backend\Controller\BaseController;
 use App\Backend\Exception\DoublonException;
-use App\Backend\Service\Authentication\ServiceAuthentification;
+use App\Backend\Service\Authentication\ServiceAuthentication;
 use App\Backend\Service\Permissions\ServicePermissions;
 use App\Backend\Util\FormValidator;
 use App\Backend\Service\Conformite\ServiceConformite; // Importer le service
@@ -20,11 +20,11 @@ class ConformiteController extends BaseController
     private ServiceConfigurationSysteme $configService;
 
     public function __construct(
-        ServiceAuthentification $authService,
-        ServicePermissions $permissionService,
-        FormValidator $validator,
-        ServiceConformite $conformiteService,
-        ServiceRapport $rapportService,
+        ServiceAuthentication       $authService,
+        ServicePermissions          $permissionService,
+        FormValidator               $validator,
+        ServiceConformite           $conformiteService,
+        ServiceRapport              $rapportService,
         ServiceConfigurationSysteme $configService
     ) {
         parent::__construct($authService, $permissionService, $validator);

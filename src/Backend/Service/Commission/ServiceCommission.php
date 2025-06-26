@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Backend\Service\Commission;
 
 use PDO;
@@ -11,13 +12,13 @@ use App\Backend\Model\RapportEtudiant;
 use App\Backend\Model\DecisionVoteRef;
 use App\Backend\Model\DecisionValidationPvRef;
 use App\Backend\Model\StatutRapportRef;
-use App\Backend\Model\SessionValidation; // Nouveau modèle
-use App\Backend\Model\SessionRapport; // Nouveau modèle
-use App\Backend\Model\Utilisateur; // Pour récupérer le nombre de membres de la commission si besoin
-use App\Backend\Service\Notification\ServiceNotification; // Pour les notifications
-use App\Backend\Service\DocumentGenerator\ServiceDocumentGenerator; // Pour la génération de PV
-use App\Backend\Service\SupervisionAdmin\ServiceSupervisionAdmin; // Pour journalisation
-use App\Backend\Service\IdentifiantGenerator\IdentifiantGenerator; // Pour générer les IDs de session/vote
+use App\Backend\Model\SessionValidation;
+use App\Backend\Model\SessionRapport;
+use App\Backend\Model\Utilisateur;
+use App\Backend\Service\Notification\ServiceNotificationInterface;
+use App\Backend\Service\DocumentGenerator\ServiceDocumentGeneratorInterface;
+use App\Backend\Service\SupervisionAdmin\ServiceSupervisionAdminInterface;
+use App\Backend\Service\IdentifiantGenerator\IdentifiantGeneratorInterface;
 use App\Backend\Exception\ElementNonTrouveException;
 use App\Backend\Exception\OperationImpossibleException;
 use App\Backend\Exception\DoublonException;
@@ -33,68 +34,64 @@ class ServiceCommission implements ServiceCommissionInterface
     private DecisionVoteRef $decisionVoteRefModel;
     private DecisionValidationPvRef $decisionValidationPvRefModel;
     private StatutRapportRef $statutRapportRefModel;
-    private SessionValidation $sessionValidationModel; // Nouveau
-    private SessionRapport $sessionRapportModel; // Nouveau
-    private Utilisateur $utilisateurModel; // Utilisé pour compter les membres de la commission
-    private ServiceNotification $notificationService;
-    private ServiceDocumentGenerator $documentGenerator;
-    private ServiceSupervisionAdmin $supervisionService;
-    private IdentifiantGenerator $idGenerator;
-
+    private SessionValidation $sessionValidationModel;
+    private SessionRapport $sessionRapportModel;
+    private Utilisateur $utilisateurModel;
+    private ServiceNotificationInterface $notificationService;
+    private ServiceDocumentGeneratorInterface $documentGenerator;
+    private ServiceSupervisionAdminInterface $supervisionService;
+    private IdentifiantGeneratorInterface $idGenerator;
 
     public function __construct(
         PDO $db,
-        ServiceNotification $notificationService,
-        ServiceDocumentGenerator $documentGenerator,
-        ServiceSupervisionAdmin $supervisionService,
-        IdentifiantGenerator $idGenerator
+        Affecter $affecterModel,
+        VoteCommission $voteCommissionModel,
+        CompteRendu $compteRenduModel,
+        PvSessionRapport $pvSessionRapportModel,
+        ValidationPv $validationPvModel,
+        RapportEtudiant $rapportEtudiantModel,
+        DecisionVoteRef $decisionVoteRefModel,
+        DecisionValidationPvRef $decisionValidationPvRefModel,
+        StatutRapportRef $statutRapportRefModel,
+        SessionValidation $sessionValidationModel,
+        SessionRapport $sessionRapportModel,
+        Utilisateur $utilisateurModel,
+        ServiceNotificationInterface $notificationService,
+        ServiceDocumentGeneratorInterface $documentGenerator,
+        ServiceSupervisionAdminInterface $supervisionService,
+        IdentifiantGeneratorInterface $idGenerator
     ) {
-        $this->affecterModel = new Affecter($db);
-        $this->voteCommissionModel = new VoteCommission($db);
-        $this->compteRenduModel = new CompteRendu($db);
-        $this->pvSessionRapportModel = new PvSessionRapport($db);
-        $this->validationPvModel = new ValidationPv($db);
-        $this->rapportEtudiantModel = new RapportEtudiant($db);
-        $this->decisionVoteRefModel = new DecisionVoteRef($db);
-        $this->decisionValidationPvRefModel = new DecisionValidationPvRef($db);
-        $this->statutRapportRefModel = new StatutRapportRef($db);
-        $this->sessionValidationModel = new SessionValidation($db); // Initialisation
-        $this->sessionRapportModel = new SessionRapport($db); // Initialisation
-        $this->utilisateurModel = new Utilisateur($db); // Initialisation
-
-
+        $this->affecterModel = $affecterModel;
+        $this->voteCommissionModel = $voteCommissionModel;
+        $this->compteRenduModel = $compteRenduModel;
+        $this->pvSessionRapportModel = $pvSessionRapportModel;
+        $this->validationPvModel = $validationPvModel;
+        $this->rapportEtudiantModel = $rapportEtudiantModel;
+        $this->decisionVoteRefModel = $decisionVoteRefModel;
+        $this->decisionValidationPvRefModel = $decisionValidationPvRefModel;
+        $this->statutRapportRefModel = $statutRapportRefModel;
+        $this->sessionValidationModel = $sessionValidationModel;
+        $this->sessionRapportModel = $sessionRapportModel;
+        $this->utilisateurModel = $utilisateurModel;
         $this->notificationService = $notificationService;
         $this->documentGenerator = $documentGenerator;
         $this->supervisionService = $supervisionService;
         $this->idGenerator = $idGenerator;
     }
 
-    // --- GESTION DES SESSIONS DE VALIDATION ---
-
-    /**
-     * Crée une nouvelle session de validation de la commission.
-     * @param string $libelleSession Le libellé de la session.
-     * @param string $dateDebutSession La date et heure de début.
-     * @param string $dateFinPrevue La date et heure de fin prévue.
-     * @param string|null $numeroPresidentCommission Le numéro de l'enseignant président.
-     * @param array $idsRapports Initialement rattachés à la session.
-     * @return string L'ID de la session créée.
-     * @throws DoublonException Si une session avec le même libellé pour la même période existe.
-     * @throws \Exception En cas d'erreur de création.
-     */
     public function creerSessionValidation(string $libelleSession, string $dateDebutSession, string $dateFinPrevue, ?string $numeroPresidentCommission = null, array $idsRapports = []): string
     {
         $this->sessionValidationModel->commencerTransaction();
         try {
-            $idSession = $this->idGenerator->genererIdentifiantUnique('SESS'); // SESS-AAAA-SSSS
+            $idSession = $this->idGenerator->genererIdentifiantUnique('SESS');
 
             $data = [
                 'id_session' => $idSession,
-                'libelle_session' => $libelleSession,
+                'nom_session' => $libelleSession,
                 'date_debut_session' => $dateDebutSession,
                 'date_fin_prevue' => $dateFinPrevue,
-                'statut_session' => 'Planifiee',
-                'numero_president_commission' => $numeroPresidentCommission
+                'statut_session' => 'planifiee',
+                'id_president_session' => $numeroPresidentCommission
             ];
 
             if (!$this->sessionValidationModel->creer($data)) {
@@ -103,11 +100,9 @@ class ServiceCommission implements ServiceCommissionInterface
 
             if (!empty($idsRapports)) {
                 foreach ($idsRapports as $idRapport) {
-                    // Rattachement dans session_rapport
                     if (!$this->sessionRapportModel->creer(['id_session' => $idSession, 'id_rapport_etudiant' => $idRapport])) {
                         throw new OperationImpossibleException("Échec du rattachement du rapport {$idRapport} à la session {$idSession}.");
                     }
-                    // Mettre à jour le statut du rapport vers "En commission"
                     $this->rapportEtudiantModel->mettreAJourParIdentifiant($idRapport, ['id_statut_rapport' => 'RAP_EN_COMM']);
                 }
             }
@@ -121,38 +116,23 @@ class ServiceCommission implements ServiceCommissionInterface
                 'SessionValidation'
             );
             return $idSession;
-        } catch (DoublonException $e) {
-            $this->sessionValidationModel->annulerTransaction();
-            throw $e;
         } catch (\Exception $e) {
             $this->sessionValidationModel->annulerTransaction();
-            $this->supervisionService->enregistrerAction(
-                $numeroPresidentCommission ?? 'SYSTEM',
-                'ECHEC_CREATION_SESSION_VALIDATION',
-                "Erreur création session de validation: " . $e->getMessage()
-            );
             throw $e;
         }
     }
 
-    /**
-     * Démarre une session de validation, passant son statut à 'En cours'.
-     * @param string $idSession L'ID de la session.
-     * @return bool Vrai si la mise à jour a réussi.
-     * @throws ElementNonTrouveException Si la session n'est pas trouvée.
-     * @throws OperationImpossibleException Si la session est déjà en cours ou clôturée.
-     */
     public function demarrerSession(string $idSession): bool
     {
         $session = $this->sessionValidationModel->trouverParIdentifiant($idSession);
         if (!$session) {
             throw new ElementNonTrouveException("Session de validation non trouvée.");
         }
-        if ($session['statut_session'] !== 'Planifiee') {
-            throw new OperationImpossibleException("La session ne peut être démarrée que si son statut est 'Planifiee'.");
+        if ($session['statut_session'] !== 'planifiee') {
+            throw new OperationImpossibleException("La session ne peut être démarrée que si son statut est 'planifiee'.");
         }
 
-        $success = $this->sessionValidationModel->mettreAJourParIdentifiant($idSession, ['statut_session' => 'En cours']);
+        $success = $this->sessionValidationModel->mettreAJourParIdentifiant($idSession, ['statut_session' => 'en_cours']);
         if ($success) {
             $this->supervisionService->enregistrerAction(
                 $_SESSION['user_id'] ?? 'SYSTEM',
@@ -165,24 +145,16 @@ class ServiceCommission implements ServiceCommissionInterface
         return $success;
     }
 
-    /**
-     * Clôture une session de validation, passant son statut à 'Cloturee'.
-     * @param string $idSession L'ID de la session.
-     * @return bool Vrai si la mise à jour a réussi.
-     * @throws ElementNonTrouveException Si la session n'est pas trouvée.
-     * @throws OperationImpossibleException Si la session n'est pas 'En cours'.
-     */
     public function cloturerSession(string $idSession): bool
     {
         $session = $this->sessionValidationModel->trouverParIdentifiant($idSession);
         if (!$session) {
             throw new ElementNonTrouveException("Session de validation non trouvée.");
         }
-        if ($session['statut_session'] !== 'En cours') {
-            throw new OperationImpossibleException("La session ne peut être clôturée que si son statut est 'En cours'.");
+        if ($session['statut_session'] !== 'en_cours') {
+            throw new OperationImpossibleException("La session ne peut être clôturée que si son statut est 'en_cours'.");
         }
 
-        // Vérifier que tous les rapports de la session ont une décision finale (Validé/Refusé/Corrigé)
         $rapportsEnSession = $this->sessionRapportModel->trouverRapportsDansSession($idSession);
         foreach ($rapportsEnSession as $sr) {
             $rapport = $this->rapportEtudiantModel->trouverParIdentifiant($sr['id_rapport_etudiant'], ['id_statut_rapport']);
@@ -191,8 +163,7 @@ class ServiceCommission implements ServiceCommissionInterface
             }
         }
 
-
-        $success = $this->sessionValidationModel->mettreAJourParIdentifiant($idSession, ['statut_session' => 'Cloturee']);
+        $success = $this->sessionValidationModel->mettreAJourParIdentifiant($idSession, ['statut_session' => 'cloturee']);
         if ($success) {
             $this->supervisionService->enregistrerAction(
                 $_SESSION['user_id'] ?? 'SYSTEM',
@@ -205,46 +176,63 @@ class ServiceCommission implements ServiceCommissionInterface
         return $success;
     }
 
-    /**
-     * Récupère la liste des rapports assignés à un membre du jury pour une session donnée.
-     * @param string $numeroEnseignant Le numéro de l'enseignant.
-     * @param string|null $idSession L'ID de la session si spécifiée.
-     * @return array Liste des rapports.
-     */
-    public function recupererRapportsAssignedToJury(string $numeroEnseignant, ?string $idSession = null): array
+    public function listerSessionsValidation(array $criteres = []): array
     {
-        $criteres = ['numero_enseignant' => $numeroEnseignant];
-        if ($idSession) {
-            $criteres['id_session'] = $idSession; // Assurez-vous que Affecter a id_session ou joindre via session_rapport
-            // Implémentation réelle pourrait nécessiter une jointure complexe ici dans le model Affecter ou une méthode de service
-            // Pour simplifier ici, on suppose que Affecter a id_session ou on récupère les rapports de la session, puis on filtre par enseignant.
-        }
-        // Ceci est une simplification. Dans une vraie application, ServiceAffecter serait plus approprié ou une méthode de jointure
-        // dans AffecterModel pour récupérer les rapports complets.
-        $affectations = $this->affecterModel->trouverParCritere($criteres);
-
-        $rapports = [];
-        foreach ($affectations as $affectation) {
-            $rapports[] = $this->rapportEtudiantModel->trouverParIdentifiant($affectation['id_rapport_etudiant']);
-        }
-        return array_filter($rapports); // Filtrer les nulls
+        return $this->sessionValidationModel->trouverParCritere($criteres);
     }
 
+    public function prolongerSession(string $idSession, string $nouvelleDateFin): bool
+    {
+        $session = $this->sessionValidationModel->trouverParIdentifiant($idSession);
+        if (!$session) {
+            throw new ElementNonTrouveException("Session de validation non trouvée.");
+        }
+        if ($session['statut_session'] !== 'en_cours') {
+            throw new OperationImpossibleException("Seule une session en cours peut être prolongée.");
+        }
 
-    // --- ÉVALUATION ET VOTE SUR LES RAPPORTS ---
+        $success = $this->sessionValidationModel->mettreAJourParIdentifiant($idSession, ['date_fin_prevue' => $nouvelleDateFin]);
+        if ($success) {
+            $this->supervisionService->enregistrerAction(
+                $_SESSION['user_id'] ?? 'SYSTEM',
+                'PROLONGATION_SESSION',
+                "Session '{$idSession}' prolongée jusqu'au {$nouvelleDateFin}",
+                $idSession,
+                'SessionValidation'
+            );
+        }
+        return $success;
+    }
 
-    /**
-     * Enregistre le vote d'un membre de la commission pour un rapport.
-     * @param string $idRapportEtudiant L'ID du rapport.
-     * @param string $numeroEnseignant Le numéro de l'enseignant votant.
-     * @param string $idDecisionVote L'ID de la décision de vote (ex: 'DV_APPROUVE', 'DV_REFUSE').
-     * @param string|null $commentaireVote Le commentaire associé au vote.
-     * @param int $tourVote Le tour de vote actuel.
-     * @param string|null $idSession L'ID de la session si le vote est rattaché à une session.
-     * @return bool Vrai si le vote est enregistré.
-     * @throws ElementNonTrouveException Si rapport ou décision de vote n'existe pas.
-     * @throws OperationImpossibleException Si le commentaire est manquant pour une décision non-simple ou si le membre a déjà voté pour ce tour.
-     */
+    public function retirerRapportDeSession(string $idSession, string $idRapportEtudiant): bool
+    {
+        $session = $this->sessionValidationModel->trouverParIdentifiant($idSession);
+        if (!$session) {
+            throw new ElementNonTrouveException("Session de validation non trouvée.");
+        }
+        if ($session['statut_session'] !== 'en_cours') {
+            throw new OperationImpossibleException("Un rapport ne peut être retiré que d'une session en cours.");
+        }
+
+        $this->sessionRapportModel->commencerTransaction();
+        try {
+            $this->sessionRapportModel->supprimerParClesInternes(['id_session' => $idSession, 'id_rapport_etudiant' => $idRapportEtudiant]);
+            $this->rapportEtudiantModel->mettreAJourParIdentifiant($idRapportEtudiant, ['id_statut_rapport' => 'RAP_CONF']);
+            $this->sessionRapportModel->validerTransaction();
+            $this->supervisionService->enregistrerAction(
+                $_SESSION['user_id'] ?? 'SYSTEM',
+                'RETRAIT_RAPPORT_SESSION',
+                "Rapport '{$idRapportEtudiant}' retiré de la session '{$idSession}'",
+                $idSession,
+                'SessionValidation'
+            );
+            return true;
+        } catch (\Exception $e) {
+            $this->sessionRapportModel->annulerTransaction();
+            throw $e;
+        }
+    }
+
     public function enregistrerVotePourRapport(string $idRapportEtudiant, string $numeroEnseignant, string $idDecisionVote, ?string $commentaireVote, int $tourVote, ?string $idSession = null): bool
     {
         $rapport = $this->rapportEtudiantModel->trouverParIdentifiant($idRapportEtudiant);
@@ -256,12 +244,10 @@ class ServiceCommission implements ServiceCommissionInterface
             throw new ElementNonTrouveException("Décision de vote non reconnue.");
         }
 
-        // Vérifier si le commentaire est obligatoire pour la décision
         if (in_array($idDecisionVote, ['DV_REFUSE', 'DV_DISCUSSION']) && empty($commentaireVote)) {
             throw new OperationImpossibleException("Un commentaire est obligatoire pour la décision '{$decisionRef['libelle_decision_vote']}'.");
         }
 
-        // Vérifier si l'enseignant a déjà voté pour ce rapport et ce tour de vote
         $existingVote = $this->voteCommissionModel->trouverVoteUnique($idRapportEtudiant, $numeroEnseignant, $tourVote);
         if ($existingVote) {
             throw new OperationImpossibleException("L'enseignant a déjà voté pour ce rapport lors de ce tour de vote.");
@@ -269,7 +255,7 @@ class ServiceCommission implements ServiceCommissionInterface
 
         $this->voteCommissionModel->commencerTransaction();
         try {
-            $idVote = $this->idGenerator->genererIdentifiantUnique('VOTE'); // VOTE-AAAA-SSSS
+            $idVote = $this->idGenerator->genererIdentifiantUnique('VOTE');
 
             $data = [
                 'id_vote' => $idVote,
@@ -278,7 +264,7 @@ class ServiceCommission implements ServiceCommissionInterface
                 'id_decision_vote' => $idDecisionVote,
                 'commentaire_vote' => $commentaireVote,
                 'tour_vote' => $tourVote,
-                'id_session' => $idSession // Ajout de l'ID de session
+                'id_session' => $idSession
             ];
 
             if (!$this->voteCommissionModel->creer($data)) {
@@ -294,30 +280,14 @@ class ServiceCommission implements ServiceCommissionInterface
             );
 
             $this->voteCommissionModel->validerTransaction();
-
-            // Après le vote, tenter de finaliser la décision si tous les votes sont là
             $this->finaliserDecisionCommissionPourRapport($idRapportEtudiant);
-
             return true;
         } catch (\Exception $e) {
             $this->voteCommissionModel->annulerTransaction();
-            $this->supervisionService->enregistrerAction(
-                $numeroEnseignant,
-                'ECHEC_VOTE_RAPPORT',
-                "Erreur vote pour rapport {$idRapportEtudiant}: " . $e->getMessage()
-            );
             throw $e;
         }
     }
 
-    /**
-     * Tente de finaliser la décision de la commission pour un rapport.
-     * Déclenchée après chaque vote pour vérifier l'unanimité.
-     * @param string $idRapportEtudiant L'ID du rapport.
-     * @return bool Vrai si la décision a été finalisée, faux sinon (si non-unanimité ou votes incomplets).
-     * @throws ElementNonTrouveException Si le rapport n'est pas trouvé.
-     * @throws OperationImpossibleException Si un statut de rapport final n'est pas reconnu.
-     */
     public function finaliserDecisionCommissionPourRapport(string $idRapportEtudiant): bool
     {
         $rapport = $this->rapportEtudiantModel->trouverParIdentifiant($idRapportEtudiant, ['id_statut_rapport']);
@@ -325,80 +295,54 @@ class ServiceCommission implements ServiceCommissionInterface
             throw new ElementNonTrouveException("Rapport étudiant non trouvé.");
         }
 
-        // Si le rapport a déjà un statut final, ne rien faire
         if (in_array($rapport['id_statut_rapport'], ['RAP_VALID', 'RAP_REFUSE', 'RAP_CORRECT'])) {
             return false;
         }
 
-        // Récupérer le nombre de membres requis pour le jury (assumer 4 membres pour la commission)
-        // Dans une vraie application, on obtiendrait cela depuis l'affectation du jury
-        // Pour l'instant, on se base sur le rôle GRP_COMMISSION
-        $commissionMembersCount = $this->utilisateurModel->compterParCritere(['id_groupe_utilisateur' => 'GRP_COMMISSION', 'statut_compte' => 'actif']);
-        if ($commissionMembersCount === 0) {
-            // Si aucun membre de commission actif, on ne peut pas finaliser
-            return false;
-        }
+        $sessionRapport = $this->sessionRapportModel->trouverUnParCritere(['id_rapport_etudiant' => $idRapportEtudiant]);
+        if (!$sessionRapport) return false;
+        $session = $this->sessionValidationModel->trouverParIdentifiant($sessionRapport['id_session']);
+        if (!$session) return false;
+        $commissionMembersCount = $session['nombre_votants_requis'] ?? 4;
 
-        // Récupérer tous les votes pour ce rapport et le tour de vote actuel
-        $votes = $this->voteCommissionModel->trouverParCritere(['id_rapport_etudiant' => $idRapportEtudiant], ['id_decision_vote', 'numero_enseignant', 'tour_vote'], 'AND', 'tour_vote DESC', null, null);
+        $votes = $this->voteCommissionModel->trouverParCritere(['id_rapport_etudiant' => $idRapportEtudiant], ['id_decision_vote', 'tour_vote'], 'AND', 'tour_vote DESC');
+        if (empty($votes)) return false;
 
-        if (empty($votes)) {
-            return false; // Aucun vote encore
-        }
-
-        $currentTour = $votes[0]['tour_vote']; // Le tour le plus récent
+        $currentTour = $votes[0]['tour_vote'];
         $votesThisTour = array_filter($votes, fn($v) => $v['tour_vote'] == $currentTour);
 
         if (count($votesThisTour) < $commissionMembersCount) {
-            return false; // Pas encore tous les votes pour ce tour
+            return false;
         }
 
-        // Vérifier l'unanimité
         $decisionsCount = array_count_values(array_column($votesThisTour, 'id_decision_vote'));
-
         $finalStatutId = null;
         $decisionLibelle = '';
 
         if (count($decisionsCount) === 1) {
             $uniqueDecision = array_keys($decisionsCount)[0];
-            if ($uniqueDecision === 'DV_APPROUVE') {
-                $finalStatutId = 'RAP_VALID';
-                $decisionLibelle = 'Validé par la commission';
-            } elseif ($uniqueDecision === 'DV_REFUSE') {
-                $finalStatutId = 'RAP_REFUSE';
-                $decisionLibelle = 'Refusé par la commission';
-            } elseif ($uniqueDecision === 'DV_DISCUSSION') {
-                // Si tous veulent discuter, cela reste "En commission" ou passe à "En délibération"
-                $finalStatutId = 'RAP_EN_COMM'; // Ou un nouveau statut 'EN_DELIBERATION' si nécessaire
-                $decisionLibelle = 'Délibération nécessaire';
-            }
+            $finalStatutId = match ($uniqueDecision) {
+                'DV_APPROUVE' => 'RAP_VALID',
+                'DV_REFUSE' => 'RAP_REFUSE',
+                'DV_CORRECTIONS' => 'RAP_CORRECT',
+                default => 'RAP_EN_COMM',
+            };
+            $decisionLibelle = $this->decisionVoteRefModel->trouverParIdentifiant($uniqueDecision)['libelle_decision_vote'] ?? 'Décision enregistrée';
         } else {
-            // Non-unanimité, ou combinaisons de votes qui ne mènent pas à un statut final simple
-            // Si des "Corrections" sont demandées par certains, c'est le statut le plus "indulgent" qui prévaut après unanimité sur ces décisions.
-            // Sinon, c'est 'RAP_EN_COMM' ou un nouveau tour de vote est requis.
-            if (isset($decisionsCount['DV_APPROUVE']) && isset($decisionsCount['DV_DISCUSSION']) && !isset($decisionsCount['DV_REFUSE'])) {
-                // Majorité Approbation / Discussion => Recommandation de corrections si pas de refus franc
-                $finalStatutId = 'RAP_CORRECT'; // Demande de corrections
-                $decisionLibelle = 'Corrections demandées par la commission';
-            } else {
-                $finalStatutId = 'RAP_EN_COMM'; // Reste en commission, nécessite une nouvelle action ou un nouveau tour
-                $decisionLibelle = 'Décision non unanime, délibération en cours';
-            }
+            $finalStatutId = 'RAP_EN_COMM';
+            $decisionLibelle = 'Décision non unanime, délibération en cours';
         }
 
-        if ($finalStatutId) {
-            // Mettre à jour le statut du rapport
+        if ($finalStatutId && $finalStatutId !== 'RAP_EN_COMM') {
             $success = $this->rapportEtudiantModel->mettreAJourParIdentifiant($idRapportEtudiant, ['id_statut_rapport' => $finalStatutId]);
-
             if ($success) {
                 $this->supervisionService->enregistrerAction(
-                    'SYSTEM', // Action système
+                    'SYSTEM',
                     'FINALISATION_DECISION_RAPPORT',
                     "Décision finale pour rapport {$idRapportEtudiant}: {$decisionLibelle}",
                     $idRapportEtudiant,
                     'RapportEtudiant'
                 );
-                // Notifier l'étudiant de la décision finale
                 $rapportEtudiantData = $this->rapportEtudiantModel->trouverParIdentifiant($idRapportEtudiant, ['numero_carte_etudiant']);
                 if ($rapportEtudiantData) {
                     $this->notificationService->envoyerNotificationUtilisateur(
@@ -413,13 +357,6 @@ class ServiceCommission implements ServiceCommissionInterface
         return false;
     }
 
-    /**
-     * Lance un nouveau tour de vote pour un rapport.
-     * @param string $idRapportEtudiant L'ID du rapport.
-     * @return bool Vrai si le nouveau tour est initié.
-     * @throws ElementNonTrouveException Si le rapport n'est pas trouvé.
-     * @throws OperationImpossibleException Si le rapport n'est pas dans un état permettant un nouveau tour de vote.
-     */
     public function lancerNouveauTourVote(string $idRapportEtudiant): bool
     {
         $rapport = $this->rapportEtudiantModel->trouverParIdentifiant($idRapportEtudiant, ['id_statut_rapport']);
@@ -427,71 +364,37 @@ class ServiceCommission implements ServiceCommissionInterface
             throw new ElementNonTrouveException("Rapport étudiant non trouvé.");
         }
 
-        // Autoriser un nouveau tour seulement si le rapport est en commission et pas encore finalisé
-        if (!in_array($rapport['id_statut_rapport'], ['RAP_EN_COMM'])) { // Ou 'EN_DELIBERATION' si vous l'ajoutez
+        if (!in_array($rapport['id_statut_rapport'], ['RAP_EN_COMM'])) {
             throw new OperationImpossibleException("Un nouveau tour de vote ne peut être lancé que pour un rapport en délibération ou en commission.");
         }
 
-        $this->voteCommissionModel->commencerTransaction();
-        try {
-            // Récupérer le tour de vote actuel le plus élevé
-            $latestVote = $this->voteCommissionModel->trouverParCritere(
-                ['id_rapport_etudiant' => $idRapportEtudiant],
-                ['tour_vote'],
-                'AND',
-                'tour_vote DESC',
-                1
-            );
-            $currentTour = $latestVote[0]['tour_vote'] ?? 0;
-            $newTour = $currentTour + 1;
+        $latestVote = $this->voteCommissionModel->trouverParCritere(
+            ['id_rapport_etudiant' => $idRapportEtudiant],
+            ['tour_vote'],
+            'AND',
+            'tour_vote DESC',
+            1
+        );
+        $currentTour = $latestVote[0]['tour_vote'] ?? 0;
+        $newTour = $currentTour + 1;
 
-            // Mettre à jour le rapport pour indiquer le nouveau tour de vote si nécessaire
-            // Ou simplement les votes suivants utiliseront ce nouveau tour
-            // Ce service ne supprime pas les anciens votes, il crée juste de nouveaux votes pour le nouveau tour
-            // La suppression/archive des anciens votes est une décision de conception si nécessaire.
-
-            $this->voteCommissionModel->validerTransaction();
-            $this->supervisionService->enregistrerAction(
-                $_SESSION['user_id'] ?? 'SYSTEM',
-                'NOUVEAU_TOUR_VOTE',
-                "Nouveau tour de vote ({$newTour}) lancé pour rapport {$idRapportEtudiant}",
-                $idRapportEtudiant,
-                'RapportEtudiant'
-            );
-            return true;
-        } catch (\Exception $e) {
-            $this->voteCommissionModel->annulerTransaction();
-            $this->supervisionService->enregistrerAction(
-                $_SESSION['user_id'] ?? 'SYSTEM',
-                'ECHEC_NOUVEAU_TOUR_VOTE',
-                "Erreur lancement nouveau tour vote pour rapport {$idRapportEtudiant}: " . $e->getMessage()
-            );
-            throw $e;
-        }
+        $this->supervisionService->enregistrerAction(
+            $_SESSION['user_id'] ?? 'SYSTEM',
+            'NOUVEAU_TOUR_VOTE',
+            "Nouveau tour de vote ({$newTour}) lancé pour rapport {$idRapportEtudiant}",
+            $idRapportEtudiant,
+            'RapportEtudiant'
+        );
+        return true;
     }
 
-
-    // --- GESTION DES PROCÈS-VERBAUX (PV) ---
-
-    /**
-     * Rédige ou met à jour un Procès-Verbal (PV).
-     * @param string $idRedacteur Le numéro de l'utilisateur rédacteur.
-     * @param string $libellePv Le libellé ou titre du PV.
-     * @param string $typePv Le type de PV ('Individuel' ou 'Session').
-     * @param string|null $idRapportEtudiant L'ID du rapport si PV Individuel.
-     * @param array $idsRapportsSession Les IDs des rapports si PV de Session.
-     * @param string|null $idCompteRenduExistant L'ID du PV existant pour une mise à jour.
-     * @return string L'ID du PV créé ou mis à jour.
-     * @throws OperationImpossibleException En cas d'erreur de création ou de lien.
-     * @throws ElementNonTrouveException Si un rapport ou un rédacteur n'existe pas.
-     */
     public function redigerOuMettreAJourPv(string $idRedacteur, string $libellePv, string $typePv, ?string $idRapportEtudiant = null, array $idsRapportsSession = [], ?string $idCompteRenduExistant = null): string
     {
         $this->compteRenduModel->commencerTransaction();
         try {
             $idCompteRendu = $idCompteRenduExistant;
             if (!$idCompteRendu) {
-                $idCompteRendu = $this->idGenerator->genererIdentifiantUnique('PV'); // PV_-AAAA-SSSS
+                $idCompteRendu = $this->idGenerator->genererIdentifiantUnique('PV');
                 $data = [
                     'id_compte_rendu' => $idCompteRendu,
                     'libelle_compte_rendu' => $libellePv,
@@ -507,39 +410,24 @@ class ServiceCommission implements ServiceCommissionInterface
                     throw new OperationImpossibleException("Échec de la création du PV.");
                 }
             } else {
-                // Mise à jour d'un PV existant
                 $data = [
                     'libelle_compte_rendu' => $libellePv,
                     'type_pv' => $typePv,
-                    'id_redacteur' => $idRedacteur, // L'ID du rédacteur peut changer s'il est transféré
-                    'date_creation_pv' => date('Y-m-d H:i:s') // Mettre à jour la date de dernière modification
+                    'id_redacteur' => $idRedacteur,
                 ];
-                if ($typePv === 'Individuel' && $idRapportEtudiant) {
-                    $data['id_rapport_etudiant'] = $idRapportEtudiant;
-                } else if ($typePv === 'Session') { // Assurez-vous que id_rapport_etudiant est null pour session si la colonne est utilisée pour le type Individuel
-                    $data['id_rapport_etudiant'] = null;
-                }
-
                 if (!$this->compteRenduModel->mettreAJourParIdentifiant($idCompteRendu, $data)) {
                     throw new OperationImpossibleException("Échec de la mise à jour du PV.");
                 }
             }
 
-            // Gérer les liens PvSessionRapport si type est 'Session'
             if ($typePv === 'Session' && !empty($idsRapportsSession)) {
-                // Supprimer les anciennes liaisons pour ce PV de session avant de recréer
-                // (Si la gestion est "tout ou rien" pour les rapports d'une session de PV)
                 $this->pvSessionRapportModel->supprimerParCritere(['id_compte_rendu' => $idCompteRendu]);
                 foreach ($idsRapportsSession as $rapportId) {
                     if (!$this->pvSessionRapportModel->creer(['id_compte_rendu' => $idCompteRendu, 'id_rapport_etudiant' => $rapportId])) {
                         throw new OperationImpossibleException("Échec de la liaison du rapport {$rapportId} au PV de session {$idCompteRendu}.");
                     }
                 }
-            } elseif ($typePv === 'Individuel') {
-                // S'assurer qu'il n'y a pas de liaisons session_rapport pour un PV individuel
-                $this->pvSessionRapportModel->supprimerParCritere(['id_compte_rendu' => $idCompteRendu]);
             }
-
 
             $this->compteRenduModel->validerTransaction();
             $this->supervisionService->enregistrerAction(
@@ -550,27 +438,12 @@ class ServiceCommission implements ServiceCommissionInterface
                 'CompteRendu'
             );
             return $idCompteRendu;
-        } catch (DoublonException $e) {
-            $this->compteRenduModel->annulerTransaction();
-            throw $e;
         } catch (\Exception $e) {
             $this->compteRenduModel->annulerTransaction();
-            $this->supervisionService->enregistrerAction(
-                $idRedacteur,
-                $idCompteRenduExistant ? 'ECHEC_MISE_AJOUR_PV' : 'ECHEC_REDIGER_PV',
-                "Erreur rédaction/maj PV: " . $e->getMessage()
-            );
             throw $e;
         }
     }
 
-    /**
-     * Soumet un PV pour validation par les autres membres de la commission.
-     * @param string $idCompteRendu L'ID du PV à soumettre.
-     * @return bool Vrai si la soumission réussit.
-     * @throws ElementNonTrouveException Si le PV n'est pas trouvé.
-     * @throws OperationImpossibleException Si le statut du PV ne permet pas la soumission.
-     */
     public function soumettrePvPourValidation(string $idCompteRendu): bool
     {
         $pv = $this->compteRenduModel->trouverParIdentifiant($idCompteRendu);
@@ -581,84 +454,31 @@ class ServiceCommission implements ServiceCommissionInterface
             throw new OperationImpossibleException("Seul un PV en brouillon peut être soumis pour validation.");
         }
 
-        $this->compteRenduModel->commencerTransaction();
-        try {
-            $success = $this->compteRenduModel->mettreAJourParIdentifiant($idCompteRendu, ['id_statut_pv' => 'PV_SOUMIS_VALID']);
-
-            if ($success) {
-                // Notifier les autres membres de la commission qui doivent valider ce PV
-                // Récupérer les membres du groupe 'GRP_COMMISSION' (sauf le rédacteur si on veut)
-                $membresCommission = $this->utilisateurModel->trouverParCritere(['id_groupe_utilisateur' => 'GRP_COMMISSION', 'statut_compte' => 'actif']);
-                foreach ($membresCommission as $membre) {
-                    if ($membre['numero_utilisateur'] !== $pv['id_redacteur']) { // Ne pas notifier le rédacteur de valider son propre PV
-                        $this->notificationService->envoyerNotificationUtilisateur(
-                            $membre['numero_utilisateur'],
-                            'PV_SOUMIS_VALIDATION',
-                            "Un nouveau PV ({$pv['libelle_compte_rendu']}) a été soumis pour votre validation."
-                        );
-                    }
-                }
-
-                $this->compteRenduModel->validerTransaction();
-                $this->supervisionService->enregistrerAction(
-                    $_SESSION['user_id'] ?? 'SYSTEM',
-                    'SOUMISSION_PV_VALIDATION',
-                    "PV '{$idCompteRendu}' soumis pour validation",
-                    $idCompteRendu,
-                    'CompteRendu'
-                );
-                return true;
-            }
-            $this->compteRenduModel->annulerTransaction();
-            return false;
-        } catch (\Exception $e) {
-            $this->compteRenduModel->annulerTransaction();
+        $success = $this->compteRenduModel->mettreAJourParIdentifiant($idCompteRendu, ['id_statut_pv' => 'PV_SOUMIS_VALID']);
+        if ($success) {
             $this->supervisionService->enregistrerAction(
                 $_SESSION['user_id'] ?? 'SYSTEM',
-                'ECHEC_SOUMISSION_PV_VALIDATION',
-                "Erreur soumission PV pour validation: " . $e->getMessage()
+                'SOUMISSION_PV_VALIDATION',
+                "PV '{$idCompteRendu}' soumis pour validation",
+                $idCompteRendu,
+                'CompteRendu'
             );
-            throw $e;
         }
+        return $success;
     }
 
-    /**
-     * Gère la validation ou le rejet d'un PV par un membre de la commission.
-     * @param string $idCompteRendu L'ID du PV.
-     * @param string $numeroEnseignantValidateur Le numéro de l'enseignant qui valide/rejette.
-     * @param string $idDecisionValidationPv L'ID de la décision (ex: 'DV_PV_APPROUVE', 'DV_PV_MODIF').
-     * @param string|null $commentaireValidation Le commentaire du validateur.
-     * @return bool Vrai si la validation a réussi.
-     * @throws ElementNonTrouveException Si PV ou décision non trouvée.
-     * @throws OperationImpossibleException Si le PV n'est pas en attente de validation ou si le membre a déjà validé.
-     */
     public function validerOuRejeterPv(string $idCompteRendu, string $numeroEnseignantValidateur, string $idDecisionValidationPv, ?string $commentaireValidation): bool
     {
-        $pv = $this->compteRenduModel->trouverParIdentifiant($idCompteRendu, ['id_statut_pv', 'id_redacteur', 'id_rapport_etudiant']);
+        $pv = $this->compteRenduModel->trouverParIdentifiant($idCompteRendu, ['id_statut_pv', 'id_redacteur']);
         if (!$pv) {
             throw new ElementNonTrouveException("Procès-verbal non trouvé.");
         }
         if ($pv['id_statut_pv'] !== 'PV_SOUMIS_VALID') {
             throw new OperationImpossibleException("Ce PV n'est pas en attente de validation.");
         }
-        if ($pv['id_redacteur'] === $numeroEnseignantValidateur) {
-            throw new OperationImpossibleException("Le rédacteur du PV ne peut pas valider son propre PV.");
-        }
-
-        $decisionRef = $this->decisionValidationPvRefModel->trouverParIdentifiant($idDecisionValidationPv);
-        if (!$decisionRef) {
-            throw new ElementNonTrouveException("Décision de validation PV non reconnue.");
-        }
-
-        // Vérifier si le validateur a déjà donné son avis
-        $existingValidation = $this->validationPvModel->trouverValidationPvParCles($idCompteRendu, $numeroEnseignantValidateur);
-        if ($existingValidation) {
-            throw new OperationImpossibleException("Vous avez déjà validé ce PV.");
-        }
 
         $this->compteRenduModel->commencerTransaction();
         try {
-            // Enregistrer l'avis du validateur
             $validationData = [
                 'id_compte_rendu' => $idCompteRendu,
                 'numero_enseignant' => $numeroEnseignantValidateur,
@@ -670,85 +490,17 @@ class ServiceCommission implements ServiceCommissionInterface
                 throw new OperationImpossibleException("Échec de l'enregistrement de la validation du PV.");
             }
 
-            // Vérifier si tous les validateurs ont donné leur avis pour finaliser le PV
             $membresCommissionCount = $this->utilisateurModel->compterParCritere(['id_groupe_utilisateur' => 'GRP_COMMISSION', 'statut_compte' => 'actif']);
-            // Ne pas inclure le rédacteur dans le compte des validateurs requis s'il ne valide pas son propre PV
-            $validateursRequis = $membresCommissionCount - 1; // Si le rédacteur est membre de la commission
-
+            $validateursRequis = $membresCommissionCount - 1;
             $validationsActuelles = $this->validationPvModel->compterParCritere(['id_compte_rendu' => $idCompteRendu]);
 
-            $finaliserPv = false;
-            $statutFinalPv = 'PV_SOUMIS_VALID'; // Par défaut, reste en attente
-
             if ($validationsActuelles >= $validateursRequis) {
-                // Tous les avis sont là. Vérifier si unanimité d'approbation ou s'il y a des demandes de modification.
                 $decisions = $this->validationPvModel->trouverParCritere(['id_compte_rendu' => $idCompteRendu], ['id_decision_validation_pv']);
-                $allApproved = true;
-                foreach ($decisions as $dec) {
-                    if ($dec['id_decision_validation_pv'] !== 'DV_PV_APPROUVE') {
-                        $allApproved = false;
-                        break;
-                    }
-                }
+                $allApproved = !in_array('DV_PV_MODIF', array_column($decisions, 'id_decision_validation_pv'));
 
                 if ($allApproved) {
-                    $finaliserPv = true;
-                    $statutFinalPv = 'PV_VALID'; // PV Validé
-                } else {
-                    // S'il y a des demandes de modification, le PV reste en statut soumis ou passe à un nouveau statut "modifs_requises"
-                    // Pour l'instant, on le laisse en "SOUMIS_VALID" et le rédacteur devra le modifier et le resoumettre.
-                    // Ou on peut ajouter un statut spécifique comme 'PV_MODIFS_REQUISES'
-                    $finaliserPv = false; // Ne pas finaliser automatiquement si des modifs sont demandées
-                    $statutFinalPv = 'PV_SOUMIS_VALID'; // Reste dans le même statut pour relecture par le rédacteur
-                }
-            }
-
-            if ($finaliserPv) {
-                $this->compteRenduModel->mettreAJourParIdentifiant($idCompteRendu, ['id_statut_pv' => $statutFinalPv]);
-
-                // Gérer la génération du PV PDF et la notification à l'étudiant
-                if ($statutFinalPv === 'PV_VALID') {
-                    $generatedFilePath = $this->documentGenerator->genererPvValidation($idCompteRendu); // Appelle le service de génération
-                    // Enregistrer le document généré dans la table document_genere
-                    if ($generatedFilePath) {
-                        $idDocumentGenere = $this->idGenerator->genererIdentifiantUnique('DOC');
-                        $this->documentGenerator->getDocumentGenereModel()->creer([
-                            'id_document_genere' => $idDocumentGenere,
-                            'libelle_document' => "PV de validation pour {$pv['libelle_compte_rendu']}",
-                            'chemin_fichier' => $generatedFilePath,
-                            'id_type_document_ref' => 'DOC_PV', // ID de référence pour les PV
-                            'numero_utilisateur_concerne' => $pv['id_rapport_etudiant'] ?
-                                $this->rapportEtudiantModel->trouverParIdentifiant($pv['id_rapport_etudiant'])['numero_carte_etudiant'] : 'N/A', // Récupérer le numéro de l'étudiant
-                            'id_entite_source' => $idCompteRendu,
-                            'type_entite_source' => 'PV'
-                        ]);
-
-                        // Notifier l'étudiant concerné par le PV
-                        if ($pv['id_rapport_etudiant']) { // Si PV individuel
-                            $rapportEtudiantData = $this->rapportEtudiantModel->trouverParIdentifiant($pv['id_rapport_etudiant'], ['numero_carte_etudiant']);
-                            if ($rapportEtudiantData) {
-                                $this->notificationService->envoyerNotificationUtilisateur(
-                                    $rapportEtudiantData['numero_carte_etudiant'],
-                                    'PV_VALIDE',
-                                    "Le PV de votre rapport '{$pv['libelle_compte_rendu']}' est maintenant validé et disponible."
-                                );
-                            }
-                        }
-                        // Pour les PV de session, notifier tous les étudiants des rapports concernés
-                        if ($pv['type_pv'] === 'Session') {
-                            $rapportsAffectes = $this->pvSessionRapportModel->trouverParCritere(['id_compte_rendu' => $idCompteRendu]);
-                            foreach ($rapportsAffectes as $ra) {
-                                $rapportEtudiantData = $this->rapportEtudiantModel->trouverParIdentifiant($ra['id_rapport_etudiant'], ['numero_carte_etudiant']);
-                                if ($rapportEtudiantData) {
-                                    $this->notificationService->envoyerNotificationUtilisateur(
-                                        $rapportEtudiantData['numero_carte_etudiant'],
-                                        'PV_VALIDE_SESSION',
-                                        "Le PV de la session concernant votre rapport est validé."
-                                    );
-                                }
-                            }
-                        }
-                    }
+                    $this->compteRenduModel->mettreAJourParIdentifiant($idCompteRendu, ['id_statut_pv' => 'PV_VALID']);
+                    $this->documentGenerator->genererPvValidation($idCompteRendu);
                 }
             }
 
@@ -756,98 +508,60 @@ class ServiceCommission implements ServiceCommissionInterface
             $this->supervisionService->enregistrerAction(
                 $numeroEnseignantValidateur,
                 'VALIDATION_PV',
-                "PV '{$idCompteRendu}' validé avec la décision '{$decisionRef['libelle_decision_validation_pv']}'",
+                "PV '{$idCompteRendu}' validé avec la décision '{$idDecisionValidationPv}'",
                 $idCompteRendu,
                 'CompteRendu'
             );
             return true;
         } catch (\Exception $e) {
             $this->compteRenduModel->annulerTransaction();
-            $this->supervisionService->enregistrerAction(
-                $numeroEnseignantValidateur,
-                'ECHEC_VALIDATION_PV',
-                "Erreur validation PV {$idCompteRendu}: " . $e->getMessage()
-            );
             throw $e;
         }
     }
 
-    /**
-     * Liste les PV en attente de validation par un membre spécifique de la commission.
-     * Un PV est en attente si son statut est 'PV_SOUMIS_VALID' et que le membre n'a pas encore validé.
-     * @param string $numeroEnseignant Le numéro de l'enseignant membre de la commission.
-     * @return array Liste des PV en attente.
-     */
     public function listerPvEnAttenteValidationParMembre(string $numeroEnseignant): array
     {
-        // 1. Trouver tous les PV qui ont le statut 'PV_SOUMIS_VALID'
         $pvSoumis = $this->compteRenduModel->trouverParCritere(['id_statut_pv' => 'PV_SOUMIS_VALID']);
-
-        $pvEnAttentePourCeMembre = [];
-
+        $pvEnAttente = [];
         foreach ($pvSoumis as $pv) {
-            // Un rédacteur ne valide pas son propre PV, donc on l'exclut ici aussi
-            if ($pv['id_redacteur'] === $numeroEnseignant) {
-                continue;
-            }
-
-            // 2. Vérifier si ce membre a déjà validé ce PV
+            if ($pv['id_redacteur'] === $numeroEnseignant) continue;
             $validationExistante = $this->validationPvModel->trouverValidationPvParCles($pv['id_compte_rendu'], $numeroEnseignant);
-
             if (!$validationExistante) {
-                // Si aucune validation n'existe pour ce membre et ce PV, il est en attente
-                $pvEnAttentePourCeMembre[] = $pv;
+                $pvEnAttente[] = $pv;
             }
         }
-        return $pvEnAttentePourCeMembre;
+        return $pvEnAttente;
     }
 
-    /**
-     * Liste les sessions de validation en fonction de critères.
-     * @param array $criteres Critères de filtre (ex: ['statut_session' => 'En cours']).
-     * @return array Liste des sessions.
-     */
-    public function listerSessionsValidation(array $criteres = []): array
+    public function deleguerRedactionPv(string $idCompteRendu, string $ancienRedacteur, string $nouveauRedacteur): bool
     {
-        return $this->sessionValidationModel->trouverParCritere($criteres);
+        $pv = $this->compteRenduModel->trouverParIdentifiant($idCompteRendu);
+        if (!$pv || $pv['id_redacteur'] !== $ancienRedacteur) {
+            throw new OperationImpossibleException("Seul le rédacteur actuel peut déléguer la rédaction.");
+        }
+        $success = $this->compteRenduModel->mettreAJourParIdentifiant($idCompteRendu, ['id_redacteur' => $nouveauRedacteur]);
+        if ($success) {
+            $this->supervisionService->enregistrerAction($ancienRedacteur, 'DELEGATION_REDACTION_PV', "Rédaction du PV {$idCompteRendu} déléguée à {$nouveauRedacteur}.");
+        }
+        return $success;
     }
 
-    /**
-     * Récupère la liste des rapports assignés à un membre du jury et qui sont dans un statut nécessitant
-     * une action de correction/évaluation par la commission.
-     * @param string $numeroEnseignant Le numéro de l'enseignant membre de la commission.
-     * @return array Liste des rapports à corriger/évaluer.
-     */
-    public function recupererRapportsAssignedToJuryForCorrection(string $numeroEnseignant): array
+    public function gererApprobationsPvBloquees(string $idCompteRendu, string $action, ?string $numeroPersonnelAction = null, ?string $commentaire = null): bool
     {
-        // 1. Trouver tous les rapports auxquels cet enseignant est affecté
-        $affectations = $this->affecterModel->trouverParCritere(['numero_enseignant' => $numeroEnseignant], ['id_rapport_etudiant']);
-        $idsRapportsAffectes = array_column($affectations, 'id_rapport_etudiant');
-
-        if (empty($idsRapportsAffectes)) {
-            return [];
+        $pv = $this->compteRenduModel->trouverParIdentifiant($idCompteRendu);
+        if (!$pv) {
+            throw new ElementNonTrouveException("PV non trouvé.");
         }
 
-        // 2. Filtrer ces rapports par les statuts qui nécessitent une action de correction/évaluation par la commission
-        // Statuts typiques: RAP_EN_COMM (en attente d'évaluation), RAP_CORRECT (corrections demandées par commission)
-        $rapportsEnAttenteCorrection = $this->rapportEtudiantModel->trouverParCritere([
-            'id_rapport_etudiant' => ['operator' => 'in', 'values' => $idsRapportsAffectes],
-            'id_statut_rapport' => ['operator' => 'in', 'values' => ['RAP_EN_COMM', 'RAP_CORRECT']]
-        ]);
-
-        return $rapportsEnAttenteCorrection;
+        if ($action === 'substitution') {
+            $this->compteRenduModel->mettreAJourParIdentifiant($idCompteRendu, ['id_statut_pv' => 'PV_VALID']);
+            $this->supervisionService->enregistrerAction($numeroPersonnelAction, 'APPROBATION_PV_SUBSTITUTION', "PV {$idCompteRendu} approuvé par substitution. Commentaire: {$commentaire}");
+            return true;
+        } elseif ($action === 'quorum') {
+            $this->compteRenduModel->mettreAJourParIdentifiant($idCompteRendu, ['id_statut_pv' => 'PV_VALID']);
+            $this->supervisionService->enregistrerAction($numeroPersonnelAction, 'VALIDATION_PV_QUORUM', "PV {$idCompteRendu} validé par quorum.");
+            return true;
+        }
+        return false;
     }
-
-    /**
-     * Récupère le vote d'un enseignant pour un rapport spécifique et un tour de vote donné.
-     * @param string $numeroEnseignant Le numéro de l'enseignant.
-     * @param string $idRapportEtudiant L'ID du rapport étudiant.
-     * @param int $tourVote Le tour de vote.
-     * @return array|null Les détails du vote ou null si non trouvé.
-     */
-    public function getVoteByEnseignantRapportTour(string $numeroEnseignant, string $idRapportEtudiant, int $tourVote): ?array
-    {
-        return $this->voteCommissionModel->trouverVoteUnique($idRapportEtudiant, $numeroEnseignant, $tourVote);
-    }
-
 }

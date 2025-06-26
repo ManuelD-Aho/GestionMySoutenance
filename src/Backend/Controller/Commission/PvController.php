@@ -2,7 +2,7 @@
 namespace App\Backend\Controller\Commission;
 
 use App\Backend\Controller\BaseController;
-use App\Backend\Service\Authentication\ServiceAuthentification;
+use App\Backend\Service\Authentication\ServiceAuthentication;
 use App\Backend\Service\Permissions\ServicePermissions;
 use App\Backend\Util\FormValidator;
 use App\Backend\Service\Commission\ServiceCommission; // Importer le service
@@ -20,11 +20,11 @@ class PvController extends BaseController
     private ServiceGestionAcademique $gestionAcadService; // Pour lister etudiants, etc.
 
     public function __construct(
-        ServiceAuthentification $authService,
-        ServicePermissions $permissionService,
-        FormValidator $validator,
-        ServiceCommission $commissionService, // Injection
-        ServiceRapport $rapportService, // Injection
+        ServiceAuthentication    $authService,
+        ServicePermissions       $permissionService,
+        FormValidator            $validator,
+        ServiceCommission        $commissionService, // Injection
+        ServiceRapport           $rapportService, // Injection
         ServiceGestionAcademique $gestionAcadService // Injection
     ) {
         parent::__construct($authService, $permissionService, $validator);

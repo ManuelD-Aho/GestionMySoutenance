@@ -2,7 +2,7 @@
 namespace App\Backend\Controller\Administration;
 
 use App\Backend\Controller\BaseController;
-use App\Backend\Service\Authentication\ServiceAuthentification;
+use App\Backend\Service\Authentication\ServiceAuthentication;
 use App\Backend\Service\Permissions\ServicePermissions; // Importer le service
 use App\Backend\Util\FormValidator;
 use App\Backend\Exception\ElementNonTrouveException;
@@ -15,9 +15,9 @@ class HabilitationController extends BaseController
     protected ServicePermissions $permissionService;
 
     public function __construct(
-        ServiceAuthentification $authService,
-        ServicePermissions $permissionService,
-        FormValidator $validator
+        ServiceAuthentication $authService,
+        ServicePermissions    $permissionService,
+        FormValidator         $validator
     ) {
         parent::__construct($authService, $permissionService, $validator);
         $this->permissionService = $permissionService;
@@ -754,7 +754,7 @@ class HabilitationController extends BaseController
             }
 
             // IMPORTANT: Déclencher la synchronisation des sessions utilisateur après les changements RBAC
-            // Vous aurez besoin d'une méthode dans ServiceAuthentification pour cela, déjà ajoutée :
+            // Vous aurez besoin d'une méthode dans ServiceAuthentication pour cela, déjà ajoutée :
             // $this->authService->synchroniserPermissionsSessionsUtilisateur($idUtilisateur);
             // Ou, si vous ne savez pas quels utilisateurs sont affectés par le changement de groupe,
             // vous pouvez déclencher une re-génération pour tous les utilisateurs de ce groupe.
