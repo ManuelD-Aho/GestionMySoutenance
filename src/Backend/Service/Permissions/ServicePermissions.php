@@ -16,6 +16,7 @@ use App\Backend\Exception\DoublonException;
 
 class ServicePermissions implements ServicePermissionsInterface
 {
+    private PDO $db; // Ajout de la propriété PDO pour l'accès direct à la base de données
     private GroupeUtilisateur $groupeUtilisateurModel;
     private TypeUtilisateur $typeUtilisateurModel;
     private NiveauAccesDonne $niveauAccesDonneModel;
@@ -25,7 +26,7 @@ class ServicePermissions implements ServicePermissionsInterface
     private ServiceSupervisionAdminInterface $supervisionService;
 
     public function __construct(
-        PDO $db,
+        PDO $db, // <<<<<<< Ajout de l'injection de l'instance PDO
         GroupeUtilisateur $groupeUtilisateurModel,
         TypeUtilisateur $typeUtilisateurModel,
         NiveauAccesDonne $niveauAccesDonneModel,
@@ -34,6 +35,7 @@ class ServicePermissions implements ServicePermissionsInterface
         Utilisateur $utilisateurModel,
         ServiceSupervisionAdminInterface $supervisionService
     ) {
+        $this->db = $db; // <<<<<<< Initialisation de la propriété PDO
         $this->groupeUtilisateurModel = $groupeUtilisateurModel;
         $this->typeUtilisateurModel = $typeUtilisateurModel;
         $this->niveauAccesDonneModel = $niveauAccesDonneModel;
@@ -42,6 +44,62 @@ class ServicePermissions implements ServicePermissionsInterface
         $this->utilisateurModel = $utilisateurModel;
         $this->supervisionService = $supervisionService;
     }
+
+    /**
+     * Récupère la liste des permissions (traitements) et leurs détails
+     * pour un utilisateur donné, incluant les URLs, parents et icônes,
+     * optimisée pour la construction du menu.
+     *
+     * @param string $userId L'ID de l'utilisateur.
+     * @return array Un tableau associatif des traitements accessibles par l'utilisateur.
+     */
+    public function getPermissionsForUser(string $userId): array
+    {
+        $permissions = [];
+        try {
+            // 1. Récupérer l'ID de groupe de l'utilisateur depuis la table 'utilisateur' [cite: uploaded:manueld-aho/gestionmysoutenance/GestionMySoutenance-24b2b01d2b765035009d2a7af2249c0f12c911ab/mysoutenance.sql]
+            $stmtUser = $this->db->prepare("SELECT id_groupe_utilisateur FROM utilisateur WHERE numero_utilisateur = :userId");
+            $stmtUser->bindParam(':userId', $userId);
+            $stmtUser->execute();
+            $user = $stmtUser->fetch(PDO::FETCH_ASSOC);
+
+            if ($user && isset($user['id_groupe_utilisateur'])) {
+                $groupId = $user['id_groupe_utilisateur'];
+
+                // 2. Récupérer tous les traitements associés à ce groupe via la table 'rattacher', [cite: uploaded:manueld-aho/gestionmysoutenance/GestionMySoutenance-24b2b01d2b765035009d2a7af2249c0f12c911ab/mysoutenance.sql]
+                // et toutes les informations pertinentes de la table 'traitement' [cite: uploaded:manueld-aho/gestionmysoutenance/GestionMySoutenance-24b2b01d2b765035009d2a7af2249c0f12c911ab/mysoutenance.sql]
+                // pour la construction du menu (libellé, url, parent, icône).
+                // L'ordre est important pour faciliter la construction de l'arbre du menu.
+                $stmtPermissions = $this->db->prepare("
+                    SELECT
+                        t.id_traitement,
+                        t.libelle_traitement,
+                        t.url_associee,
+                        t.id_parent_traitement,
+                        t.icone_class
+                    FROM
+                        traitement t
+                    JOIN
+                        rattacher r ON t.id_traitement = r.id_traitement
+                    WHERE
+                        r.id_groupe_utilisateur = :groupId
+                    ORDER BY
+                        t.id_parent_traitement ASC, t.libelle_traitement ASC
+                ");
+                $stmtPermissions->bindParam(':groupId', $groupId);
+                $stmtPermissions->execute();
+                $permissions = $stmtPermissions->fetchAll(PDO::FETCH_ASSOC);
+            }
+        } catch (\PDOException $e) {
+            // Journalisation de l'erreur pour le débogage. En production, utilisez un système de log approprié.
+            error_log("Erreur PDO dans ServicePermissions::getPermissionsForUser: " . $e->getMessage());
+            // Il est préférable de lancer une exception plus spécifique pour la couche métier.
+            throw new OperationImpossibleException("Erreur lors de la récupération des permissions du menu: " . $e->getMessage());
+        }
+        return $permissions;
+    }
+
+    // --- Les autres méthodes de votre classe ServicePermissions restent inchangées ci-dessous ---
 
     public function creerGroupeUtilisateur(string $idGroupeUtilisateur, string $libelleGroupeUtilisateur): bool
     {
@@ -381,6 +439,9 @@ class ServicePermissions implements ServicePermissionsInterface
 
     public function recupererPermissionsPourGroupe(string $idGroupeUtilisateur): array
     {
+        // Cette méthode semble déjà être une version simplifiée de récupération de permissions
+        // sans les détails des traitements. Nous allons conserver `getPermissionsForUser`
+        // pour la logique de menu spécifique.
         if (!$this->groupeUtilisateurModel->trouverParIdentifiant($idGroupeUtilisateur)) {
             throw new ElementNonTrouveException("Groupe utilisateur '{$idGroupeUtilisateur}' non trouvé.");
         }

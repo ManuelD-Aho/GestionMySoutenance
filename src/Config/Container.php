@@ -3,11 +3,11 @@
 namespace App\Config;
 
 use PDO;
-use Exception;
+use Exception; // Assurez-vous que la classe Exception est importée
 use App\Backend\Util\FormValidator;
 use App\Backend\Util\DatabaseSessionHandler;
 
-// Importation de tous les modèles
+// Importation de tous les modèles (comme dans votre code original)
 use App\Backend\Model\Acquerir;
 use App\Backend\Model\Action;
 use App\Backend\Model\Affecter;
@@ -74,7 +74,7 @@ use App\Backend\Model\Utilisateur;
 use App\Backend\Model\ValidationPv;
 use App\Backend\Model\VoteCommission;
 
-// Importation de tous les services
+// Importation de tous les services (comme dans votre code original)
 use App\Backend\Service\AnneeAcademique\ServiceAnneeAcademique;
 use App\Backend\Service\Authentication\ServiceAuthentication;
 use App\Backend\Service\Commission\ServiceCommission;
@@ -99,8 +99,9 @@ use App\Backend\Service\ReportingAdmin\ServiceReportingAdmin;
 use App\Backend\Service\RessourcesEtudiant\ServiceRessourcesEtudiant;
 use App\Backend\Service\SupervisionAdmin\ServiceSupervisionAdmin;
 use App\Backend\Service\TransitionRole\ServiceTransitionRole;
+use App\Backend\Service\SupervisionAdmin\ServiceSupervisionAdminInterface; // L'interface est bien importée
 
-// Importation de tous les contrôleurs
+// Importation de tous les contrôleurs (comme dans votre code original)
 use App\Backend\Controller\HomeController;
 use App\Backend\Controller\AuthentificationController;
 use App\Backend\Controller\AssetController;
@@ -137,6 +138,7 @@ use App\Backend\Controller\PersonnelAdministratif\PersonnelDashboardController;
 use App\Backend\Controller\PersonnelAdministratif\ScolariteController;
 use App\Backend\Controller\PersonnelAdministratif\DocumentAdministratifController;
 
+
 class Container
 {
     private array $definitions = [];
@@ -144,10 +146,12 @@ class Container
 
     public function __construct()
     {
+        // Enregistrement de l'instance PDO selon votre convention ('PDO' comme clé string)
         $this->definitions['PDO'] = fn () => Database::getInstance()->getConnection();
         $this->definitions[FormValidator::class] = fn () => new FormValidator();
         $this->definitions[DatabaseSessionHandler::class] = fn ($c) => new DatabaseSessionHandler();
 
+        // Enregistrement de tous les modèles
         $models = [
             Acquerir::class, Action::class, Affecter::class, AnneeAcademique::class, Approuver::class,
             Attribuer::class, CompteRendu::class, ConformiteRapportDetails::class, Conversation::class,
@@ -170,13 +174,40 @@ class Container
             $this->definitions[$model] = fn ($c) => new $model($c->get('PDO'));
         }
 
-        $this->definitions[ServiceSupervisionAdmin::class] = fn ($c) => new ServiceSupervisionAdmin($c->get('PDO'), $c->get(Action::class), $c->get(Enregistrer::class), $c->get(Pister::class), $c->get(Utilisateur::class), $c->get(RapportEtudiant::class), $c->get(CompteRendu::class), $c->get(Traitement::class));
+        // Enregistrement des services
+        // Correction ici: Définition de ServiceSupervisionAdmin avec toutes ses dépendances réelles
+        $this->definitions[ServiceSupervisionAdmin::class] = fn ($c) => new ServiceSupervisionAdmin(
+            $c->get('PDO'),
+            $c->get(Action::class),
+            $c->get(Enregistrer::class),
+            $c->get(Pister::class),
+            $c->get(Utilisateur::class),
+            $c->get(RapportEtudiant::class),
+            $c->get(CompteRendu::class),
+            $c->get(Traitement::class)
+        );
+        // Lier l'interface ServiceSupervisionAdminInterface à son implémentation
+        $this->alias(ServiceSupervisionAdminInterface::class, ServiceSupervisionAdmin::class);
+
+        // Définition des autres services (comme dans votre code original, en utilisant la clé 'PDO')
         $this->definitions[IdentifiantGenerator::class] = fn ($c) => new IdentifiantGenerator($c->get('PDO'), $c->get(Sequences::class), $c->get(AnneeAcademique::class), $c->get(ServiceSupervisionAdmin::class));
         $this->definitions[ServiceConfigurationSysteme::class] = fn ($c) => new ServiceConfigurationSysteme($c->get('PDO'), $c->get(ParametreSysteme::class), $c->get(TypeDocumentRef::class), $c->get(NiveauEtude::class), $c->get(StatutPaiementRef::class), $c->get(DecisionPassageRef::class), $c->get(Ecue::class), $c->get(Grade::class), $c->get(Fonction::class), $c->get(Specialite::class), $c->get(StatutReclamationRef::class), $c->get(StatutConformiteRef::class), $c->get(Ue::class), $c->get(Notification::class), $c->get(ServiceSupervisionAdmin::class), $c->get(IdentifiantGenerator::class));
         $this->definitions[ServiceEmail::class] = fn ($c) => new ServiceEmail($c->get('PDO'), $c->get(Notification::class), $c->get(ServiceSupervisionAdmin::class), $c->get(ServiceConfigurationSysteme::class));
         $this->definitions[ServiceNotificationConfiguration::class] = fn ($c) => new ServiceNotificationConfiguration($c->get('PDO'), $c->get(MatriceNotificationRegles::class), $c->get(Utilisateur::class), $c->get(ServiceSupervisionAdmin::class));
         $this->definitions[ServiceNotification::class] = fn ($c) => new ServiceNotification($c->get('PDO'), $c->get(Notification::class), $c->get(Recevoir::class), $c->get(Utilisateur::class), $c->get(GroupeUtilisateur::class), $c->get(ServiceSupervisionAdmin::class), $c->get(ServiceEmail::class), $c->get(ServiceNotificationConfiguration::class));
-        $this->definitions[ServicePermissions::class] = fn ($c) => new ServicePermissions($c->get('PDO'), $c->get(GroupeUtilisateur::class), $c->get(TypeUtilisateur::class), $c->get(NiveauAccesDonne::class), $c->get(Traitement::class), $c->get(Rattacher::class), $c->get(Utilisateur::class), $c->get(ServiceSupervisionAdmin::class));
+
+        // Définition de ServicePermissions (utilisant l'interface de SupervisionAdmin)
+        $this->definitions[ServicePermissions::class] = fn ($c) => new ServicePermissions(
+            $c->get('PDO'), // Utilisation de la clé string 'PDO'
+            $c->get(GroupeUtilisateur::class),
+            $c->get(TypeUtilisateur::class),
+            $c->get(NiveauAccesDonne::class),
+            $c->get(Traitement::class),
+            $c->get(Rattacher::class),
+            $c->get(Utilisateur::class),
+            $c->get(ServiceSupervisionAdminInterface::class) // Utilisation de l'interface pour la dépendance
+        );
+
         $this->definitions[ServiceAuthentication::class] = fn ($c) => new ServiceAuthentication($c->get('PDO'), $c->get(Utilisateur::class), $c->get(HistoriqueMotDePasse::class), $c->get(TypeUtilisateur::class), $c->get(GroupeUtilisateur::class), $c->get(Enseignant::class), $c->get(Etudiant::class), $c->get(PersonnelAdministratif::class), $c->get(Sessions::class), $c->get(ServiceEmail::class), $c->get(ServiceSupervisionAdmin::class), $c->get(IdentifiantGenerator::class), $c->get(ServicePermissions::class));
         $this->definitions[ServiceAnneeAcademique::class] = fn ($c) => new ServiceAnneeAcademique($c->get('PDO'), $c->get(AnneeAcademique::class), $c->get(Inscrire::class), $c->get(RapportEtudiant::class), $c->get(ParametreSysteme::class), $c->get(ServiceSupervisionAdmin::class));
         $this->definitions[ServiceDocumentGenerator::class] = fn ($c) => new ServiceDocumentGenerator($c->get('PDO'), $c->get(CompteRendu::class), $c->get(RapportEtudiant::class), $c->get(Etudiant::class), $c->get(Inscrire::class), $c->get(Evaluer::class), $c->get(AnneeAcademique::class), $c->get(DocumentGenere::class), $c->get(PvSessionRapport::class), $c->get(ServiceSupervisionAdmin::class), $c->get(IdentifiantGenerator::class), $c->get(ServiceConfigurationSysteme::class));
@@ -195,6 +226,7 @@ class Container
         $this->definitions[ServiceProfilEtudiant::class] = fn ($c) => new ServiceProfilEtudiant($c->get('PDO'), $c->get(Etudiant::class), $c->get(Utilisateur::class), $c->get(ServiceSupervisionAdmin::class), $c->get(ServiceFichier::class));
         $this->definitions[ServiceRessourcesEtudiant::class] = fn ($c) => new ServiceRessourcesEtudiant($c->get('PDO'), $c->get(ServiceSupervisionAdmin::class), $c->get(CritereConformiteRef::class), $c->get(ParametreSysteme::class));
 
+        // Enregistrement des contrôleurs (pas de changement ici, votre logique est bonne)
         $controllers = [
             HomeController::class, AuthentificationController::class, AssetController::class,
             AnneeAcademiqueController::class, AdminDashboardController::class, ConfigSystemeController::class,
@@ -216,7 +248,12 @@ class Container
                 $dependencies = [];
                 if ($constructor) {
                     foreach ($constructor->getParameters() as $param) {
-                        $dependencies[] = $c->get($param->getType()->getName());
+                        $type = $param->getType();
+                        if ($type instanceof \ReflectionNamedType && !$type->isBuiltin()) {
+                            $dependencies[] = $c->get($type->getName());
+                        } else {
+                            throw new Exception("Unsupported constructor parameter type: " . $type->getName() . " in " . $controller);
+                        }
                     }
                 }
                 return new $controller(...$dependencies);
@@ -235,5 +272,13 @@ class Container
         }
 
         return $this->instances[$id];
+    }
+
+    // La méthode alias est nécessaire pour lier les interfaces aux implémentations
+    public function alias(string $alias, string $concrete): void
+    {
+        $this->definitions[$alias] = function ($c) use ($concrete) {
+            return $c->get($concrete);
+        };
     }
 }
