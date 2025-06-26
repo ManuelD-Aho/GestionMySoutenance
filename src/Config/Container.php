@@ -146,7 +146,7 @@ class Container
     {
         $this->definitions['PDO'] = fn () => Database::getInstance()->getConnection();
         $this->definitions[FormValidator::class] = fn () => new FormValidator();
-        $this->definitions[DatabaseSessionHandler::class] = fn ($c) => new DatabaseSessionHandler($c->get('PDO'));
+        $this->definitions[DatabaseSessionHandler::class] = fn ($c) => new DatabaseSessionHandler();
 
         $models = [
             Acquerir::class, Action::class, Affecter::class, AnneeAcademique::class, Approuver::class,
