@@ -1,5 +1,38 @@
+
 docker-compose exec app php seeds.php
-// This command is used to execute the `seeds.php` script within the Docker container named `app`.
+
+# Arrêter tous les conteneurs du projet
+docker-compose -f docker-compose.dev.yml down
+
+# Arrêter TOUS les conteneurs Docker (si besoin)
+docker stop $(docker ps -q)
+
+# Supprimer tous les conteneurs arrêtés
+docker container prune -f
+
+# Supprimer tous les réseaux inutilisés
+docker network prune -f
+
+# Supprimer toutes les images non utilisées
+docker image prune -f
+
+# NETTOYAGE COMPLET (ATTENTION : supprime tout !)
+docker system prune -a --volumes -f
+
+# Reconstruction complète des images
+docker-compose -f docker-compose.dev.yml build --no-cache
+
+# Démarrage avec ports fixes
+docker-compose -f docker-compose.dev.yml up -d
+
+# OU en une seule commande
+docker-compose -f docker-compose.dev.yml up -d --build --force-recreate
+
+# Voir l'état des conteneurs
+docker-compose -f docker-compose.dev.yml ps
+
+# Voir les logs en temps réel
+docker-compose -f docker-compose.dev.yml logs -f
 
 Mot de passe : Password123!
 admin_sys
