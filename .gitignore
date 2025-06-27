@@ -1,3 +1,14 @@
+# Ignorer les fichiers d'environnement spécifiques
+
+
+# Ignorer les dépendances Composer
 composer.phar
 /vendor/
+
+# Ignorer les assets générés ou les caches
 /Public/assets/css/bulma/
+/Public/uploads/
+/var/cache/
+/var/log/
+
+# Ignorer les fichiers Docker spécifiques au développement
