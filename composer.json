@@ -33,7 +33,7 @@
     }
   },
   "scripts": {
-    "serve": "php -S localhost:8080 -t Public",
+    "serve": "docker/php -S localhost:8080 -t Public",
     "test": "phpunit",
     "post-autoload-dump": [
       "@php -r \"file_exists('.env') || copy('.env.example', '.env');\""

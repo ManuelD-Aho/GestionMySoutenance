@@ -1,11 +1,35 @@
+# .dockerignore
+
+# Fichiers de contrôle de version
 .git
 .gitignore
-.idea/
-.vscode/
-vendor/
-Dockerfile
-docker-compose.yml
-README.md
-*.sql
-*.log
+.gitattributes
+.github/
+
+# Fichiers d'environnement (très important de ne pas les inclure dans l'image)
 .env
+.env.dev
+.env.prod
+.env.example
+
+# Dépendances Composer (seront installées DANS le conteneur)
+vendor/
+composer.phar
+
+# Fichiers de configuration Docker spécifiques au développement local
+docker-compose.dev.yml
+docker-compose.prod.yml
+
+# Fichiers de log, cache, uploads (générés par l'application, non nécessaires dans l'image)
+var/cache/
+var/log/
+Public/uploads/
+
+# Fichiers de documentation ou de projet non nécessaires au runtime
+README.md
+Fonction.md
+Commande.txt
+.vscode/
+.idea/
+*.sql # mysoutenance.sql est utilisé pour l'initialisation de la DB, pas pour le build de l'app
+*.log

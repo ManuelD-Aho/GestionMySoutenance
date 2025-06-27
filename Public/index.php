@@ -12,9 +12,21 @@ if (!file_exists(ROOT_PATH . '/vendor/autoload.php')) {
 require_once ROOT_PATH . '/vendor/autoload.php';
 
 try {
-    if (file_exists(ROOT_PATH . '/.env')) {
-        $dotenv = Dotenv\Dotenv::createImmutable(ROOT_PATH);
+    // Détecter l'environnement
+    $appEnv = getenv('APP_ENV') ?: 'development'; // Par défaut 'development' si non défini
+
+    // Charger le fichier .env spécifique à l'environnement
+    $envFile = ROOT_PATH . '/.env.' . $appEnv;
+    if (file_exists($envFile)) {
+        $dotenv = Dotenv\Dotenv::createImmutable(ROOT_PATH, '.env.' . $appEnv);
         $dotenv->load();
+    } else {
+        // Fallback pour le fichier .env général si les spécifiques n'existent pas
+        // Utile pour les setups locaux simples ou si .env est géré différemment
+        if (file_exists(ROOT_PATH . '/.env')) {
+            $dotenv = Dotenv\Dotenv::createImmutable(ROOT_PATH);
+            $dotenv->load();
+        }
     }
 } catch (\Throwable $e) {
     http_response_code(503);
@@ -23,7 +35,7 @@ try {
     exit;
 }
 
-$appEnv = $_ENV['APP_ENV'] ?? 'production';
+// Configuration de l'affichage des erreurs en fonction de l'environnement
 if ($appEnv === 'development') {
     ini_set('display_errors', '1');
     ini_set('display_startup_errors', '1');
@@ -31,7 +43,7 @@ if ($appEnv === 'development') {
 } else {
     ini_set('display_errors', '0');
     ini_set('display_startup_errors', '0');
-    error_reporting(0);
+    error_reporting(0); // Désactiver l'affichage des erreurs en production
 }
 
 use App\Backend\Util\DatabaseSessionHandler;
@@ -39,14 +51,16 @@ use App\Config\Container;
 
 $container = new Container();
 
+// Configuration du gestionnaire de session
 $handler = $container->get(DatabaseSessionHandler::class);
 session_set_save_handler($handler, true);
 
+// Configuration des paramètres de cookie de session
 session_set_cookie_params([
     'lifetime' => (int)($_ENV['SESSION_LIFETIME'] ?? 3600),
     'path' => '/',
     'domain' => $_ENV['SESSION_DOMAIN'] ?? $_SERVER['SERVER_NAME'],
-    'secure' => ($_ENV['APP_ENV'] === 'production'),
+    'secure' => ($_ENV['APP_ENV'] === 'production'), // Utiliser HTTPS en production
     'httponly' => true,
     'samesite' => 'Lax'
 ]);
