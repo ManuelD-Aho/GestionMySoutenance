@@ -12,4 +12,4 @@ composer.phar
 /var/log/
 
 # Ignorer les fichiers Docker spécifiques au développement
-.env
+
