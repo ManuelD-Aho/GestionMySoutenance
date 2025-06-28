@@ -49,6 +49,9 @@ use App\Backend\Model\PersonnelAdministratif;
 use App\Backend\Model\Pister;
 use App\Backend\Model\PvSessionRapport;
 use App\Backend\Model\RapportEtudiant;
+use App\Backend\Model\RapportModele; // Nouveau modèle, s'il existe
+use App\Backend\Model\RapportModeleAssignation; // Nouveau modèle, s'il existe
+use App\Backend\Model\RapportModeleSection; // Nouveau modèle, s'il existe
 use App\Backend\Model\Rattacher;
 use App\Backend\Model\Recevoir;
 use App\Backend\Model\Reclamation;
@@ -193,7 +196,7 @@ class Container
         $this->definitions[IdentifiantGenerator::class] = fn ($c) => new IdentifiantGenerator($c->get('PDO'), $c->get(Sequences::class), $c->get(AnneeAcademique::class), $c->get(ServiceSupervisionAdmin::class));
         $this->definitions[ServiceConfigurationSysteme::class] = fn ($c) => new ServiceConfigurationSysteme($c->get('PDO'), $c->get(ParametreSysteme::class), $c->get(TypeDocumentRef::class), $c->get(NiveauEtude::class), $c->get(StatutPaiementRef::class), $c->get(DecisionPassageRef::class), $c->get(Ecue::class), $c->get(Grade::class), $c->get(Fonction::class), $c->get(Specialite::class), $c->get(StatutReclamationRef::class), $c->get(StatutConformiteRef::class), $c->get(Ue::class), $c->get(Notification::class), $c->get(ServiceSupervisionAdmin::class), $c->get(IdentifiantGenerator::class));
         $this->definitions[ServiceEmail::class] = fn ($c) => new ServiceEmail($c->get('PDO'), $c->get(Notification::class), $c->get(ServiceSupervisionAdmin::class), $c->get(ServiceConfigurationSysteme::class));
-        $this->definitions[ServiceNotificationConfiguration::class] = fn ($c) => new ServiceNotificationConfiguration($c->get('PDO'), $c->get(MatriceNotificationRegles::class), $c->get(Utilisateur::class), $c->get(ServiceSupervisionAdmin::class));
+        $this->definitions[ServiceNotificationConfiguration::class] = fn ($c) => new ServiceNotificationConfiguration($c->get('PDO'), $c->get(MatriceNotificationRegles::class), $c->get(Utilisateur::class), $c->get(Action::class), $c->get(GroupeUtilisateur::class),$c->get(ServiceSupervisionAdmin::class), $c->get(IdentifiantGenerator::class) );
         $this->definitions[ServiceNotification::class] = fn ($c) => new ServiceNotification($c->get('PDO'), $c->get(Notification::class), $c->get(Recevoir::class), $c->get(Utilisateur::class), $c->get(GroupeUtilisateur::class), $c->get(ServiceSupervisionAdmin::class), $c->get(ServiceEmail::class), $c->get(ServiceNotificationConfiguration::class));
 
         // Définition de ServicePermissions (utilisant l'interface de SupervisionAdmin)

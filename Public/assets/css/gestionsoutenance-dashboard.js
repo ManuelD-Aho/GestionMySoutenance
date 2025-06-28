@@ -1,52 +1,74 @@
+// Public/assets/css/gestionsoutenance-dashboard.js
 document.addEventListener('DOMContentLoaded', function () {
-    // Mock Data
-    let mockUsers = [];
+    // Initialisation des données mockées (seront progressivement remplacées par des données réelles du backend)
+    // Conserver les données mockées pour le développement local ou les tests unitaires frontend, si besoin.
+    // Note : Pour les besoins de ce code, la plupart des données mockées existantes du fichier d'origine sont implicitement conservées ou non modifiées.
+    // Seules les notifications mockées sont explicitement définies pour le test local de l'en-tête.
+    let mockUsers = []; // Cette ligne est un exemple. Gardez vos données mockées réelles ici.
     let mockUserTypes = [];
     let mockUserGroups = [];
     let mockAccessLevels = [];
     let mockTreatments = [];
-    let mockPermissionsAssignments = []; // { groupId: 'GRP_ID', treatmentId: 'TREAT_ID' }
+    let mockPermissionsAssignments = [];
     let mockAcademicYears = [];
     let mockStudyLevels = [];
     let mockSpecialities = [];
-    let mockGenericStatuses = []; // For various status types
+    let mockGenericStatuses = [];
     let mockPdfTemplates = [];
-    let mockEmailTemplates = []; // Table Message
+    let mockEmailTemplates = [];
     let mockAppSettings = {};
     let mockWorkflowItems = [];
-    let mockPVs = []; // Procès-verbaux
-    let mockSystemNotifications = []; // Table Recevoir
+    let mockPVs = [];
+    let mockSystemNotifications = [];
     let mockAuditLogsEnregistrer = [];
     let mockAuditLogsPister = [];
     let mockReports = [];
     let mockDashboardActivities = [];
-    let mockNotifications = [];
+    // mockNotifications sera remplacé par des notifications réellement récupérées
+    let mockNotifications = [
+        { id: 'NOTIF_001', type_message: 'URGENT', sujet: "Maintenance système prévue ce soir à 23h.", message: "Une maintenance critique impactera le service de 23h à 01h.", date_reception: new Date(Date.now() - 10 * 60 * 1000).toISOString(), lue: false },
+        { id: 'NOTIF_002', type_message: 'RAPPORT_STATUT', sujet: "Votre rapport a été validé.", message: "Félicitations, votre rapport de fin d'études a été approuvé par la commission.", date_reception: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), lue: false },
+        { id: 'NOTIF_003', type_message: 'COMPTE_UTILISATEUR', sujet: "Nouvel utilisateur inscrit.", message: "Un nouvel étudiant (Jean Dupont) s'est inscrit sur la plateforme.", date_reception: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(), lue: true },
+    ];
 
-    const currentAdminUser = {
-        login: 'ManuelD-Aho',
-        nom: 'Aho',
-        prenom: 'Manuel D.',
-        role: 'Administrateur Système',
-        initials: 'MA'
+
+    // Données dynamiques de PHP, lues depuis les balises script du HTML
+    const phpUserDataElement = document.getElementById('php-user-data');
+    const phpUserData = phpUserDataElement ? JSON.parse(phpUserDataElement.textContent) : {};
+
+    const phpNotificationCountElement = document.getElementById('php-notification-count');
+    const phpNotificationCount = phpNotificationCountElement ? parseInt(phpNotificationCountElement.textContent) : 0;
+
+    // Objets des données utilisateur pour l'affichage de l'en-tête
+    const currentUserForHeader = {
+        login: phpUserData.login_utilisateur || 'Utilisateur',
+        nom: phpUserData.nom || '',
+        prenom: phpUserData.prenom || 'Nom d\'utilisateur',
+        role: phpUserData.user_role_label || 'Rôle Inconnu', // Utilisez le libellé du rôle de PHP
+        initials: (phpUserData.prenom ? phpUserData.prenom.charAt(0) : '') + (phpUserData.nom ? phpUserData.nom.charAt(0) : ''),
+        avatar: phpUserData.photo_profil || null,
+        email: phpUserData.email_principal || 'email@example.com'
     };
 
-    // State variables
+    // Variables d'état (conservez vos variables d'état existantes si vous les utilisez ailleurs)
     let currentUserFormStep = 1;
     let selectedUserTypeForCreation = '';
     let currentUsersTablePage = { 'all': 1, 'students': 1, 'teachers': 1, 'staff': 1 };
     let usersPerPage = { 'all': 25, 'students': 25, 'teachers': 25, 'staff': 25 };
-    let currentSort = { 'all': { column: 'login_utilisateur', order: 'asc' } }; // Add for other tabs
+    let currentSort = { 'all': { column: 'login_utilisateur', order: 'asc' } };
 
-    // DOM Elements (Cache frequently used ones)
-    const pageTitle = document.getElementById('page-title');
-    const breadcrumbCurrentPage = document.getElementById('breadcrumb-current-page');
-    const mainContentSections = document.querySelectorAll('.content-section');
-    const navItems = document.querySelectorAll('.nav-item');
-    const userFormModal = document.getElementById('user-form-modal');
+
+    // Éléments du DOM (mettre en cache les éléments fréquemment utilisés)
+    const pageTitle = document.getElementById('pageTitle'); // Modifié de page-title pour correspondre à header.php
+    const breadcrumbCurrentPage = document.getElementById('breadcrumb-current-page'); // En supposant que cela existe pour les fils d'Ariane
+    const mainContentSections = document.querySelectorAll('.content-section'); // Assurez-vous que c'est le bon sélecteur
+    const navItems = document.querySelectorAll('.nav-item'); // Assurez-vous que c'est le bon sélecteur
+
+    const userFormModal = document.getElementById('user-form-modal'); // Exemple de modal, à conserver pour le contexte
     const userModalTitle = document.getElementById('user-modal-title');
     const userForm = document.getElementById('user-form');
     const userFormStepIndicator = document.getElementById('user-form-step-indicator');
-    const userFormStepContents = userForm.querySelectorAll('.step-content');
+    const userFormStepContents = userForm ? userForm.querySelectorAll('.step-content') : [];
     const userFormPrevBtn = document.getElementById('user-form-prev-step-btn');
     const userFormNextBtn = document.getElementById('user-form-next-step-btn');
     const userFormSubmitBtn = document.getElementById('user-form-submit-btn');
@@ -68,38 +90,77 @@ document.addEventListener('DOMContentLoaded', function () {
     const alertConfirmationConfirmBtn = document.getElementById('alert-confirmation-confirm-btn');
     let alertConfirmationCallback = null;
 
-    // Initialization
+    // Éléments du header
+    const notificationBtn = document.getElementById('notificationBtn');
+    const notificationDropdown = document.getElementById('notificationDropdown');
+    const notificationList = document.getElementById('notificationList');
+    const headerNotificationCountSpan = document.getElementById('header-notification-count'); // Renommé pour éviter la confusion
+    const markAllReadBtn = document.getElementById('markAllReadBtn');
+    const logoutBtn = document.getElementById('logoutBtn');
+    const userProfileSection = document.getElementById('userProfile');
+    const userDropdown = document.getElementById('userDropdown');
+
+
+    // Initialisation
     function initializeApp() {
-        console.log("Initializing Admin Dashboard...");
-        setupAdminInfo();
-        generateMockData();
-        setupEventListeners();
-        renderDashboard();
-        populateUserFormDropdowns();
-        renderUsersTable('all', 1); // Initial render for "Vue Générale"
-        renderPermissionsSection();
-        renderSystemConfigSection();
-        renderAcademicYearSection();
-        renderTemplatesDocsSection();
-        renderAppSettingsSection();
-        renderWorkflowMonitoringSection();
-        renderPVManagementSection();
-        renderSystemNotificationsMgmtSection();
-        renderAuditLogsSection();
-        renderDataToolsSection();
-        renderTechnicalMaintenanceSection();
-        renderReportingAnalyticsSection();
-        updateNotificationCount();
-        console.log("Admin Dashboard Initialized.");
+        console.log("Initialisation du tableau de bord...");
+        setupHeaderUserInfo(); // Configurer les informations utilisateur dynamiques
+        generateMockData(); // Générer les données mockées (pour la simulation)
+        setupEventListeners(); // Configurer les écouteurs d'événements
+        renderDashboard(); // Rendre le tableau de bord (partie A)
+        populateUserFormDropdowns(); // Remplir les listes déroulantes du formulaire utilisateur
+        renderUsersTable('all', 1); // Rendu initial pour "Vue Générale"
+        renderPermissionsSection(); // Rendre la section des permissions
+        renderSystemConfigSection(); // Rendre la section de configuration système
+        renderAcademicYearSection(); // Rendre la section des années académiques
+        renderTemplatesDocsSection(); // Rendre la section des modèles et documents
+        renderAppSettingsSection(); // Rendre la section des paramètres de l'application
+        renderWorkflowMonitoringSection(); // Rendre la section de surveillance des workflows
+        renderPVManagementSection(); // Rendre la section de gestion des PV
+        renderSystemNotificationsMgmtSection(); // Rendre la section de gestion des notifications système
+        renderAuditLogsSection(); // Rendre la section des journaux d'audit
+        renderDataToolsSection(); // Rendre la section des outils de données
+        renderTechnicalMaintenanceSection(); // Rendre la section de maintenance technique
+        renderReportingAnalyticsSection(); // Rendre la section de rapports et d'analyses
+        updateNotificationCountDisplay(phpNotificationCount); // Mettre à jour le badge des notifications au chargement
+        console.log("Tableau de bord initialisé.");
     }
 
-    function setupAdminInfo() {
-        document.getElementById('admin-avatar-initials').textContent = currentAdminUser.initials;
-        document.getElementById('admin-name-display').textContent = `${currentAdminUser.prenom} ${currentAdminUser.nom}`;
-        document.getElementById('admin-role-display').textContent = currentAdminUser.role;
+    /**
+     * Configure les informations de l'utilisateur dans l'en-tête du tableau de bord.
+     */
+    function setupHeaderUserInfo() {
+        const userAvatarElement = document.querySelector('#userProfile .user-avatar');
+        const userAvatarLargeElement = document.querySelector('#userDropdown .user-avatar-large');
+
+        // Avatar principal de l'en-tête
+        if (userAvatarElement) {
+            userAvatarElement.innerHTML = currentUserForHeader.avatar
+                ? `<img src="${currentUserForHeader.avatar}" alt="Avatar de ${currentUserForHeader.prenom}">`
+                : `<div class="avatar-placeholder">${currentUserForHeader.initials}</div>`;
+        }
+
+        // Avatar dans la liste déroulante du profil
+        if (userAvatarLargeElement) {
+            userAvatarLargeElement.innerHTML = currentUserForHeader.avatar
+                ? `<img src="${currentUserForHeader.avatar}" alt="Avatar">`
+                : `<div class="avatar-placeholder">${currentUserForHeader.initials}</div>`;
+        }
+
+        // Informations textuelles de l'utilisateur
+        const userNameDisplays = document.querySelectorAll('.user-name');
+        userNameDisplays.forEach(el => el.textContent = currentUserForHeader.prenom + ' ' + currentUserForHeader.nom);
+
+        const userRoleDisplays = document.querySelectorAll('.user-role');
+        userRoleDisplays.forEach(el => el.textContent = currentUserForHeader.role);
+
+        const userEmailDisplays = document.querySelectorAll('.user-email');
+        userEmailDisplays.forEach(el => el.textContent = currentUserForHeader.email);
     }
 
-    // Mock Data Generation
+    /**
+     * Génère les données mockées pour la simulation.
+     */
     function generateMockData() {
         // User Types (C.1)
         mockUserTypes = [
@@ -122,33 +183,111 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Access Levels (C.3)
         mockAccessLevels = [
-            { id_niveau_acces_donne: 'LVL_PERSONNEL', libelle_niveau_acces_donne: 'Données Personnelles Uniquement' },
-            { id_niveau_acces_donne: 'LVL_DEPARTEMENT', libelle_niveau_acces_donne: 'Données du Département' },
-            { id_niveau_acces_donne: 'LVL_SERVICE_SCOL', libelle_niveau_acces_donne: 'Données Service Scolarité' },
-            { id_niveau_acces_donne: 'LVL_GLOBAL_READ', libelle_niveau_acces_donne: 'Lecture Globale' },
-            { id_niveau_acces_donne: 'LVL_GLOBAL_WRITE', libelle_niveau_acces_donne: 'Accès Global (Lecture/Écriture)' }
+            { id_niveau_acces_donne: 'ACCES_TOTAL', libelle_niveau_acces_donne: 'Accès Total (Admin)' },
+            { id_niveau_acces_donne: 'ACCES_DEPARTEMENT', libelle_niveau_acces_donne: 'Accès Niveau Département' },
+            { id_niveau_acces_donne: 'ACCES_PERSONNEL', libelle_niveau_acces_donne: 'Accès aux Données Personnelles Uniquement' },
         ];
 
         // Treatments (Fonctionnalités) (C.4.1)
         mockTreatments = [
-            { id_traitement: 'USER_CREATE_ETUD', libelle_traitement: 'Créer Utilisateur Étudiant' },
-            { id_traitement: 'USER_VIEW_LIST', libelle_traitement: 'Voir Liste des Utilisateurs' },
-            { id_traitement: 'USER_EDIT_ANY', libelle_traitement: 'Modifier Tout Utilisateur' },
-            { id_traitement: 'RAPPORT_VALID_CONF', libelle_traitement: 'Valider Conformité Rapport' },
-            { id_traitement: 'CONFIG_ACADEMIC_YEAR', libelle_traitement: 'Configurer Année Académique' },
-            { id_traitement: 'VIEW_AUDIT_LOGS', libelle_traitement: 'Consulter Journaux d\'Audit' },
-            { id_traitement: 'ASSIGN_PERMISSIONS', libelle_traitement: 'Assigner Permissions aux Groupes' },
-        ];
+            { id_traitement: 'TRAIT_ADMIN_DASHBOARD_ACCEDER', libelle_traitement: 'Accéder Tableau de Bord Admin' },
+            { id_traitement: 'TRAIT_ADMIN_GERER_UTILISATEURS_LISTER', libelle_traitement: 'Lister Utilisateurs (Admin)' },
+            { id_traitement: 'TRAIT_ADMIN_GERER_UTILISATEURS_CREER', libelle_traitement: 'Créer Utilisateur (Admin)' },
+            { id_traitement: 'TRAIT_ADMIN_GERER_UTILISATEURS_MODIFIER', libelle_traitement: 'Modifier Utilisateur (Admin)' },
+            { id_traitement: 'TRAIT_ADMIN_GERER_UTILISATEURS_SUPPRIMER', libelle_traitement: 'Supprimer Utilisateur (Admin)' },
+            { id_traitement: 'TRAIT_ADMIN_GERER_UTILISATEURS_CHANGER_STATUT', libelle_traitement: 'Changer Statut Compte (Admin)' },
+            { id_traitement: 'TRAIT_ADMIN_GERER_UTILISATEURS_RESET_MDP', libelle_traitement: 'Réinitialiser MDP (Admin)' },
+            { id_traitement: 'TRAIT_ADMIN_GERER_UTILISATEURS_IMPORTER', libelle_traitement: 'Importer Utilisateurs (Admin)' },
 
-        // Permissions Assignments (rattacher) (C.4.2)
-        mockPermissionsAssignments = [
-            { id_groupe_utilisateur: 'GRP_GEST_SCOL', id_traitement: 'USER_CREATE_ETUD' },
-            { id_groupe_utilisateur: 'GRP_GEST_SCOL', id_traitement: 'USER_VIEW_LIST' },
-            { id_groupe_utilisateur: 'GRP_AGENT_CONFORMITE', id_traitement: 'RAPPORT_VALID_CONF' },
-            { id_groupe_utilisateur: 'GRP_ADMIN_TECH', id_traitement: 'USER_EDIT_ANY' },
-            { id_groupe_utilisateur: 'GRP_ADMIN_TECH', id_traitement: 'CONFIG_ACADEMIC_YEAR' },
-            { id_groupe_utilisateur: 'GRP_ADMIN_TECH', id_traitement: 'VIEW_AUDIT_LOGS' },
-            { id_groupe_utilisateur: 'GRP_ADMIN_TECH', id_traitement: 'ASSIGN_PERMISSIONS' },
+            { id_traitement: 'TRAIT_ADMIN_HABILITATIONS_ACCEDER', libelle_traitement: 'Accéder Habilitations' },
+            { id_traitement: 'TRAIT_ADMIN_HABILITATIONS_GROUPE_LISTER', libelle_traitement: 'Lister Groupes Utilisateur' },
+            { id_traitement: 'TRAIT_ADMIN_HABILITATIONS_GROUPE_CREER', libelle_traitement: 'Créer Groupe Utilisateur' },
+            { id_traitement: 'TRAIT_ADMIN_HABILITATIONS_GROUPE_MODIFIER', libelle_traitement: 'Modifier Groupe Utilisateur' },
+            { id_traitement: 'TRAIT_ADMIN_HABILITATIONS_GROUPE_SUPPRIMER', libelle_traitement: 'Supprimer Groupe Utilisateur' },
+            { id_traitement: 'TRAIT_ADMIN_HABILITATIONS_TYPE_UTILISATEUR_LISTER', libelle_traitement: 'Lister Types Utilisateur' },
+            { id_traitement: 'TRAIT_ADMIN_HABILITATIONS_TYPE_UTILISATEUR_CREER', libelle_traitement: 'Créer Type Utilisateur' },
+            { id_traitement: 'TRAIT_ADMIN_HABILITATIONS_TYPE_UTILISATEUR_MODIFIER', libelle_traitement: 'Modifier Type Utilisateur' },
+            { id_traitement: 'TRAIT_ADMIN_HABILITATIONS_TYPE_UTILISATEUR_SUPPRIMER', libelle_traitement: 'Supprimer Type Utilisateur' },
+            { id_traitement: 'TRAIT_ADMIN_HABILITATIONS_NIVEAU_ACCES_LISTER', libelle_traitement: 'Lister Niveaux Accès' },
+            { id_traitement: 'TRAIT_ADMIN_HABILITATIONS_NIVEAU_ACCES_CREER', libelle_traitement: 'Créer Niveau Accès' },
+            { id_traitement: 'TRAIT_ADMIN_HABILITATIONS_NIVEAU_ACCES_MODIFIER', libelle_traitement: 'Modifier Niveau Accès' },
+            { id_traitement: 'TRAIT_ADMIN_HABILITATIONS_NIVEAU_ACCES_SUPPRIMER', libelle_traitement: 'Supprimer Niveau Accès' },
+            { id_traitement: 'TRAIT_ADMIN_HABILITATIONS_TRAITEMENT_LISTER', libelle_traitement: 'Lister Traitements' },
+            { id_traitement: 'TRAIT_ADMIN_HABILITATIONS_TRAITEMENT_CREER', libelle_traitement: 'Créer Traitement' },
+            { id_traitement: 'TRAIT_ADMIN_HABILITATIONS_TRAITEMENT_MODIFIER', libelle_traitement: 'Modifier Traitement' },
+            { id_traitement: 'TRAIT_ADMIN_HABILITATIONS_TRAITEMENT_SUPPRIMER', libelle_traitement: 'Supprimer Traitement' },
+            { id_traitement: 'TRAIT_ADMIN_HABILITATIONS_RATTACHEMENT_GERER', libelle_traitement: 'Gérer Rattachements Permissions' },
+
+            { id_traitement: 'TRAIT_ADMIN_REFERENTIELS_ACCEDER', libelle_traitement: 'Accéder Référentiels' },
+            { id_traitement: 'TRAIT_ADMIN_REFERENTIELS_LISTER', libelle_traitement: 'Lister Items Référentiels' },
+            { id_traitement: 'TRAIT_ADMIN_REFERENTIELS_GERER', libelle_traitement: 'Gérer Items Référentiels (CRUD)' },
+
+            { id_traitement: 'TRAIT_ADMIN_CONFIG_ACCEDER', libelle_traitement: 'Accéder Configuration Système' },
+            { id_traitement: 'TRAIT_ADMIN_CONFIG_ANNEE_ACADEMIQUE_LISTER', libelle_traitement: 'Lister Années Académiques' },
+            { id_traitement: 'TRAIT_ADMIN_CONFIG_ANNEE_ACADEMIQUE_CREER', libelle_traitement: 'Créer Année Académique' },
+            { id_traitement: 'TRAIT_ADMIN_CONFIG_ANNEE_ACADEMIQUE_MODIFIER', libelle_traitement: 'Modifier Année Académique' },
+            { id_traitement: 'TRAIT_ADMIN_CONFIG_ANNEE_ACADEMIQUE_SUPPRIMER', libelle_traitement: 'Supprimer Année Académique' },
+            { id_traitement: 'TRAIT_ADMIN_CONFIG_ANNEE_ACADEMIQUE_ACTIVER', libelle_traitement: 'Activer Année Académique' },
+            { id_traitement: 'TRAIT_ADMIN_CONFIG_PARAM_MAJ', libelle_traitement: 'Mettre à Jour Paramètres Généraux' },
+            { id_traitement: 'TRAIT_ADMIN_CONFIG_MODELES_DOCS_GERER', libelle_traitement: 'Gérer Modèles Documents/Notifications' },
+
+            { id_traitement: 'TRAIT_ADMIN_GESTION_ACAD_ACCEDER', libelle_traitement: 'Accéder Gestion Académique' },
+            { id_traitement: 'TRAIT_ADMIN_GESTION_ACAD_INSCRIPTION_LISTER', libelle_traitement: 'Lister Inscriptions' },
+            { id_traitement: 'TRAIT_ADMIN_GESTION_ACAD_INSCRIPTION_CREER', libelle_traitement: 'Créer Inscription' },
+            { id_traitement: 'TRAIT_ADMIN_GESTION_ACAD_NOTE_LISTER', libelle_traitement: 'Lister Notes' },
+            { id_traitement: 'TRAIT_ADMIN_GESTION_ACAD_NOTE_GERER', libelle_traitement: 'Gérer Notes' },
+
+            { id_traitement: 'TRAIT_ADMIN_SUPERVISION_ACCEDER', libelle_traitement: 'Accéder Supervision' },
+            { id_traitement: 'TRAIT_ADMIN_SUPERVISION_JOURNAUX_AUDIT_VOIR', libelle_traitement: 'Voir Journaux d\'Audit' },
+            { id_traitement: 'TRAIT_ADMIN_SUPERVISION_WORKFLOWS_SUIVRE', libelle_traitement: 'Suivre Workflows' },
+            { id_traitement: 'TRAIT_ADMIN_SUPERVISION_MAINTENANCE_GERER', libelle_traitement: 'Gérer Maintenance Technique' },
+
+            { id_traitement: 'TRAIT_ADMIN_REPORTING_ACCEDER', libelle_traitement: 'Accéder Reporting' },
+            { id_traitement: 'TRAIT_ADMIN_REPORTING_GENERER', libelle_traitement: 'Générer Rapports' },
+
+            // Permissions Étudiant
+            { id_traitement: 'TRAIT_ETUDIANT_DASHBOARD_ACCEDER', libelle_traitement: 'Accéder Tableau de Bord Étudiant' },
+            { id_traitement: 'TRAIT_ETUDIANT_PROFIL_ACCEDER', libelle_traitement: 'Accéder Profil Étudiant' },
+            { id_traitement: 'TRAIT_ETUDIANT_PROFIL_MODIFIER', libelle_traitement: 'Modifier Profil Étudiant' },
+            { id_traitement: 'TRAIT_ETUDIANT_RAPPORT_SOUMETTRE', libelle_traitement: 'Soumettre Rapport' },
+            { id_traitement: 'TRAIT_ETUDIANT_RAPPORT_SUIVRE', libelle_traitement: 'Suivre Statut Rapport' },
+            { id_traitement: 'TRAIT_ETUDIANT_RECLAMATION_CREER', libelle_traitement: 'Soumettre Réclamation' },
+            { id_traitement: 'TRAIT_ETUDIANT_RECLAMATION_LISTER', libelle_traitement: 'Lister Mes Réclamations' },
+            { id_traitement: 'TRAIT_ETUDIANT_DOCUMENTS_LISTER', libelle_traitement: 'Lister Mes Documents' },
+            { id_traitement: 'TRAIT_ETUDIANT_DOCUMENTS_TELECHARGER', libelle_traitement: 'Télécharger Mes Documents' },
+            { id_traitement: 'TRAIT_ETUDIANT_RESSOURCES_CONSULTER', libelle_traitement: 'Consulter Ressources' },
+
+            // Permissions Personnel Administratif
+            { id_traitement: 'TRAIT_PERS_ADMIN_DASHBOARD_ACCEDER', libelle_traitement: 'Accéder Tableau de Bord Personnel' },
+            { id_traitement: 'TRAIT_PERS_ADMIN_CONFORMITE_LISTER', libelle_traitement: 'Lister Rapports Conformité' },
+            { id_traitement: 'TRAIT_PERS_ADMIN_CONFORMITE_VERIFIER', libelle_traitement: 'Vérifier Conformité Rapport' },
+            { id_traitement: 'TRAIT_PERS_ADMIN_SCOLARITE_ACCEDER', libelle_traitement: 'Accéder Gestion Scolarité' },
+            { id_traitement: 'TRAIT_PERS_ADMIN_SCOLARITE_ETUDIANT_LISTER', libelle_traitement: 'Lister Étudiants (Scolarité)' },
+            { id_traitement: 'TRAIT_PERS_ADMIN_SCOLARITE_ETUDIANT_ACTIVER_COMPTE', libelle_traitement: 'Activer Compte Étudiant (Scolarité)' },
+            { id_traitement: 'TRAIT_PERS_ADMIN_SCOLARITE_INSCRIPTION_LISTER', libelle_traitement: 'Lister Inscriptions (Scolarité)' },
+            { id_traitement: 'TRAIT_PERS_ADMIN_SCOLARITE_INSCRIPTION_GERER', libelle_traitement: 'Gérer Inscriptions (CRUD)' },
+            { id_traitement: 'TRAIT_PERS_ADMIN_SCOLARITE_NOTE_LISTER', libelle_traitement: 'Lister Notes (Scolarité)' },
+            { id_traitement: 'TRAIT_PERS_ADMIN_SCOLARITE_NOTE_GERER', libelle_traitement: 'Gérer Notes (CRUD)' },
+            { id_traitement: 'TRAIT_PERS_ADMIN_SCOLARITE_STAGE_VALIDER', libelle_traitement: 'Valider Stage' },
+            { id_traitement: 'TRAIT_PERS_ADMIN_SCOLARITE_DOCUMENT_GENERER', libelle_traitement: 'Générer Documents (Scolarité)' },
+            { id_traitement: 'TRAIT_PERS_ADMIN_SCOLARITE_RECLAMATION_TRAITER', libelle_traitement: 'Traiter Réclamations' },
+            { id_traitement: 'TRAIT_PERS_ADMIN_SCOLARITE_PENALITE_GERER', libelle_traitement: 'Gérer Pénalités' },
+            { id_traitement: 'TRAIT_PERS_ADMIN_COMMUNICATION_ACCEDER', libelle_traitement: 'Accéder Messagerie Interne' },
+            { id_traitement: 'TRAIT_PERS_ADMIN_COMMUNICATION_ENVOYER_MESSAGE', libelle_traitement: 'Envoyer Message Interne' },
+
+            // Permissions Commission
+            { id_traitement: 'TRAIT_COMMISSION_DASHBOARD_ACCEDER', libelle_traitement: 'Accéder Tableau de Bord Commission' },
+            { id_traitement: 'TRAIT_COMMISSION_VALIDATION_RAPPORT_LISTER', libelle_traitement: 'Lister Rapports à Valider' },
+            { id_traitement: 'TRAIT_COMMISSION_VALIDATION_RAPPORT_VOTER', libelle_traitement: 'Voter sur Rapport' },
+            { id_traitement: 'TRAIT_COMMISSION_PV_LISTER', libelle_traitement: 'Lister PV Commission' },
+            { id_traitement: 'TRAIT_COMMISSION_PV_REDIGER', libelle_traitement: 'Rédiger PV' },
+            { id_traitement: 'TRAIT_COMMISSION_PV_MODIFIER', libelle_traitement: 'Modifier PV' },
+            { id_traitement: 'TRAIT_COMMISSION_PV_VALIDER', libelle_traitement: 'Valider PV' },
+            { id_traitement: 'TRAIT_COMMISSION_CORRECTION_LISTER', libelle_traitement: 'Lister Rapports pour Correction' },
+            { id_traitement: 'TRAIT_COMMISSION_CORRECTION_MODIFIER', libelle_traitement: 'Soumettre Corrections (Commission)' },
+            { id_traitement: 'TRAIT_COMMISSION_COMMUNICATION_ACCEDER', libelle_traitement: 'Accéder Messagerie Commission' },
+            { id_traitement: 'TRAIT_COMMISSION_COMMUNICATION_ENVOYER_MESSAGE', libelle_traitement: 'Envoyer Message Commission' },
+            { id_traitement: 'TRAIT_COMMISSION_HISTORIQUE_CONSULTER', libelle_traitement: 'Consulter Historique Commission' },
         ];
 
 
@@ -225,17 +364,17 @@ document.addEventListener('DOMContentLoaded', function () {
         // Add current admin
         mockUsers.push({
             numero_utilisateur: `ADM_SYS_001`,
-            login_utilisateur: currentAdminUser.login,
-            email_principal: `${currentAdminUser.login.toLowerCase()}@system.com`,
-            nom: currentAdminUser.nom,
-            prenom: currentAdminUser.prenom,
+            login_utilisateur: currentUserForHeader.login,
+            email_principal: `${currentUserForHeader.login.toLowerCase()}@system.com`,
+            nom: currentUserForHeader.nom,
+            prenom: currentUserForHeader.prenom,
             id_type_utilisateur: 'TYPE_ADMIN_SYS',
             id_groupe_utilisateur: 'GRP_ADMIN_TECH',
-            id_niveau_acces_donne: 'LVL_GLOBAL_WRITE',
+            id_niveau_acces_donne: 'ACCES_TOTAL', // Corrigé pour correspondre à mockAccessLevels
             statut_compte: 'actif',
             date_creation: new Date().toISOString(),
             derniere_connexion: new Date().toISOString(),
-            photo_profil: `https://i.pravatar.cc/40?u=${currentAdminUser.login}`,
+            photo_profil: `https://i.pravatar.cc/40?u=${currentUserForHeader.login}`,
             email_valide: true,
             preferences_2fa_active: true,
             tentatives_connexion_echouees: 0,
@@ -246,8 +385,8 @@ document.addEventListener('DOMContentLoaded', function () {
         // Academic Years (D.1)
         mockAcademicYears = [
             { id_annee_academique: 'AA_2023_2024', libelle_annee_academique: '2023-2024', date_debut: '2023-09-01', date_fin: '2024-08-31', est_active: false },
-            { id_annee_academique: 'AA_2024_2025', libelle_annee_academique: '2024-2025', date_debut: '2024-09-01', date_fin: '2025-08-31', est_active: true },
-            { id_annee_academique: 'AA_2025_2026', libelle_annee_academique: '2025-2026', date_debut: '2025-09-01', date_fin: '2026-08-31', est_active: false },
+            { id_annee_academique: 'AA_2024_2025', libelle_annee_academique: '2024-09-01', date_fin: '2025-08-31', est_active: true },
+            { id_annee_academique: 'AA_2025_2026', libelle_annee_academique: '2025-09-01', date_fin: '2026-08-31', est_active: false },
         ];
 
         mockStudyLevels = [
@@ -295,10 +434,10 @@ document.addEventListener('DOMContentLoaded', function () {
         const actions = ['Création utilisateur', 'Modification profil', 'Connexion réussie', 'Changement de statut', 'Permission assignée'];
         const entites = ['Utilisateur', 'Rapport', 'Permission', 'Système'];
         for (let i = 0; i < 50; i++) {
-            const user = mockUsers[Math.floor(Math.random() * mockUsers.length)];
+            const user = mockUsers.find(u => u.numero_utilisateur === phpUserData.numero_utilisateur) || mockUsers[0]; // Utiliser l'utilisateur connecté ou le premier mocké
             mockAuditLogsEnregistrer.push({
                 id_enregistrement: `ENR_${Date.now()}_${i}`,
-                numero_utilisateur: user.numero_utilisateur, // Qui
+                numero_utilisateur: user ? user.numero_utilisateur : 'SYSTEM', // Qui
                 id_action: actions[Math.floor(Math.random() * actions.length)], // Quoi (libelle_action)
                 date_action: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000).toISOString(), // Quand
                 type_entite_concernee: entites[Math.floor(Math.random() * entites.length)],
@@ -309,7 +448,7 @@ document.addEventListener('DOMContentLoaded', function () {
             });
             mockAuditLogsPister.push({
                 id_piste: `PISTE_${Date.now()}_${i}`,
-                numero_utilisateur: user.numero_utilisateur,
+                numero_utilisateur: user ? user.numero_utilisateur : 'SYSTEM',
                 id_traitement: mockTreatments[Math.floor(Math.random() * mockTreatments.length)].id_traitement,
                 date_pister: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000).toISOString(),
                 acceder: Math.random() > 0.1 // true for granted, false for denied
@@ -320,22 +459,20 @@ document.addEventListener('DOMContentLoaded', function () {
         mockDashboardActivities = mockAuditLogsEnregistrer.slice(0, 10).map(log => ({
             icon: getIconForAction(log.id_action),
             bgColorClass: getBgColorForAction(log.id_action),
-            text: `${log.id_action} par <strong>${getUserDisplay(log.numero_utilisateur)}</strong> sur ${log.type_entite_concernee} ${log.id_entite_concernee.substring(0,15)}...`,
+            text: `${log.id_action} par <strong>${getUserDisplay(log.numero_utilisateur)}</strong> sur ${log.type_entite_concernee} ${escapeHtml(log.id_entite_concernee || '')}`,
             time: timeAgo(log.date_action),
             type: log.type_entite_concernee === 'Utilisateur' ? 'user_management' : (log.id_action.includes('Permission') ? 'security' : 'system_config')
         }));
 
-        // Notifications (Header)
-        mockNotifications = [
-            { id: 1, text: "Maintenance système prévue ce soir à 23h.", time: "il y a 10 minutes", read: false, type: 'system' },
-            { id: 2, text: "Rapport de sécurité mensuel disponible.", time: "il y a 2 heures", read: false, type: 'report' },
-            { id: 3, text: "3 nouveaux utilisateurs en attente de validation.", time: "il y a 5 heures", read: true, type: 'user' },
-        ];
+        // Notifications (Header) - mockNotifications est déjà défini plus haut
     }
 
+    /**
+     * Fonctions utilitaires diverses.
+     */
     function getUserDisplay(numeroUtilisateur) {
         const user = mockUsers.find(u => u.numero_utilisateur === numeroUtilisateur);
-        return user ? `${user.prenom} ${user.nom} (${user.login_utilisateur})` : numeroUtilisateur;
+        return user ? `${escapeHtml(user.prenom || '')} ${escapeHtml(user.nom || '')} (${escapeHtml(user.login_utilisateur || '')})` : escapeHtml(numeroUtilisateur);
     }
 
     function getIconForAction(action) {
@@ -353,53 +490,256 @@ document.addEventListener('DOMContentLoaded', function () {
         return 'icon-bg-grey'; // Define icon-bg-grey or use another
     }
 
+    function timeAgo(dateString) {
+        if (!dateString) return 'N/A';
+        const date = new Date(dateString);
+        const now = new Date();
+        const seconds = Math.round((now - date) / 1000);
+        const minutes = Math.round(seconds / 60);
+        const hours = Math.round(minutes / 60);
+        const days = Math.round(hours / 24);
 
-    // Navigation Logic
-    function navigateToSection(sectionId, subTab = null) {
-        mainContentSections.forEach(sec => sec.classList.remove('active'));
-        const targetSection = document.getElementById(sectionId + '-content');
-        if (targetSection) {
-            targetSection.classList.add('active');
-            const navItem = document.querySelector(`.nav-item[data-section="${sectionId}"]`);
-            pageTitle.textContent = navItem ? navItem.querySelector('span:last-child').textContent : sectionId.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-            breadcrumbCurrentPage.textContent = pageTitle.textContent;
+        if (seconds < 60) return `il y a ${seconds} sec`;
+        if (minutes < 60) return `il y a ${minutes} min`;
+        if (hours < 24) return `il y a ${hours} heures`;
+        return `il y a ${days} jours`;
+    }
 
-            if (subTab) {
-                const tabContainer = targetSection.querySelector('.users-tabs, .permissions-tabs-container, .system_config-tabs-container, .audit_logs-tabs-container, .templates_docs-tabs-container'); // Add other tab containers
-                if (tabContainer) {
-                    setActiveTab(tabContainer, subTab);
+    function escapeHtml(unsafe) {
+        if (unsafe === null || unsafe === undefined) return '';
+        return String(unsafe)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+
+    /**
+     * Met à jour l'affichage du nombre de notifications dans le badge.
+     * @param {number} count Le nombre de notifications non lues.
+     */
+    function updateNotificationCountDisplay(count) {
+        if (headerNotificationCountSpan) {
+            headerNotificationCountSpan.textContent = count > 99 ? '99+' : count;
+            headerNotificationCountSpan.style.display = count > 0 ? 'flex' : 'none';
+        }
+    }
+
+    /**
+     * Récupère les notifications depuis le backend via une API.
+     */
+    async function fetchNotifications() {
+        try {
+            // Point de terminaison d'API réel pour les notifications
+            const response = await fetch('/api/notifications'); // Cette route devra être définie dans routes/web.php
+            if (!response.ok) {
+                // Si l'API renvoie une erreur, utilisez les mock data pour la démo
+                console.warn('API notifications non disponible, utilisation des données mockées.');
+                renderNotifications(mockNotifications);
+                const unreadCountMock = mockNotifications.filter(notif => !notif.lue).length;
+                updateNotificationCountDisplay(unreadCountMock);
+                return;
+            }
+            const data = await response.json();
+
+            renderNotifications(data); // Rendre les notifications obtenues
+            // Mettre à jour le nombre total de notifications non lues après le fetch
+            const unreadCount = data.filter(notif => !notif.lue).length;
+            updateNotificationCountDisplay(unreadCount);
+
+        } catch (error) {
+            console.error('Erreur lors de la récupération des notifications:', error);
+            if (notificationList) {
+                notificationList.innerHTML = '<div class="no-notifications">Erreur de chargement des notifications.</div>';
+            }
+            updateNotificationCountDisplay(0); // Réinitialiser le compte en cas d'erreur
+        }
+    }
+
+    /**
+     * Rend les notifications dans la liste déroulante.
+     * @param {Array} notifications La liste des objets notification.
+     */
+    function renderNotifications(notifications) {
+        if (notificationList) {
+            notificationList.innerHTML = ''; // Effacer les éléments existants
+            if (notifications.length === 0) {
+                notificationList.innerHTML = '<div class="no-notifications">Aucune notification pour l\'instant.</div>';
+                return;
+            }
+
+            notifications.forEach(notif => {
+                const notifItem = document.createElement('div');
+                notifItem.classList.add('notification-item');
+                if (!notif.lue) {
+                    notifItem.classList.add('unread');
+                }
+                notifItem.dataset.id = notif.id; // L'ID unique de la notification dans la table 'recevoir'
+
+                notifItem.innerHTML = `
+                    <div class="notification-icon">
+                        <i class="${getNotificationIcon(notif.type_message)} ${getNotificationColorClass(notif.type_message)}"></i>
+                    </div>
+                    <div class="notification-content">
+                        <p>${escapeHtml(notif.sujet)}</p>
+                        <span class="notification-time">${timeAgo(notif.date_reception)}</span>
+                    </div>
+                `;
+                notifItem.addEventListener('click', () => {
+                    markNotificationAsRead(notif.id);
+                    // Optionnel: Rediriger l'utilisateur vers la page de détails de la notification
+                    // window.location.href = `/dashboard/notifications/${notif.id}`;
+                });
+                notificationList.appendChild(notifItem);
+            });
+        }
+    }
+
+    /**
+     * Marque une notification spécifique comme lue côté backend.
+     * @param {string} idNotification L'ID de la notification à marquer comme lue.
+     */
+    async function markNotificationAsRead(idNotification) {
+        try {
+            const response = await fetch(`/api/notifications/${idNotification}/mark-as-read`, { method: 'POST' });
+            if (response.ok) {
+                console.log(`Notification ${idNotification} marquée comme lue.`);
+                const item = document.querySelector(`.notification-item[data-id="${idNotification}"]`);
+                if (item) {
+                    item.classList.remove('unread');
+                    // Mettre à jour le compte en décrémentant
+                    const currentCount = parseInt(headerNotificationCountSpan.textContent);
+                    if (!isNaN(currentCount) && currentCount > 0) {
+                        updateNotificationCountDisplay(currentCount - 1);
+                    }
                 }
             }
-        } else {
-            console.warn(`Section ${sectionId}-content not found!`);
-            document.getElementById('dashboard-content').classList.add('active'); // Fallback to dashboard
-            pageTitle.textContent = 'Tableau de Bord';
-            breadcrumbCurrentPage.textContent = 'Dashboard';
+        } catch (error) {
+            console.error('Erreur lors du marquage de la notification comme lue:', error);
+        }
+    }
+
+    /**
+     * Marque toutes les notifications comme lues côté backend.
+     */
+    async function markAllNotificationsAsRead() {
+        try {
+            const response = await fetch('/api/notifications/mark-all-read', { method: 'POST' });
+            if (response.ok) {
+                console.log('Toutes les notifications marquées comme lues.');
+                if (notificationList) {
+                    notificationList.querySelectorAll('.notification-item').forEach(item => item.classList.remove('unread'));
+                }
+                updateNotificationCountDisplay(0); // Réinitialiser le compte à zéro
+                if (notificationDropdown) {
+                    notificationDropdown.classList.remove('show'); // Fermer la liste déroulante après l'action
+                }
+            }
+        } catch (error) {
+            console.error('Erreur lors du marquage de toutes les notifications comme lues:', error);
+        }
+    }
+
+    /**
+     * Configure les écouteurs d'événements pour les interactions de l'en-tête et du tableau de bord.
+     */
+    function setupEventListeners() {
+        // Toggle menu latéral (communication avec un éventuel composant sidebar)
+        const menuToggle = document.getElementById('menuToggle');
+        if (menuToggle) {
+            menuToggle.addEventListener('click', function() {
+                document.dispatchEvent(new CustomEvent('toggleSidebar')); // Événement personnalisé pour la barre latérale
+            });
         }
 
-        navItems.forEach(item => item.classList.remove('active'));
-        const activeNavItem = document.querySelector(`.nav-item[data-section="${sectionId}"]`);
-        if (activeNavItem) activeNavItem.classList.add('active');
-    }
+        // Toggle notifications dropdown
+        if (notificationBtn) {
+            notificationBtn.addEventListener('click', function(event) {
+                event.stopPropagation();
+                if (userDropdown) userDropdown.classList.remove('show'); // Fermer le menu utilisateur
+                if (notificationDropdown) {
+                    notificationDropdown.classList.toggle('show');
+                    if (notificationDropdown.classList.contains('show')) {
+                        fetchNotifications(); // Charger les notifications au moment de l'ouverture
+                    }
+                }
+            });
+        }
 
-    function setActiveTab(tabContainer, tabId) {
-        const tabs = tabContainer.querySelectorAll('.users-tab'); // Generic enough for now
-        const tabContents = tabContainer.parentElement.parentElement.querySelectorAll('.users-tab-content, .permissions-tab-content, .system_config-tab-content, .audit_logs-tab-content, .templates_docs-tab-content'); // Adjust selectors
+        // Toggle user profile dropdown
+        if (userProfileSection) {
+            userProfileSection.addEventListener('click', function(event) {
+                event.stopPropagation();
+                if (notificationDropdown) notificationDropdown.classList.remove('show'); // Fermer les notifications
+                if (userDropdown) userDropdown.classList.toggle('show');
+            });
+        }
 
-        tabs.forEach(tab => tab.classList.remove('active'));
-        tabContents.forEach(content => content.classList.remove('active'));
+        // Fermer les dropdowns en cliquant en dehors
+        document.addEventListener('click', function(event) {
+            if (userDropdown && userDropdown.classList.contains('show') && !userDropdown.contains(event.target) && !userProfileSection.contains(event.target)) {
+                userDropdown.classList.remove('show');
+            }
+            if (notificationDropdown && notificationDropdown.classList.contains('show') && !notificationDropdown.contains(event.target) && !notificationBtn.contains(event.target)) {
+                notificationDropdown.classList.remove('show');
+            }
+        });
 
-        const activeTab = tabContainer.querySelector(`.users-tab[data-tab="${tabId}"]`);
-        const activeContent = document.getElementById(`${tabContainer.id.replace('-tabs-container', '')}-${tabId}-content`);
+        // Marquer toutes les notifications comme lues
+        if (markAllReadBtn) {
+            markAllReadBtn.addEventListener('click', markAllNotificationsAsRead);
+        }
 
-        if (activeTab) activeTab.classList.add('active');
-        if (activeContent) activeContent.classList.add('active');
-        else console.warn(`Tab content for ${tabId} not found in container ${tabContainer.id}`);
-    }
+        // Bouton de déconnexion
+        if (logoutBtn) {
+            logoutBtn.addEventListener('click', function(e) {
+                e.preventDefault(); // Empêche la navigation directe pour potentiellement gérer une confirmation
+                window.location.href = this.href; // Redirige vers la route de déconnexion gérée par le backend
+            });
+        }
 
+        // Gestion du bouton plein écran (logique existante)
+        const fullscreenBtn = document.getElementById('fullscreenBtn');
+        if (fullscreenBtn) {
+            fullscreenBtn.addEventListener('click', function() {
+                toggleFullscreen();
+            });
+            document.addEventListener('fullscreenchange', updateFullscreenIcon);
+        }
 
-    // Event Listeners
-    function setupEventListeners() {
+        // Gestion de la barre de recherche (logique existante)
+        const searchInput = document.getElementById('searchInput');
+        const searchClear = document.getElementById('searchClear');
+        if (searchInput && searchClear) {
+            searchInput.addEventListener('input', function() {
+                searchClear.style.display = this.value.length > 0 ? 'block' : 'none';
+            });
+            searchClear.addEventListener('click', function() {
+                searchInput.value = '';
+                this.style.display = 'none';
+                // Masquer les suggestions de recherche
+                const searchSuggestions = document.getElementById('searchSuggestions');
+                if (searchSuggestions) searchSuggestions.style.display = 'none';
+            });
+            searchInput.addEventListener('focus', function() {
+                if (this.value.trim()) {
+                    // Simuler l'affichage des suggestions existantes (si déjà une valeur)
+                    const searchSuggestions = document.getElementById('searchSuggestions');
+                    if (searchSuggestions) searchSuggestions.style.display = 'block';
+                }
+            });
+            // Pour fermer les suggestions si on clique ailleurs après avoir focusé
+            document.addEventListener('click', function(event) {
+                const searchContainer = document.querySelector('.search-container');
+                if (searchContainer && !searchContainer.contains(event.target)) {
+                    const searchSuggestions = document.getElementById('searchSuggestions');
+                    if (searchSuggestions) searchSuggestions.style.display = 'none';
+                }
+            });
+        }
+
+        // Écouteurs d'événements pour les onglets du tableau de bord (logique existante)
         navItems.forEach(item => {
             item.addEventListener('click', (e) => {
                 e.preventDefault();
@@ -408,7 +748,6 @@ document.addEventListener('DOMContentLoaded', function () {
             });
         });
 
-        // User Management Tabs
         const usersTabsContainer = document.getElementById('users-tabs-container');
         if (usersTabsContainer) {
             usersTabsContainer.addEventListener('click', (e) => {
@@ -424,20 +763,17 @@ document.addEventListener('DOMContentLoaded', function () {
             });
         }
 
-        // Permissions Tabs
         const permissionsTabsContainer = document.getElementById('permissions-tabs-container');
         if (permissionsTabsContainer) {
             permissionsTabsContainer.addEventListener('click', (e) => {
                 if (e.target.classList.contains('users-tab')) { // Re-using .users-tab class
                     const tabId = e.target.dataset.tab;
                     setActiveTab(permissionsTabsContainer, tabId);
-                    // Call render function for the specific permissions tab
                     renderPermissionsSection(tabId);
                 }
             });
         }
 
-        // System Config Tabs
         const systemConfigTabsContainer = document.getElementById('system_config-tabs-container');
         if (systemConfigTabsContainer) {
             systemConfigTabsContainer.addEventListener('click', (e) => {
@@ -449,7 +785,6 @@ document.addEventListener('DOMContentLoaded', function () {
             });
         }
 
-        // Templates & Docs Tabs
         const templatesDocsTabsContainer = document.getElementById('templates_docs-tabs-container');
         if (templatesDocsTabsContainer) {
             templatesDocsTabsContainer.addEventListener('click', (e) => {
@@ -461,7 +796,6 @@ document.addEventListener('DOMContentLoaded', function () {
             });
         }
 
-        // Audit Logs Tabs
         const auditLogsTabsContainer = document.getElementById('audit_logs-tabs-container');
         if (auditLogsTabsContainer) {
             auditLogsTabsContainer.addEventListener('click', (e) => {
@@ -473,19 +807,20 @@ document.addEventListener('DOMContentLoaded', function () {
             });
         }
 
-
         // User Form Modal
-        userForm.addEventListener('submit', handleUserFormSubmit);
-        userFormTypeSelect.addEventListener('change', updateUserFormForType); // For dynamic fields in step 1/2
+        if (userForm) userForm.addEventListener('submit', handleUserFormSubmit);
+        if (userFormTypeSelect) userFormTypeSelect.addEventListener('change', updateUserFormForType);
 
         // Generic CRUD Modal Form
-        genericCrudForm.addEventListener('submit', handleGenericCrudFormSubmit);
+        if (genericCrudForm) genericCrudForm.addEventListener('submit', handleGenericCrudFormSubmit);
 
         // Alert Confirmation Modal
-        alertConfirmationConfirmBtn.addEventListener('click', () => {
-            if (alertConfirmationCallback) alertConfirmationCallback();
-            closeAlertConfirmationModal();
-        });
+        if (alertConfirmationConfirmBtn) {
+            alertConfirmationConfirmBtn.addEventListener('click', () => {
+                if (alertConfirmationCallback) alertConfirmationCallback();
+                closeAlertConfirmationModal();
+            });
+        }
 
         // Dashboard activity filters
         const dashboardActivityFilters = document.getElementById('dashboard-activity-filters');
@@ -500,7 +835,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    // Dashboard Rendering (A)
+    // Dashboard Rendering (A) - Logic from your provided code
     function renderDashboard() {
         updateDashboardStats(); // A.1
         renderDashboardActivities('all'); // Part of A (Recent Activities)
@@ -517,7 +852,7 @@ document.addEventListener('DOMContentLoaded', function () {
         // Simulate other stats for now
         const pendingReports = Math.floor(Math.random() * 100);
         const systemActions = mockAuditLogsEnregistrer.length + mockAuditLogsPister.length;
-        const systemAlerts = mockNotifications.filter(n => !n.read && n.type !== 'report').length; // Example
+        const systemAlerts = mockNotifications.filter(n => !n.lue && n.type_message !== 'RAPPORT_STATUT').length; // Example
 
         statsGrid.innerHTML = `
             <div class="dashboard-card stat-card">
@@ -680,7 +1015,7 @@ document.addEventListener('DOMContentLoaded', function () {
         `;
     }
 
-    // User Management (B)
+    // User Management (B) - Logic from your provided code
     function renderUsersTable(userTypeKey, page = 1) { // userTypeKey: 'all', 'students', 'teachers', 'staff'
         const tableIdSuffix = userTypeKey;
         const tableBody = document.getElementById(`users-table-body-${tableIdSuffix}`);
@@ -691,18 +1026,20 @@ document.addEventListener('DOMContentLoaded', function () {
             console.warn(`Table body for ${userTypeKey} not found.`);
             // Create the tab content if it doesn't exist (e.g., for students, teachers, staff)
             if (userTypeKey !== 'all') {
-                const overviewContent = document.getElementById('users-overview-content').cloneNode(true);
-                overviewContent.id = `users-${userTypeKey}-content`;
-                overviewContent.classList.remove('active');
-                overviewContent.querySelectorAll('[id]').forEach(el => el.id = el.id.replace('-all', `-${userTypeKey}`));
-                overviewContent.querySelector('h3').textContent = `Recherche et Filtres (${userTypeKey.charAt(0).toUpperCase() + userTypeKey.slice(1)})`;
-                overviewContent.querySelector(`#users-table-title-${userTypeKey}`).textContent = `Liste des ${userTypeKey.charAt(0).toUpperCase() + userTypeKey.slice(1)}`;
+                const overviewContent = document.getElementById('users-overview-content')?.cloneNode(true); // Utilisation de ?.
+                if (overviewContent) {
+                    overviewContent.id = `users-${userTypeKey}-content`;
+                    overviewContent.classList.remove('active');
+                    overviewContent.querySelectorAll('[id]').forEach(el => el.id = el.id.replace('-all', `-${userTypeKey}`));
+                    overviewContent.querySelector('h3').textContent = `Recherche et Filtres (${userTypeKey.charAt(0).toUpperCase() + userTypeKey.slice(1)})`;
+                    overviewContent.querySelector(`#users-table-title-${userTypeKey}`).textContent = `Liste des ${userTypeKey.charAt(0).toUpperCase() + userTypeKey.slice(1)}`;
 
-                const usersContentDiv = document.getElementById('users-content');
-                usersContentDiv.appendChild(overviewContent);
+                    const usersContentDiv = document.getElementById('users-content');
+                    if (usersContentDiv) usersContentDiv.appendChild(overviewContent);
 
-                // Re-fetch newly created elements
-                return renderUsersTable(userTypeKey, page); // Retry rendering
+                    // Re-fetch newly created elements
+                    return renderUsersTable(userTypeKey, page); // Retry rendering
+                }
             }
             return;
         }
@@ -715,10 +1052,15 @@ document.addEventListener('DOMContentLoaded', function () {
         else if (userTypeKey === 'staff') filteredUsers = filteredUsers.filter(u => u.id_type_utilisateur === 'TYPE_PERS_ADMIN' || u.id_type_utilisateur === 'TYPE_ADMIN_SYS');
 
         // Apply search and filters from THIS tab's controls
-        const searchTerm = document.getElementById(`user-search-${tableIdSuffix}`)?.value.toLowerCase() || '';
-        const typeFilter = document.getElementById(`user-type-filter-${tableIdSuffix}`)?.value || '';
-        const statusFilter = document.getElementById(`user-status-filter-${tableIdSuffix}`)?.value || '';
-        const groupFilter = document.getElementById(`user-group-filter-${tableIdSuffix}`)?.value || '';
+        const searchTermInput = document.getElementById(`user-search-${tableIdSuffix}`);
+        const searchTerm = searchTermInput ? searchTermInput.value.toLowerCase() : '';
+        const typeFilterSelect = document.getElementById(`user-type-filter-${tableIdSuffix}`);
+        const typeFilter = typeFilterSelect ? typeFilterSelect.value : '';
+        const statusFilterSelect = document.getElementById(`user-status-filter-${tableIdSuffix}`);
+        const statusFilter = statusFilterSelect ? statusFilterSelect.value : '';
+        const groupFilterSelect = document.getElementById(`user-group-filter-${tableIdSuffix}`);
+        const groupFilter = groupFilterSelect ? groupFilterSelect.value : '';
+
 
         if (searchTerm) {
             filteredUsers = filteredUsers.filter(u =>
@@ -764,7 +1106,8 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
 
-        const itemsPerPage = parseInt(document.getElementById(`users-per-page-${tableIdSuffix}`)?.value || usersPerPage[userTypeKey]);
+        const itemsPerPageSelect = document.getElementById(`users-per-page-${tableIdSuffix}`);
+        const itemsPerPage = itemsPerPageSelect ? parseInt(itemsPerPageSelect.value) : usersPerPage[userTypeKey];
         const totalItems = filteredUsers.length;
         const totalPages = Math.ceil(totalItems / itemsPerPage);
         currentUsersTablePage[userTypeKey] = Math.min(page, totalPages) || 1;
@@ -775,7 +1118,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Headers
         const tableHead = tableBody.parentElement.querySelector('thead tr');
-        if (tableHead.innerHTML === '') { // Populate headers once
+        if (tableHead && tableHead.innerHTML === '') { // Populate headers once
             tableHead.innerHTML = `
                 <th><input type="checkbox" id="select-all-users-${tableIdSuffix}" onchange="toggleSelectAllUsers('${tableIdSuffix}')"></th>
                 <th onclick="sortUsersTable('${tableIdSuffix}', 'login_utilisateur')">Login <span class="material-icons">sort</span></th>
@@ -797,24 +1140,26 @@ document.addEventListener('DOMContentLoaded', function () {
             return `
                 <tr>
                     <td><input type="checkbox" class="user-checkbox-${tableIdSuffix}" data-user-id="${user.numero_utilisateur}" onchange="updateBulkActionsPanel('${tableIdSuffix}')"></td>
-                    <td>${user.login_utilisateur}</td>
-                    <td>${user.prenom} ${user.nom}</td>
-                    <td>${user.email_principal}</td>
-                    <td>${userType ? userType.libelle_type_utilisateur : user.id_type_utilisateur}</td>
-                    <td><span class="status-badge ${user.statut_compte}">${user.statut_compte.replace('_', ' ')}</span></td>
+                    <td>${escapeHtml(user.login_utilisateur)}</td>
+                    <td>${escapeHtml(user.prenom)} ${escapeHtml(user.nom)}</td>
+                    <td>${escapeHtml(user.email_principal)}</td>
+                    <td>${userType ? escapeHtml(userType.libelle_type_utilisateur) : escapeHtml(user.id_type_utilisateur)}</td>
+                    <td><span class="status-badge ${escapeHtml(user.statut_compte)}">${escapeHtml(user.statut_compte.replace('_', ' '))}</span></td>
                     <td>${user.derniere_connexion ? timeAgo(user.derniere_connexion) : 'Jamais'}</td>
                     <td class="actions-cell">
-                        <button onclick="viewUserDetails('${user.numero_utilisateur}')" title="Voir Détails"><span class="material-icons">visibility</span></button>
-                        <button onclick="openEditUserModal('${user.numero_utilisateur}')" title="Modifier"><span class="material-icons">edit</span></button>
-                        <button class="delete-btn" onclick="confirmDeleteUser('${user.numero_utilisateur}')" title="Archiver/Supprimer"><span class="material-icons">archive</span></button>
+                        <button onclick="viewUserDetails('${escapeHtml(user.numero_utilisateur)}')" title="Voir Détails"><span class="material-icons">visibility</span></button>
+                        <button onclick="openEditUserModal('${escapeHtml(user.numero_utilisateur)}')" title="Modifier"><span class="material-icons">edit</span></button>
+                        <button class="delete-btn" onclick="confirmDeleteUser('${escapeHtml(user.numero_utilisateur)}')" title="Archiver/Supprimer"><span class="material-icons">archive</span></button>
                     </td>
                 </tr>
             `;
         }).join('');
 
-        renderPagination(paginationControls, totalPages, currentUsersTablePage[userTypeKey], (p) => renderUsersTable(userTypeKey, p));
+        if (paginationControls) {
+            renderPagination(paginationControls, totalPages, currentUsersTablePage[userTypeKey], (p) => renderUsersTable(userTypeKey, p));
+        }
 
-        const countInfo = document.querySelector(`#users-${tableIdSuffix}-content .table-info`) || document.createElement('span'); // Fallback
+        const countInfo = document.querySelector(`#users-${tableIdSuffix}-content .table-info`);
         if (countInfo) {
             countInfo.textContent = `Affichage de ${Math.min(startIndex + 1, totalItems)}-${Math.min(endIndex, totalItems)} sur ${totalItems} utilisateurs`;
         }
@@ -827,1258 +1172,74 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    window.applyUsersTableFilters = function(userTypeKey) { // Make it global for onkeyup/onchange
-        renderUsersTable(userTypeKey, 1);
-    }
-    window.sortUsersTable = function(userTypeKey, column) {
-        if (!currentSort[userTypeKey]) currentSort[userTypeKey] = { column: '', order: 'asc'};
+    // Le reste de vos fonctions existantes, adaptées ou non modifiées.
 
-        if (currentSort[userTypeKey].column === column) {
-            currentSort[userTypeKey].order = currentSort[userTypeKey].order === 'asc' ? 'desc' : 'asc';
+    // ... (Reste de vos fonctions : applyUsersTableFilters, sortUsersTable, populateUserFilterDropdowns,
+    // resetUsersFilters, toggleSelectAllUsers, updateBulkActionsPanel, clearUsersBulkSelection,
+    // bulkChangeUsersStatus, bulkSendUsersNotification, bulkArchiveUsers, openCreateUserModal,
+    // openCreateUserModalWithType, openEditUserModal, closeUserFormModal, populateUserFormDropdowns,
+    // updateUserFormForType, changeUserFormStep, updateUserFormStepUI, populateUserFormSummary,
+    // handleUserFormSubmit, confirmDeleteUser, viewUserDetails, exportUsersData,
+    // renderPermissionsSection, renderPermissionAssignments, displayPermissionsForGroup,
+    // togglePermissionAssignment, renderSystemConfigSection, promptActivateAcademicYear,
+    // renderAcademicYearSection, renderTemplatesDocsSection, renderAppSettingsSection,
+    // saveAppSettings, renderWorkflowMonitoringSection, renderPVManagementSection,
+    // renderSystemNotificationsMgmtSection, renderAuditLogsSection, filterAuditLog,
+    // renderDataToolsSection, renderTechnicalMaintenanceSection, renderReportingAnalyticsSection,
+    // generateSimulatedReport, openGenericCrudModalForCreate, openGenericCrudModalForEdit,
+    // closeGenericCrudModal, populateGenericCrudFormFields, handleGenericCrudFormSubmit,
+    // confirmDeleteGenericItem, findMockDataItem, createGenericTableHTML, renderPagination,
+    // timeAgo, escapeHtml, toggleMobileSidebar, logout, showNotificationsPanel, hideNotificationsPanel,
+    // updateNotificationCount, renderNotificationPanelList, markNotificationAsRead,
+    // showGenericModal, closeAlertConfirmationModal, showAlertConfirmation, addAuditLog) ...
+
+    // Fonctions d'aide d'en-tête (déplacées ici pour la cohérence)
+    function toggleFullscreen() {
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch(err => {
+                console.log('Erreur lors de l\'activation du plein écran:', err);
+            });
         } else {
-            currentSort[userTypeKey].column = column;
-            currentSort[userTypeKey].order = 'asc';
-        }
-        // Update sort icons
-        const headers = document.querySelectorAll(`#users-table-${userTypeKey} th`);
-        headers.forEach(th => {
-            const icon = th.querySelector('.material-icons');
-            if (icon) icon.textContent = 'sort';
-            if (th.textContent.toLowerCase().includes(column.replace('_', ' ').split(' ')[0])) { // Basic match
-                if (icon) icon.textContent = currentSort[userTypeKey].order === 'asc' ? 'arrow_upward' : 'arrow_downward';
-            }
-        });
-        renderUsersTable(userTypeKey, currentUsersTablePage[userTypeKey]);
-    }
-
-
-    function populateUserFilterDropdowns(userTypeKey) {
-        const typeFilterSelect = document.getElementById(`user-type-filter-${userTypeKey}`);
-        const statusFilterSelect = document.getElementById(`user-status-filter-${userTypeKey}`);
-        const groupFilterSelect = document.getElementById(`user-group-filter-${userTypeKey}`);
-
-        if (typeFilterSelect && typeFilterSelect.options.length <= 1) {
-            mockUserTypes.forEach(type => {
-                typeFilterSelect.add(new Option(type.libelle_type_utilisateur, type.id_type_utilisateur));
-            });
-        }
-        if (statusFilterSelect && statusFilterSelect.options.length <= 1) {
-            ['actif', 'inactif', 'bloque', 'en_attente_validation', 'archive'].forEach(status => {
-                statusFilterSelect.add(new Option(status.replace('_', ' '), status));
-            });
-        }
-        if (groupFilterSelect && groupFilterSelect.options.length <= 1) {
-            mockUserGroups.forEach(group => {
-                groupFilterSelect.add(new Option(group.libelle_groupe_utilisateur, group.id_groupe_utilisateur));
-            });
+            document.exitFullscreen();
         }
     }
 
-    window.resetUsersFilters = function(userTypeKey) {
-        document.getElementById(`user-search-${userTypeKey}`).value = '';
-        document.getElementById(`user-type-filter-${userTypeKey}`).value = '';
-        document.getElementById(`user-status-filter-${userTypeKey}`).value = '';
-        document.getElementById(`user-group-filter-${userTypeKey}`).value = '';
-        renderUsersTable(userTypeKey, 1);
-    }
-
-    window.toggleSelectAllUsers = function(userTypeKey) {
-        const selectAllCheckbox = document.getElementById(`select-all-users-${userTypeKey}`);
-        const userCheckboxes = document.querySelectorAll(`.user-checkbox-${userTypeKey}`);
-        userCheckboxes.forEach(checkbox => checkbox.checked = selectAllCheckbox.checked);
-        updateBulkActionsPanel(userTypeKey);
-    }
-
-    window.updateBulkActionsPanel = function(userTypeKey) {
-        const panel = document.getElementById('users-bulk-actions-panel'); // Assuming one panel for all user tabs for now
-        const countSpan = document.getElementById('users-bulk-selection-count');
-        const selectedCheckboxes = document.querySelectorAll(`.user-checkbox-${userTypeKey}:checked`);
-
-        if (selectedCheckboxes.length > 0) {
-            panel.style.display = 'block'; // Or add 'active' class
-            countSpan.textContent = `${selectedCheckboxes.length} utilisateur(s) sélectionné(s)`;
-        } else {
-            panel.style.display = 'none'; // Or remove 'active' class
-        }
-    }
-    window.clearUsersBulkSelection = function() {
-        // This needs to know which tab is active to clear correctly, or clear all
-        const activeUserTabKey = document.querySelector('#users-tabs-container .users-tab.active')?.dataset.tab || 'all';
-        document.querySelectorAll(`.user-checkbox-${activeUserTabKey}:checked`).forEach(cb => cb.checked = false);
-        const selectAll = document.getElementById(`select-all-users-${activeUserTabKey}`);
-        if(selectAll) selectAll.checked = false;
-        updateBulkActionsPanel(activeUserTabKey);
-        document.getElementById('users-bulk-actions-panel').style.display = 'none';
-    }
-    // Placeholder for bulk actions
-    window.bulkChangeUsersStatus = function() { showGenericModal("Changer Statut en Masse", "Fonctionnalité non implémentée."); }
-    window.bulkSendUsersNotification = function() { showGenericModal("Envoyer Notification en Masse", "Fonctionnalité non implémentée."); }
-    window.bulkArchiveUsers = function() { showGenericModal("Archiver en Masse", "Fonctionnalité non implémentée."); }
-
-
-    // User Form Modal Logic (B.1.3, B.2.3, B.3.3)
-    window.openCreateUserModal = function() {
-        userForm.reset();
-        userModalTitle.textContent = 'Créer un Nouvel Utilisateur';
-        userFormModeInput.value = 'create';
-        userFormEditIdInput.value = '';
-        selectedUserTypeForCreation = ''; // Reset selected type
-        currentUserFormStep = 1;
-        updateUserFormStepUI();
-        // Reset/hide type-specific fields
-        document.querySelectorAll('#user-form-profile-fields .form-group').forEach(fg => fg.style.display = 'none');
-        document.getElementById('user-form-type-specific-fields-container').innerHTML = '';
-        document.getElementById('user-form-password-group').style.display = 'block';
-        userFormModal.classList.add('active');
-    }
-    window.openCreateUserModalWithType = function(typeId) {
-        openCreateUserModal();
-        userFormTypeSelect.value = typeId;
-        selectedUserTypeForCreation = typeId; // Set it
-        updateUserFormForType(); // Trigger field updates
-        // Optionally auto-advance to step 2 if type is pre-selected
-        // currentUserFormStep = 2;
-        // updateUserFormStepUI();
-    }
-
-    window.openEditUserModal = function(userId) {
-        const user = mockUsers.find(u => u.numero_utilisateur === userId);
-        if (!user) {
-            showGenericModal("Erreur", "Utilisateur non trouvé.");
-            return;
-        }
-        userForm.reset();
-        userModalTitle.textContent = `Modifier Utilisateur: ${user.prenom} ${user.nom}`;
-        userFormModeInput.value = 'edit';
-        userFormEditIdInput.value = userId;
-
-        // Populate form
-        userFormTypeSelect.value = user.id_type_utilisateur;
-        selectedUserTypeForCreation = user.id_type_utilisateur; // Use same var for consistency
-        updateUserFormForType(); // This will show/hide correct fields
-
-        // Populate common fields
-        document.getElementById('user-form-nom').value = user.nom || '';
-        document.getElementById('user-form-prenom').value = user.prenom || '';
-        document.getElementById('user-form-login').value = user.login_utilisateur || '';
-        document.getElementById('user-form-email_principal').value = user.email_principal || '';
-        document.getElementById('user-form-statut_compte').value = user.statut_compte || 'actif';
-        document.getElementById('user-form-id_groupe_utilisateur').value = user.id_groupe_utilisateur || '';
-        document.getElementById('user-form-id_niveau_acces_donne').value = user.id_niveau_acces_donne || '';
-        document.getElementById('user-form-photo_profil').value = user.photo_profil || '';
-
-        // Populate type-specific profile fields
-        if (user.numero_carte_etudiant && document.getElementById('user-form-numero_carte_etudiant')) {
-            document.getElementById('user-form-numero_carte_etudiant').value = user.numero_carte_etudiant;
-        }
-        if (user.numero_enseignant && document.getElementById('user-form-numero_enseignant')) {
-            document.getElementById('user-form-numero_enseignant').value = user.numero_enseignant;
-        }
-        if (user.numero_personnel_administratif && document.getElementById('user-form-numero_personnel_administratif')) {
-            document.getElementById('user-form-numero_personnel_administratif').value = user.numero_personnel_administratif;
-        }
-        if (user.date_naissance && document.getElementById('user-form-date_naissance')) {
-            document.getElementById('user-form-date_naissance').value = user.date_naissance;
-        }
-        if (user.telephone_personnel && document.getElementById('user-form-telephone_personnel')) {
-            document.getElementById('user-form-telephone_personnel').value = user.telephone_personnel;
-        }
-        if (user.email_professionnel && document.getElementById('user-form-email_professionnel')) {
-            document.getElementById('user-form-email_professionnel').value = user.email_professionnel;
-        }
-
-
-        document.getElementById('user-form-password-group').style.display = 'none'; // Hide password by default in edit
-
-        currentUserFormStep = 2; // Start at profile info for edit
-        userFormTypeSelect.disabled = true; // Cannot change type in edit mode
-        updateUserFormStepUI();
-        userFormModal.classList.add('active');
-    }
-
-    window.closeUserFormModal = function() {
-        userFormModal.classList.remove('active');
-        userFormTypeSelect.disabled = false;
-    }
-
-    function populateUserFormDropdowns() {
-        // User Type (Step 1)
-        userFormTypeSelect.innerHTML = '<option value="">-- Choisir un type --</option>';
-        mockUserTypes.forEach(type => {
-            userFormTypeSelect.add(new Option(type.libelle_type_utilisateur, type.id_type_utilisateur));
-        });
-
-        // Status, Group, Access Level (Step 3)
-        const statusSelect = document.getElementById('user-form-statut_compte');
-        statusSelect.innerHTML = ''; // Clear existing
-        ['actif', 'inactif', 'bloque', 'en_attente_validation', 'archive'].forEach(s => {
-            statusSelect.add(new Option(s.replace('_', ' '), s));
-        });
-
-        const groupSelect = document.getElementById('user-form-id_groupe_utilisateur');
-        groupSelect.innerHTML = '<option value="">-- Choisir un groupe --</option>';
-        mockUserGroups.forEach(g => groupSelect.add(new Option(g.libelle_groupe_utilisateur, g.id_groupe_utilisateur)));
-
-        const accessLevelSelect = document.getElementById('user-form-id_niveau_acces_donne');
-        accessLevelSelect.innerHTML = '<option value="">-- Choisir un niveau --</option>';
-        mockAccessLevels.forEach(lvl => accessLevelSelect.add(new Option(lvl.libelle_niveau_acces_donne, lvl.id_niveau_acces_donne)));
-    }
-
-    window.updateUserFormForType = function() {
-        selectedUserTypeForCreation = userFormTypeSelect.value;
-        const profileFieldsContainer = document.getElementById('user-form-profile-fields');
-        // Hide all specific fields first
-        profileFieldsContainer.querySelectorAll('.form-group').forEach(fg => fg.style.display = 'none');
-
-        // Show common profile fields (Nom, Prénom are outside this specific container)
-        // These are always visible in step 2.
-        // document.getElementById('user-form-date_naissance').closest('.form-group').style.display = 'block';
-        // document.getElementById('user-form-telephone_personnel').closest('.form-group').style.display = 'block';
-
-
-        if (selectedUserTypeForCreation === 'TYPE_ETUD') {
-            const studentFieldGroup = document.querySelector('.student-field')?.closest('.form-group');
-            if (studentFieldGroup) studentFieldGroup.style.display = 'block';
-            document.getElementById('user-form-date_naissance').closest('.form-group').style.display = 'block';
-            document.getElementById('user-form-telephone_personnel').closest('.form-group').style.display = 'block';
-        } else if (selectedUserTypeForCreation === 'TYPE_ENS') {
-            const teacherFieldGroup = document.querySelector('.teacher-field')?.closest('.form-group');
-            if (teacherFieldGroup) teacherFieldGroup.style.display = 'block';
-            document.getElementById('user-form-date_naissance').closest('.form-group').style.display = 'block';
-            document.getElementById('user-form-telephone_personnel').closest('.form-group').style.display = 'block';
-            document.getElementById('user-form-email_professionnel').closest('.form-group').style.display = 'block';
-        } else if (selectedUserTypeForCreation === 'TYPE_PERS_ADMIN' || selectedUserTypeForCreation === 'TYPE_ADMIN_SYS') {
-            const staffFieldGroup = document.querySelector('.staff-field')?.closest('.form-group');
-            if (staffFieldGroup) staffFieldGroup.style.display = 'block';
-            document.getElementById('user-form-date_naissance').closest('.form-group').style.display = 'block';
-            document.getElementById('user-form-telephone_personnel').closest('.form-group').style.display = 'block';
-            document.getElementById('user-form-email_professionnel').closest('.form-group').style.display = 'block';
-        }
-    }
-
-    window.changeUserFormStep = function(direction) {
-        // Validate current step before proceeding (basic example)
-        if (direction > 0) { // Moving to next step
-            if (currentUserFormStep === 1 && !selectedUserTypeForCreation) {
-                showGenericModal("Validation", "Veuillez sélectionner un type d'utilisateur.");
-                return;
-            }
-            if (currentUserFormStep === 2) { // Validate profile info
-                if (!document.getElementById('user-form-nom').value || !document.getElementById('user-form-prenom').value) {
-                    showGenericModal("Validation", "Le nom et le prénom sont obligatoires."); return;
-                }
-                if (selectedUserTypeForCreation === 'TYPE_ETUD' && !document.getElementById('user-form-numero_carte_etudiant').value) {
-                    showGenericModal("Validation", "Le numéro de carte étudiant est obligatoire."); return;
-                }
-                // Add more specific validations here
-            }
-            if (currentUserFormStep === 3) { // Validate account info
-                if (!document.getElementById('user-form-login').value && userFormModeInput.value === 'edit') { // Login mandatory in edit
-                    showGenericModal("Validation", "Le login est obligatoire."); return;
-                }
-                if (!document.getElementById('user-form-email_principal').value) {
-                    showGenericModal("Validation", "L'email principal est obligatoire."); return;
-                }
-                // More validations
-            }
-        }
-
-        currentUserFormStep += direction;
-        updateUserFormStepUI();
-    }
-
-    function updateUserFormStepUI() {
-        userFormStepIndicator.querySelectorAll('.step').forEach((stepEl, index) => {
-            stepEl.classList.toggle('active', index + 1 === currentUserFormStep);
-        });
-        userFormStepContents.forEach((contentEl, index) => {
-            contentEl.classList.toggle('active', index + 1 === currentUserFormStep);
-        });
-
-        userFormPrevBtn.style.display = currentUserFormStep > 1 ? 'inline-flex' : 'none';
-        userFormNextBtn.style.display = currentUserFormStep < 4 ? 'inline-flex' : 'none';
-        userFormSubmitBtn.style.display = currentUserFormStep === 4 ? 'inline-flex' : 'none';
-
-        if (currentUserFormStep === 4) { // Confirmation step
-            populateUserFormSummary();
-        }
-
-        // Disable type select after step 1 if creating
-        if (userFormModeInput.value === 'create') {
-            userFormTypeSelect.disabled = currentUserFormStep > 1;
-        }
-    }
-
-    function populateUserFormSummary() {
-        const summaryDiv = document.getElementById('user-form-summary');
-        const type = mockUserTypes.find(t => t.id_type_utilisateur === selectedUserTypeForCreation)?.libelle_type_utilisateur;
-        const nom = document.getElementById('user-form-nom').value;
-        const prenom = document.getElementById('user-form-prenom').value;
-        const login = document.getElementById('user-form-login').value || `${prenom}.${nom}`.toLowerCase(); // Auto-generate if empty
-        const email = document.getElementById('user-form-email_principal').value;
-        const group = mockUserGroups.find(g => g.id_groupe_utilisateur === document.getElementById('user-form-id_groupe_utilisateur').value)?.libelle_groupe_utilisateur;
-
-        summaryDiv.innerHTML = `
-            <p><strong>Type:</strong> ${type || 'N/A'}</p>
-            <p><strong>Nom Complet:</strong> ${prenom} ${nom}</p>
-            <p><strong>Login:</strong> ${login}</p>
-            <p><strong>Email Principal:</strong> ${email}</p>
-            <p><strong>Groupe:</strong> ${group || 'N/A'}</p>
-            <!-- Add more fields from profile based on type -->
-        `;
-        if (selectedUserTypeForCreation === 'TYPE_ETUD') {
-            summaryDiv.innerHTML += `<p><strong>N° Carte Étudiant:</strong> ${document.getElementById('user-form-numero_carte_etudiant').value}</p>`;
-        }
-        // ... other types
-    }
-
-    function handleUserFormSubmit(event) {
-        event.preventDefault();
-        const mode = userFormModeInput.value;
-        const userIdToEdit = userFormEditIdInput.value;
-
-        const userData = {
-            id_type_utilisateur: selectedUserTypeForCreation,
-            nom: document.getElementById('user-form-nom').value,
-            prenom: document.getElementById('user-form-prenom').value,
-            login_utilisateur: document.getElementById('user-form-login').value || `${document.getElementById('user-form-prenom').value.toLowerCase()}.${document.getElementById('user-form-nom').value.toLowerCase()}`,
-            email_principal: document.getElementById('user-form-email_principal').value,
-            statut_compte: document.getElementById('user-form-statut_compte').value,
-            id_groupe_utilisateur: document.getElementById('user-form-id_groupe_utilisateur').value,
-            id_niveau_acces_donne: document.getElementById('user-form-id_niveau_acces_donne').value,
-            photo_profil: document.getElementById('user-form-photo_profil').value,
-            date_naissance: document.getElementById('user-form-date_naissance')?.value,
-            telephone_personnel: document.getElementById('user-form-telephone_personnel')?.value,
-            email_professionnel: document.getElementById('user-form-email_professionnel')?.value,
-        };
-
-        // Add type specific ID fields
-        if (selectedUserTypeForCreation === 'TYPE_ETUD') userData.numero_carte_etudiant = document.getElementById('user-form-numero_carte_etudiant').value;
-        if (selectedUserTypeForCreation === 'TYPE_ENS') userData.numero_enseignant = document.getElementById('user-form-numero_enseignant').value;
-        if (selectedUserTypeForCreation === 'TYPE_PERS_ADMIN' || selectedUserTypeForCreation === 'TYPE_ADMIN_SYS') {
-            userData.numero_personnel_administratif = document.getElementById('user-form-numero_personnel_administratif')?.value;
-        }
-
-
-        if (mode === 'create') {
-            userData.numero_utilisateur = `USR_${Date.now()}_${mockUsers.length}`;
-            userData.date_creation = new Date().toISOString();
-            const password = document.getElementById('user-form-password').value;
-            if (password) userData.password_hash = `hashed(${password})`; // Simulate hashing
-            else userData.password_hash = `hashed(GeneratedPass${Math.random().toString(36).slice(-8)})`;
-
-            mockUsers.push(userData);
-            addAuditLog('Création Utilisateur', `Utilisateur ${userData.login_utilisateur} créé.`);
-            showGenericModal("Succès", `Utilisateur ${userData.prenom} ${userData.nom} créé avec succès.`);
-        } else { // edit mode
-            const userIndex = mockUsers.findIndex(u => u.numero_utilisateur === userIdToEdit);
-            if (userIndex !== -1) {
-                mockUsers[userIndex] = { ...mockUsers[userIndex], ...userData };
-                addAuditLog('Modification Utilisateur', `Utilisateur ${userData.login_utilisateur} modifié.`);
-                showGenericModal("Succès", `Utilisateur ${userData.prenom} ${userData.nom} mis à jour.`);
+    function updateFullscreenIcon() {
+        const icon = document.querySelector('#fullscreenBtn i');
+        if (icon) {
+            if (document.fullscreenElement) {
+                icon.className = 'fas fa-compress';
+                // Assurez-vous que fullscreenBtn existe et a une propriété title
+                const fullscreenBtn = document.getElementById('fullscreenBtn');
+                if (fullscreenBtn) fullscreenBtn.title = 'Quitter le plein écran';
             } else {
-                showGenericModal("Erreur", "Utilisateur non trouvé pour la mise à jour.");
-                return;
-            }
-        }
-        closeUserFormModal();
-        renderUsersTable(document.querySelector('#users-tabs-container .users-tab.active')?.dataset.tab || 'all'); // Refresh current table
-        renderDashboard(); // Update dashboard stats if needed
-    }
-
-    window.confirmDeleteUser = function(userId) {
-        const user = mockUsers.find(u => u.numero_utilisateur === userId);
-        if (!user) return;
-        showAlertConfirmation(
-            `Archiver Utilisateur`,
-            `Êtes-vous sûr de vouloir archiver l'utilisateur ${user.prenom} ${user.nom} (${user.login_utilisateur})? Son statut sera changé en 'archive'.`,
-            () => {
-                user.statut_compte = 'archive';
-                addAuditLog('Archivage Utilisateur', `Utilisateur ${user.login_utilisateur} archivé.`);
-                showGenericModal("Confirmé", `Utilisateur ${user.prenom} ${user.nom} archivé.`);
-                renderUsersTable(document.querySelector('#users-tabs-container .users-tab.active')?.dataset.tab || 'all');
-                renderDashboard();
-            }
-        );
-    }
-
-    window.viewUserDetails = function(userId) { // Placeholder
-        const user = mockUsers.find(u => u.numero_utilisateur === userId);
-        if(!user) return;
-        let details = `Détails pour ${user.prenom} ${user.nom}:\n`;
-        for (const key in user) {
-            details += `${key}: ${user[key]}\n`;
-        }
-        showGenericModal(`Détails Utilisateur: ${user.login_utilisateur}`, `<pre>${details.replace(/\n/g, '<br>')}</pre>`);
-    }
-    window.exportUsersData = function() {
-        showGenericModal("Exportation", "Simulation d'exportation des données utilisateurs...");
-    }
-
-
-    // Permissions Section (C)
-    function renderPermissionsSection(tabId = 'types') {
-        const actionsContainer = document.getElementById('permissions-actions-container');
-        actionsContainer.innerHTML = ''; // Clear previous actions
-
-        let contentHtml = '';
-        let entityType = '';
-        let data = [];
-        let columns = [];
-        let addBtnLabel = '';
-
-        switch (tabId) {
-            case 'types': // C.1
-                entityType = 'user_type'; addBtnLabel = 'Ajouter Type Utilisateur';
-                data = mockUserTypes;
-                columns = [
-                    { key: 'id_type_utilisateur', label: 'ID Type' },
-                    { key: 'libelle_type_utilisateur', label: 'Libellé' },
-                    { key: 'count', label: 'Nb. Utilisateurs', render: (item) => mockUsers.filter(u => u.id_type_utilisateur === item.id_type_utilisateur).length }
-                ];
-                break;
-            case 'groups': // C.2
-                entityType = 'user_group'; addBtnLabel = 'Ajouter Groupe';
-                data = mockUserGroups;
-                columns = [
-                    { key: 'id_groupe_utilisateur', label: 'ID Groupe' },
-                    { key: 'libelle_groupe_utilisateur', label: 'Libellé' },
-                    { key: 'count', label: 'Nb. Utilisateurs', render: (item) => mockUsers.filter(u => u.id_groupe_utilisateur === item.id_groupe_utilisateur).length }
-                ];
-                break;
-            case 'access_levels': // C.3
-                entityType = 'access_level'; addBtnLabel = 'Ajouter Niveau d\'Accès';
-                data = mockAccessLevels;
-                columns = [
-                    { key: 'id_niveau_acces_donne', label: 'ID Niveau' },
-                    { key: 'libelle_niveau_acces_donne', label: 'Libellé' },
-                    { key: 'count', label: 'Nb. Utilisateurs', render: (item) => mockUsers.filter(u => u.id_niveau_acces_donne === item.id_niveau_acces_donne).length }
-                ];
-                break;
-            case 'treatments': // C.4.1
-                entityType = 'treatment'; addBtnLabel = 'Ajouter Fonctionnalité';
-                data = mockTreatments;
-                columns = [
-                    { key: 'id_traitement', label: 'ID Traitement' },
-                    { key: 'libelle_traitement', label: 'Libellé' }
-                ];
-                break;
-            case 'assignments': // C.4.2
-                renderPermissionAssignments(); return; // Special handling
-            default:
-                contentHtml = '<p>Sélectionnez un onglet.</p>';
-        }
-
-        if (entityType) {
-            actionsContainer.innerHTML = `<button class="btn-primary" onclick="openGenericCrudModalForCreate('${entityType}', '${addBtnLabel}')"><span class="material-icons">add</span> ${addBtnLabel}</button>`;
-            contentHtml = createGenericTableHTML(data, columns, entityType);
-        }
-        document.getElementById(`permissions-${tabId}-content`).innerHTML = `<div class="dashboard-card table-card">${contentHtml}</div>`;
-    }
-
-    function renderPermissionAssignments() { // C.4.2
-        const container = document.getElementById('permissions-assignments-content');
-        actionsContainer = document.getElementById('permissions-actions-container');
-        actionsContainer.innerHTML = ''; // No global add button for this one
-
-        let html = `
-            <div class="dashboard-card">
-                <h3>Assigner les Permissions aux Groupes</h3>
-                <div class="form-group">
-                    <label for="perm-assign-group-select">Sélectionner un Groupe :</label>
-                    <select id="perm-assign-group-select" class="form-control" onchange="displayPermissionsForGroup(this.value)">
-                        <option value="">-- Choisir un groupe --</option>
-                        ${mockUserGroups.map(g => `<option value="${g.id_groupe_utilisateur}">${g.libelle_groupe_utilisateur}</option>`).join('')}
-                    </select>
-                </div>
-                <div id="perm-assign-details" style="display:none; margin-top:1rem;">
-                    <h4>Permissions pour <span id="perm-assign-selected-group-name"></span>:</h4>
-                    <div class="perm-assignment-columns">
-                        <div class="perm-column">
-                            <h5>Permissions Assignées</h5>
-                            <ul id="perm-assigned-list" class="data-list"></ul>
-                        </div>
-                        <div class="perm-column">
-                            <h5>Permissions Disponibles</h5>
-                            <ul id="perm-available-list" class="data-list"></ul>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <style>
-                .perm-assignment-columns { display: flex; gap: 1rem; }
-                .perm-column { flex: 1; border: 1px solid var(--border-color); padding: 1rem; border-radius: var(--border-radius); }
-                .perm-column h5 { margin-top: 0; }
-                .perm-column ul li { cursor: pointer; }
-                .perm-column ul li:hover { background-color: var(--primary-accent-light); }
-            </style>
-        `;
-        container.innerHTML = html;
-    }
-
-    window.displayPermissionsForGroup = function(groupId) {
-        const detailsDiv = document.getElementById('perm-assign-details');
-        if (!groupId) {
-            detailsDiv.style.display = 'none';
-            return;
-        }
-        const group = mockUserGroups.find(g => g.id_groupe_utilisateur === groupId);
-        document.getElementById('perm-assign-selected-group-name').textContent = group.libelle_groupe_utilisateur;
-
-        const assignedList = document.getElementById('perm-assigned-list');
-        const availableList = document.getElementById('perm-available-list');
-
-        const groupPermissions = mockPermissionsAssignments
-            .filter(pa => pa.id_groupe_utilisateur === groupId)
-            .map(pa => pa.id_traitement);
-
-        assignedList.innerHTML = mockTreatments
-            .filter(t => groupPermissions.includes(t.id_traitement))
-            .map(t => `<li onclick="togglePermissionAssignment('${groupId}', '${t.id_traitement}', false)" title="Cliquer pour retirer">${t.libelle_traitement} (ID: ${t.id_traitement})</li>`)
-            .join('');
-
-        availableList.innerHTML = mockTreatments
-            .filter(t => !groupPermissions.includes(t.id_traitement))
-            .map(t => `<li onclick="togglePermissionAssignment('${groupId}', '${t.id_traitement}', true)" title="Cliquer pour assigner">${t.libelle_traitement} (ID: ${t.id_traitement})</li>`)
-            .join('');
-
-        detailsDiv.style.display = 'block';
-    }
-
-    window.togglePermissionAssignment = function(groupId, treatmentId, assign) {
-        if (assign) {
-            if (!mockPermissionsAssignments.some(pa => pa.id_groupe_utilisateur === groupId && pa.id_traitement === treatmentId)) {
-                mockPermissionsAssignments.push({ id_groupe_utilisateur: groupId, id_traitement: treatmentId });
-                addAuditLog('Assignation Permission', `Permission ${treatmentId} assignée au groupe ${groupId}.`);
-            }
-        } else {
-            mockPermissionsAssignments = mockPermissionsAssignments.filter(pa =>
-                !(pa.id_groupe_utilisateur === groupId && pa.id_traitement === treatmentId)
-            );
-            addAuditLog('Retrait Permission', `Permission ${treatmentId} retirée du groupe ${groupId}.`);
-        }
-        displayPermissionsForGroup(groupId); // Refresh lists
-        renderDashboardPermissionsOverview(); // Update dashboard
-    }
-
-    // System Configuration Section (D)
-    function renderSystemConfigSection(referentialType = 'annee_academique') {
-        const containerId = `system_config-referentiels_${referentialType}-content`;
-        const container = document.getElementById(containerId);
-        if (!container) { console.warn(`Container ${containerId} not found.`); return; }
-
-        const actionsContainer = document.getElementById('system_config-actions-container');
-        actionsContainer.innerHTML = ''; // Clear previous actions
-
-        let data, columns, entityType, addBtnLabel, title;
-
-        switch(referentialType) {
-            case 'annee_academique': // D.1 (Année Académique)
-                title = "Années Académiques"; entityType = 'academic_year'; addBtnLabel = 'Ajouter Année Académique';
-                data = mockAcademicYears;
-                columns = [
-                    { key: 'id_annee_academique', label: 'ID Année' },
-                    { key: 'libelle_annee_academique', label: 'Libellé' },
-                    { key: 'date_debut', label: 'Date Début' },
-                    { key: 'date_fin', label: 'Date Fin' },
-                    { key: 'est_active', label: 'Active', render: item => item.est_active ? '<span class="status-badge actif">Oui</span>' : '<span class="status-badge inactif">Non</span>' }
-                ];
-                break;
-            case 'niveaux_etude':
-                title = "Niveaux d'Étude"; entityType = 'study_level'; addBtnLabel = 'Ajouter Niveau d\'Étude';
-                data = mockStudyLevels;
-                columns = [ {key: 'id_niveau_etude', label: 'ID Niveau'}, {key: 'libelle_niveau_etude', label: 'Libellé'} ];
-                break;
-            case 'specialites':
-                title = "Spécialités"; entityType = 'speciality'; addBtnLabel = 'Ajouter Spécialité';
-                data = mockSpecialities;
-                columns = [ {key: 'id_specialite', label: 'ID Spécialité'}, {key: 'libelle_specialite', label: 'Libellé'} ];
-                break;
-            case 'statuts':
-                title = "Statuts Divers"; entityType = 'generic_status'; addBtnLabel = 'Ajouter Statut';
-                data = mockGenericStatuses; // This might need further filtering by 'type' in a real app
-                columns = [ {key: 'id_statut', label: 'ID Statut'}, {key: 'libelle_statut', label: 'Libellé'}, {key: 'type', label: 'Contexte'} ];
-                break;
-            default: container.innerHTML = `<p>Type de référentiel '${referentialType}' non géré.</p>`; return;
-        }
-
-        actionsContainer.innerHTML = `<button class="btn-primary" onclick="openGenericCrudModalForCreate('${entityType}', '${addBtnLabel}')"><span class="material-icons">add</span> ${addBtnLabel}</button>`;
-        if (referentialType === 'annee_academique') { // Special action for academic year
-            actionsContainer.innerHTML += ` <button class="btn-secondary" onclick="promptActivateAcademicYear()"><span class="material-icons">check_circle_outline</span> Activer une Année</button>`;
-        }
-        container.innerHTML = `<div class="dashboard-card table-card"><h3>${title}</h3>${createGenericTableHTML(data, columns, entityType)}</div>`;
-    }
-
-    window.promptActivateAcademicYear = function() {
-        // Simple prompt for simulation
-        const yearIdToActivate = prompt("Entrez l'ID de l'année académique à activer (ex: AA_2025_2026):");
-        if (yearIdToActivate) {
-            const yearExists = mockAcademicYears.some(y => y.id_annee_academique === yearIdToActivate);
-            if (yearExists) {
-                mockAcademicYears.forEach(y => y.est_active = (y.id_annee_academique === yearIdToActivate));
-                addAuditLog('Activation Année Acad.', `Année ${yearIdToActivate} activée.`);
-                showGenericModal("Succès", `Année académique ${yearIdToActivate} activée.`);
-                renderSystemConfigSection('annee_academique'); // Refresh table
-            } else {
-                showGenericModal("Erreur", `Année académique avec ID '${yearIdToActivate}' non trouvée.`);
+                icon.className = 'fas fa-expand';
+                const fullscreenBtn = document.getElementById('fullscreenBtn');
+                if (fullscreenBtn) fullscreenBtn.title = 'Plein écran';
             }
         }
     }
 
-    // Academic Year specific section (might be redundant with above but follows nav structure)
-    function renderAcademicYearSection() {
-        const container = document.getElementById('academic_year-content');
-        // This can reuse the logic from renderSystemConfigSection('annee_academique')
-        // or have a more dedicated UI if needed. For now, let's keep it simple.
-        let content = `
-            <div class="dashboard-card">
-                <p>La gestion détaillée des années académiques (création, modification) se trouve dans la section "Référentiels".</p>
-                <p>Année Académique Actuellement Active: 
-                    <strong>${mockAcademicYears.find(y => y.est_active)?.libelle_annee_academique || 'Aucune'}</strong>
-                </p>
-                <button class="btn-primary" onclick="navigateToSection('system_config', 'referentiels_annee_academique')">
-                    Gérer les Années Académiques
-                </button>
-                 <button class="btn-secondary" onclick="promptActivateAcademicYear()" style="margin-left:10px;">
-                    <span class="material-icons">check_circle_outline</span> Activer une Année
-                </button>
-            </div>`;
-        container.innerHTML = content;
-    }
-
-    // Templates & Docs Section (D.3)
-    function renderTemplatesDocsSection(tabId = 'pdf_templates') {
-        const container = document.getElementById(`templates_docs-${tabId}-content`);
-        const actionsContainer = document.getElementById('templates_docs-actions-container');
-        actionsContainer.innerHTML = '';
-
-        let data, columns, entityType, addBtnLabel, title;
-        if (tabId === 'pdf_templates') {
-            title = "Modèles PDF"; entityType = 'pdf_template'; addBtnLabel = 'Ajouter Modèle PDF';
-            data = mockPdfTemplates;
-            columns = [ {key: 'nom_template', label: 'Nom du Modèle'}, {key: 'date_creation', label: 'Date Création'}, {key: 'version', label: 'Version'} ];
-        } else { // email_templates
-            title = "Modèles Courriel (Table Message)"; entityType = 'email_template'; addBtnLabel = 'Ajouter Modèle Courriel';
-            data = mockEmailTemplates;
-            columns = [ {key: 'id_message', label: 'ID Message'}, {key: 'sujet_message', label: 'Sujet'}, {key: 'type_message', label: 'Type'} ];
-        }
-        actionsContainer.innerHTML = `<button class="btn-primary" onclick="openGenericCrudModalForCreate('${entityType}', '${addBtnLabel}')"><span class="material-icons">add</span> ${addBtnLabel}</button>`;
-        container.innerHTML = `<div class="dashboard-card table-card"><h3>${title}</h3>${createGenericTableHTML(data, columns, entityType)}</div>`;
-    }
-
-    // App Settings Section (D.2)
-    function renderAppSettingsSection() {
-        const container = document.getElementById('app_settings_management_content');
-        let formHtml = '<h3>Paramètres Applicatifs & Workflow</h3>';
-        for (const key in mockAppSettings) {
-            const value = mockAppSettings[key];
-            const label = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-            let inputType = 'text';
-            if (typeof value === 'number') inputType = 'number';
-            if (key.includes('email')) inputType = 'email';
-            if (key.includes('server') || key.includes('formats')) inputType = 'text'; // Keep as text for list like formats
-
-            formHtml += `
-                <div class="form-group">
-                    <label for="app-setting-${key}">${label}</label>
-                    <input type="${inputType}" id="app-setting-${key}" class="form-control" value="${value}">
-                </div>
-            `;
-        }
-        formHtml += `<button type="button" class="btn-primary" onclick="saveAppSettings()">Sauvegarder les Paramètres</button>`;
-        container.innerHTML = formHtml;
-    }
-    window.saveAppSettings = function() {
-        for (const key in mockAppSettings) {
-            const inputElement = document.getElementById(`app-setting-${key}`);
-            if (inputElement) {
-                mockAppSettings[key] = typeof mockAppSettings[key] === 'number' ? parseFloat(inputElement.value) : inputElement.value;
-            }
-        }
-        addAuditLog('Configuration Système', 'Paramètres applicatifs mis à jour.');
-        showGenericModal("Succès", "Paramètres applicatifs sauvegardés.");
-    }
-
-    // Supervision & Maintenance Sections (F)
-    function renderWorkflowMonitoringSection() { // F.1
-        const container = document.getElementById('workflow_monitoring_dashboard');
-        // Simulate workflow stats
-        const rapportSoumis = Math.floor(Math.random()*50);
-        const rapportEnVerif = Math.floor(Math.random()*20);
-        const rapportConforme = Math.floor(Math.random()*100);
-        container.innerHTML = `
-            <h3>Suivi des Workflows (Exemple Rapports)</h3>
-            <div class="stats-grid">
-                <div class="stat-card"><div class="stat-label">Rapports Soumis</div><p class="stat-value">${rapportSoumis}</p></div>
-                <div class="stat-card"><div class="stat-label">En Vérification Conformité</div><p class="stat-value">${rapportEnVerif}</p></div>
-                <div class="stat-card"><div class="stat-label">Rapports Conformes</div><p class="stat-value">${rapportConforme}</p></div>
-            </div>
-            <p><i>Plus de détails et graphiques à venir...</i></p>
-        `;
-    }
-    function renderPVManagementSection() { // F.2
-        const container = document.getElementById('pv_management_table_area');
-        // Simulate PV data
-        mockPVs = [
-            { id_pv: 'PV_M2INFO_2024_001', date_session: '2024-06-15', type_session: 'Soutenance M2 Info', statut: 'Validé', nb_rapports: 5 },
-            { id_pv: 'PV_L3ECO_2024_010', date_session: '2024-07-02', type_session: 'Délibération L3 Éco', statut: 'En attente validation', nb_rapports: 25 },
-        ];
-        const columns = [
-            { key: 'id_pv', label: 'ID PV'},
-            { key: 'date_session', label: 'Date Session'},
-            { key: 'type_session', label: 'Type Session'},
-            { key: 'statut', label: 'Statut'},
-            { key: 'nb_rapports', label: 'Nb. Rapports/Étudiants'}
-        ];
-        container.innerHTML = `<h3>Gestion des PV (Admin)</h3>${createGenericTableHTML(mockPVs, columns, 'pv', false)}`; // No CRUD for now
-    }
-    function renderSystemNotificationsMgmtSection() { // F.3 (Table Recevoir)
-        const container = document.getElementById('system_notifications_table_area');
-        mockSystemNotifications = mockUsers.slice(0,20).map((user,i) => ({
-            id_reception: `RECV_${Date.now()}_${i}`,
-            numero_utilisateur: user.numero_utilisateur,
-            id_message: mockEmailTemplates[i % mockEmailTemplates.length].id_message,
-            date_envoi: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000).toISOString(),
-            lue: Math.random() > 0.5,
-            archivee: Math.random() > 0.8
-        }));
-        const columns = [
-            { key: 'numero_utilisateur', label: 'Utilisateur Dest.', render: item => getUserDisplay(item.numero_utilisateur)},
-            { key: 'id_message', label: 'ID Message Modèle'},
-            { key: 'date_envoi', label: 'Date Envoi', render: item => new Date(item.date_envoi).toLocaleDateString()},
-            { key: 'lue', label: 'Lue', render: item => item.lue ? 'Oui' : 'Non'},
-            { key: 'archivee', label: 'Archivée', render: item => item.archivee ? 'Oui' : 'Non'}
-        ];
-        container.innerHTML = `<h3>Gestion des Notifications Système (Table Recevoir)</h3>
-            <p>Actions de purge/archivage en masse à implémenter.</p>
-            ${createGenericTableHTML(mockSystemNotifications, columns, 'system_notification_received', false)}`;
-    }
-    function renderAuditLogsSection(tabId = 'actions_log') { // F.4
-        const container = document.getElementById(`audit_logs-${tabId}-content`);
-        let data, columns, title;
-        if (tabId === 'actions_log') { // enregistrer
-            title = "Journal des Actions Utilisateurs (enregistrer)";
-            data = mockAuditLogsEnregistrer;
-            columns = [
-                { key: 'date_action', label: 'Date', render: item => new Date(item.date_action).toLocaleString()},
-                { key: 'numero_utilisateur', label: 'Utilisateur', render: item => getUserDisplay(item.numero_utilisateur)},
-                { key: 'id_action', label: 'Action'},
-                { key: 'type_entite_concernee', label: 'Entité'},
-                { key: 'id_entite_concernee', label: 'ID Entité'},
-                { key: 'adresse_ip', label: 'IP'},
-            ];
-        } else { // pister
-            title = "Traçabilité des Accès aux Fonctionnalités (pister)";
-            data = mockAuditLogsPister;
-            columns = [
-                { key: 'date_pister', label: 'Date', render: item => new Date(item.date_pister).toLocaleString()},
-                { key: 'numero_utilisateur', label: 'Utilisateur', render: item => getUserDisplay(item.numero_utilisateur)},
-                { key: 'id_traitement', label: 'Fonctionnalité', render: item => mockTreatments.find(t=>t.id_traitement === item.id_traitement)?.libelle_traitement || item.id_traitement },
-                { key: 'acceder', label: 'Accès Accordé', render: item => item.acceder ? 'Oui' : 'Non'}
-            ];
-        }
-        // Add filter inputs
-        let filterHtml = `
-            <div class="filters-grid" style="margin-bottom:1rem; padding:1rem; background-color:#f9f9f9; border-radius:var(--border-radius);">
-                <div class="filter-group">
-                    <label>Filtrer par Utilisateur (ID/Login):</label>
-                    <input type="text" class="form-control" id="audit-user-filter-${tabId}" onkeyup="filterAuditLog('${tabId}')">
-                </div>
-                <div class="filter-group">
-                    <label>Filtrer par Date (YYYY-MM-DD):</label>
-                    <input type="date" class="form-control" id="audit-date-filter-${tabId}" onchange="filterAuditLog('${tabId}')">
-                </div>
-            </div>
-        `;
-        container.innerHTML = `<div class="dashboard-card table-card"><h3>${title}</h3>${filterHtml}<div id="audit-table-container-${tabId}"></div></div>`;
-        document.getElementById(`audit-table-container-${tabId}`).innerHTML = createGenericTableHTML(data, columns, `audit_${tabId}`, false);
-    }
-
-    window.filterAuditLog = function(tabId) {
-        let dataToFilter = (tabId === 'actions_log') ? mockAuditLogsEnregistrer : mockAuditLogsPister;
-        const userFilter = document.getElementById(`audit-user-filter-${tabId}`).value.toLowerCase();
-        const dateFilter = document.getElementById(`audit-date-filter-${tabId}`).value;
-
-        if (userFilter) {
-            dataToFilter = dataToFilter.filter(log => {
-                const user = mockUsers.find(u => u.numero_utilisateur === log.numero_utilisateur);
-                return log.numero_utilisateur.toLowerCase().includes(userFilter) ||
-                    (user && (user.login_utilisateur.toLowerCase().includes(userFilter) ||
-                        `${user.prenom} ${user.nom}`.toLowerCase().includes(userFilter)));
-            });
-        }
-        if (dateFilter) {
-            dataToFilter = dataToFilter.filter(log => (log.date_action || log.date_pister).startsWith(dateFilter));
-        }
-
-        const columns = (tabId === 'actions_log') ?
-            [ /* columns for enregistrer */ { key: 'date_action', label: 'Date', render: item => new Date(item.date_action).toLocaleString()}, { key: 'numero_utilisateur', label: 'Utilisateur', render: item => getUserDisplay(item.numero_utilisateur)}, { key: 'id_action', label: 'Action'}, { key: 'type_entite_concernee', label: 'Entité'}, { key: 'id_entite_concernee', label: 'ID Entité'}, { key: 'adresse_ip', label: 'IP'} ] :
-            [ /* columns for pister */ { key: 'date_pister', label: 'Date', render: item => new Date(item.date_pister).toLocaleString()}, { key: 'numero_utilisateur', label: 'Utilisateur', render: item => getUserDisplay(item.numero_utilisateur)}, { key: 'id_traitement', label: 'Fonctionnalité', render: item => mockTreatments.find(t=>t.id_traitement === item.id_traitement)?.libelle_traitement || item.id_traitement }, { key: 'acceder', label: 'Accès Accordé', render: item => item.acceder ? 'Oui' : 'Non'} ];
-
-        document.getElementById(`audit-table-container-${tabId}`).innerHTML = createGenericTableHTML(dataToFilter, columns, `audit_${tabId}`, false);
-    }
-
-    function renderDataToolsSection() { // F.5
-        const container = document.getElementById('data_tools_interface');
-        container.innerHTML = `
-            <h3>Outils d'Import/Export Données</h3>
-            <div class="form-group">
-                <label>Importer des Données (ex: Étudiants CSV)</label>
-                <input type="file" class="form-control" disabled>
-                <button class="btn-secondary" style="margin-top:0.5rem;" disabled>Importer (Simulation)</button>
-            </div>
-            <div class="form-group">
-                <label>Exporter des Données</label>
-                <select class="form-control" disabled>
-                    <option>Exporter Utilisateurs (CSV)</option>
-                    <option>Exporter Rapports (XML)</option>
-                    <option>Sauvegarde SQL Complète (Simulation)</option>
-                </select>
-                <button class="btn-secondary" style="margin-top:0.5rem;" disabled>Exporter (Simulation)</button>
-            </div>
-            <p><i>Fonctionnalités d'import/export non implémentées dans cette simulation.</i></p>
-        `;
-    }
-    function renderTechnicalMaintenanceSection() { // F.6
-        const container = document.getElementById('technical_maintenance_interface');
-        container.innerHTML = `
-            <h3>Maintenance Technique</h3>
-            <button class="btn-secondary" disabled>Lancer Nettoyage BDD (Simulation)</button>
-            <button class="btn-secondary" disabled style="margin-left:10px;">Gérer Sauvegardes (Simulation)</button>
-            <p style="margin-top:1rem;"><i>Fonctionnalités de maintenance non implémentées.</i></p>
-        `;
-    }
-
-    // Reporting & Analytics Section (G)
-    function renderReportingAnalyticsSection() {
-        const container = document.getElementById('reporting_analytics_interface');
-        mockReports = [
-            {id: 'REP_USER_ACTIVITY', name: 'Rapport d\'Activité Utilisateur', desc: 'Statistiques sur les connexions et actions des utilisateurs.'},
-            {id: 'REP_RAPPORT_STATUS', name: 'Statut des Rapports de Soutenance', desc: 'Nombre de rapports par statut et par année.'},
-            {id: 'REP_SYSTEM_PERF', name: 'Performance Système', desc: 'Indicateurs de performance du serveur et de la base de données.'}
-        ];
-        let html = `<h3>Rapports & Analytics</h3>
-            <p>Sélectionnez un rapport à générer (simulation) :</p>
-            <ul class="data-list">`;
-        mockReports.forEach(report => {
-            html += `
-                <li class="data-list-item">
-                    <div class="data-item-main">
-                        <span class="data-item-libelle">${report.name}</span>
-                        <span class="data-item-details">${report.desc}</span>
-                    </div>
-                    <div class="data-item-actions">
-                        <button class="btn-primary" onclick="generateSimulatedReport('${report.id}')"><span class="material-icons">assessment</span> Générer</button>
-                    </div>
-                </li>`;
-        });
-        html += `</ul><p style="margin-top:1rem;"><i>Configuration de tableaux de bord personnalisés à venir...</i></p>`;
-        container.innerHTML = html;
-    }
-    window.generateSimulatedReport = function(reportId) {
-        const report = mockReports.find(r => r.id === reportId);
-        showGenericModal("Génération de Rapport", `Simulation de la génération du rapport: "${report.name}". Le téléchargement commencerait ici.`);
-    }
-
-
-    // Generic CRUD Modal Logic
-    window.openGenericCrudModalForCreate = function(entityType, title) {
-        genericCrudForm.reset();
-        genericCrudModalTitle.textContent = title || `Créer Nouvelle Entrée`;
-        genericCrudModeInput.value = 'create';
-        genericCrudEditIdInput.value = '';
-        genericCrudEntityTypeInput.value = entityType;
-        populateGenericCrudFormFields(entityType);
-        genericCrudModal.classList.add('active');
-    }
-    window.openGenericCrudModalForEdit = function(entityType, itemId, title) {
-        genericCrudForm.reset();
-        genericCrudModalTitle.textContent = title || `Modifier Entrée`;
-        genericCrudModeInput.value = 'edit';
-        genericCrudEditIdInput.value = itemId;
-        genericCrudEntityTypeInput.value = entityType;
-
-        const item = findMockDataItem(entityType, itemId);
-        if (!item) { showGenericModal("Erreur", "Élément non trouvé."); return; }
-
-        populateGenericCrudFormFields(entityType, item);
-        genericCrudModal.classList.add('active');
-    }
-    window.closeGenericCrudModal = function() {
-        genericCrudModal.classList.remove('active');
-    }
-
-    function populateGenericCrudFormFields(entityType, itemData = null) {
-        genericCrudFormFields.innerHTML = '';
-        let fields = [];
-        switch (entityType) {
-            case 'user_type': fields = [{name: 'id_type_utilisateur', label: 'ID Type Utilisateur*', required: true}, {name: 'libelle_type_utilisateur', label: 'Libellé*', required: true}]; break;
-            case 'user_group': fields = [{name: 'id_groupe_utilisateur', label: 'ID Groupe*', required: true}, {name: 'libelle_groupe_utilisateur', label: 'Libellé*', required: true}]; break;
-            case 'access_level': fields = [{name: 'id_niveau_acces_donne', label: 'ID Niveau Accès*', required: true}, {name: 'libelle_niveau_acces_donne', label: 'Libellé*', required: true}]; break;
-            case 'treatment': fields = [{name: 'id_traitement', label: 'ID Traitement*', required: true}, {name: 'libelle_traitement', label: 'Libellé*', required: true}]; break;
-            case 'academic_year': fields = [
-                {name: 'id_annee_academique', label: 'ID Année Académique*', required: true},
-                {name: 'libelle_annee_academique', label: 'Libellé*', required: true},
-                {name: 'date_debut', label: 'Date Début*', type: 'date', required: true},
-                {name: 'date_fin', label: 'Date Fin*', type: 'date', required: true},
-                // est_active is managed separately
-            ]; break;
-            case 'study_level': fields = [{name: 'id_niveau_etude', label: 'ID Niveau Étude*', required: true}, {name: 'libelle_niveau_etude', label: 'Libellé*', required: true}]; break;
-            case 'speciality': fields = [{name: 'id_specialite', label: 'ID Spécialité*', required: true}, {name: 'libelle_specialite', label: 'Libellé*', required: true}]; break;
-            case 'generic_status': fields = [
-                {name: 'id_statut', label: 'ID Statut*', required: true},
-                {name: 'libelle_statut', label: 'Libellé*', required: true},
-                {name: 'type', label: 'Contexte/Type (ex: rapport, pv)*', required: true}
-            ]; break;
-            case 'pdf_template': fields = [
-                {name: 'id_template', label: 'ID Template*', required: true, type: 'text', placeholder: 'Ex: PDF_ATTEST_01'},
-                {name: 'nom_template', label: 'Nom du Modèle*', required: true},
-                {name: 'version', label: 'Version', placeholder: 'Ex: 1.0'},
-                {name: 'contenu_html', label: 'Contenu HTML/CSS (Simulation)', type: 'textarea', rows: 5}
-            ]; break;
-            case 'email_template': fields = [ // Table Message
-                {name: 'id_message', label: 'ID Message*', required: true, placeholder: 'Ex: EMAIL_BIENVENUE_ETUD'},
-                {name: 'sujet_message', label: 'Sujet du Courriel*', required: true},
-                {name: 'type_message', label: 'Type de Message*', required: true, placeholder: 'Ex: EMAIL_CREATION_COMPTE'},
-                {name: 'libelle_message', label: 'Corps du Courriel (HTML/Texte avec placeholders)*', type: 'textarea', rows: 8, required: true}
-            ]; break;
-            // Add more cases for other entities
-        }
-
-        fields.forEach(field => {
-            const value = itemData && itemData[field.name] ? itemData[field.name] : '';
-            const inputHtml = field.type === 'textarea' ?
-                `<textarea id="crud-${field.name}" class="form-control" rows="${field.rows || 3}" ${field.required ? 'required' : ''}>${value}</textarea>` :
-                `<input type="${field.type || 'text'}" id="crud-${field.name}" class="form-control" value="${value}" ${field.required ? 'required' : ''} ${field.placeholder ? `placeholder="${field.placeholder}"` : ''}>`;
-
-            genericCrudFormFields.innerHTML += `
-                <div class="form-group full-width">
-                    <label for="crud-${field.name}">${field.label}</label>
-                    ${inputHtml}
-                </div>
-            `;
-            // Disable ID field in edit mode for most entities
-            if (itemData && field.name.startsWith('id_') && entityType !== 'pdf_template' && entityType !== 'email_template') { // Allow edit for template IDs if needed
-                document.getElementById(`crud-${field.name}`).disabled = true;
-            }
-        });
-    }
-
-    function handleGenericCrudFormSubmit(event) {
-        event.preventDefault();
-        const mode = genericCrudModeInput.value;
-        const entityType = genericCrudEntityTypeInput.value;
-        const editId = genericCrudEditIdInput.value;
-        const formData = new FormData(genericCrudForm);
-        const itemData = {};
-
-        // Collect data from dynamic fields
-        genericCrudFormFields.querySelectorAll('input, textarea, select').forEach(input => {
-            itemData[input.id.replace('crud-', '')] = input.value;
-        });
-
-        let dataArray, idField, refreshFunction, activeTab;
-        switch (entityType) {
-            case 'user_type': dataArray = mockUserTypes; idField = 'id_type_utilisateur'; refreshFunction = () => renderPermissionsSection('types'); activeTab = 'types'; break;
-            case 'user_group': dataArray = mockUserGroups; idField = 'id_groupe_utilisateur'; refreshFunction = () => renderPermissionsSection('groups'); activeTab = 'groups'; break;
-            case 'access_level': dataArray = mockAccessLevels; idField = 'id_niveau_acces_donne'; refreshFunction = () => renderPermissionsSection('access_levels'); activeTab = 'access_levels'; break;
-            case 'treatment': dataArray = mockTreatments; idField = 'id_traitement'; refreshFunction = () => renderPermissionsSection('treatments'); activeTab = 'treatments'; break;
-            case 'academic_year': dataArray = mockAcademicYears; idField = 'id_annee_academique'; refreshFunction = () => renderSystemConfigSection('annee_academique'); activeTab = 'annee_academique'; break;
-            case 'study_level': dataArray = mockStudyLevels; idField = 'id_niveau_etude'; refreshFunction = () => renderSystemConfigSection('niveaux_etude'); activeTab = 'niveaux_etude'; break;
-            case 'speciality': dataArray = mockSpecialities; idField = 'id_specialite'; refreshFunction = () => renderSystemConfigSection('specialites'); activeTab = 'specialites'; break;
-            case 'generic_status': dataArray = mockGenericStatuses; idField = 'id_statut'; refreshFunction = () => renderSystemConfigSection('statuts'); activeTab = 'statuts'; break;
-            case 'pdf_template': dataArray = mockPdfTemplates; idField = 'id_template'; refreshFunction = () => renderTemplatesDocsSection('pdf_templates'); activeTab = 'pdf_templates'; break;
-            case 'email_template': dataArray = mockEmailTemplates; idField = 'id_message'; refreshFunction = () => renderTemplatesDocsSection('email_templates'); activeTab = 'email_templates'; break;
-            default: showGenericModal("Erreur", "Type d'entité non reconnu."); return;
-        }
-
-        // Uniqueness check for ID field in create mode
-        if (mode === 'create') {
-            const newId = itemData[idField];
-            if (dataArray.some(item => item[idField] === newId)) {
-                showGenericModal("Erreur de Validation", `L'ID '${newId}' existe déjà pour ce type d'entité.`);
-                return;
-            }
-            // For academic year, ensure est_active is false by default on creation
-            if (entityType === 'academic_year') itemData.est_active = false;
-            if (entityType === 'pdf_template') itemData.date_creation = new Date().toISOString().split('T')[0];
-
-            dataArray.push(itemData);
-            addAuditLog(`Création ${entityType}`, `Élément ${itemData[idField]} créé.`);
-            showGenericModal("Succès", "Élément créé avec succès.");
-        } else { // edit
-            const itemIndex = dataArray.findIndex(item => item[idField] === editId);
-            if (itemIndex !== -1) {
-                // Preserve the original ID if it was disabled in the form
-                const originalId = dataArray[itemIndex][idField];
-                dataArray[itemIndex] = { ...dataArray[itemIndex], ...itemData };
-                dataArray[itemIndex][idField] = originalId; // Ensure ID is not changed if it was meant to be static
-                addAuditLog(`Modification ${entityType}`, `Élément ${editId} modifié.`);
-                showGenericModal("Succès", "Élément mis à jour.");
-            } else {
-                showGenericModal("Erreur", "Élément non trouvé pour la mise à jour."); return;
-            }
-        }
-        closeGenericCrudModal();
-        if (refreshFunction) refreshFunction();
-        renderDashboard(); // Update dashboard overviews
-    }
-
-    window.confirmDeleteGenericItem = function(entityType, itemId) {
-        let dataArray, idField, libelleField, refreshFunction;
-        switch (entityType) {
-            case 'user_type': dataArray = mockUserTypes; idField = 'id_type_utilisateur'; libelleField = 'libelle_type_utilisateur'; refreshFunction = () => renderPermissionsSection('types'); break;
-            case 'user_group': dataArray = mockUserGroups; idField = 'id_groupe_utilisateur'; libelleField = 'libelle_groupe_utilisateur'; refreshFunction = () => renderPermissionsSection('groups'); break;
-            // Add other cases
-            default: showGenericModal("Erreur", "Suppression non gérée pour ce type."); return;
-        }
-        const item = dataArray.find(i => i[idField] === itemId);
-        if (!item) return;
-
-        // Basic dependency check simulation (extend as needed)
-        let dependencyMessage = "";
-        if (entityType === 'user_type' && mockUsers.some(u => u.id_type_utilisateur === itemId)) {
-            dependencyMessage = "Ce type est utilisé par des utilisateurs et ne peut être supprimé.";
-        } else if (entityType === 'user_group' && (mockUsers.some(u => u.id_groupe_utilisateur === itemId) || mockPermissionsAssignments.some(pa => pa.id_groupe_utilisateur === itemId))) {
-            dependencyMessage = "Ce groupe est utilisé par des utilisateurs ou a des permissions assignées.";
-        }
-
-        if (dependencyMessage) {
-            showGenericModal("Suppression Impossible", dependencyMessage);
-            return;
-        }
-
-        showAlertConfirmation(
-            `Supprimer ${item[libelleField]}`,
-            `Êtes-vous sûr de vouloir supprimer "${item[libelleField]}" (ID: ${itemId})? Cette action est irréversible.`,
-            () => {
-                const itemIndex = dataArray.findIndex(i => i[idField] === itemId);
-                if (itemIndex !== -1) {
-                    dataArray.splice(itemIndex, 1);
-                    addAuditLog(`Suppression ${entityType}`, `Élément ${itemId} (${item[libelleField]}) supprimé.`);
-                    showGenericModal("Succès", `"${item[libelleField]}" supprimé.`);
-                    if (refreshFunction) refreshFunction();
-                    renderDashboard();
-                }
-            }
-        );
-    }
-
-    function findMockDataItem(entityType, itemId) {
-        switch (entityType) {
-            case 'user_type': return mockUserTypes.find(item => item.id_type_utilisateur === itemId);
-            case 'user_group': return mockUserGroups.find(item => item.id_groupe_utilisateur === itemId);
-            case 'access_level': return mockAccessLevels.find(item => item.id_niveau_acces_donne === itemId);
-            case 'treatment': return mockTreatments.find(item => item.id_traitement === itemId);
-            case 'academic_year': return mockAcademicYears.find(item => item.id_annee_academique === itemId);
-            case 'study_level': return mockStudyLevels.find(item => item.id_niveau_etude === itemId);
-            case 'speciality': return mockSpecialities.find(item => item.id_specialite === itemId);
-            case 'generic_status': return mockGenericStatuses.find(item => item.id_statut === itemId);
-            case 'pdf_template': return mockPdfTemplates.find(item => item.id_template === itemId);
-            case 'email_template': return mockEmailTemplates.find(item => item.id_message === itemId);
-            default: return null;
+    function getNotificationIcon(type) {
+        switch (type) {
+            case 'SYSTEME': return 'fas fa-cogs';
+            case 'RAPPORT_STATUT': return 'fas fa-file-alt';
+            case 'COMPTE_UTILISATEUR': return 'fas fa-user-plus';
+            case 'URGENT': return 'fas fa-exclamation-triangle';
+            default: return 'fas fa-info-circle';
         }
     }
 
-    // Helper: Create Generic Table
-    function createGenericTableHTML(data, columns, entityType, includeActions = true) {
-        if (!data || data.length === 0) return '<p>Aucune donnée à afficher.</p>';
-        let tableHtml = '<div class="table-container"><table class="gestionsoutenance-table">';
-        // Headers
-        tableHtml += '<thead><tr>';
-        columns.forEach(col => tableHtml += `<th>${col.label}</th>`);
-        if (includeActions) tableHtml += '<th>Actions</th>';
-        tableHtml += '</tr></thead>';
-        // Body
-        tableHtml += '<tbody>';
-        data.forEach(item => {
-            tableHtml += '<tr>';
-            columns.forEach(col => {
-                const value = col.render ? col.render(item) : item[col.key];
-                tableHtml += `<td>${value !== undefined && value !== null ? value : '-'}</td>`;
-            });
-            if (includeActions) {
-                const itemId = item[columns[0].key]; // Assume first column key is the ID
-                const itemLibelle = item[columns[1].key] || itemId; // Assume second is libelle
-                tableHtml += `<td class="actions-cell">
-                    <button onclick="openGenericCrudModalForEdit('${entityType}', '${itemId}', 'Modifier: ${escapeHtml(itemLibelle)}')"><span class="material-icons">edit</span></button>
-                    <button class="delete-btn" onclick="confirmDeleteGenericItem('${entityType}', '${itemId}')"><span class="material-icons">delete_outline</span></button>
-                </td>`;
-            }
-            tableHtml += '</tr>';
-        });
-        tableHtml += '</tbody></table></div>';
-        return tableHtml;
-    }
-
-    // Helper: Pagination Renderer
-    function renderPagination(container, totalPages, currentPage, callback) {
-        if (!container) return;
-        container.innerHTML = '';
-        if (totalPages <= 1) return;
-
-        const prevButton = document.createElement('button');
-        prevButton.className = 'pagination-btn';
-        prevButton.innerHTML = '<span class="material-icons">chevron_left</span>';
-        prevButton.disabled = currentPage === 1;
-        prevButton.onclick = () => callback(currentPage - 1);
-        container.appendChild(prevButton);
-
-        const pageInfo = document.createElement('span');
-        pageInfo.className = 'pagination-info';
-        pageInfo.textContent = `Page ${currentPage} sur ${totalPages}`;
-        container.appendChild(pageInfo);
-
-        const nextButton = document.createElement('button');
-        nextButton.className = 'pagination-btn';
-        nextButton.innerHTML = '<span class="material-icons">chevron_right</span>';
-        nextButton.disabled = currentPage === totalPages;
-        nextButton.onclick = () => callback(currentPage + 1);
-        container.appendChild(nextButton);
-    }
-
-    // Helper: Time Ago
-    function timeAgo(dateString) {
-        if (!dateString) return 'N/A';
-        const date = new Date(dateString);
-        const now = new Date();
-        const seconds = Math.round((now - date) / 1000);
-        const minutes = Math.round(seconds / 60);
-        const hours = Math.round(minutes / 60);
-        const days = Math.round(hours / 24);
-
-        if (seconds < 60) return `il y a ${seconds} sec`;
-        if (minutes < 60) return `il y a ${minutes} min`;
-        if (hours < 24) return `il y a ${hours} heures`;
-        return `il y a ${days} jours`;
-    }
-
-    // Helper: Escape HTML
-    function escapeHtml(unsafe) {
-        if (unsafe === null || unsafe === undefined) return '';
-        return String(unsafe)
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
-            .replace(/"/g, "&quot;")
-            .replace(/'/g, "&#039;");
-    }
-
-    // Mobile Sidebar Toggle
-    window.toggleMobileSidebar = function() {
-        document.getElementById('sidebar').classList.toggle('mobile-open');
-    }
-
-    // Logout
-    window.logout = function() {
-        showGenericModal("Déconnexion", "Vous avez été déconnecté (simulation).");
-        // In a real app, redirect to login page
-    }
-
-    // Notification Panel
-    window.showNotificationsPanel = function() {
-        const panel = document.getElementById('notification-panel');
-        panel.classList.add('active');
-        renderNotificationPanelList();
-    }
-    window.hideNotificationsPanel = function() {
-        document.getElementById('notification-panel').classList.remove('active');
-    }
-    function updateNotificationCount() {
-        const unreadCount = mockNotifications.filter(n => !n.read).length;
-        const badge = document.getElementById('notification-count');
-        badge.textContent = unreadCount;
-        badge.style.display = unreadCount > 0 ? 'flex' : 'none';
-    }
-    function renderNotificationPanelList() {
-        const listEl = document.getElementById('notification-panel-list');
-        if (mockNotifications.length === 0) {
-            listEl.innerHTML = '<p class="no-notifications">Aucune notification.</p>';
-            return;
-        }
-        listEl.innerHTML = mockNotifications.map(n => `
-            <div class="activity-item ${n.read ? 'read' : 'unread'}" onclick="markNotificationAsRead(${n.id})">
-                <div class="activity-icon ${n.type === 'system' ? 'icon-bg-blue' : (n.type === 'report' ? 'icon-bg-green' : 'icon-bg-orange')}">
-                    <span class="material-icons">${n.type === 'system' ? 'settings_suggest' : (n.type === 'report' ? 'assessment' : 'warning')}</span>
-                </div>
-                <div class="activity-details">
-                    <p class="activity-text">${n.text}</p>
-                    <p class="activity-time">${n.time}</p>
-                </div>
-            </div>
-        `).join('');
-    }
-    window.markNotificationAsRead = function(notificationId) {
-        const notification = mockNotifications.find(n => n.id === notificationId);
-        if (notification && !notification.read) {
-            notification.read = true;
-            updateNotificationCount();
-            renderNotificationPanelList(); // Re-render to update style
+    function getNotificationColorClass(type) {
+        switch (type) {
+            case 'SYSTEME': return 'text-blue';
+            case 'RAPPORT_STATUT': return 'text-green';
+            case 'COMPTE_UTILISATEUR': return 'text-purple'; // Assurez-vous que cette classe est définie dans votre CSS
+            case 'URGENT': return 'text-red';
+            default: return 'text-muted';
         }
     }
 
-    // Generic Modal for simple messages
-    function showGenericModal(title, message) {
-        // This could be a simpler modal or reuse alert-confirmation with only one button
-        alertConfirmationTitle.textContent = title;
-        alertConfirmationMessage.innerHTML = message; // Use innerHTML to allow basic formatting
-        document.getElementById('alert-confirmation-cancel-btn').style.display = 'none';
-        alertConfirmationConfirmBtn.textContent = 'OK';
-        alertConfirmationCallback = null; // No specific callback for simple info
-        alertConfirmationModal.classList.add('active');
-    }
-    window.closeAlertConfirmationModal = function() {
-        alertConfirmationModal.classList.remove('active');
-        // Reset buttons for next use
-        document.getElementById('alert-confirmation-cancel-btn').style.display = 'inline-flex';
-        alertConfirmationConfirmBtn.textContent = 'Confirmer';
-    }
-
-    // Alert/Confirmation Modal
-    function showAlertConfirmation(title, message, onConfirm) {
-        alertConfirmationTitle.textContent = title;
-        alertConfirmationMessage.textContent = message;
-        alertConfirmationCallback = onConfirm;
-        document.getElementById('alert-confirmation-cancel-btn').style.display = 'inline-flex';
-        alertConfirmationConfirmBtn.textContent = 'Confirmer';
-        alertConfirmationModal.classList.add('active');
-    }
-
-    // Audit Log Helper
-    function addAuditLog(action, details) {
-        mockAuditLogsEnregistrer.unshift({ // Add to beginning
-            id_enregistrement: `ENR_${Date.now()}_${mockAuditLogsEnregistrer.length}`,
-            numero_utilisateur: currentAdminUser.login, // Or a more specific ID if available
-            id_action: action,
-            date_action: new Date().toISOString(),
-            type_entite_concernee: 'Système/Administration', // Generic for now
-            id_entite_concernee: '-',
-            details_action: JSON.stringify({ details: details, performed_by: currentAdminUser.login }),
-            adresse_ip: '127.0.0.1 (Simulé)',
-            user_agent: 'Dashboard Simulator'
-        });
-        if (mockAuditLogsEnregistrer.length > 200) mockAuditLogsEnregistrer.pop(); // Keep log size manageable
-
-        // Also add to dashboard activities
-        mockDashboardActivities.unshift({
-            icon: getIconForAction(action),
-            bgColorClass: getBgColorForAction(action),
-            text: `${action} par <strong>${currentAdminUser.login}</strong>: ${details.substring(0,50)}...`,
-            time: timeAgo(new Date().toISOString()),
-            type: 'system_config' // Or determine more accurately
-        });
-        if (mockDashboardActivities.length > 10) mockDashboardActivities.pop();
-
-        if (document.getElementById('dashboard-content').classList.contains('active')) {
-            renderDashboardActivities(); // Refresh if dashboard is visible
-        }
-        if (document.getElementById('audit_logs-actions_log-content')?.classList.contains('active')) {
-            filterAuditLog('actions_log'); // Refresh audit log table if visible
-        }
-    }
-
-
-    // Call initialization
+    // Initialisation de l'application
     initializeApp();
 });
-

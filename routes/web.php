@@ -7,7 +7,7 @@ use App\Backend\Controller\HomeController;
 use App\Backend\Controller\AuthentificationController;
 use App\Backend\Controller\AssetController;
 use App\Backend\Controller\DashboardController;
-use App\Backend\Controller\Common\NotificationController;
+use App\Backend\Controller\Common\NotificationController; // Assurez-vous que cette ligne est présente et correcte
 
 // Contrôleurs de l'Administration
 use App\Backend\Controller\Admin\AnneeAcademiqueController; // Nouveau contrôleur pour ServiceAnneeAcademique
@@ -56,27 +56,28 @@ return function (RouteCollector $r) {
     $r->get('/', [HomeController::class, 'home']);
 
     // Authentification
-    $r->get('/login', [AuthentificationController::class, 'showLoginForm']);
+    $r->get('/login', [AuthentificationController::class, 'showUnifiedAuthPage']);
     $r->post('/login', [AuthentificationController::class, 'handleLogin']);
     $r->post('/logout', [AuthentificationController::class, 'logout']); // Utilisation de POST pour la sécurité CSRF
 
     // Récupération/Réinitialisation de mot de passe
-    $r->get('/forgot-password', [AuthentificationController::class, 'showForgotPasswordForm']);
+    $r->get('/forgot-password', [AuthentificationController::class, 'showUnifiedAuthPage']);
     $r->post('/forgot-password', [AuthentificationController::class, 'handleForgotPasswordRequest']);
-    $r->get('/reset-password/{token}', [AuthentificationController::class, 'showResetPasswordForm']);
+    $r->get('/reset-password/{token}', [AuthentificationController::class, 'showUnifiedAuthPage']);
     $r->post('/reset-password', [AuthentificationController::class, 'handleResetPasswordSubmission']);
 
     // Validation d'email
     $r->get('/validate-email/{token}', [AuthentificationController::class, 'validateEmail']); // Méthode à implémenter dans AuthentificationController
 
     // Authentification 2FA
-    $r->get('/2fa', [AuthentificationController::class, 'show2FAForm']);
+    $r->get('/2fa', [AuthentificationController::class, 'showUnifiedAuthPage']);
     $r->post('/2fa', [AuthentificationController::class, 'handle2FASubmission']);
 
     // --- Routes pour les Assets (CSS, JS, images) ---
     $r->get('/assets/css/{filename:.+}', [AssetController::class, 'serveCss']);
     $r->get('/assets/js/{filename:.+}', [AssetController::class, 'serveJs']);
     $r->get('/assets/img/{filename:.+}', [AssetController::class, 'serveImg']); // Pour les images (ex: photos de profil, logos)
+    $r->get('/assets/img/carousel/{filename:.+}', [AssetController::class, 'serveCarImg']); // Nouvelle route pour les images du carrousel
     $r->get('/assets/uploads/{type}/{filename:.+}', [AssetController::class, 'serveUpload']); // Pour les fichiers uploadés (sécurisé par AssetController)
 
 
@@ -94,8 +95,9 @@ return function (RouteCollector $r) {
         });
 
         // --- Routes pour les NOTIFICATIONS (commun) ---
+        // Ces routes sont désormais des API pour être consommées par le frontend JS
         $r->addGroup('/notifications', function (RouteCollector $r) {
-            $r->get('', [NotificationController::class, 'index']);
+            $r->get('', [NotificationController::class, 'index']); // Pour la page complète des notifications
             $r->post('/mark-as-read/{idReception}', [NotificationController::class, 'markAsRead']); // Utilise idReception comme PK
             $r->post('/delete/{idReception}', [NotificationController::class, 'deleteNotification']); // Utilise idReception comme PK
         });
@@ -410,5 +412,17 @@ return function (RouteCollector $r) {
                 $r->post('/{idRapport}/withdraw-from-session', [ValidationRapportController::class, 'withdrawFromSession']); // Nouvelle route
             });
         });
+    });
+
+    // --- Routes API (pour AJAX) ---
+    $r->addGroup('/api', function (RouteCollector $r) {
+        // API Notifications pour le header
+        $r->get('/notifications', [NotificationController::class, 'getNotifications']);
+        $r->post('/notifications/{id}/mark-as-read', [NotificationController::class, 'markAsRead']);
+        $r->post('/notifications/mark-all-read', [NotificationController::class, 'markAllAsRead']);
+
+        // Ajoutez d'autres routes API ici si nécessaire
+        // Par exemple, pour la recherche dynamique :
+        // $r->get('/search', [SearchController::class, 'search']);
     });
 };

@@ -16,7 +16,7 @@ use App\Backend\Exception\OperationImpossibleException;
 class ServiceNotification implements ServiceNotificationInterface
 {
     private Notification $notificationModel;
-    private Recevoir $recevoirModel;
+    public Recevoir $recevoirModel;
     private Utilisateur $utilisateurModel;
     private GroupeUtilisateur $groupeUtilisateurModel;
     private ServiceSupervisionAdminInterface $supervisionService;

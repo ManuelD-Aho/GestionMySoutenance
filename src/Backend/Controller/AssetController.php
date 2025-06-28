@@ -44,6 +44,25 @@ class AssetController extends BaseController
         $this->serveAsset('js', $filename);
     }
 
+
+    public function serveImg(string $filename): void
+    {
+        // Le type d'asset est 'img/carousel' pour correspondre à la structure de dossier
+        $this->serveAsset('img/carousel', $filename);
+    }
+
+    /**
+     * Sert un fichier image pour le carrousel.
+     * Cette méthode est publique et appelée par la route spécifique /assets/img/carousel/{filename}.
+     * Elle délègue le travail à la méthode privée serveAsset.
+     * @param string $filename Le nom du fichier image à servir.
+     */
+    public function serveCarImg(string $filename): void
+    {
+        // Le type d'asset est 'img/carousel' pour correspondre à la structure de dossier
+        $this->serveAsset('img/carousel', $filename);
+    }
+
     /**
      * Sert un asset générique (CSS, JS, images, etc.) en gérant le type MIME et les chemins.
      * @param string $type Le type d'asset (ex: 'css', 'js', 'images').

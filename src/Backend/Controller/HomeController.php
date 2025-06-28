@@ -27,6 +27,6 @@ class HomeController extends BaseController
         }
 
         $data = ['page_title' => 'Bienvenue sur GestionMySoutenance'];
-        $this->render('Auth/login', $data, 'none'); // CHANGEMENT ICI
+        $this->render('Auth/auth', $data, 'none'); // CHANGEMENT ICI
     }
 }

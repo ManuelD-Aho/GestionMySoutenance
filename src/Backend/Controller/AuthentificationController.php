@@ -16,7 +16,7 @@ use Exception;
 
 class AuthentificationController extends BaseController
 {
-
+    protected ServiceAuthentication $authService;
 
     public function __construct(
         ServiceAuthentication $authService,
@@ -24,7 +24,7 @@ class AuthentificationController extends BaseController
         FormValidator         $validator
     ) {
         parent::__construct($authService, $permissionService, $validator);
-        //$this->authService = $authService; // Réassignation pour un accès direct
+        $this->authService = $authService; // Réassignation pour un accès direct
     }
 
     /**
@@ -36,6 +36,69 @@ class AuthentificationController extends BaseController
         if ($this->authService->estUtilisateurConnecteEtSessionValide() && !isset($_SESSION['2fa_pending'])) {
             $this->redirect('/dashboard'); // Redirige vers le tableau de bord
         }
+    }
+    /**
+     * Affiche la page d'authentification unifiée avec le formulaire approprié.
+     * Détermine le formulaire initial basé sur l'URL ou les messages flash.
+     * @param string|null $token Le token de réinitialisation si présent dans l'URL.
+     */
+    public function showUnifiedAuthPage(?string $token = null): void
+    {
+        $this->requireNoLogin();
+
+        $data = [
+            'page_title' => 'Authentification',
+            'current_form' => 'login', // Formulaire par défaut
+            'reset_token' => '',
+        ];
+
+        // Déterminer le formulaire à afficher en fonction de la route ou des erreurs précédentes
+        $requestUri = $_SERVER['REQUEST_URI'];
+
+        if (strpos($requestUri, '/forgot-password') !== false) {
+            $data['current_form'] = 'forgot-password';
+            $data['page_title'] = 'Mot de passe oublié';
+        } elseif (strpos($requestUri, '/reset-password') !== false && $token) {
+            try {
+                // Vérifier la validité du token avant d'afficher le formulaire de réinitialisation
+                $user = $this->authService->utilisateurModel->trouverParTokenResetMdp(hash('sha256', $token));
+                if (!$user) {
+                    throw new TokenInvalideException("Le lien de réinitialisation est invalide ou a déjà été utilisé.");
+                }
+                if (new \DateTime() > new \DateTime($user['date_expiration_token_reset'])) {
+                    throw new TokenExpireException("Le lien de réinitialisation a expiré.");
+                }
+                $data['current_form'] = 'reset-password';
+                $data['page_title'] = 'Réinitialiser votre mot de passe';
+                $data['reset_token'] = $token;
+            } catch (TokenExpireException $e) {
+                $this->setFlashMessage('error', $e->getMessage());
+                // Rediriger vers la page unifiée avec le formulaire de base (login) ou forgot-password
+                $this->redirect('/login');
+                return; // Stop execution
+            } catch (TokenInvalideException $e) {
+                $this->setFlashMessage('error', $e->getMessage());
+                $this->redirect('/forgot-password'); // Rediriger pour redemander un lien
+                return; // Stop execution
+            } catch (\Exception $e) {
+                $this->setFlashMessage('error', 'Une erreur est survenue lors de la validation du lien.');
+                error_log("Show reset password form error: " . $e->getMessage());
+                $this->redirect('/login');
+                return; // Stop execution
+            }
+        } elseif (strpos($requestUri, '/2fa') !== false) {
+            // L'utilisateur doit être en attente de 2FA pour voir ce formulaire
+            if (!isset($_SESSION['2fa_pending']) || !isset($_SESSION['2fa_user_id'])) {
+                $this->setFlashMessage('error', 'Accès non autorisé au formulaire 2FA.');
+                $this->redirect('/login');
+                return; // Stop execution
+            }
+            $data['current_form'] = '2fa';
+            $data['page_title'] = 'Vérification 2FA';
+        }
+
+        // Charger et afficher la vue unifiée
+        $this->render('Auth/auth', $data, 'none'); // Pas de layout pour la page d'authentification
     }
 
     /**
@@ -422,5 +485,63 @@ class AuthentificationController extends BaseController
             error_log("Change password error: " . $e->getMessage());
             $this->redirect('/dashboard/profile/change-password');
         }
+    }
+
+    /**
+     * Charge et retourne le contenu HTML d'un partiel de formulaire d'authentification.
+     * Cette méthode est appelée par AJAX depuis auth.js.
+     */
+    public function loadFormPartial(): void
+    {
+        // On récupère le nom du formulaire demandé depuis les paramètres GET
+        $formName = $_GET['name'] ?? 'login_form'; // 'login_form' par défaut
+        $token = $_GET['token'] ?? null; // Pour le formulaire de réinitialisation de mot de passe
+
+        // Assurez une validation stricte du nom du formulaire pour éviter les parcours de répertoire (path traversal)
+        $allowedForms = [
+            'login_form',
+            'forgot_password_form',
+            'reset_password_form',
+            '2fa_form'
+        ];
+
+        if (!in_array($formName, $allowedForms)) {
+            // Si le formulaire n'est pas autorisé, retourner une erreur 404 ou 400
+            http_response_code(400); // Bad Request
+            echo json_encode(['message' => 'Formulaire demandé invalide.']);
+            exit;
+        }
+
+        // Construire le chemin complet vers le fichier partiel
+        // Assurez-vous que ce chemin est correct par rapport à l'emplacement de vos partials
+        $partialPath = __DIR__ . '/../../Frontend/views/Auth/partials/' . $formName . '.php';
+
+        if (!file_exists($partialPath)) {
+            http_response_code(404); // Not Found
+            echo json_encode(['message' => 'Le partiel du formulaire n\'existe pas.']);
+            exit;
+        }
+
+        // Générer un nouveau token CSRF pour le formulaire qui sera chargé
+        // C'est crucial pour la sécurité. Assurez-vous que votre BaseController
+        // ou votre système gère la génération de CSRF et qu'il est accessible ici.
+        // Exemple simple :
+        $csrf_token = $this->generateCsrfToken(); // Appelez la méthode de votre BaseController pour générer un token
+        // ou $_SESSION['csrf_token'] si vous le stockez globalement.
+
+        // Mettre en mémoire tampon la sortie pour inclure le fichier partiel
+        ob_start();
+        // Le partiel peut maintenant accéder à $csrf_token et $token (pour reset_password)
+        // en tant que variables locales.
+        include $partialPath;
+        $htmlContent = ob_get_clean(); // Récupérer le contenu HTML
+
+        // Retourner le contenu HTML et le nouveau token CSRF en JSON
+        header('Content-Type: application/json');
+        echo json_encode([
+            'html' => $htmlContent,
+            'csrf_token' => $csrf_token // Envoyer le token pour qu'il soit mis à jour dans le formulaire
+        ]);
+        exit;
     }
 }

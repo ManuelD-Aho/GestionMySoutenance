@@ -28,7 +28,8 @@ use App\Backend\Exception\ElementNonTrouveException;
 class ServiceAuthentication implements ServiceAuthenticationInterface
 {
     private PDO $db;
-    private Utilisateur $utilisateurModel;
+
+    public Utilisateur $utilisateurModel;
     private HistoriqueMotDePasse $historiqueMdpModel;
     private TypeUtilisateur $typeUtilisateurModel;
     private GroupeUtilisateur $groupeUtilisateurModel;
