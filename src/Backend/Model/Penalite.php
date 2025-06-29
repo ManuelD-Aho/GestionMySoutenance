@@ -5,8 +5,8 @@ use PDO;
 
 class Penalite extends BaseModel
 {
-    protected string $table = 'penalite';
-    protected string|array $primaryKey = 'id_penalite'; // Clé primaire VARCHAR(50)
+    public string $table = 'penalite';
+    public string|array $primaryKey = 'id_penalite';
 
     public function __construct(PDO $db)
     {
@@ -14,28 +14,15 @@ class Penalite extends BaseModel
     }
 
     /**
-     * Trouve les pénalités pour un étudiant donné.
-     * @param string $numeroCarteEtudiant Le numéro de carte de l'étudiant.
-     * @param array $colonnes Les colonnes à sélectionner.
-     * @return array Liste des pénalités trouvées.
+     * Trouve les pénalités non réglées d'un étudiant.
+     * @param string $numeroCarteEtudiant
+     * @return array
      */
-    public function trouverPenalitesEtudiant(string $numeroCarteEtudiant, array $colonnes = ['*']): array
+    public function trouverPenalitesNonRegul(string $numeroCarteEtudiant): array
     {
-        return $this->trouverParCritere(['numero_carte_etudiant' => $numeroCarteEtudiant], $colonnes);
-    }
-
-    /**
-     * Trouve les pénalités non régularisées pour un étudiant.
-     * @param string $numeroCarteEtudiant Le numéro de carte de l'étudiant.
-     * @param array $colonnes Les colonnes à sélectionner.
-     * @return array Liste des pénalités non régularisées.
-     */
-    public function trouverPenalitesNonRegul(string $numeroCarteEtudiant, array $colonnes = ['*']): array
-    {
-        // Supposons que 'PEN_DUE' est la valeur de référence pour les pénalités dues
         return $this->trouverParCritere([
             'numero_carte_etudiant' => $numeroCarteEtudiant,
-            'id_statut_penalite' => 'PEN_DUE'
-        ], $colonnes);
+            'id_statut_penalite' => 'PEN_DUE' // 'DUE' est la valeur pour les pénalités dues
+        ]);
     }
 }

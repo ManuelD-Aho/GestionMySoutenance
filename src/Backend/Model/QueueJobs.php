@@ -5,8 +5,8 @@ use PDO;
 
 class QueueJobs extends BaseModel
 {
-    protected string $table = 'queue_jobs';
-    protected string|array $primaryKey = 'id';
+    public string $table = 'queue_jobs';
+    public string|array $primaryKey = 'id';
 
     public function __construct(PDO $db)
     {

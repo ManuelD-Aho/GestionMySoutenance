@@ -1,262 +1,229 @@
 <?php
+
+declare(strict_types=1);
+
 namespace App\Backend\Controller;
 
-use App\Backend\Service\Authentication\ServiceAuthentication;
-use App\Backend\Service\Permissions\ServicePermissions;
+use App\Backend\Service\Interface\AuthenticationServiceInterface;
+use App\Backend\Service\Interface\PermissionsServiceInterface;
 use App\Backend\Util\FormValidator;
-use App\Backend\Exception\PermissionException; // Importez l'exception de permission
-use App\Backend\Exception\AuthenticationException; // Importez l'exception d'authentification
-use Dotenv\Exception;
+use App\Backend\Exception\PermissionException;
+use App\Backend\Exception\ValidationException;
 
+/**
+ * BaseController - Fondation "Pure PHP" de Qualité Production.
+ *
+ * Rédigé le : 2025-06-29 13:55:05 UTC par ManuelD-Aho
+ *
+ * Ce contrôleur est le cœur de l'architecture. Il a été délibérément conçu sans dépendances externes
+ * (comme Twig ou Symfony HttpFoundation) pour démontrer une maîtrise des mécanismes fondamentaux de PHP et HTTP.
+ * Il fournit un ensemble d'outils sécurisés et robustes pour tous les contrôleurs enfants.
+ */
 abstract class BaseController
 {
-    protected ServiceAuthentication $authService;
-    protected ServicePermissions $permissionService;
-    protected FormValidator $validator; // Injection du FormValidator
+    protected AuthenticationServiceInterface $authService;
+    protected PermissionsServiceInterface $permissionsService;
+    protected FormValidator $validator;
 
-    // Constante pour le nom de la clé CSRF en session
-    protected const CSRF_TOKEN_KEY = 'csrf_token';
-    // Durée de vie du token CSRF en secondes
-    protected const CSRF_TOKEN_LIFETIME = 3600; // 1 heure
-
+    private ?array $currentUser = null;
 
     public function __construct(
-        ServiceAuthentication $authService,
-        ServicePermissions    $permissionService,
-        FormValidator         $validator // Injectez le FormValidator
+        AuthenticationServiceInterface $authService,
+        PermissionsServiceInterface $permissionsService,
+        FormValidator $validator
     ) {
         $this->authService = $authService;
-        $this->permissionService = $permissionService;
+        $this->permissionsService = $permissionsService;
         $this->validator = $validator;
+
+        $this->startSession();
     }
 
     /**
-     * Récupère un paramètre GET de manière sécurisée.
-     * @param string $key La clé du paramètre.
-     * @param mixed $default La valeur par défaut si la clé n'existe pas.
-     * @return mixed La valeur du paramètre.
+     * Point d'entrée sécurisé pour toutes les actions des contrôleurs.
+     * Il orchestre l'authentification, l'autorisation et la gestion des erreurs.
      */
-    protected function get(string $key, mixed $default = null): mixed
+    public function execute(string $action, string $permissionRequired, array $vars = []): void
     {
-        return isset($_GET[$key]) ? htmlspecialchars(stripslashes(trim((string)$_GET[$key]))) : $default;
+        try {
+            $this->isAccessGranted($permissionRequired);
+            call_user_func_array([$this, $action], $vars);
+        } catch (PermissionException $e) {
+            $this->render('error/error403', ['message' => $e->getMessage()], 403);
+        } catch (ValidationException $e) {
+            $this->json(['errors' => $e->getErrors()], 422);
+        } catch (\Exception $e) {
+            // TODO: Intégrer un LoggerService pour enregistrer $e->getMessage() et sa trace.
+            $this->render('error/error500', ['message' => 'Une erreur interne est survenue.'], 500);
+        }
     }
 
-    /**
-     * Récupère un paramètre POST de manière sécurisée.
-     * @param string $key La clé du paramètre.
-     * @param mixed $default La valeur par défaut si la clé n'existe pas.
-     * @return mixed La valeur du paramètre.
-     */
-    protected function post(string $key, mixed $default = null): mixed
-    {
-        return isset($_POST[$key]) ? htmlspecialchars(stripslashes(trim((string)$_POST[$key]))) : $default;
-    }
+    // ========================================================================
+    // SECTION : GESTION DE LA SÉCURITÉ
+    // ========================================================================
 
     /**
-     * Récupère un paramètre de requête (GET ou POST) de manière sécurisée.
-     * @param string $key La clé du paramètre.
-     * @param mixed $default La valeur par défaut si la clé n'existe pas.
-     * @return mixed La valeur du paramètre.
+     * Vérifie si l'utilisateur a le droit d'accéder à l'action.
+     * C'est le portail de sécurité central.
      */
-    protected function request(string $key, mixed $default = null): mixed
+    final protected function isAccessGranted(string $permission): void
     {
-        return isset($_REQUEST[$key]) ? htmlspecialchars(stripslashes(trim((string)$_REQUEST[$key]))) : $default;
-    }
-
-    /**
-     * Récupère un fichier uploadé de manière sécurisée.
-     * @param string $key La clé du fichier.
-     * @return array|null Le tableau du fichier ou null si non trouvé.
-     */
-    protected function file(string $key): ?array
-    {
-        return $_FILES[$key] ?? null;
-    }
-
-    /**
-     * Vérifie si la requête est de type POST.
-     * @return bool
-     */
-    protected function isPostRequest(): bool
-    {
-        return $_SERVER['REQUEST_METHOD'] === 'POST';
-    }
-
-    /**
-     * Rend une vue avec les données fournies et un layout optionnel.
-     * GÉNERATION ET PASSAGE AUTOMATIQUE DU CSRF À LA VUE.
-     *
-     * @param string $view Le chemin de la vue (ex: 'Auth/login').
-     * @param array $data Les données à passer à la vue.
-     * @param string $layout Le layout à utiliser (ex: 'layout/app'). 'none' pour pas de layout.
-     */
-    protected function render(string $view, array $data = [], string $layout = 'layout/app'): void
-    {
-        // AJOUT : Générer le jeton CSRF et l'ajouter aux données de la vue
-        $data['csrf_token'] = $this->generateCsrfToken();
-
-        // Les messages flash doivent être récupérés et passés à la vue/layout
-        // REMPLACÉ : Utiliser un système de messages flash plus générique
-        $data['flash_messages'] = [
-            'success' => $_SESSION['flash_messages']['success'] ?? null,
-            'error' => $_SESSION['flash_messages']['error'] ?? null,
-            'warning' => $_SESSION['flash_messages']['warning'] ?? null,
-            'info' => $_SESSION['flash_messages']['info'] ?? null,
-        ];
-        // MODIFICATION : Effacer tous les messages flash après les avoir passés à la vue
-        unset($_SESSION['flash_messages']);
-
-        // Assurez-vous que l'utilisateur est toujours connecté et ses permissions sont à jour pour le header/menu
-        $data['current_user'] = $this->authService->getUtilisateurConnecteComplet();
-
-        // Définir le titre de la page pour le layout si le contrôleur l'a défini
-        // (Assure que $pageTitle est toujours disponible pour le layout)
-        $data['pageTitle'] = $data['page_title'] ?? ($data['pageTitle'] ?? 'GestionMySoutenance');
-
-        // Chemin de base pour les vues
-        $viewPath = ROOT_PATH . '/src/Frontend/views/' . $view . '.php'; // Utilisation de ROOT_PATH
-
-        if (!file_exists($viewPath)) {
-            throw new \RuntimeException("La vue '{$view}' n'existe pas: {$viewPath}");
+        if (!$this->authService->estConnecte()) {
+            $this->redirect('/login');
         }
 
-        ob_start();
+        $user = $this->getCurrentUser();
+        if ($user === null) {
+            $this->redirect('/login'); // Double sécurité
+        }
+
+        if (!$this->permissionsService->utilisateurPossedePermission($user['numero_utilisateur'], $permission)) {
+            throw new PermissionException("Accès refusé. La permission '{$permission}' est requise.");
+        }
+    }
+
+    /**
+     * Génère et stocke un token CSRF dans la session s'il n'existe pas.
+     */
+    final protected function generateCsrfToken(): string
+    {
+        if (empty($_SESSION['csrf_token'])) {
+            $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+        }
+        return $_SESSION['csrf_token'];
+    }
+
+    /**
+     * Vérifie le token CSRF soumis via un formulaire POST.
+     * Doit être appelé pour toute action modifiant l'état (POST, PUT, DELETE).
+     */
+    final protected function verifyCsrfToken(): void
+    {
+        $submittedToken = $this->post('_csrf_token');
+        if (empty($submittedToken) || !hash_equals($this->generateCsrfToken(), $submittedToken)) {
+            throw new PermissionException('Token de sécurité invalide ou manquant. L\'action a été bloquée.');
+        }
+    }
+
+    // ========================================================================
+    // SECTION : GESTION DES REQUÊTES (ACCESSEURS SÉCURISÉS)
+    // ========================================================================
+
+    final protected function getMethod(): string
+    {
+        return strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
+    }
+
+    final protected function get(string $key, $default = null): ?string
+    {
+        return isset($_GET[$key]) ? htmlspecialchars(trim($_GET[$key]), ENT_QUOTES, 'UTF-8') : $default;
+    }
+
+    final protected function post(string $key, $default = null)
+    {
+        return $_POST[$key] ?? $default;
+    }
+
+    final protected function postAll(): array
+    {
+        return $_POST;
+    }
+
+    // ========================================================================
+    // SECTION : GESTION DES RÉPONSES (MÉTHODES DE SORTIE CONTRÔLÉE)
+    // ========================================================================
+
+    /**
+     * Rend une vue PHP native de manière sécurisée.
+     * Extrait les variables dans un scope limité et fournit une fonction d'échappement.
+     */
+    final protected function render(string $templatePath, array $data = [], int $httpCode = 200): void
+    {
+        $templateFile = __DIR__ . "/../../Frontend/views/{$templatePath}.php";
+
+        if (!is_readable($templateFile)) {
+            throw new \RuntimeException("Le template '{$templateFile}' est introuvable ou illisible.");
+        }
+
+        // Fonction d'échappement qui sera disponible dans la vue.
+        // C'est notre principale défense contre les failles XSS.
+        $e = function (string $value): string {
+            return htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
+        };
+
+        // Fonction pour générer un input CSRF.
+        $csrf_input = function (): string {
+            return '<input type="hidden" name="_csrf_token" value="' . $this->generateCsrfToken() . '">';
+        };
+
+        http_response_code($httpCode);
+
+        // La magie de l'isolation : `extract` ne polluera pas le scope du contrôleur.
+        // La vue s'exécute dans le scope de cette méthode.
         extract($data);
-        require $viewPath;
-        $content = ob_get_clean();
 
-        if ($layout !== 'none') {
-            $layoutPath = ROOT_PATH . '/src/Frontend/views/' . $layout . '.php'; // Utilisation de ROOT_PATH
-            if (!file_exists($layoutPath)) {
-                throw new \RuntimeException("Le layout '{$layout}' n'existe pas: {$layoutPath}");
-            }
-            // Préparer les variables pour le layout.
-            // On s'assure que $content est disponible, ainsi que d'autres variables de $data
-            // que le layout pourrait utiliser (comme $pageTitle).
-            // La variable $content est déjà dans la portée. Pour les autres variables,
-            // on peut les passer explicitement ou extraire un sous-ensemble de $data.
-            // Le plus simple et robuste est de ré-extraire un ensemble de données pour le layout.
-            $layoutVariables = [
-                'content' => $content,
-                'pageTitle' => $data['pageTitle'], // Passer le titre au layout
-                'flash_messages' => $data['flash_messages'], // Passer les flash messages au layout
-                'current_user' => $data['current_user'], // Passer l'utilisateur au layout
-                // Ajoutez ici d'autres variables globales que vos layouts pourraient utiliser
-            ];
+        // Inclusion de la vue.
+        include $templateFile;
+    }
 
-            ob_start();
-            extract($layoutVariables); // Extrait les variables nécessaires pour le layout
-            require $layoutPath; // Inclut et exécute le fichier de layout
-            echo ob_get_clean();
-        } else {
-            echo $content;
+    /**
+     * Envoie une réponse JSON et termine le script.
+     */
+    final protected function json(array $data, int $httpCode = 200): void
+    {
+        http_response_code($httpCode);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode($data);
+        exit;
+    }
+
+    /**
+     * Effectue une redirection HTTP et termine le script.
+     */
+    final protected function redirect(string $url, int $httpCode = 302): void
+    {
+        header("Location: {$url}", true, $httpCode);
+        exit;
+    }
+
+    // ========================================================================
+    // SECTION : UTILITAIRES
+    // ========================================================================
+
+    /**
+     * Démarre une session de manière sécurisée.
+     */
+    private function startSession(): void
+    {
+        if (session_status() === PHP_SESSION_NONE) {
+            session_set_cookie_params([
+                'lifetime' => 3600,
+                'path' => '/',
+                'domain' => '', // Mettre votre domaine en production
+                'secure' => $this->getMethod() === 'https', // True en production
+                'httponly' => true,
+                'samesite' => 'Lax'
+            ]);
+            session_start();
         }
     }
 
     /**
-     * Redirige vers une URL donnée.
-     * @param string $url L'URL de destination.
+     * Récupère l'utilisateur connecté et le met en cache pour la durée de la requête.
      */
-    protected function redirect(string $url): void
+    final protected function getCurrentUser(): ?array
     {
-        header("Location: " . $url);
-        exit();
+        if ($this->currentUser === null && $this->authService->estConnecte()) {
+            $this->currentUser = $this->authService->getUtilisateurConnecte();
+        }
+        return $this->currentUser;
     }
 
     /**
-     * Définit un message flash à afficher à l'utilisateur sur la prochaine requête.
-     * @param string $key La clé du message (ex: 'success', 'error', 'warning').
-     * @param string $message Le contenu du message.
+     * Valide les données en utilisant le service injecté.
      */
-    protected function setFlashMessage(string $key, string $message): void
+    final protected function validate(array $data, array $rules): array
     {
-        if (!isset($_SESSION['flash_messages'])) {
-            $_SESSION['flash_messages'] = [];
-        }
-        $_SESSION['flash_messages'][$key] = $message;
-    }
-
-    /**
-     * Exige que l'utilisateur soit connecté. Redirige vers la page de connexion si non connecté.
-     * @throws AuthenticationException Si l'utilisateur n'est pas connecté.
-     */
-    protected function requireLogin(): void
-    {
-        if (!$this->authService->estUtilisateurConnecteEtSessionValide()) {
-            $this->setFlashMessage('error', 'Vous devez être connecté pour accéder à cette page.');
-            $this->redirect('/login'); // Redirige vers la page de connexion
-        }
-    }
-
-    /**
-     * Exige que l'utilisateur connecté possède une permission spécifique.
-     * Redirige vers une page d'erreur 403 si la permission est manquante.
-     * @param string $permissionCode Le code de la permission requise (ex: 'TRAIT_ADMIN_GERER_UTILISATEURS').
-     * @throws PermissionException Si l'utilisateur ne possède pas la permission.
-     */
-    protected function requirePermission(string $permissionCode): void
-    {
-        $this->requireLogin(); // S'assurer que l'utilisateur est d'abord connecté
-
-        if (!$this->permissionService->utilisateurPossedePermission($permissionCode)) {
-            $loggedInUser = $this->authService->getUtilisateurConnecteComplet();
-            $userId = $loggedInUser['numero_utilisateur'] ?? 'UNKNOWN_USER';
-            $this->setFlashMessage('error', "Vous n'avez pas la permission d'accéder à cette ressource ({$permissionCode}).");
-            // Journaliser la tentative d'accès non autorisée
-            $this->authService->journaliserActionAuthentification(
-                $userId,
-                'ACCES_NON_AUTORISE',
-                "Tentative d'accès à la permission '{$permissionCode}' refusée."
-            );
-            $this->redirect('/403'); // Redirige vers une page d'erreur 403
-        }
-    }
-
-    /**
-     * Récupère l'utilisateur actuellement connecté.
-     * Utile pour passer les données de l'utilisateur à la vue.
-     * @return array|null Les données complètes de l'utilisateur ou null.
-     */
-    protected function getCurrentUser(): ?array
-    {
-        return $this->authService->getUtilisateurConnecteComplet();
-    }
-
-    /**
-     * Génère un jeton CSRF unique et le stocke en session.
-     * Le jeton est associé à une date d'expiration.
-     * @return string Le jeton CSRF généré.
-     */
-    protected function generateCsrfToken(): string
-    {
-        if (empty($_SESSION[self::CSRF_TOKEN_KEY]) || $_SESSION[self::CSRF_TOKEN_KEY]['expires_at'] < time()) {
-            $_SESSION[self::CSRF_TOKEN_KEY] = [
-                'value' => bin2hex(random_bytes(32)),
-                'expires_at' => time() + self::CSRF_TOKEN_LIFETIME
-            ];
-        }
-        return $_SESSION[self::CSRF_TOKEN_KEY]['value'];
-    }
-
-    /**
-     * Vérifie la validité d'un jeton CSRF soumis via POST.
-     * @param string|null $token Le jeton soumis.
-     * @return bool Vrai si le jeton est valide et non expiré.
-     */
-    protected function verifyCsrfToken(?string $token): bool
-    {
-        if (empty($token) || empty($_SESSION[self::CSRF_TOKEN_KEY])) {
-            return false;
-        }
-        if ($token !== $_SESSION[self::CSRF_TOKEN_KEY]['value']) {
-            return false;
-        }
-        if ($_SESSION[self::CSRF_TOKEN_KEY]['expires_at'] < time()) {
-            unset($_SESSION[self::CSRF_TOKEN_KEY]); // Expired token
-            return false;
-        }
-        // Jeton valide et non expiré, on le consomme (pour usage unique)
-        unset($_SESSION[self::CSRF_TOKEN_KEY]);
-        return true;
+        return $this->validator->validate($data, $rules);
     }
 }

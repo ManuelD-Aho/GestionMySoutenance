@@ -1,0 +1,1622 @@
+
+/***********************************************************************************
+ * Fichier: .dockerignore
+ ***********************************************************************************/
+
+# .dockerignore
+
+# Fichiers de contrôle de version
+.git
+.gitignore
+.gitattributes
+.github/
+
+# Fichiers d'environnement (très important de ne pas les inclure dans l'image)
+.env
+.env.dev
+.env.prod
+.env.example
+
+# Dépendances Composer (seront installées DANS le conteneur)
+vendor/
+composer.phar
+
+# Fichiers de configuration Docker spécifiques au développement local
+docker-compose.dev.yml
+docker-compose.prod.yml
+
+# Fichiers de log, cache, uploads (générés par l'application, non nécessaires dans l'image)
+var/cache/
+var/log/
+Public/uploads/
+
+# Fichiers de documentation ou de projet non nécessaires au runtime
+README.md
+Fonction.md
+Commande.txt
+.vscode/
+.idea/
+*.sql # mysoutenance.sql est utilisé pour l'initialisation de la DB, pas pour le build de l'app
+*.log
+
+/***********************************************************************************
+ * Fichier: .env
+ ***********************************************************************************/
+
+APP_ENV=development
+APP_PORT=8080
+
+# Database for local development
+DB_HOST=db
+DB_PORT=3306
+DB_DATABASE=mysoutenance
+DB_USER=root
+DB_PASSWORD=root123
+
+# MySQL root password for Docker Compose
+MYSQL_ROOT_PASSWORD=root123
+
+# PhpMyAdmin port
+PMA_PORT=8081
+
+# Session configuration
+SESSION_LIFETIME=3600
+SESSION_DOMAIN=localhost
+
+# SMTP for local development (MailHog or similar)
+SMTP_HOST=mailhog
+SMTP_PORT=1025
+SMTP_AUTH=false
+SMTP_USER=
+SMTP_PASS=
+SMTP_SECURE=
+MAIL_FROM_ADDRESS=no-reply@gestionsoutenance.dev
+MAIL_FROM_NAME=GestionMySoutenanceDev
+
+/***********************************************************************************
+ * Fichier: .env.dev
+ ***********************************************************************************/
+
+APP_ENV=development
+APP_PORT=8080
+
+# Database for local development
+DB_HOST=db
+DB_PORT=3306
+DB_DATABASE=mysoutenance
+DB_USER=root
+DB_PASSWORD=root123
+
+# MySQL root password for Docker Compose
+MYSQL_ROOT_PASSWORD=root123
+
+# PhpMyAdmin port
+PMA_PORT=8081
+
+# Session configuration
+SESSION_LIFETIME=3600
+SESSION_DOMAIN=localhost
+
+# SMTP for local development (MailHog or similar)
+SMTP_HOST=mailhog
+SMTP_PORT=1025
+SMTP_AUTH=false
+SMTP_USER=
+SMTP_PASS=
+SMTP_SECURE=
+MAIL_FROM_ADDRESS=no-reply@gestionsoutenance.dev
+MAIL_FROM_NAME=GestionMySoutenanceDev
+
+/***********************************************************************************
+ * Fichier: .env.example
+ ***********************************************************************************/
+
+APP_ENV=development
+APP_PORT=8080
+
+DB_HOST=db
+DB_PORT=3306
+DB_DATABASE=mysoutenance
+DB_USER=root
+DB_PASSWORD=root123
+
+MYSQL_ROOT_PASSWORD=root123
+
+PMA_PORT=8081
+
+SESSION_LIFETIME=3600
+SESSION_DOMAIN=localhost
+
+# SMTP configuration (placeholders)
+SMTP_HOST=
+SMTP_PORT=
+SMTP_AUTH=
+SMTP_USER=
+SMTP_PASS=
+SMTP_SECURE=
+MAIL_FROM_ADDRESS=
+MAIL_FROM_NAME=
+
+/***********************************************************************************
+ * Fichier: .env.prod
+ ***********************************************************************************/
+
+APP_ENV=production
+APP_PORT=80
+DB_HOST=db_prod
+DB_PORT=3306
+DB_DATABASE=mysoutoutenance
+DB_USER=
+DB_PASSWORD=
+SESSION_LIFETIME=3600
+SESSION_DOMAIN=gestionmysoutenance.live
+SMTP_HOST=smtp.zoho.com
+SMTP_PORT=587
+SMTP_AUTH=true
+SMTP_USER=no-reply@gestionmysoutenance.live
+SMTP_PASS=
+SMTP_SECURE=tls
+MAIL_FROM_ADDRESS=no-reply@gestionmysoutenance.live
+MAIL_FROM_NAME=GestionMySoutenance
+
+/***********************************************************************************
+ * Fichier: .gitignore
+ ***********************************************************************************/
+
+# Ignorer les fichiers d'environnement spécifiques
+
+
+# Ignorer les dépendances Composer
+composer.phar
+/vendor/
+
+# Ignorer les assets générés ou les caches
+/Public/assets/css/bulma/
+/Public/uploads/
+/var/cache/
+/var/log/
+
+# Ignorer les fichiers Docker spécifiques au développement
+
+
+
+/***********************************************************************************
+ * Fichier: .gitignore.dev
+ ***********************************************************************************/
+
+# Règles spécifiques au développement
+# (Peut être vide si toutes les règles sont dans .gitignore)
+
+/***********************************************************************************
+ * Fichier: .gitignore.prod
+ ***********************************************************************************/
+
+# Règles spécifiques à la production
+# (Peut être vide si toutes les règles sont dans .gitignore)
+
+/***********************************************************************************
+ * Fichier: code.php
+ ***********************************************************************************/
+
+<?php
+
+// Désactiver la limite de temps d'exécution pour les projets volumineux
+set_time_limit(0);
+
+// L'arborescence complète sous forme de chaîne de caractères (HEREDOC)
+$structure = <<<EOT
+└── manueld-aho-gestionmysoutenance/
+    ├── README.md
+    ├── Commande.txt
+    ├── composer.json
+    ├── composer.lock
+    ├── docker-compose.dev.yml
+    ├── docker-compose.prod.yml
+    ├── Dockerfile
+    ├── Fonction.md
+    ├── mysoutenance.sql
+    ├── php.ini
+    ├── render.yaml
+    ├── seeds.php
+    ├── .dockerignore
+    ├── .env.dev
+    ├── .env.example
+    ├── .env.prod
+    ├── .gitignore.dev
+    ├── .gitignore.prod
+    ├── docker/
+    │   ├── apache/
+    │   │   └── apache-vhost.conf
+    │   ├── nginx/
+    │   │   └── conf.d/
+    │   │       └── default.conf
+    │   └── php/
+    │       └── php.ini
+    ├── Public/
+    │   ├── index.php
+    │   ├── test-email.php
+    │   ├── .htaccess
+    │   └── assets/
+    │       ├── css/
+    │       │   ├── admin-module.html
+    │       │   ├── admin_module.css
+    │       │   ├── admin_module.js
+    │       │   ├── dashboard_style.css
+    │       │   ├── gestionsoutenance-dashboard.css
+    │       │   ├── gestionsoutenance-dashboard.js
+    │       │   ├── promage-dashboard-base.css
+    │       │   ├── promage-dashboard-index.html
+    │       │   ├── style.css
+    │       │   └── styles.css
+    │       └── js/
+    │           └── main.js
+    ├── routes/
+    │   └── web.php
+    └── src/
+        ├── Backend/
+        │   ├── Controller/
+        │   │   ├── AssetController.php
+        │   │   ├── AuthentificationController.php
+        │   │   ├── BaseController.php
+        │   │   ├── DashboardController.php
+        │   │   ├── HomeController.php
+        │   │   ├── Admin/
+        │   │   │   └── AnneeAcademiqueController.php
+        │   │   ├── Administration/
+        │   │   │   ├── AdminDashboardController.php
+        │   │   │   ├── ConfigSystemeController.php
+        │   │   │   ├── FichierController.php
+        │   │   │   ├── GestionAcadController.php
+        │   │   │   ├── HabilitationController.php
+        │   │   │   ├── LoggerController.php
+        │   │   │   ├── NotificationConfigurationController.php
+        │   │   │   ├── QueueController.php
+        │   │   │   ├── ReferentialController.php
+        │   │   │   ├── ReportingController.php
+        │   │   │   ├── SupervisionController.php
+        │   │   │   ├── TransitionRoleController.php
+        │   │   │   └── UtilisateurController.php
+        │   │   ├── Commission/
+        │   │   │   ├── CommissionDashboardController.php
+        │   │   │   ├── CommunicationCommissionController.php
+        │   │   │   ├── CorrectionCommissionController.php
+        │   │   │   ├── PvController.php
+        │   │   │   └── ValidationRapportController.php
+        │   │   ├── Common/
+        │   │   │   └── NotificationController.php
+        │   │   ├── Etudiant/
+        │   │   │   ├── DocumentEtudiantController.php
+        │   │   │   ├── EtudiantDashboardController.php
+        │   │   │   ├── ProfilEtudiantController.php
+        │   │   │   ├── RapportController.php
+        │   │   │   ├── ReclamationEtudiantController.php
+        │   │   │   └── RessourcesEtudiantController.php
+        │   │   └── PersonnelAdministratif/
+        │   │       ├── CommunicationInterneController.php
+        │   │       ├── ConformiteController.php
+        │   │       ├── DocumentAdministratifController.php
+        │   │       ├── PersonnelDashboardController.php
+        │   │       └── ScolariteController.php
+        │   ├── Exception/
+        │   │   ├── AuthenticationException.php
+        │   │   ├── CompteBloqueException.php
+        │   │   ├── CompteNonValideException.php
+        │   │   ├── DoublonException.php
+        │   │   ├── ElementNonTrouveException.php
+        │   │   ├── EmailException.php
+        │   │   ├── EmailNonValideException.php
+        │   │   ├── IdentifiantsInvalidesException.php
+        │   │   ├── ModeleNonTrouveException.php
+        │   │   ├── MotDePasseInvalideException.php
+        │   │   ├── OperationImpossibleException.php
+        │   │   ├── PermissionException.php
+        │   │   ├── TokenExpireException.php
+        │   │   ├── TokenInvalideException.php
+        │   │   ├── UtilisateurNonTrouveException.php
+        │   │   └── ValidationException.php
+        │   ├── Model/
+        │   │   ├── Acquerir.php
+        │   │   ├── Action.php
+        │   │   ├── Affecter.php
+        │   │   ├── AnneeAcademique.php
+        │   │   ├── Approuver.php
+        │   │   ├── Attribuer.php
+        │   │   ├── BaseModel.php
+        │   │   ├── CompteRendu.php
+        │   │   ├── ConformiteRapportDetails.php
+        │   │   ├── Conversation.php
+        │   │   ├── CritereConformiteRef.php
+        │   │   ├── DecisionPassageRef.php
+        │   │   ├── DecisionValidationPvRef.php
+        │   │   ├── DecisionVoteRef.php
+        │   │   ├── Delegation.php
+        │   │   ├── DocumentGenere.php
+        │   │   ├── Ecue.php
+        │   │   ├── Enregistrer.php
+        │   │   ├── Enseignant.php
+        │   │   ├── Entreprise.php
+        │   │   ├── Etudiant.php
+        │   │   ├── Evaluer.php
+        │   │   ├── FaireStage.php
+        │   │   ├── Fonction.php
+        │   │   ├── Grade.php
+        │   │   ├── GroupeUtilisateur.php
+        │   │   ├── HistoriqueMotDePasse.php
+        │   │   ├── Inscrire.php
+        │   │   ├── LectureMessage.php
+        │   │   ├── MatriceNotificationRegles.php
+        │   │   ├── MessageChat.php
+        │   │   ├── NiveauAccesDonne.php
+        │   │   ├── NiveauEtude.php
+        │   │   ├── Notification.php
+        │   │   ├── Occuper.php
+        │   │   ├── ParametreSysteme.php
+        │   │   ├── ParticipantConversation.php
+        │   │   ├── Penalite.php
+        │   │   ├── PersonnelAdministratif.php
+        │   │   ├── Pister.php
+        │   │   ├── PvSessionRapport.php
+        │   │   ├── QueueJobs.php
+        │   │   ├── RapportEtudiant.php
+        │   │   ├── RapportModele.php
+        │   │   ├── RapportModeleAssignation.php
+        │   │   ├── RapportModeleSection.php
+        │   │   ├── Rattacher.php
+        │   │   ├── Recevoir.php
+        │   │   ├── Reclamation.php
+        │   │   ├── Rendre.php
+        │   │   ├── SectionRapport.php
+        │   │   ├── Sequences.php
+        │   │   ├── Sessions.php
+        │   │   ├── SessionValidation.php
+        │   │   ├── Specialite.php
+        │   │   ├── StatutConformiteRef.php
+        │   │   ├── StatutJury.php
+        │   │   ├── StatutPaiementRef.php
+        │   │   ├── StatutPenaliteRef.php
+        │   │   ├── StatutPvRef.php
+        │   │   ├── StatutRapportRef.php
+        │   │   ├── StatutReclamationRef.php
+        │   │   ├── Traitement.php
+        │   │   ├── TypeDocumentRef.php
+        │   │   ├── TypeUtilisateur.php
+        │   │   ├── Ue.php
+        │   │   ├── Utilisateur.php
+        │   │   ├── ValidationPv.php
+        │   │   └── VoteCommission.php
+        │   ├── Service/
+        │   │   ├── Interface/
+        │   │   │   ├── AnneeAcademiqueServiceInterface.php
+        │   │   │   ├── AuthenticationServiceInterface.php
+        │   │   │   ├── AuditServiceInterface.php
+        │   │   │   ├── CommissionServiceInterface.php
+        │   │   │   ├── CompteUtilisateurServiceInterface.php
+        │   │   │   ├── ConformiteServiceInterface.php
+        │   │   │   ├── CursusServiceInterface.php
+        │   │   │   ├── DocumentAdministratifServiceInterface.php
+        │   │   │   ├── DocumentGeneratorServiceInterface.php
+        │   │   │   ├── EmailServiceInterface.php
+        │   │   │   ├── FichierServiceInterface.php
+        │   │   │   ├── IdentifiantGeneratorInterface.php
+        │   │   │   ├── InscriptionServiceInterface.php
+        │   │   │   ├── LoggerServiceInterface.php
+        │   │   │   ├── MessagerieServiceInterface.php
+        │   │   │   ├── NotationServiceInterface.php
+        │   │   │   ├── NotificationConfigurationServiceInterface.php
+        │   │   │   ├── NotificationServiceInterface.php
+        │   │   │   ├── ParametrageServiceInterface.php
+        │   │   │   ├── PenaliteServiceInterface.php
+        │   │   │   ├── PermissionsServiceInterface.php
+        │   │   │   ├── PersonnelAcademiqueServiceInterface.php
+        │   │   │   ├── ProcèsVerbalServiceInterface.php
+        │   │   │   ├── ProfilEtudiantServiceInterface.php
+        │   │   │   ├── QueueServiceInterface.php
+        │   │   │   ├── RapportServiceInterface.php
+        │   │   │   ├── ReclamationServiceInterface.php
+        │   │   │   ├── ReferentielServiceInterface.php
+        │   │   │   ├── ReportingServiceInterface.php
+        │   │   │   ├── RessourcesEtudiantServiceInterface.php
+        │   │   │   ├── StageServiceInterface.php
+        │   │   │   ├── SupervisionAdminServiceInterface.php
+        │   │   │   └── TransitionRoleServiceInterface.php
+        │   │   ├── IdentifiantGenerator.php
+        │   │   ├── ServiceAnneeAcademique.php
+        │   │   ├── ServiceAuthentication.php
+        │   │   ├── ServiceAudit.php
+        │   │   ├── ServiceCommission.php
+        │   │   ├── ServiceCompteUtilisateur.php
+        │   │   ├── ServiceConformite.php
+        │   │   ├── ServiceCursus.php
+        │   │   ├── ServiceDocumentAdministratif.php
+        │   │   ├── ServiceDocumentGenerator.php
+        │   │   ├── ServiceEmail.php
+        │   │   ├── ServiceFichier.php
+        │   │   ├── ServiceInscription.php
+        │   │   ├── ServiceLogger.php
+        │   │   ├── ServiceMessagerie.php
+        │   │   ├── ServiceNotation.php
+        │   │   ├── ServiceNotification.php
+        │   │   ├── ServiceNotificationConfiguration.php
+        │   │   ├── ServiceParametrage.php
+        │   │   ├── ServicePenalite.php
+        │   │   ├── ServicePermissions.php
+        │   │   ├── ServicePersonnelAcademique.php
+        │   │   ├── ServiceProcesVerbal.php
+        │   │   ├── ServiceProfilEtudiant.php
+        │   │   ├── ServiceQueue.php
+        │   │   ├── ServiceRapport.php
+        │   │   ├── ServiceReclamation.php
+        │   │   ├── ServiceReferentiel.php
+        │   │   ├── ServiceReportingAdmin.php
+        │   │   ├── ServiceRessourcesEtudiant.php
+        │   │   ├── ServiceStage.php
+        │   │   ├── ServiceSupervisionAdmin.php
+        │   │   └── ServiceTransitionRole.php
+        │   └── Util/
+        │       ├── DatabaseSessionHandler.php
+        │       └── FormValidator.php
+        ├── Config/
+        │   ├── Container.php
+        │   └── Database.php
+        └── Frontend/
+            └── views/
+                ├── Administration/
+                │   ├── dashboard_admin.php
+                │   ├── reporting_admin.php
+                │   ├── ConfigSysteme/
+                │   │   ├── annee_academique.php
+                │   │   ├── modeles_documents.php
+                │   │   ├── notification_configuration.php
+                │   │   └── parametres_generaux.php
+                │   ├── Fichier/
+                │   │   ├── list_files.php
+                │   │   └── upload_form.php
+                │   ├── GestionAcad/
+                │   │   ├── form_ecue.php
+                │   │   ├── form_inscription.php
+                │   │   ├── form_note.php
+                │   │   ├── form_stage.php
+                │   │   ├── form_ue.php
+                │   │   ├── index.php
+                │   │   ├── list_ecues.php
+                │   │   ├── list_ues.php
+                │   │   ├── liste_inscriptions.php
+                │   │   ├── liste_notes.php
+                │   │   ├── liste_stages.php
+                │   │   └── manage_enseignant_carrieres.php
+                │   ├── Habilitations/
+                │   │   ├── form_groupe.php
+                │   │   ├── form_niveau_acces.php
+                │   │   ├── form_traitement.php
+                │   │   ├── form_type_utilisateur.php
+                │   │   ├── gestion_rattachements.php
+                │   │   ├── index.php
+                │   │   ├── liste_groupes.php
+                │   │   ├── liste_niveaux_acces.php
+                │   │   ├── liste_traitements.php
+                │   │   └── liste_types_utilisateur.php
+                │   ├── Referentiels/
+                │   │   ├── crud_referentiel_generique.php
+                │   │   ├── form_referentiel_generique.php
+                │   │   └── liste_referentiels.php
+                │   ├── Supervision/
+                │   │   ├── index.php
+                │   │   ├── journaux_audit.php
+                │   │   ├── logs.php
+                │   │   ├── maintenance.php
+                │   │   ├── queue.php
+                │   │   └── suivi_workflows.php
+                │   ├── TransitionRole/
+                │   │   ├── form_delegation.php
+                │   │   ├── index.php
+                │   │   └── list_delegations.php
+                │   └── Utilisateurs/
+                │       ├── form_enseignant.php
+                │       ├── form_etudiant.php
+                │       ├── form_personnel.php
+                │       ├── form_utilisateur_generic.php
+                │       ├── import_etudiants_form.php
+                │       ├── liste_enseignants.php
+                │       ├── liste_etudiants.php
+                │       ├── liste_personnel.php
+                │       └── liste_utilisateurs.php
+                ├── Auth/
+                │   ├── change_password_form.php
+                │   ├── email_validation_result.php
+                │   ├── forgot_password_form.php
+                │   ├── form_2fa.php
+                │   ├── form_2fa_setup.php
+                │   ├── layout_auth.php
+                │   ├── login.php
+                │   └── reset_password_form.php
+                ├── Commission/
+                │   ├── corrections_commission.php
+                │   ├── dashboard_commission.php
+                │   ├── historique_commission.php
+                │   ├── Communication/
+                │   │   └── create_conversation_form.php
+                │   ├── PV/
+                │   │   ├── consulter_pv.php
+                │   │   ├── rediger_pv.php
+                │   │   └── valider_pv.php
+                │   └── Rapports/
+                │       ├── details_rapport_commission.php
+                │       ├── interface_vote.php
+                │       └── liste_rapports_a_traiter.php
+                ├── common/
+                │   ├── chat_interface.php
+                │   ├── dashboard.php
+                │   ├── header.php
+                │   ├── menu.php
+                │   └── notifications_panel.php
+                ├── errors/
+                │   ├── 403.php
+                │   ├── 404.php
+                │   ├── 405.php
+                │   └── 500.php
+                ├── Etudiant/
+                │   ├── dashboard_etudiant.php
+                │   ├── mes_documents.php
+                │   ├── profil_etudiant.php
+                │   ├── ressources_etudiant.php
+                │   ├── Profile/
+                │   │   └── upload_photo_form.php
+                │   ├── Rapport/
+                │   │   ├── soumettre_corrections.php
+                │   │   ├── soumettre_rapport.php
+                │   │   └── suivi_rapport.php
+                │   └── Reclamation/
+                │       ├── soumettre_reclamation.php
+                │       └── suivi_reclamations.php
+                ├── layout/
+                │   └── app.php
+                ├── ParametresGeneraux/
+                │   ├── action.php
+                │   ├── annee_academique.php
+                │   ├── ecue.php
+                │   ├── entreprise.php
+                │   ├── fonction.php
+                │   ├── grade.php
+                │   ├── groupe_utilisateur.php
+                │   ├── niv_acces_donnees.php
+                │   ├── niveau_approbation.php
+                │   ├── niveau_etude.php
+                │   ├── specialite.php
+                │   ├── statut_jury.php
+                │   ├── traitement.php
+                │   ├── type_utilisateur.php
+                │   ├── ue.php
+                │   └── utilisateur.php
+                └── PersonnelAdministratif/
+                    ├── dashboard_personnel.php
+                    ├── Conformite/
+                    │   ├── details_rapport_conformite.php
+                    │   ├── liste_rapports_a_verifier.php
+                    │   └── liste_rapports_traites_conformite.php
+                    ├── DocumentAdministratif/
+                    │   ├── generation_documents_form.php
+                    │   └── list_generated_documents.php
+                    └── Scolarite/
+                        ├── generation_documents_scolarite.php
+                        ├── gestion_etudiants_scolarite.php
+                        ├── gestion_inscriptions_scolarite.php
+                        ├── gestion_notes_scolarite.php
+                        ├── index.php
+                        ├── liste_reclamations.php
+                        ├── manage_penalites.php
+                        └── validate_stage_form.php
+EOT;
+
+
+function generateStructure(string $structure) {
+    $lines = explode("\n", $structure);
+    $baseDir = '';
+
+    // Récupérer le nom du dossier racine de la première ligne
+    if (preg_match('/└── (.*?)\//', $lines[0], $matches)) {
+        $baseDir = trim($matches[1]);
+        if (file_exists($baseDir)) {
+            echo "Le dossier racine '$baseDir' existe déjà. Le script ne modifiera pas son contenu.\n";
+        } else {
+            mkdir($baseDir, 0777, true);
+            echo "Créé le dossier racine : $baseDir\n";
+        }
+    } else {
+        echo "Erreur : Impossible de déterminer le dossier racine.\n";
+        return;
+    }
+
+    // La pile des chemins contiendra les composants du chemin actuel
+    $pathStack = [$baseDir];
+
+    // Commencer à partir de la deuxième ligne
+    for ($i = 1; $i < count($lines); $i++) {
+        $line = $lines[$i];
+        if (trim($line) === '') continue;
+
+        // Déterminer la profondeur en se basant sur l'indentation
+        preg_match('/^([\s│├└─]*)/', $line, $prefixMatch);
+        // Chaque niveau d'indentation est de 4 caractères (ex: "│   " ou "    ")
+        $depth = mb_strlen($prefixMatch[0], 'UTF-8') / 4;
+
+        // Nettoyer le nom du fichier/dossier
+        $name = preg_replace('/^[\s│├└─]+/', '', $line);
+        $name = trim($name);
+
+        // Déterminer si c'est un dossier ou un fichier
+        $isDir = substr($name, -1) === '/';
+        $itemName = $isDir ? rtrim($name, '/') : $name;
+
+        // --- LOGIQUE CORRIGÉE ---
+        // Ajuster la pile pour qu'elle corresponde au parent de l'élément actuel
+        // La profondeur (depth) est relative au dossier racine.
+        // $pathStack[0] est le dossier racine, donc la taille de la pile doit être $depth + 1
+        $pathStack = array_slice($pathStack, 0, $depth + 1);
+
+        // Construire le chemin complet
+        $parentPath = implode(DIRECTORY_SEPARATOR, $pathStack);
+        $fullPath = $parentPath . DIRECTORY_SEPARATOR . $itemName;
+
+        if ($isDir) {
+            // C'est un dossier
+            if (!is_dir($fullPath)) {
+                if (mkdir($fullPath, 0777, true)) {
+                    echo "Créé dossier : $fullPath\n";
+                } else {
+                    echo "ERREUR dossier : $fullPath\n";
+                }
+            }
+            // Ajouter le dossier courant à la pile pour ses enfants
+            $pathStack[] = $itemName;
+        } else {
+            // C'est un fichier
+            if (!file_exists($fullPath)) {
+                // S'assurer que le dossier parent existe avant de créer le fichier
+                if (!is_dir(dirname($fullPath))) {
+                    mkdir(dirname($fullPath), 0777, true);
+                }
+                if (touch($fullPath)) {
+                    echo "Créé fichier  : $fullPath\n";
+                } else {
+                    echo "ERREUR fichier  : $fullPath\n";
+                }
+            }
+        }
+    }
+    echo "\nArborescence générée avec succès dans le dossier '$baseDir'!\n";
+}
+
+generateStructure($structure);
+
+/***********************************************************************************
+ * Fichier: Commande.txt
+ ***********************************************************************************/
+
+
+docker-compose exec app php seeds.php
+
+# Arrêter tous les conteneurs du projet
+docker-compose -f docker-compose.dev.yml down
+
+# Arrêter TOUS les conteneurs Docker (si besoin)
+docker stop $(docker ps -q)
+
+# Supprimer tous les conteneurs arrêtés
+docker container prune -f
+
+# Supprimer tous les réseaux inutilisés
+docker network prune -f
+
+# Supprimer toutes les images non utilisées
+docker image prune -f
+
+# NETTOYAGE COMPLET (ATTENTION : supprime tout !)
+docker system prune -a --volumes -f
+
+# Reconstruction complète des images
+docker-compose -f docker-compose.dev.yml build --no-cache
+
+# Démarrage avec ports fixes
+docker-compose -f docker-compose.dev.yml up -d
+
+# OU en une seule commande
+docker-compose -f docker-compose.dev.yml up -d --build --force-recreate
+
+# Voir l'état des conteneurs
+docker-compose -f docker-compose.dev.yml ps
+
+# Voir les logs en temps réel
+docker-compose -f docker-compose.dev.yml logs -f
+
+Mot de passe : Password123!
+admin_sys
+etu_martin
+prof_dupont
+agent_conf
+resp_sco
+
+
+
+
+/***********************************************************************************
+ * Fichier: composer.json
+ ***********************************************************************************/
+
+{
+  "name": "mysoutenance/app",
+  "description": "Application de gestion de soutenances",
+  "type": "project",
+  "license": "proprietary",
+  "require": {
+    "php": "^8.2",
+    "ext-pdo": "*",
+    "ext-mysqli": "*",
+    "ext-mbstring": "*",
+    "ext-ctype": "*",
+    "ext-json": "*",
+    "ext-intl": "*",
+    "ext-gd": "*",
+    "ext-zip": "*",
+    "vlucas/phpdotenv": "^5.6",
+    "nikic/fast-route": "^1.3",
+    "phpmailer/phpmailer": "^6.9",
+    "robthree/twofactorauth": "^2.1",
+    "bacon/bacon-qr-code": "^2.0.8",
+    "tecnickcom/tcpdf": "^6.7",
+    "phpoffice/phpspreadsheet": "^3.1.2",
+    "monolog/monolog": "^3.5",
+    "ext-fileinfo": "*"
+  },
+  "require-dev": {
+    "phpunit/phpunit": "^9.6"
+  },
+  "autoload": {
+    "psr-4": {
+      "App\\": "src/",
+      "App\\Backend\\Controller\\": "src/Backend/Controller/"
+    }
+  },
+  "scripts": {
+    "serve": "docker/php -S localhost:8080 -t Public",
+    "test": "phpunit",
+    "post-autoload-dump": [
+      "@php -r \"file_exists('.env') || copy('.env.example', '.env');\""
+    ]
+  },
+  "config": {
+    "optimize-autoloader": true,
+    "preferred-install": "dist",
+    "sort-packages": true,
+    "platform": {
+      "php": "8.2.0"
+    }
+  },
+  "minimum-stability": "stable",
+  "prefer-stable": true
+}
+
+/***********************************************************************************
+ * Fichier: docker-compose.dev.yml
+ ***********************************************************************************/
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: dev
+    container_name: gestionmysoutenance_app_dev
+    volumes:
+      - ./src:/var/www/html/src
+      - ./Public:/var/www/html/Public
+      - ./routes:/var/www/html/routes
+      - ./docker/php/php.ini:/usr/local/etc/php/conf.d/99-custom.ini
+      - app_dev_uploads:/var/www/html/Public/uploads
+      - app_dev_logs:/var/www/html/var/log
+      - app_dev_cache:/var/www/html/var/cache
+    env_file:
+      - .env.dev
+    depends_on:
+      db:
+        condition: service_healthy
+      mailhog:
+        condition: service_started
+    networks:
+      - app-network
+
+  webserver:
+    image: nginx:alpine
+    container_name: gestionmysoutenance_nginx_dev
+    ports:
+      - "0.0.0.0:8080:80"
+    volumes:
+      - ./Public:/var/www/html/Public:ro
+      - ./docker/nginx/conf.d/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - app
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  db:
+    image: mysql:8.3
+    container_name: gestionmysoutenance_db_dev
+    restart: unless-stopped
+    command: --default-authentication-plugin=caching_sha2_password
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+    volumes:
+      - db_dev_data:/var/lib/mysql
+      - ./mysoutenance.sql:/docker-entrypoint-initdb.d/mysoutenance.sql
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin" ,"ping", "-h", "localhost", "-uroot", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    env_file:
+      - .env.dev
+    networks:
+      - app-network
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin:latest
+    container_name: gestionmysoutenance_pma_dev
+    restart: unless-stopped
+    ports:
+      - "0.0.0.0:8081:80"
+    environment:
+      PMA_HOST: db
+      PMA_PORT: 3306
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      PMA_USER: root
+      PMA_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      UPLOAD_LIMIT: 128M
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env.dev
+    networks:
+      - app-network
+
+  mailhog:
+    image: mailhog/mailhog
+    container_name: gestionmysoutenance_mailhog_dev
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  db_dev_data:
+    driver: local
+  app_dev_uploads:
+    driver: local
+  app_dev_logs:
+    driver: local
+  app_dev_cache:
+    driver: local
+
+/***********************************************************************************
+ * Fichier: docker-compose.prod.yml
+ ***********************************************************************************/
+
+services:
+  # Service PHP-FPM (image de production)
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: final # Cible le stage 'final' (production) de notre Dockerfile
+    container_name: gestionmysoutenance_app_prod
+    restart: unless-stopped
+    environment:
+      - APP_ENV=production
+      - DB_HOST=db_prod # Nom du service de la base de données de production (pour test local)
+      - DB_PORT=${DB_PORT}
+      - DB_DATABASE=${DB_DATABASE}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_PORT=${SMTP_PORT}
+      - SMTP_AUTH=${SMTP_AUTH}
+      - SMTP_USER=${SMTP_USER}
+      - SMTP_PASS=${SMTP_PASS}
+      - SMTP_SECURE=${SMTP_SECURE}
+      - MAIL_FROM_ADDRESS=${MAIL_FROM_ADDRESS}
+      - MAIL_FROM_NAME=${MAIL_FROM_NAME}
+    networks:
+      - app-network
+
+  # Service Webserver NGINX (pour la production)
+  webserver:
+    image: nginx:alpine
+    container_name: gestionmysoutenance_nginx_prod
+    ports:
+      - "80:80" # Expose le port 80 pour la production
+    volumes:
+      - ./Public:/var/www/html/Public:ro # Montage en lecture seule pour Nginx
+      - ./docker/nginx/conf.d/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - app
+    networks:
+      - app-network
+
+  # Service Base de Données MySQL (pour le test de production local)
+  db_prod: # Nom différent pour éviter les conflits avec 'db' du dev
+    image: mysql:8.3
+    container_name: gestionmysoutenance_db_prod
+    restart: unless-stopped
+    command: --default-authentication-plugin=caching_sha2_password
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+    volumes:
+      - db_prod_data:/var/lib/mysql # Volume persistant pour les données de prod
+      - ./mysoutenance.sql:/docker-entrypoint-initdb.d/mysoutenance.sql # Initialisation de la DB
+    ports:
+      - "3307:3306" # Expose sur un port différent pour éviter les conflits avec le dev DB
+    healthcheck:
+      test: ["CMD", "mysqladmin" ,"ping", "-h", "localhost", "-u${DB_USER}", "-p${DB_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  db_prod_data:
+    driver: local
+
+/***********************************************************************************
+ * Fichier: Dockerfile
+ ***********************************************************************************/
+
+FROM php:8.2-fpm AS builder
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    unzip \
+    zip \
+    libzip-dev \
+    libicu-dev \
+    libpng-dev \
+    libjpeg-dev \
+    libfreetype6-dev \
+    libonig-dev \
+    libssl-dev \
+    libxml2-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install -j$(nproc) \
+        ctype \
+        gd \
+        intl \
+        mbstring \
+        mysqli \
+        pdo \
+        pdo_mysql \
+        simplexml \
+        xml \
+        zip \
+        fileinfo
+
+COPY --from=composer:2.7.7 /usr/bin/composer /usr/bin/composer
+
+COPY composer.json composer.lock ./
+
+RUN composer install --no-interaction --no-plugins --no-scripts --no-dev --prefer-dist --optimize-autoloader \
+    && cp -R vendor /app/vendor_prod
+
+RUN composer install --no-interaction --no-plugins --no-scripts --prefer-dist --optimize-autoloader
+
+COPY . .
+
+FROM php:8.2-fpm AS dev
+
+WORKDIR /var/www/html
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    unzip \
+    zip \
+    libzip-dev \
+    libicu-dev \
+    libpng-dev \
+    libjpeg-dev \
+    libfreetype6-dev \
+    libonig-dev \
+    libssl-dev \
+    libxml2-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install -j$(nproc) \
+        ctype \
+        gd \
+        intl \
+        mbstring \
+        mysqli \
+        opcache \
+        pdo \
+        pdo_mysql \
+        simplexml \
+        xml \
+        zip \
+        fileinfo
+
+RUN pecl install xdebug \
+    && docker-php-ext-enable xdebug
+
+COPY --from=builder /app/src/ /var/www/html/src/
+COPY --from=builder /app/Public/ /var/www/html/Public/
+COPY --from=builder /app/routes/ /var/www/html/routes/
+COPY --from=builder /app/vendor/ /var/www/html/vendor/
+COPY --from=builder /app/composer.json /var/www/html/composer.json
+COPY --from=builder /app/composer.lock /var/www/html/composer.lock
+
+RUN mkdir -p /var/www/html/Public/uploads \
+             /var/www/html/var/cache \
+             /var/www/html/var/log \
+             /var/lib/php/sessions && \
+    chown -R www-data:www-data /var/www/html && \
+    chown -R www-data:www-data /var/lib/php/sessions && \
+    chmod -R 775 /var/www/html/Public/uploads && \
+    chmod -R 775 /var/www/html/var/cache && \
+    chmod -R 775 /var/www/html/var/log && \
+    chmod -R 775 /var/lib/php/sessions
+
+EXPOSE 9000
+
+CMD ["php-fpm"]
+
+FROM php:8.2-fpm-alpine AS final
+
+WORKDIR /var/www/html
+
+RUN apk add --no-cache \
+    libzip-dev \
+    libpng-dev \
+    libjpeg-turbo-dev \
+    libwebp-dev \
+    libxml2-dev \
+    libintl \
+    icu-dev \
+    && docker-php-ext-install -j$(nproc) \
+        pdo_mysql \
+        zip \
+        gd \
+        intl \
+        mbstring \
+        simplexml \
+        xml \
+        fileinfo \
+    && rm -rf /var/cache/apk/*
+
+COPY --from=builder /app/src/ /var/www/html/src/
+COPY --from=builder /app/Public/ /var/www/html/Public/
+COPY --from=builder /app/routes/ /var/www/html/routes/
+COPY --from=builder /app/vendor_prod/ /var/www/html/vendor/
+
+RUN mkdir -p /var/www/html/Public/uploads \
+             /var/www/html/var/cache \
+             /var/www/html/var/log \
+             /var/lib/php/sessions && \
+    chown -R www-data:www-data /var/www/html && \
+    chown -R www-data:www-data /var/lib/php/sessions && \
+    chmod -R 775 /var/www/html/Public/uploads && \
+    chmod -R 775 /var/www/html/var/cache && \
+    chmod -R 775 /var/www/html/var/log && \
+    chmod -R 775 /var/lib/php/sessions
+
+USER www-data
+
+EXPOSE 9000
+
+CMD ["php-fpm"]
+
+/***********************************************************************************
+ * Fichier: generer_rendu.php
+ ***********************************************************************************/
+
+<?php
+
+/**
+ * Script pour agréger le contenu de dossiers spécifiques et des fichiers à la racine
+ * d'un projet dans des fichiers .txt uniques.
+ */
+
+// Chemin racine du projet
+$projectRoot = __DIR__;
+
+// Dossier de destination pour les fichiers .txt générés
+$outputDir = $projectRoot . '/Rendu';
+
+// =========================================================================
+// CONFIGUREZ ICI LES CHEMINS À TRAITER
+// Chaque chemin listé ici deviendra un fichier .txt dans le dossier "Rendu".
+// =========================================================================
+$pathsToProcess = [
+    // Dossiers de premier niveau
+    'Public',
+    'routes',
+    'docker',
+    '.github',
+
+    // Division du dossier 'src'
+    'src/Config',
+    'src/Frontend',
+
+    // Division fine du dossier 'src/Backend'
+    'src/Backend/Controller',
+    'src/Backend/Exception',
+    'src/Backend/Model',
+    'src/Backend/Service',
+    'src/Backend/Util',
+];
+
+// Dossiers à ignorer complètement lors du parcours des chemins ci-dessus
+$ignoredFolders = [
+    'vendor',
+    'node_modules',
+    '.git',
+    'assets', // <-- Ajout ici pour ignorer Public/assets
+    basename($outputDir) // Le dossier de rendu lui-même
+];
+
+// Crée le dossier de destination s'il n'existe pas
+if (!is_dir($outputDir)) {
+    if (!mkdir($outputDir, 0755, true)) {
+        die("Erreur critique : Impossible de créer le répertoire de destination '$outputDir'.\n");
+    }
+    echo "Répertoire '$outputDir' créé avec succès.\n";
+}
+
+/**
+ * Fonction récursive pour récupérer tout le contenu des fichiers d'un dossier.
+ *
+ * @param string $dir Le chemin du dossier à scanner.
+ * @param string $rootPath Le chemin racine du projet pour créer des chemins relatifs.
+ * @param array $ignoredFolders La liste des noms de dossiers à ignorer.
+ * @return string Le contenu agrégé de tous les fichiers.
+ */
+function getAggregatedContent(string $dir, string $rootPath, array $ignoredFolders): string
+{
+    $content = '';
+
+    if (!is_readable($dir)) {
+        echo "Attention : Le chemin '$dir' n'est pas accessible en lecture.\n";
+        return '';
+    }
+
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($dir, RecursiveDirectoryIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::SELF_FIRST
+    );
+
+    foreach ($iterator as $item) {
+        $pathname = $item->getPathname();
+
+        foreach ($ignoredFolders as $ignored) {
+            if (strpos($pathname, DIRECTORY_SEPARATOR . $ignored . DIRECTORY_SEPARATOR) !== false) {
+                continue 2;
+            }
+        }
+
+        if ($item->isFile() && $item->isReadable()) {
+            $fileContent = file_get_contents($pathname);
+
+            if ($fileContent === false) {
+                echo "Attention : Impossible de lire le contenu du fichier '$pathname'.\n";
+                continue;
+            }
+
+            $relativePath = str_replace($rootPath . DIRECTORY_SEPARATOR, '', $pathname);
+            $content .= "\n/***********************************************************************************\n * Fichier: {$relativePath}\n ***********************************************************************************/\n\n" . $fileContent . "\n";
+        }
+    }
+    return $content;
+}
+
+echo "Début de l'agrégation granulaire du contenu...\n\n";
+
+// --- 1. TRAITEMENT DES DOSSIERS SPÉCIFIQUES ---
+foreach ($pathsToProcess as $relativePath) {
+    $fullPath = $projectRoot . DIRECTORY_SEPARATOR . $relativePath;
+
+    if (is_dir($fullPath)) {
+        echo "Traitement du chemin : '$relativePath'...\n";
+        $aggregatedContent = getAggregatedContent($fullPath, $projectRoot, $ignoredFolders);
+
+        if (empty(trim($aggregatedContent))) {
+            echo " -> Aucun contenu trouvé pour '$relativePath', fichier non généré.\n";
+            continue;
+        }
+
+        $outputFileName = str_replace(['/', '\\'], '_', $relativePath) . '.txt';
+        $outputFile = $outputDir . DIRECTORY_SEPARATOR . $outputFileName;
+
+        if (file_put_contents($outputFile, $aggregatedContent) === false) {
+            echo "Erreur : Impossible d'écrire dans le fichier '$outputFile'.\n";
+        } else {
+            echo " -> Fichier '$outputFileName' généré avec succès.\n";
+        }
+    } else {
+        echo "Attention : Le chemin '$relativePath' n'existe pas et a été ignoré.\n";
+    }
+}
+
+echo "\n--- 2. TRAITEMENT DES FICHIERS À LA RACINE ---\n";
+
+$rootFilesContent = '';
+$excludedExtensions = ['sql', 'md', 'lock'];
+
+$rootIterator = new DirectoryIterator($projectRoot);
+
+foreach ($rootIterator as $fileInfo) {
+    // On ne traite que les fichiers, on ignore les dossiers et les points '.' et '..'
+    if (!$fileInfo->isFile()) {
+        continue;
+    }
+
+    $fileName = $fileInfo->getFilename();
+    $extension = $fileInfo->getExtension();
+
+    // Ignorer le script lui-même et les extensions exclues
+    if ($fileName === 'compiler_rendu.php' || in_array($extension, $excludedExtensions)) {
+        echo "Ignoré : $fileName\n";
+        continue;
+    }
+
+    echo "Ajout de '$fileName' au fichier autre.txt...\n";
+    $content = file_get_contents($fileInfo->getPathname());
+    $rootFilesContent .= "\n/***********************************************************************************\n * Fichier: {$fileName}\n ***********************************************************************************/\n\n" . $content . "\n";
+}
+
+if (!empty(trim($rootFilesContent))) {
+    $outputFile = $outputDir . DIRECTORY_SEPARATOR . 'autre.txt';
+    if (file_put_contents($outputFile, $rootFilesContent)) {
+        echo " -> Fichier 'autre.txt' généré avec succès.\n";
+    } else {
+        echo "Erreur : Impossible d'écrire dans le fichier 'autre.txt'.\n";
+    }
+} else {
+    echo "Aucun fichier à la racine à ajouter dans 'autre.txt'.\n";
+}
+
+
+echo "\nOpération terminée ! Le dossier 'Rendu' a été mis à jour.\n";
+
+?>
+
+/***********************************************************************************
+ * Fichier: php.ini
+ ***********************************************************************************/
+
+[PHP]
+display_errors = Off
+display_startup_errors = Off
+error_reporting = E_ALL & ~E_NOTICE & ~E_STRICT & ~E_DEPRECATED
+log_errors = On
+error_log = /var/log/php_errors.log
+
+[Date]
+date.timezone = Europe/Paris
+
+[Session]
+session.save_handler = files
+session.save_path = "/var/lib/php/sessions"
+session.gc_probability = 1
+session.gc_divisor = 1000
+session.gc_maxlifetime = 3600
+
+[Upload]
+upload_max_filesize = 32M
+post_max_size = 32M
+max_file_uploads = 20
+
+[Memory]
+memory_limit = 128M
+
+[OPcache]
+opcache.enable = 1
+opcache.memory_consumption = 64
+opcache.max_accelerated_files = 4000
+opcache.revalidate_freq = 60
+
+/***********************************************************************************
+ * Fichier: render.yaml
+ ***********************************************************************************/
+
+
+
+/***********************************************************************************
+ * Fichier: seeds.php
+ ***********************************************************************************/
+
+<?php
+
+/**
+ * Script de Seeding Complet pour la base de données GestionMySoutenance.
+ *
+ * Ce script initialise :
+ * 1. Les données de référence (types, groupes, niveaux d'accès).
+ * 2. Une année académique active (essentiel pour la génération d'ID).
+ * 3. Les permissions (traitements) de l'application.
+ * 4. L'attribution des permissions aux groupes (rôles).
+ * 5. Les utilisateurs par défaut pour chaque rôle.
+ *
+ * USAGE : Exécuter depuis la racine du projet via la commande :
+ * > php seeds.php
+ */
+
+declare(strict_types=1);
+
+// --- Bootstrap de l'application ---
+define('ROOT_PATH', __DIR__);
+require_once ROOT_PATH . '/vendor/autoload.php';
+
+if (file_exists(ROOT_PATH . '/.env')) {
+    $dotenv = Dotenv\Dotenv::createImmutable(ROOT_PATH);
+    $dotenv->load();
+}
+
+use App\Config\Container;
+use App\Backend\Service\Authentication\ServiceAuthentication;
+use App\Backend\Service\Permissions\ServicePermissions;
+use App\Backend\Service\ConfigurationSysteme\ServiceConfigurationSysteme;
+use App\Backend\Exception\DoublonException;
+
+/**
+ * Crée les données de référence (Types, Groupes, Niveaux d'accès).
+ */
+function seedReferenceData(ServicePermissions $permissionService): void
+{
+    echo "--- Début du seeding des données de référence ---\n";
+
+    // 1. Types d'utilisateurs
+    $types = [
+        ['id' => 'TYPE_ADMIN', 'libelle' => 'Administrateur Système'],
+        ['id' => 'TYPE_PERS_ADMIN', 'libelle' => 'Personnel Administratif'],
+        ['id' => 'TYPE_ENS', 'libelle' => 'Enseignant'],
+        ['id' => 'TYPE_ETUD', 'libelle' => 'Étudiant'],
+    ];
+    echo "\n[INFO] Seeding des Types d'Utilisateurs...\n";
+    foreach ($types as $type) {
+        try {
+            $permissionService->creerTypeUtilisateur($type['id'], $type['libelle']);
+            echo "  [SUCCÈS] Type '{$type['libelle']}' créé.\n";
+        } catch (DoublonException $e) {
+            echo "  [AVERTISSEMENT] Type '{$type['libelle']}' existe déjà.\n";
+        }
+    }
+
+    // 2. Groupes d'utilisateurs (Rôles)
+    $groupes = [
+        ['id' => 'GRP_ADMIN_SYS', 'libelle' => 'Administrateur Système'],
+        ['id' => 'GRP_RS', 'libelle' => 'Responsable Scolarité'],
+        ['id' => 'GRP_AGENT_CONFORMITE', 'libelle' => 'Agent de Conformité'],
+        ['id' => 'GRP_COMMISSION', 'libelle' => 'Membre de Commission'],
+        ['id' => 'GRP_ETUDIANT', 'libelle' => 'Étudiant'],
+        // <-- AJOUT DES GROUPES MANQUANTS -->
+        ['id' => 'GRP_PERS_ADMIN', 'libelle' => 'Personnel Administratif (Rôle de base)'],
+        ['id' => 'GRP_ENSEIGNANT', 'libelle' => 'Enseignant (Rôle de base)'],
+    ];
+    echo "\n[INFO] Seeding des Groupes d'Utilisateurs (Rôles)...\n";
+    foreach ($groupes as $groupe) {
+        try {
+            $permissionService->creerGroupeUtilisateur($groupe['id'], $groupe['libelle']);
+            echo "  [SUCCÈS] Groupe '{$groupe['libelle']}' créé.\n";
+        } catch (DoublonException $e) {
+            echo "  [AVERTISSEMENT] Groupe '{$groupe['libelle']}' existe déjà.\n";
+        }
+    }
+
+    // 3. Niveaux d'accès aux données
+    $niveaux = [
+        ['id' => 'ACCES_TOTAL', 'libelle' => 'Accès Total (Admin)'],
+        ['id' => 'ACCES_DEPARTEMENT', 'libelle' => 'Accès Niveau Département'],
+        ['id' => 'ACCES_PERSONNEL', 'libelle' => 'Accès aux Données Personnelles Uniquement'],
+    ];
+    echo "\n[INFO] Seeding des Niveaux d'Accès...\n";
+    foreach ($niveaux as $niveau) {
+        try {
+            $permissionService->creerNiveauAcces($niveau['id'], $niveau['libelle']);
+            echo "  [SUCCÈS] Niveau d'accès '{$niveau['libelle']}' créé.\n";
+        } catch (DoublonException $e) {
+            echo "  [AVERTISSEMENT] Niveau d'accès '{$niveau['libelle']}' existe déjà.\n";
+        }
+    }
+    echo "--- Fin du seeding des données de référence ---\n";
+}
+
+/**
+ * Crée une année académique active, prérequis pour la création d'utilisateurs.
+ */
+function seedAcademicYear(ServiceConfigurationSysteme $configService): void
+{
+    echo "\n--- Début du seeding de l'Année Académique ---\n";
+    $year = date('Y');
+    $nextYear = $year + 1;
+    $academicYearId = "ANNEE-{$year}-{$nextYear}";
+    $academicYearLabel = "{$year}-{$nextYear}";
+
+    try {
+        $configService->creerAnneeAcademique(
+            $academicYearId,
+            $academicYearLabel,
+            "{$year}-09-01",
+            "{$nextYear}-08-31",
+            true // Marquer comme active
+        );
+        echo "  [SUCCÈS] Année académique '{$academicYearLabel}' créée et activée.\n";
+    } catch (DoublonException $e) {
+        echo "  [AVERTISSEMENT] L'année académique '{$academicYearLabel}' existe déjà.\n";
+        // S'assurer qu'elle est bien active si elle existe déjà
+        $configService->definirAnneeAcademiqueActive($academicYearId);
+        echo "  [INFO] Année académique '{$academicYearLabel}' définie comme active.\n";
+    }
+    echo "--- Fin du seeding de l'Année Académique ---\n";
+}
+
+/**
+ * Crée les permissions (traitements) de l'application.
+ */
+function seedTraitements(ServicePermissions $permissionService): void
+{
+    echo "\n--- Début du seeding des Traitements (Permissions) ---\n";
+    $traitements = [
+        ['id' => 'TRAIT_ADMIN_DASHBOARD_ACCEDER', 'libelle' => 'Accéder au Dashboard Admin'],
+        ['id' => 'TRAIT_ADMIN_GERER_UTILISATEURS_LISTER', 'libelle' => 'Lister les utilisateurs'],
+        ['id' => 'TRAIT_ADMIN_GERER_UTILISATEURS_CREER', 'libelle' => 'Créer un utilisateur'],
+        ['id' => 'TRAIT_ETUDIANT_DASHBOARD_ACCEDER', 'libelle' => 'Accéder au Dashboard Étudiant'],
+        ['id' => 'TRAIT_ETUDIANT_RAPPORT_SUIVRE', 'libelle' => 'Suivre son rapport'],
+        ['id' => 'TRAIT_ETUDIANT_RAPPORT_SOUMETTRE', 'libelle' => 'Soumettre son rapport'],
+        ['id' => 'TRAIT_PERS_ADMIN_DASHBOARD_ACCEDER', 'libelle' => 'Accéder au Dashboard Personnel Admin'],
+        ['id' => 'TRAIT_PERS_ADMIN_CONFORMITE_LISTER', 'libelle' => 'Lister les rapports à vérifier'],
+        ['id' => 'TRAIT_PERS_ADMIN_CONFORMITE_VERIFIER', 'libelle' => 'Vérifier la conformité d\'un rapport'],
+        ['id' => 'TRAIT_PERS_ADMIN_SCOLARITE_ACCEDER', 'libelle' => 'Accéder à la gestion de la scolarité'],
+        ['id' => 'TRAIT_PERS_ADMIN_SCOLARITE_PENALITE_GERER', 'libelle' => 'Gérer les pénalités'],
+        ['id' => 'TRAIT_COMMISSION_DASHBOARD_ACCEDER', 'libelle' => 'Accéder au Dashboard Commission'],
+        ['id' => 'TRAIT_COMMISSION_VALIDATION_RAPPORT_VOTER', 'libelle' => 'Voter pour un rapport'],
+    ];
+
+    foreach ($traitements as $traitement) {
+        try {
+            $permissionService->creerTraitement($traitement['id'], $traitement['libelle']);
+            echo "  [SUCCÈS] Traitement '{$traitement['libelle']}' créé.\n";
+        } catch (DoublonException $e) {
+            echo "  [AVERTISSEMENT] Traitement '{$traitement['libelle']}' existe déjà.\n";
+        }
+    }
+    echo "--- Fin du seeding des Traitements ---\n";
+}
+
+/**
+ * Attribue les permissions aux groupes.
+ */
+function seedPermissions(ServicePermissions $permissionService): void
+{
+    echo "\n--- Début du seeding des Permissions (Rattachements) ---\n";
+    $rattachements = [
+        'GRP_ADMIN_SYS' => ['TRAIT_ADMIN_DASHBOARD_ACCEDER', 'TRAIT_ADMIN_GERER_UTILISATEURS_LISTER', 'TRAIT_ADMIN_GERER_UTILISATEURS_CREER'],
+        'GRP_ETUDIANT' => ['TRAIT_ETUDIANT_DASHBOARD_ACCEDER', 'TRAIT_ETUDIANT_RAPPORT_SUIVRE', 'TRAIT_ETUDIANT_RAPPORT_SOUMETTRE'],
+        'GRP_AGENT_CONFORMITE' => ['TRAIT_PERS_ADMIN_DASHBOARD_ACCEDER', 'TRAIT_PERS_ADMIN_CONFORMITE_LISTER', 'TRAIT_PERS_ADMIN_CONFORMITE_VERIFIER'],
+        'GRP_RS' => ['TRAIT_PERS_ADMIN_DASHBOARD_ACCEDER', 'TRAIT_PERS_ADMIN_SCOLARITE_ACCEDER', 'TRAIT_PERS_ADMIN_SCOLARITE_PENALITE_GERER'],
+        'GRP_COMMISSION' => ['TRAIT_COMMISSION_DASHBOARD_ACCEDER', 'TRAIT_COMMISSION_VALIDATION_RAPPORT_VOTER'],
+    ];
+
+    foreach ($rattachements as $groupeId => $permissions) {
+        echo "[INFO] Attribution des permissions pour le groupe '{$groupeId}'...\n";
+        foreach ($permissions as $permId) {
+            try {
+                $permissionService->attribuerPermissionGroupe($groupeId, $permId);
+                echo "  [SUCCÈS] Permission '{$permId}' attribuée.\n";
+            } catch (DoublonException $e) {
+                echo "  [AVERTISSEMENT] Permission '{$permId}' déjà attribuée.\n";
+            } catch (Exception $e) {
+                echo "  [ERREUR] Échec de l'attribution de '{$permId}': " . $e->getMessage() . "\n";
+            }
+        }
+    }
+    echo "--- Fin du seeding des Permissions ---\n";
+}
+
+/**
+ * Crée les utilisateurs par défaut.
+ */
+function seedUsers(ServiceAuthentication $authService): void
+{
+    echo "\n--- Début du seeding des utilisateurs par défaut ---\n";
+
+    $defaultPassword = 'Password123!';
+    echo "[INFO] Le mot de passe par défaut pour tous les utilisateurs est : {$defaultPassword}\n\n";
+
+    $usersToCreate = [
+        [
+            'type_code' => 'TYPE_ADMIN',
+            'user_data' => ['login_utilisateur' => 'admin_sys', 'email_principal' => 'admin.sys@gestionsoutenance.dev', 'mot_de_passe' => $defaultPassword, 'id_niveau_acces_donne' => 'ACCES_TOTAL', 'id_groupe_utilisateur' => 'GRP_ADMIN_SYS'],
+            'profile_data' => ['nom' => 'Système', 'prenom' => 'Admin']
+        ],
+        [
+            'type_code' => 'TYPE_PERS_ADMIN',
+            'user_data' => ['login_utilisateur' => 'resp_sco', 'email_principal' => 'resp.sco@gestionsoutenance.dev', 'mot_de_passe' => $defaultPassword, 'id_niveau_acces_donne' => 'ACCES_DEPARTEMENT', 'id_groupe_utilisateur' => 'GRP_RS'],
+            'profile_data' => ['nom' => 'Scolarité', 'prenom' => 'Responsable', 'telephone_professionnel' => '0123456789']
+        ],
+        [
+            'type_code' => 'TYPE_PERS_ADMIN',
+            'user_data' => ['login_utilisateur' => 'agent_conf', 'email_principal' => 'agent.conf@gestionsoutenance.dev', 'mot_de_passe' => $defaultPassword, 'id_niveau_acces_donne' => 'ACCES_DEPARTEMENT', 'id_groupe_utilisateur' => 'GRP_AGENT_CONFORMITE'],
+            'profile_data' => ['nom' => 'Conformité', 'prenom' => 'Agent', 'telephone_professionnel' => '0123456788']
+        ],
+        [
+            'type_code' => 'TYPE_ENS',
+            'user_data' => ['login_utilisateur' => 'prof_dupont', 'email_principal' => 'prof.dupont@gestionsoutenance.dev', 'mot_de_passe' => $defaultPassword, 'id_niveau_acces_donne' => 'ACCES_DEPARTEMENT', 'id_groupe_utilisateur' => 'GRP_COMMISSION'],
+            'profile_data' => ['nom' => 'Dupont', 'prenom' => 'Jean', 'telephone_professionnel' => '0611223344']
+        ],
+        [
+            'type_code' => 'TYPE_ETUD',
+            'user_data' => ['login_utilisateur' => 'etu_martin', 'email_principal' => 'etu.martin@gestionsoutenance.dev', 'mot_de_passe' => $defaultPassword, 'id_niveau_acces_donne' => 'ACCES_PERSONNEL', 'id_groupe_utilisateur' => 'GRP_ETUDIANT'],
+            'profile_data' => ['nom' => 'Martin', 'prenom' => 'Sophie', 'date_naissance' => '2002-05-15', 'telephone' => '0788990011']
+        ]
+    ];
+
+    foreach ($usersToCreate as $user) {
+        echo "Tentative de création de l'utilisateur : {$user['user_data']['login_utilisateur']}...\n";
+        try {
+            $userId = $authService->creerCompteUtilisateurComplet(
+                $user['user_data'],
+                $user['profile_data'],
+                $user['type_code'],
+                false // false pour ne pas envoyer d'email de validation
+            );
+            echo "  [SUCCÈS] Utilisateur '{$user['user_data']['login_utilisateur']}' créé avec l'ID : {$userId}\n";
+
+            $authService->changerStatutDuCompte($userId, 'actif');
+            echo "  [INFO] Compte '{$userId}' activé manuellement.\n";
+
+        } catch (DoublonException $e) {
+            echo "  [AVERTISSEMENT] L'utilisateur '{$user['user_data']['login_utilisateur']}' existe déjà.\n";
+        } catch (Exception $e) {
+            echo "  [ERREUR] Échec de la création de '{$user['user_data']['login_utilisateur']}': " . $e->getMessage() . "\n";
+        }
+    }
+    echo "--- Fin du seeding des utilisateurs ---\n";
+}
+
+// --- Exécution du Script ---
+try {
+    $container = new Container();
+    $permissionService = $container->get(ServicePermissions::class);
+    $authService = $container->get(ServiceAuthentication::class);
+    $configService = $container->get(ServiceConfigurationSysteme::class);
+
+    // <-- ORDRE D'EXÉCUTION CORRIGÉ -->
+    seedReferenceData($permissionService);
+    seedAcademicYear($configService); // Doit être exécuté avant la création des utilisateurs
+    seedTraitements($permissionService);
+    seedPermissions($permissionService);
+    seedUsers($authService);
+
+    echo "\n[FIN] Le script de seeding s'est terminé avec succès.\n";
+
+} catch (Exception $e) {
+    echo "\n[ERREUR CRITIQUE] Le script de seeding a échoué : " . $e->getMessage() . "\n";
+    exit(1);
+}

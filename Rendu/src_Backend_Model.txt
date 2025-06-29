@@ -1,0 +1,2065 @@
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\Acquerir.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class Acquerir extends BaseModel
+{
+    public string $table = 'acquerir';
+    public string|array $primaryKey = ['id_grade', 'numero_enseignant'];
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+
+    /**
+     * Trouve une acquisition spécifique par ses clés composées.
+     * @param string $idGrade L'ID du grade.
+     * @param string $numeroEnseignant Le numéro de l'enseignant.
+     * @return array|null Les données de l'acquisition ou null si non trouvée.
+     */
+    public function trouverAcquisitionParCles(string $idGrade, string $numeroEnseignant): ?array
+    {
+        return $this->trouverUnParCritere([
+            'id_grade' => $idGrade,
+            'numero_enseignant' => $numeroEnseignant
+        ]);
+    }
+
+    /**
+     * Met à jour une acquisition spécifique par ses clés composées.
+     * @param string $idGrade L'ID du grade.
+     * @param string $numeroEnseignant Le numéro de l'enseignant.
+     * @param array $donnees Les données à mettre à jour.
+     * @return bool True en cas de succès, false sinon.
+     */
+    public function mettreAJourAcquisitionParCles(string $idGrade, string $numeroEnseignant, array $donnees): bool
+    {
+        return $this->mettreAJourParCles(['id_grade' => $idGrade, 'numero_enseignant' => $numeroEnseignant], $donnees);
+    }
+
+    /**
+     * Supprime une acquisition spécifique par ses clés composées.
+     * @param string $idGrade L'ID du grade.
+     * @param string $numeroEnseignant Le numéro de l'enseignant.
+     * @return bool True en cas de succès, false sinon.
+     */
+    public function supprimerAcquisitionParCles(string $idGrade, string $numeroEnseignant): bool
+    {
+        return $this->supprimerParCles(['id_grade' => $idGrade, 'numero_enseignant' => $numeroEnseignant]);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\Action.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class Action extends BaseModel
+{
+    public string $table = 'action';
+    public string|array $primaryKey = 'id_action';
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\Affecter.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class Affecter extends BaseModel
+{
+    public string $table = 'affecter';
+    public string|array $primaryKey = ['numero_enseignant', 'id_rapport_etudiant', 'id_statut_jury'];
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+
+    /**
+     * Trouve une affectation par ses clés.
+     * @param string $numeroEnseignant
+     * @param string $idRapportEtudiant
+     * @param string $idStatutJury
+     * @return array|null
+     */
+    public function trouverAffectationParCles(string $numeroEnseignant, string $idRapportEtudiant, string $idStatutJury): ?array
+    {
+        return $this->trouverUnParCritere([
+            'numero_enseignant' => $numeroEnseignant,
+            'id_rapport_etudiant' => $idRapportEtudiant,
+            'id_statut_jury' => $idStatutJury
+        ]);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\AnneeAcademique.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class AnneeAcademique extends BaseModel
+{
+    public string $table = 'annee_academique';
+    public string|array $primaryKey = 'id_annee_academique';
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\Approuver.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class Approuver extends BaseModel
+{
+    public string $table = 'approuver';
+    public string|array $primaryKey = ['numero_personnel_administratif', 'id_rapport_etudiant'];
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+
+    /**
+     * Trouve une approbation par ses clés.
+     * @param string $numeroPersonnelAdministratif
+     * @param string $idRapportEtudiant
+     * @return array|null
+     */
+    public function trouverApprobationParCles(string $numeroPersonnelAdministratif, string $idRapportEtudiant): ?array
+    {
+        return $this->trouverUnParCritere([
+            'numero_personnel_administratif' => $numeroPersonnelAdministratif,
+            'id_rapport_etudiant' => $idRapportEtudiant
+        ]);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\Attribuer.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class Attribuer extends BaseModel
+{
+    public string $table = 'attribuer';
+    public string|array $primaryKey = ['numero_enseignant', 'id_specialite'];
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+
+    /**
+     * Trouve une attribution par ses clés.
+     * @param string $numeroEnseignant
+     * @param string $idSpecialite
+     * @return array|null
+     */
+    public function trouverAttributionParCles(string $numeroEnseignant, string $idSpecialite): ?array
+    {
+        return $this->trouverUnParCritere([
+            'numero_enseignant' => $numeroEnseignant,
+            'id_specialite' => $idSpecialite
+        ]);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\BaseModel.php
+ ***********************************************************************************/
+
+<?php
+
+namespace App\Backend\Model;
+
+use PDO;
+use PDOStatement;
+use PDOException;
+use BadMethodCallException;
+use App\Backend\Exception\DoublonException;
+
+/**
+ * Classe de base abstraite pour tous les modèles de l'application.
+ * Fournit une implémentation générique et robuste des opérations CRUD,
+ * la gestion des transactions, et une recherche avancée par critères.
+ */
+abstract class BaseModel
+{
+    /**
+     * L'instance de connexion à la base de données.
+     * @var PDO
+     */
+    protected PDO $db;
+
+    /**
+     * Le nom de la table de base de données associée à ce modèle.
+     * Doit être défini dans la classe enfant.
+     * @var string
+     */
+    public string $table;
+
+    /**
+     * Le nom de la clé primaire de la table.
+     * Peut être une chaîne de caractères pour une clé simple,
+     * ou un tableau de chaînes de caractères pour une clé composite.
+     * Doit être défini dans la classe enfant.
+     * @var string|array
+     */
+    public string|array $primaryKey;
+
+    /**
+     * Constructeur de BaseModel.
+     * @param PDO $db L'instance de connexion PDO.
+     */
+    public function __construct(PDO $db)
+    {
+        $this->db = $db;
+    }
+
+    /**
+     * Prépare dynamiquement la clause WHERE pour une clé primaire simple ou composite.
+     *
+     * @param array $keys Un tableau associatif des clés primaires et de leurs valeurs.
+     * @return array Un tableau contenant la clause WHERE (`clause`) et les paramètres (`params`).
+     * @throws \InvalidArgumentException Si les clés fournies ne correspondent pas à la clé primaire du modèle.
+     */
+    protected function preparerClauseWhereParCles(array $keys): array
+    {
+        $primaryKeyDefinition = is_array($this->primaryKey) ? $this->primaryKey : [$this->primaryKey];
+
+        if (count($keys) !== count($primaryKeyDefinition) || count(array_diff(array_keys($keys), $primaryKeyDefinition)) > 0) {
+            throw new \InvalidArgumentException("Les clés fournies ne correspondent pas à la clé primaire composite du modèle '{$this->table}'.");
+        }
+
+        $conditions = [];
+        $params = [];
+        foreach ($primaryKeyDefinition as $keyName) {
+            $conditions[] = "`{$keyName}` = :where_{$keyName}";
+            $params[":where_{$keyName}"] = $keys[$keyName];
+        }
+
+        return ['clause' => implode(' AND ', $conditions), 'params' => $params];
+    }
+
+    /**
+     * Récupère tous les enregistrements de la table.
+     *
+     * @param array $colonnes Les colonnes à retourner.
+     * @return array La liste des enregistrements.
+     */
+    public function trouverTout(array $colonnes = ['*']): array
+    {
+        $cols = implode(', ', $colonnes);
+        $stmt = $this->db->query("SELECT {$cols} FROM `{$this->table}`");
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Trouve un enregistrement par sa clé primaire (pour clés simples uniquement).
+     *
+     * @param string|int $id La valeur de la clé primaire.
+     * @param array $colonnes Les colonnes à retourner.
+     * @return array|null L'enregistrement trouvé ou null.
+     * @throws BadMethodCallException Si appelée sur un modèle à clé composite.
+     */
+    public function trouverParIdentifiant(string|int $id, array $colonnes = ['*']): ?array
+    {
+        if (is_array($this->primaryKey)) {
+            throw new BadMethodCallException("La méthode trouverParIdentifiant() n'est pas supportée pour les clés primaires composites. Utilisez trouverUnParCritere() avec toutes les clés.");
+        }
+        $cols = implode(', ', $colonnes);
+        $stmt = $this->db->prepare("SELECT {$cols} FROM `{$this->table}` WHERE `{$this->primaryKey}` = :id");
+        $stmt->bindParam(':id', $id);
+        $stmt->execute();
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $result ?: null;
+    }
+
+    /**
+     * Crée un nouvel enregistrement dans la table.
+     *
+     * @param array $donnees Tableau associatif des données à insérer.
+     * @return string|bool L'ID du dernier enregistrement inséré ou true, sinon false.
+     * @throws DoublonException Si une contrainte d'unicité est violée.
+     * @throws PDOException pour les autres erreurs SQL.
+     */
+    public function creer(array $donnees): string|bool
+    {
+        $cols = implode(', ', array_map(fn($c) => "`{$c}`", array_keys($donnees)));
+        $placeholders = implode(', ', array_map(fn($c) => ":{$c}", array_keys($donnees)));
+
+        $sql = "INSERT INTO `{$this->table}` ({$cols}) VALUES ({$placeholders})";
+        $stmt = $this->db->prepare($sql);
+
+        try {
+            if ($stmt->execute($donnees)) {
+                if (is_string($this->primaryKey) && !isset($donnees[$this->primaryKey])) {
+                    $lastInsertId = $this->db->lastInsertId();
+                    return $lastInsertId ?: true;
+                }
+                return true;
+            }
+            return false;
+        } catch (PDOException $e) {
+            if ($e->getCode() == 23000) {
+                throw new DoublonException("Violation de contrainte d'unicité dans la table '{$this->table}'.", 23000, $e);
+            }
+            throw $e;
+        }
+    }
+
+    /**
+     * Met à jour un enregistrement par sa clé primaire (pour clés simples uniquement).
+     *
+     * @param string|int $id La valeur de la clé primaire.
+     * @param array $donnees Les données à mettre à jour.
+     * @return bool True en cas de succès, false sinon.
+     * @throws BadMethodCallException Si appelée sur un modèle à clé composite.
+     * @throws DoublonException Si une contrainte d'unicité est violée.
+     */
+    public function mettreAJourParIdentifiant(string|int $id, array $donnees): bool
+    {
+        if (is_array($this->primaryKey)) {
+            throw new BadMethodCallException("La méthode mettreAJourParIdentifiant() n'est pas supportée pour les clés composites. Utilisez mettreAJourParCles().");
+        }
+        $setParts = [];
+        foreach (array_keys($donnees) as $key) {
+            $setParts[] = "`{$key}` = :{$key}";
+        }
+        $sql = "UPDATE `{$this->table}` SET " . implode(', ', $setParts) . " WHERE `{$this->primaryKey}` = :id_pk";
+        $stmt = $this->db->prepare($sql);
+        $donnees['id_pk'] = $id;
+
+        try {
+            return $stmt->execute($donnees);
+        } catch (PDOException $e) {
+            if ($e->getCode() == 23000) {
+                throw new DoublonException("Violation de contrainte d'unicité lors de la mise à jour dans '{$this->table}'.", 23000, $e);
+            }
+            throw $e;
+        }
+    }
+
+    /**
+     * Supprime un enregistrement par sa clé primaire (pour clés simples uniquement).
+     *
+     * @param string|int $id La valeur de la clé primaire.
+     * @return bool True en cas de succès, false sinon.
+     * @throws BadMethodCallException Si appelée sur un modèle à clé composite.
+     */
+    public function supprimerParIdentifiant(string|int $id): bool
+    {
+        if (is_array($this->primaryKey)) {
+            throw new BadMethodCallException("La méthode supprimerParIdentifiant() n'est pas supportée pour les clés composites. Utilisez supprimerParCles().");
+        }
+        $stmt = $this->db->prepare("DELETE FROM `{$this->table}` WHERE `{$this->primaryKey}` = :id");
+        $stmt->bindParam(':id', $id);
+        return $stmt->execute();
+    }
+
+    /**
+     * Met à jour un enregistrement par ses clés composites.
+     *
+     * @param array $keys Tableau associatif clé/valeur pour la clause WHERE.
+     * @param array $donnees Les données à mettre à jour.
+     * @return bool True en cas de succès, false sinon.
+     * @throws DoublonException Si une contrainte d'unicité est violée.
+     */
+    public function mettreAJourParCles(array $keys, array $donnees): bool
+    {
+        $whereInfo = $this->preparerClauseWhereParCles($keys);
+
+        $setParts = [];
+        $params = [];
+        foreach ($donnees as $key => $value) {
+            $setParts[] = "`{$key}` = :set_{$key}";
+            $params[":set_{$key}"] = $value;
+        }
+
+        $params = array_merge($params, $whereInfo['params']);
+        $sql = "UPDATE `{$this->table}` SET " . implode(', ', $setParts) . " WHERE {$whereInfo['clause']}";
+        $stmt = $this->db->prepare($sql);
+
+        try {
+            return $stmt->execute($params);
+        } catch (PDOException $e) {
+            if ($e->getCode() == 23000) {
+                throw new DoublonException("Violation de contrainte d'unicité lors de la mise à jour dans '{$this->table}'.", 23000, $e);
+            }
+            throw $e;
+        }
+    }
+
+    /**
+     * Supprime un enregistrement par ses clés composites.
+     *
+     * @param array $keys Tableau associatif clé/valeur pour la clause WHERE.
+     * @return bool True en cas de succès, false sinon.
+     */
+    public function supprimerParCles(array $keys): bool
+    {
+        $whereInfo = $this->preparerClauseWhereParCles($keys);
+        $sql = "DELETE FROM `{$this->table}` WHERE {$whereInfo['clause']}";
+        $stmt = $this->db->prepare($sql);
+        return $stmt->execute($whereInfo['params']);
+    }
+
+    /**
+     * Trouve des enregistrements basés sur des critères multiples.
+     *
+     * @param array $criteres Critères de recherche. e.g., ['statut' => 'actif', 'id' => ['operator' => 'IN', 'values' => [1, 2, 3]]]
+     * @param array $colonnes Colonnes à retourner.
+     * @param string $operateurLogique Opérateur logique 'AND' ou 'OR'.
+     * @param string|null $orderBy Clause de tri.
+     * @param int|null $limit Limite de résultats.
+     * @param int|null $offset Décalage pour la pagination.
+     * @return array La liste des enregistrements trouvés.
+     */
+    public function trouverParCritere(array $criteres, array $colonnes = ['*'], string $operateurLogique = 'AND', ?string $orderBy = null, ?int $limit = null, ?int $offset = null): array
+    {
+        $cols = implode(', ', $colonnes);
+        $whereParts = [];
+        $params = [];
+
+        foreach ($criteres as $key => $value) {
+            if (is_array($value)) {
+                $operator = strtoupper($value['operator'] ?? '=');
+                switch ($operator) {
+                    case 'IN':
+                        $inPlaceholders = [];
+                        foreach ($value['values'] as $i => $inValue) {
+                            $paramName = ":{$key}_in_{$i}";
+                            $inPlaceholders[] = $paramName;
+                            $params[$paramName] = $inValue;
+                        }
+                        $whereParts[] = "`{$key}` IN (" . implode(', ', $inPlaceholders) . ")";
+                        break;
+                    case 'BETWEEN':
+                        if (count($value['values']) === 2) {
+                            $whereParts[] = "`{$key}` BETWEEN :{$key}_start AND :{$key}_end";
+                            $params[":{$key}_start"] = $value['values'][0];
+                            $params[":{$key}_end"] = $value['values'][1];
+                        }
+                        break;
+                    default: // Gère LIKE, !=, >, <, etc.
+                        $whereParts[] = "`{$key}` {$operator} :{$key}";
+                        $params[":{$key}"] = $value['value'];
+                        break;
+                }
+            } else {
+                $whereParts[] = "`{$key}` = :{$key}";
+                $params[":{$key}"] = $value;
+            }
+        }
+
+        $sql = "SELECT {$cols} FROM `{$this->table}`";
+        if (!empty($whereParts)) {
+            $sql .= " WHERE " . implode(" {$operateurLogique} ", $whereParts);
+        }
+        if ($orderBy) {
+            $sql .= " ORDER BY {$orderBy}";
+        }
+        if ($limit !== null) {
+            $sql .= " LIMIT {$limit}";
+            if ($offset !== null) {
+                $sql .= " OFFSET {$offset}";
+            }
+        }
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Trouve un seul enregistrement basé sur des critères.
+     *
+     * @param array $criteres Critères de recherche.
+     * @param array $colonnes Colonnes à retourner.
+     * @param string $operateurLogique Opérateur logique 'AND' ou 'OR'.
+     * @return array|null Le premier enregistrement trouvé ou null.
+     */
+    public function trouverUnParCritere(array $criteres, array $colonnes = ['*'], string $operateurLogique = 'AND'): ?array
+    {
+        $result = $this->trouverParCritere($criteres, $colonnes, $operateurLogique, null, 1);
+        return $result[0] ?? null;
+    }
+
+    /**
+     * Compte les enregistrements basés sur des critères.
+     *
+     * @param array $criteres Critères de recherche.
+     * @param string $operateurLogique Opérateur logique 'AND' ou 'OR'.
+     * @return int Le nombre d'enregistrements.
+     */
+    public function compterParCritere(array $criteres, string $operateurLogique = 'AND'): int
+    {
+        $whereParts = [];
+        $params = [];
+
+        foreach ($criteres as $key => $value) {
+            if (is_array($value)) {
+                $operator = strtoupper($value['operator'] ?? '=');
+                switch ($operator) {
+                    case 'IN':
+                        $inPlaceholders = [];
+                        foreach ($value['values'] as $i => $inValue) {
+                            $paramName = ":{$key}_in_{$i}";
+                            $inPlaceholders[] = $paramName;
+                            $params[$paramName] = $inValue;
+                        }
+                        $whereParts[] = "`{$key}` IN (" . implode(', ', $inPlaceholders) . ")";
+                        break;
+                    // Ajoutez d'autres opérateurs si nécessaire
+                    default:
+                        $whereParts[] = "`{$key}` {$operator} :{$key}";
+                        $params[":{$key}"] = $value['value'];
+                        break;
+                }
+            } else {
+                $whereParts[] = "`{$key}` = :{$key}";
+                $params[":{$key}"] = $value;
+            }
+        }
+
+        $sql = "SELECT COUNT(*) FROM `{$this->table}`";
+        if (!empty($whereParts)) {
+            $sql .= " WHERE " . implode(" {$operateurLogique} ", $whereParts);
+        }
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        return (int) $stmt->fetchColumn();
+    }
+
+    /**
+     * Démarre une transaction.
+     */
+    public function commencerTransaction(): void
+    {
+        $this->db->beginTransaction();
+    }
+
+    /**
+     * Valide la transaction en cours.
+     */
+    public function validerTransaction(): void
+    {
+        $this->db->commit();
+    }
+
+    /**
+     * Annule la transaction en cours.
+     */
+    public function annulerTransaction(): void
+    {
+        $this->db->rollBack();
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\CompteRendu.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class CompteRendu extends BaseModel
+{
+    public string $table = 'compte_rendu';
+    public string|array $primaryKey = 'id_compte_rendu';
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\ConformiteRapportDetails.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class ConformiteRapportDetails extends BaseModel
+{
+    public string $table = 'conformite_rapport_details';
+    public string|array $primaryKey = 'id_conformite_detail';
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\Conversation.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class Conversation extends BaseModel
+{
+    public string $table = 'conversation';
+    public string|array $primaryKey = 'id_conversation';
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\CritereConformiteRef.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class CritereConformiteRef extends BaseModel
+{
+    public string $table = 'critere_conformite_ref';
+    public string|array $primaryKey = 'id_critere';
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\DecisionPassageRef.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class DecisionPassageRef extends BaseModel
+{
+    public string $table = 'decision_passage_ref';
+    public string|array $primaryKey = 'id_decision_passage';
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\DecisionValidationPvRef.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class DecisionValidationPvRef extends BaseModel
+{
+    public string $table = 'decision_validation_pv_ref';
+    public string|array $primaryKey = 'id_decision_validation_pv';
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\DecisionVoteRef.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class DecisionVoteRef extends BaseModel
+{
+    public string $table = 'decision_vote_ref';
+    public string|array $primaryKey = 'id_decision_vote';
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\Delegation.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class Delegation extends BaseModel
+{
+    public string $table = 'delegation';
+    public string|array $primaryKey = 'id_delegation';
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\DocumentGenere.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class DocumentGenere extends BaseModel
+{
+    public string $table = 'document_genere';
+    public string|array $primaryKey = 'id_document_genere';
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\Ecue.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class Ecue extends BaseModel
+{
+    public string $table = 'ecue';
+    public string|array $primaryKey = 'id_ecue';
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\Enregistrer.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class Enregistrer extends BaseModel
+{
+    public string $table = 'enregistrer';
+    public string|array $primaryKey = 'id_enregistrement';
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\Enseignant.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class Enseignant extends BaseModel
+{
+    public string $table = 'enseignant';
+    public string|array $primaryKey = 'numero_enseignant';
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\Entreprise.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class Entreprise extends BaseModel
+{
+    public string $table = 'entreprise';
+    public string|array $primaryKey = 'id_entreprise';
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\Etudiant.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class Etudiant extends BaseModel
+{
+    public string $table = 'etudiant';
+    public string|array $primaryKey = 'numero_carte_etudiant';
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\Evaluer.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class Evaluer extends BaseModel
+{
+    public string $table = 'evaluer';
+    public string|array $primaryKey = ['numero_carte_etudiant', 'id_ecue', 'id_annee_academique'];
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+
+    /**
+     * Trouve une évaluation par ses clés.
+     * @param string $numeroCarteEtudiant
+     * @param string $idEcue
+     * @param string $idAnneeAcademique
+     * @return array|null
+     */
+    public function trouverEvaluationParCles(string $numeroCarteEtudiant, string $idEcue, string $idAnneeAcademique): ?array
+    {
+        return $this->trouverUnParCritere([
+            'numero_carte_etudiant' => $numeroCarteEtudiant,
+            'id_ecue' => $idEcue,
+            'id_annee_academique' => $idAnneeAcademique
+        ]);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\FaireStage.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class FaireStage extends BaseModel
+{
+    public string $table = 'faire_stage';
+    public string|array $primaryKey = ['id_entreprise', 'numero_carte_etudiant'];
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+
+    /**
+     * Trouve un stage par ses clés.
+     * @param string $idEntreprise
+     * @param string $numeroCarteEtudiant
+     * @return array|null
+     */
+    public function trouverStageParCles(string $idEntreprise, string $numeroCarteEtudiant): ?array
+    {
+        return $this->trouverUnParCritere([
+            'id_entreprise' => $idEntreprise,
+            'numero_carte_etudiant' => $numeroCarteEtudiant
+        ]);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\Fonction.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class Fonction extends BaseModel
+{
+    public string $table = 'fonction';
+    public string|array $primaryKey = 'id_fonction';
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\Grade.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class Grade extends BaseModel
+{
+    public string $table = 'grade';
+    public string|array $primaryKey = 'id_grade';
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\GroupeUtilisateur.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class GroupeUtilisateur extends BaseModel
+{
+    public string $table = 'groupe_utilisateur';
+    public string|array $primaryKey = 'id_groupe_utilisateur';
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\HistoriqueMotDePasse.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class HistoriqueMotDePasse extends BaseModel
+{
+    public string $table = 'historique_mot_de_passe';
+    public string|array $primaryKey = 'id_historique_mdp';
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+
+    /**
+     * Récupère les derniers mots de passe pour un utilisateur.
+     * @param string $numeroUtilisateur
+     * @param int $limite
+     * @return array
+     */
+    public function recupererHistoriquePourUtilisateur(string $numeroUtilisateur, int $limite = 5): array
+    {
+        return $this->trouverParCritere(
+            ['numero_utilisateur' => $numeroUtilisateur],
+            ['mot_de_passe_hache'],
+            'AND',
+            'date_changement DESC',
+            $limite
+        );
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\Inscrire.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class Inscrire extends BaseModel
+{
+    public string $table = 'inscrire';
+    public string|array $primaryKey = ['numero_carte_etudiant', 'id_niveau_etude', 'id_annee_academique'];
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+
+    /**
+     * Trouve une inscription par ses clés.
+     * @param string $numeroCarteEtudiant
+     * @param string $idNiveauEtude
+     * @param string $idAnneeAcademique
+     * @return array|null
+     */
+    public function trouverInscriptionParCles(string $numeroCarteEtudiant, string $idNiveauEtude, string $idAnneeAcademique): ?array
+    {
+        return $this->trouverUnParCritere([
+            'numero_carte_etudiant' => $numeroCarteEtudiant,
+            'id_niveau_etude' => $idNiveauEtude,
+            'id_annee_academique' => $idAnneeAcademique
+        ]);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\LectureMessage.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class LectureMessage extends BaseModel
+{
+    public string $table = 'lecture_message';
+    public string|array $primaryKey = ['id_message_chat', 'numero_utilisateur'];
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+
+    /**
+     * Trouve un enregistrement de lecture par ses clés.
+     * @param string $idMessageChat
+     * @param string $numeroUtilisateur
+     * @return array|null
+     */
+    public function trouverLectureParCles(string $idMessageChat, string $numeroUtilisateur): ?array
+    {
+        return $this->trouverUnParCritere([
+            'id_message_chat' => $idMessageChat,
+            'numero_utilisateur' => $numeroUtilisateur
+        ]);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\MatriceNotificationRegles.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class MatriceNotificationRegles extends BaseModel
+{
+    public string $table = 'matrice_notification_regles';
+    public string|array $primaryKey = 'id_regle';
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\MessageChat.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class MessageChat extends BaseModel
+{
+    public string $table = 'message_chat';
+    public string|array $primaryKey = 'id_message_chat';
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\NiveauAccesDonne.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class NiveauAccesDonne extends BaseModel
+{
+    public string $table = 'niveau_acces_donne';
+    public string|array $primaryKey = 'id_niveau_acces_donne';
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\NiveauEtude.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class NiveauEtude extends BaseModel
+{
+    public string $table = 'niveau_etude';
+    public string|array $primaryKey = 'id_niveau_etude';
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\Notification.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class Notification extends BaseModel
+{
+    public string $table = 'notification';
+    public string|array $primaryKey = 'id_notification';
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\Occuper.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class Occuper extends BaseModel
+{
+    public string $table = 'occuper';
+    public string|array $primaryKey = ['id_fonction', 'numero_enseignant'];
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+
+    /**
+     * Trouve une occupation par ses clés.
+     * @param string $idFonction
+     * @param string $numeroEnseignant
+     * @return array|null
+     */
+    public function trouverOccupationParCles(string $idFonction, string $numeroEnseignant): ?array
+    {
+        return $this->trouverUnParCritere([
+            'id_fonction' => $idFonction,
+            'numero_enseignant' => $numeroEnseignant
+        ]);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\ParametreSysteme.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class ParametreSysteme extends BaseModel
+{
+    public string $table = 'parametres_systeme';
+    public string|array $primaryKey = 'cle';
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\ParticipantConversation.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class ParticipantConversation extends BaseModel
+{
+    public string $table = 'participant_conversation';
+    public string|array $primaryKey = ['id_conversation', 'numero_utilisateur'];
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+
+    /**
+     * Trouve un participant par ses clés.
+     * @param string $idConversation
+     * @param string $numeroUtilisateur
+     * @return array|null
+     */
+    public function trouverParticipantParCles(string $idConversation, string $numeroUtilisateur): ?array
+    {
+        return $this->trouverUnParCritere([
+            'id_conversation' => $idConversation,
+            'numero_utilisateur' => $numeroUtilisateur
+        ]);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\Penalite.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class Penalite extends BaseModel
+{
+    public string $table = 'penalite';
+    public string|array $primaryKey = 'id_penalite';
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+
+    /**
+     * Trouve les pénalités non réglées d'un étudiant.
+     * @param string $numeroCarteEtudiant
+     * @return array
+     */
+    public function trouverPenalitesNonRegul(string $numeroCarteEtudiant): array
+    {
+        return $this->trouverParCritere([
+            'numero_carte_etudiant' => $numeroCarteEtudiant,
+            'id_statut_penalite' => 'PEN_DUE' // 'DUE' est la valeur pour les pénalités dues
+        ]);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\PersonnelAdministratif.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class PersonnelAdministratif extends BaseModel
+{
+    public string $table = 'personnel_administratif';
+    public string|array $primaryKey = 'numero_personnel_administratif';
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\Pister.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class Pister extends BaseModel
+{
+    public string $table = 'pister';
+    public string|array $primaryKey = 'id_piste';
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\PvSessionRapport.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class PvSessionRapport extends BaseModel
+{
+    public string $table = 'pv_session_rapport';
+    public string|array $primaryKey = ['id_compte_rendu', 'id_rapport_etudiant'];
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\QueueJobs.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class QueueJobs extends BaseModel
+{
+    public string $table = 'queue_jobs';
+    public string|array $primaryKey = 'id';
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\RapportEtudiant.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class RapportEtudiant extends BaseModel
+{
+    public string $table = 'rapport_etudiant';
+    public string|array $primaryKey = 'id_rapport_etudiant';
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\RapportModele.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class RapportModele extends BaseModel
+{
+    public string $table = 'rapport_modele';
+    public string|array $primaryKey = 'id_modele';
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\RapportModeleAssignation.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class RapportModeleAssignation extends BaseModel
+{
+    public string $table = 'rapport_modele_assignation';
+    public string|array $primaryKey = ['id_modele', 'id_niveau_etude'];
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\RapportModeleSection.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class RapportModeleSection extends BaseModel
+{
+    public string $table = 'rapport_modele_section';
+    public string|array $primaryKey = 'id_section_modele';
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\Rattacher.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class Rattacher extends BaseModel
+{
+    public string $table = 'rattacher';
+    public string|array $primaryKey = ['id_groupe_utilisateur', 'id_traitement'];
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\Recevoir.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class Recevoir extends BaseModel
+{
+    public string $table = 'recevoir';
+    public string|array $primaryKey = 'id_reception';
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\Reclamation.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class Reclamation extends BaseModel
+{
+    public string $table = 'reclamation';
+    public string|array $primaryKey = 'id_reclamation';
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\Rendre.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class Rendre extends BaseModel
+{
+    public string $table = 'rendre';
+    public string|array $primaryKey = ['numero_enseignant', 'id_compte_rendu'];
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\SectionRapport.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class SectionRapport extends BaseModel
+{
+    public string $table = 'section_rapport';
+    public string|array $primaryKey = ['id_rapport_etudiant', 'titre_section'];
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+
+    /**
+     * Trouve toutes les sections d'un rapport donné, ordonnées.
+     * @param string $idRapportEtudiant
+     * @return array
+     */
+    public function trouverSectionsPourRapport(string $idRapportEtudiant): array
+    {
+        return $this->trouverParCritere(
+            ['id_rapport_etudiant' => $idRapportEtudiant],
+            ['*'],
+            'AND',
+            'ordre ASC'
+        );
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\Sequences.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class Sequences extends BaseModel
+{
+    public string $table = 'sequences';
+    public string|array $primaryKey = ['nom_sequence', 'annee'];
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\SessionRapport.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class SessionRapport extends BaseModel
+{
+    public string $table = 'session_rapport';
+    public string|array $primaryKey = ['id_session', 'id_rapport_etudiant'];
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\Sessions.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class Sessions extends BaseModel
+{
+    public string $table = 'sessions';
+    public string|array $primaryKey = 'session_id';
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+
+    /**
+     * Trouve les sessions actives pour un utilisateur.
+     * @param string $userId
+     * @return array
+     */
+    public function trouverSessionsParUtilisateur(string $userId): array
+    {
+        return $this->trouverParCritere(['user_id' => $userId]);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\SessionValidation.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class SessionValidation extends BaseModel
+{
+    public string $table = 'session_validation';
+    public string|array $primaryKey = 'id_session';
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\Specialite.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class Specialite extends BaseModel
+{
+    public string $table = 'specialite';
+    public string|array $primaryKey = 'id_specialite';
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\StatutConformiteRef.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class StatutConformiteRef extends BaseModel
+{
+    public string $table = 'statut_conformite_ref';
+    public string|array $primaryKey = 'id_statut_conformite';
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\StatutJury.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class StatutJury extends BaseModel
+{
+    public string $table = 'statut_jury';
+    public string|array $primaryKey = 'id_statut_jury';
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\StatutPaiementRef.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class StatutPaiementRef extends BaseModel
+{
+    protected string $table = 'statut_paiement_ref';
+    protected string|array $primaryKey = 'id_statut_paiement';
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\StatutPenaliteRef.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class StatutPenaliteRef extends BaseModel
+{
+    protected string $table = 'statut_penalite_ref';
+    protected string|array $primaryKey = 'id_statut_penalite';
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\StatutPvRef.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class StatutPvRef extends BaseModel
+{
+    protected string $table = 'statut_pv_ref';
+    protected string|array $primaryKey = 'id_statut_pv';
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\StatutRapportRef.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class StatutRapportRef extends BaseModel
+{
+    protected string $table = 'statut_rapport_ref';
+    protected string|array $primaryKey = 'id_statut_rapport';
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\StatutReclamationRef.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class StatutReclamationRef extends BaseModel
+{
+    protected string $table = 'statut_reclamation_ref';
+    protected string|array $primaryKey = 'id_statut_reclamation';
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\Traitement.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class Traitement extends BaseModel
+{
+    public string $table = 'traitement';
+    public string|array $primaryKey = 'id_traitement';
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\TypeDocumentRef.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class TypeDocumentRef extends BaseModel
+{
+    public string $table = 'type_document_ref';
+    public string|array $primaryKey = 'id_type_document';
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\TypeUtilisateur.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class TypeUtilisateur extends BaseModel
+{
+    public string $table = 'type_utilisateur';
+    public string|array $primaryKey = 'id_type_utilisateur';
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\Ue.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class Ue extends BaseModel
+{
+    public string $table = 'ue';
+    public string|array $primaryKey = 'id_ue';
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\Utilisateur.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class Utilisateur extends BaseModel
+{
+    public string $table = 'utilisateur';
+    public string|array $primaryKey = 'numero_utilisateur';
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+
+    /**
+     * Trouve un utilisateur par son login ou son email principal.
+     * @param string $identifiant Le login ou l'email principal.
+     * @return array|null
+     */
+    public function trouverParLoginOuEmailPrincipal(string $identifiant): ?array
+    {
+        return $this->trouverUnParCritere([
+            'login_utilisateur' => $identifiant,
+            'email_principal' => $identifiant
+        ], ['*'], 'OR');
+    }
+
+    /**
+     * Vérifie si un login existe déjà, en excluant éventuellement un utilisateur.
+     * @param string $login
+     * @param string|null $excludeId
+     * @return bool
+     */
+    public function loginExiste(string $login, ?string $excludeId = null): bool
+    {
+        $criteres = ['login_utilisateur' => $login];
+        if ($excludeId !== null) {
+            $criteres['numero_utilisateur'] = ['operator' => '!=', 'value' => $excludeId];
+        }
+        return $this->compterParCritere($criteres) > 0;
+    }
+
+    /**
+     * Trouve un utilisateur par son token de réinitialisation de mot de passe (haché).
+     * @param string $tokenHache Le token de réinitialisation de mot de passe haché.
+     * @return array|null
+     */
+    public function trouverParTokenResetMdp(string $tokenHache): ?array
+    {
+        return $this->trouverUnParCritere(['token_reset_mdp' => $tokenHache]);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\ValidationPv.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class ValidationPv extends BaseModel
+{
+    public string $table = 'validation_pv';
+    public string|array $primaryKey = ['id_compte_rendu', 'numero_enseignant'];
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+
+    /**
+     * Trouve une validation de PV par ses clés.
+     * @param string $idCompteRendu
+     * @param string $numeroEnseignant
+     * @return array|null
+     */
+    public function trouverValidationPvParCles(string $idCompteRendu, string $numeroEnseignant): ?array
+    {
+        return $this->trouverUnParCritere([
+            'id_compte_rendu' => $idCompteRendu,
+            'numero_enseignant' => $numeroEnseignant
+        ]);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\VoteCommission.php
+ ***********************************************************************************/
+
+<?php
+namespace App\Backend\Model;
+
+use PDO;
+
+class VoteCommission extends BaseModel
+{
+    public string $table = 'vote_commission';
+    public string|array $primaryKey = 'id_vote';
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+
+    /**
+     * Trouve un vote unique pour un rapport, un enseignant et un tour de vote.
+     * @param string $idRapportEtudiant
+     * @param string $numeroEnseignant
+     * @param int $tourVote
+     * @return array|null
+     */
+    public function trouverVoteUnique(string $idRapportEtudiant, string $numeroEnseignant, int $tourVote): ?array
+    {
+        return $this->trouverUnParCritere([
+            'id_rapport_etudiant' => $idRapportEtudiant,
+            'numero_enseignant' => $numeroEnseignant,
+            'tour_vote' => $tourVote
+        ]);
+    }
+}

@@ -1,0 +1,240 @@
+/* --- Global & Page Setup --- */
+body {
+    background-color: #d8d8d8;
+    font-family: Calibri, 'Helvetica Neue', Arial, sans-serif;
+    display: flex;
+    justify-content: center;
+    margin: 0;
+    padding: 30px 0;
+}
+
+.page {
+    background-color: white;
+    width: 210mm;
+    min-height: 297mm;
+    padding: 15mm 20mm 10mm 20mm;
+    box-shadow: 0 0 15px rgba(0,0,0,0.3);
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    color: #000;
+}
+
+/* --- Header Section --- */
+header {
+    display: flex;
+    justify-content: space-between;
+    border-bottom: 2px solid black;
+    padding-bottom: 15px;
+}
+
+.header-left {
+    text-align: center;
+    font-size: 9pt;
+    line-height: 1.1;
+}
+
+.header-left p {
+    margin: 1px 0;
+}
+.header-left p.separator {
+    margin: 3px 0;
+}
+
+.logo-seal {
+    width: 75px;
+    margin-top: 8px;
+}
+
+.header-right {
+    text-align: right;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: flex-end;
+}
+
+.logo-mi {
+    width: 110px;
+    margin-bottom: 15px;
+}
+
+.title-block {
+    text-align: center;
+    font-weight: bold;
+}
+.title-block h1 {
+    font-size: 11pt;
+    margin: 0;
+}
+.title-block h2 {
+    font-size: 14pt;
+    margin-top: 5px;
+}
+
+/* --- Student Info Section --- */
+.student-info {
+    margin: 20px 0 15px 0;
+    font-size: 10pt;
+}
+
+.info-grid {
+    display: grid;
+    grid-template-columns: 150px auto;
+    row-gap: 3px;
+    column-gap: 15px;
+}
+.info-grid .label {
+    font-weight: bold;
+}
+
+/* --- Main Content & Tables --- */
+main {
+    flex-grow: 1;
+}
+
+.semester-title {
+    font-size: 11pt;
+    margin: 15px 0 8px 0;
+    text-decoration: underline;
+    font-weight: bold;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 9pt;
+}
+
+th, td {
+    border: 1px solid #ccc;
+    padding: 3px 6px;
+    height: 24px;
+    box-sizing: border-box;
+}
+
+th {
+    background-color: #f0f0f0;
+    font-weight: bold;
+    text-align: center;
+}
+.text-center { text-align: center; }
+
+/* Fixed column widths for precision */
+.col-code { width: 10%; }
+.col-ue   { width: 42%; text-align: left; }
+.col-coef { width: 8%; }
+.col-moy  { width: 15%; }
+.col-cred { width: 8%; }
+.col-sess { width: 10%; }
+
+.section-header td {
+    background-color: #f0f0f0;
+    font-weight: bold;
+    padding-left: 10px;
+}
+
+.summary-row td {
+    background-color: #f0f0f0;
+}
+.summary-row strong { font-weight: bold; }
+
+
+.semester-footer td {
+    border-top: 1.5px solid black;
+    border-left: none;
+    border-right: none;
+    border-bottom: 1.5px solid black;
+    height: 28px;
+}
+.semester-footer tr:first-child td {
+    border-bottom: 1px solid #ccc;
+}
+
+
+/* --- General Result Section --- */
+.general-result {
+    border-top: 2px solid black;
+    padding-top: 8px;
+}
+
+.general-result h4 {
+    margin: 0 0 8px 0;
+    font-size: 10pt;
+    font-weight: bold;
+}
+
+.rules {
+    font-size: 8.5pt;
+    line-height: 1.3;
+    margin: 0 0 12px 0;
+}
+
+.final-summary {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 10.5pt;
+}
+.final-summary .summary-item.value {
+    padding-right: 50px;
+}
+
+/* --- Footer & Signature Section --- */
+footer {
+    margin-top: auto; /* Pushes footer to the bottom */
+    padding-top: 10px;
+}
+
+.signature-area {
+    position: relative;
+    height: 120px;
+    display: flex;
+    justify-content: flex-end; /* Align professor info to the right */
+    align-items: flex-end;
+}
+
+.responsible-text {
+    position: absolute;
+    left: 215px;
+    top: 50px;
+    font-size: 9.5pt;
+    text-align: center;
+    z-index: 2;
+}
+
+.stamp {
+    position: absolute;
+    left: 170px;
+    top: -15px;
+    width: 175px;
+    z-index: 1;
+}
+
+.signature {
+    position: absolute;
+    left: 310px;
+    top: -5px;
+    width: 170px;
+    transform: rotate(-4deg);
+    z-index: 3;
+}
+
+.professor-info {
+    text-align: center;
+    color: #0033a0;
+    font-weight: bold;
+    padding-bottom: 5px; /* Fine-tune vertical alignment */
+}
+.professor-info p { margin: 1px 0; }
+.professor-info .name { font-size: 11pt; }
+.professor-info .title { font-size: 10pt; }
+.professor-info .affiliation { font-size: 9.5pt; }
+
+.contact-info {
+    border-top: 1px solid black;
+    margin-top: 10px;
+    padding-top: 4px;
+    text-align: center;
+    font-size: 7.5pt;
+}
