@@ -12,7 +12,6 @@ use App\Backend\Util\FormValidator;
 use App\Backend\Util\DatabaseSessionHandler;
 
 // --- Importation des Interfaces de Service ---
-// C'est la bonne pratique : les dépendances doivent se baser sur des contrats (interfaces).
 use App\Backend\Service\Interface\AdministrationRBACServiceInterface;
 use App\Backend\Service\Interface\AnneeAcademiqueServiceInterface;
 use App\Backend\Service\Interface\AuditServiceInterface;
@@ -82,304 +81,125 @@ use App\Backend\Service\ServiceStage;
 use App\Backend\Service\ServiceSupervisionAdmin;
 use App\Backend\Service\ServiceTransitionRole;
 
-// --- Importation de tous les Modèles ---
-use App\Backend\Model\{
-    Acquerir, Action, Affecter, AnneeAcademique, Approuver, Attribuer, CompteRendu,
-    ConformiteRapportDetails, Conversation, CritereConformiteRef, DecisionPassageRef,
-    DecisionValidationPvRef, DecisionVoteRef, Delegation, DocumentGenere, Ecue, Enregistrer,
-    Enseignant, Entreprise, Etudiant, Evaluer, FaireStage, Fonction, Grade, GroupeUtilisateur,
-    HistoriqueMotDePasse, Inscrire, LectureMessage, MatriceNotificationRegles, MessageChat,
-    NiveauAccesDonne, NiveauEtude, Notification, Occuper, ParametreSysteme, ParticipantConversation,
-    Penalite, PersonnelAdministratif, Pister, PvSessionRapport, RapportEtudiant, RapportModele,
-    Rattacher, Recevoir, Reclamation, Rendre, SectionRapport, Sequences, SessionRapport,
-    Sessions, SessionValidation, Specialite, StatutConformiteRef, StatutJury, StatutPaiementRef,
-    StatutPenaliteRef, StatutPvRef, StatutRapportRef, StatutReclamationRef, Traitement,
-    TypeDocumentRef, TypeUtilisateur, Ue, Utilisateur, ValidationPv, VoteCommission
-};
-
-// --- Importation de tous les Contrôleurs ---
-use App\Backend\Controller\{
-    HomeController, AuthentificationController, AssetController, DashboardController
-};
-use App\Backend\Controller\Admin\{
-    AnneeAcademiqueController, AdminDashboardController, ConfigSystemeController, GestionAcadController,
-    HabilitationController, ReferentialController, ReportingController, SupervisionController,
-//    UtilisateurController, // Remplacé par HabilitationController qui gère les utilisateurs
-    NotificationConfigurationController, TransitionRoleController, FichierController,
-    LoggerController, QueueController
-};
-use App\Backend\Controller\Commission\{
-    CommissionDashboardController, CommunicationCommissionController, CorrectionCommissionController,
-    PvController, ValidationRapportController
-};
-use App\Backend\Controller\Common\NotificationController;
-use App\Backend\Controller\Etudiant\{
-    DocumentEtudiantController, EtudiantDashboardController, ProfilEtudiantController, RapportController,
-    ReclamationEtudiantController, RessourcesEtudiantController
-};
-use App\Backend\Controller\PersonnelAdministratif\{
-    CommunicationInterneController, ConformiteController, PersonnelDashboardController, ScolariteController,
-    DocumentAdministratifController
-};
-
+/**
+ * Conteneur d'Injection de Dépendances par Auto-Wiring.
+ *
+ * Ce conteneur utilise la réflexion pour automatiquement découvrir et instancier
+ * les classes (Contrôleurs, Services, Modèles) en résolvant leurs dépendances
+ * via les types déclarés dans leurs constructeurs.
+ * Il élimine le besoin d'enregistrement manuel, réduisant drastiquement la maintenance.
+ */
 class Container
 {
-    private array $definitions = [];
     private array $instances = [];
+    private array $definitions = [];
+
+    /**
+     * La seule configuration manuelle requise : mapper les interfaces à leurs implémentations.
+     * C'est le cœur du découplage de l'application.
+     */
+    private const SERVICE_INTERFACE_MAP = [
+        AdministrationRBACServiceInterface::class => AdministrationRBACService::class,
+        AnneeAcademiqueServiceInterface::class => ServiceAnneeAcademique::class,
+        AuditServiceInterface::class => ServiceAudit::class,
+        AuthenticationServiceInterface::class => ServiceAuthentication::class,
+        CommissionServiceInterface::class => ServiceCommission::class,
+        CompteUtilisateurServiceInterface::class => ServiceCompteUtilisateur::class,
+        ConformiteServiceInterface::class => ServiceConformite::class,
+        CursusServiceInterface::class => ServiceCursus::class,
+        DocumentAdministratifServiceInterface::class => ServiceDocumentAdministratif::class,
+        DocumentGeneratorServiceInterface::class => ServiceDocumentGenerator::class,
+        EmailServiceInterface::class => ServiceEmail::class,
+        FichierServiceInterface::class => ServiceFichier::class,
+        IdentifiantGeneratorInterface::class => IdentifiantGenerator::class,
+        InscriptionServiceInterface::class => ServiceInscription::class,
+        LoggerServiceInterface::class => ServiceLogger::class,
+        MessagerieServiceInterface::class => ServiceMessagerie::class,
+        NotationServiceInterface::class => ServiceNotation::class,
+        NotificationConfigurationServiceInterface::class => ServiceNotificationConfiguration::class,
+        NotificationServiceInterface::class => ServiceNotification::class,
+        ParametrageServiceInterface::class => ServiceParametrage::class,
+        PenaliteServiceInterface::class => ServicePenalite::class,
+        PermissionsServiceInterface::class => ServicePermissions::class,
+        PersonnelAcademiqueServiceInterface::class => ServicePersonnelAcademique::class,
+        ProcesVerbalServiceInterface::class => ServiceProcesVerbal::class,
+        ProfilEtudiantServiceInterface::class => ServiceProfilEtudiant::class,
+        QueueServiceInterface::class => ServiceQueue::class,
+        RapportServiceInterface::class => ServiceRapport::class,
+        ReclamationServiceInterface::class => ServiceReclamation::class,
+        ReferentielServiceInterface::class => ServiceReferentiel::class,
+        ReportingServiceInterface::class => ServiceReportingAdmin::class,
+        StageServiceInterface::class => ServiceStage::class,
+        SupervisionAdminServiceInterface::class => ServiceSupervisionAdmin::class,
+        TransitionRoleServiceInterface::class => ServiceTransitionRole::class,
+    ];
 
     public function __construct()
     {
         $this->registerInfrastructure();
-        $this->registerModels();
-        $this->registerServices();
-        $this->registerControllers();
     }
 
-    /**
-     * Enregistre l'infrastructure de base (BDD, Session, etc.).
-     */
     private function registerInfrastructure(): void
     {
-        $this->set('PDO', fn () => Database::getInstance()->getConnection());
-        $this->set(DatabaseSessionHandler::class, fn () => new DatabaseSessionHandler());
+        $this->set(PDO::class, fn () => Database::getInstance()->getConnection());
+        $this->set(DatabaseSessionHandler::class, fn ($c) => new DatabaseSessionHandler());
         $this->set(FormValidator::class, fn () => new FormValidator());
     }
 
-    /**
-     * Enregistre tous les modèles de données.
-     * Chaque modèle dépend uniquement de la connexion PDO.
-     */
-    private function registerModels(): void
-    {
-        $models = [
-            Acquerir::class, Action::class, Affecter::class, AnneeAcademique::class, Approuver::class,
-            Attribuer::class, CompteRendu::class, ConformiteRapportDetails::class, Conversation::class,
-            CritereConformiteRef::class, DecisionPassageRef::class, DecisionValidationPvRef::class,
-            DecisionVoteRef::class, Delegation::class, DocumentGenere::class, Ecue::class,
-            Enregistrer::class, Enseignant::class, Entreprise::class, Etudiant::class, Evaluer::class,
-            FaireStage::class, Fonction::class, Grade::class, GroupeUtilisateur::class,
-            HistoriqueMotDePasse::class, Inscrire::class, LectureMessage::class, MatriceNotificationRegles::class,
-            MessageChat::class, NiveauAccesDonne::class, NiveauEtude::class, Notification::class,
-            Occuper::class, ParametreSysteme::class, ParticipantConversation::class, Penalite::class,
-            PersonnelAdministratif::class, Pister::class, PvSessionRapport::class, RapportEtudiant::class,
-            RapportModele::class, Rattacher::class, Recevoir::class, Reclamation::class, Rendre::class,
-            SectionRapport::class, Sequences::class, SessionRapport::class, Sessions::class,
-            SessionValidation::class, Specialite::class, StatutConformiteRef::class, StatutJury::class,
-            StatutPaiementRef::class, StatutPenaliteRef::class, StatutPvRef::class, StatutRapportRef::class,
-            StatutReclamationRef::class, Traitement::class, TypeDocumentRef::class, TypeUtilisateur::class,
-            Ue::class, Utilisateur::class, ValidationPv::class, VoteCommission::class
-        ];
-
-        foreach ($models as $model) {
-            $this->set($model, fn ($c) => new $model($c->get('PDO')));
-        }
-    }
-
-    /**
-     * Enregistre tous les services applicatifs et leurs dépendances.
-     * L'ordre est important pour résoudre les dépendances.
-     */
-    private function registerServices(): void
-    {
-        // --- Services Fondamentaux (peu ou pas de dépendances de services) ---
-        $this->set(ServiceLogger::class, fn () => new ServiceLogger());
-        $this->alias(LoggerServiceInterface::class, ServiceLogger::class);
-
-        $this->set(IdentifiantGenerator::class, fn ($c) => new IdentifiantGenerator($c->get('PDO'), $c->get(AnneeAcademique::class)));
-        $this->alias(IdentifiantGeneratorInterface::class, IdentifiantGenerator::class);
-
-        $this->set(ServiceAudit::class, fn ($c) => new ServiceAudit($c->get('PDO'), $c->get(Enregistrer::class), $c->get(IdentifiantGeneratorInterface::class)));
-        $this->alias(AuditServiceInterface::class, ServiceAudit::class);
-
-        $this->set(ServiceQueue::class, fn ($c) => new ServiceQueue($c->get('PDO'), $c->get(QueueJobs::class), $c->get(AuditServiceInterface::class)));
-        $this->alias(QueueServiceInterface::class, ServiceQueue::class);
-
-        $this->set(ServiceEmail::class, fn ($c) => new ServiceEmail($c->get(Notification::class), $c->get(QueueJobs::class)));
-        $this->alias(EmailServiceInterface::class, ServiceEmail::class);
-
-        $this->set(ServiceSupervisionAdmin::class, fn ($c) => new ServiceSupervisionAdmin($c->get('PDO'), $c->get(LoggerServiceInterface::class)));
-        $this->alias(SupervisionAdminServiceInterface::class, ServiceSupervisionAdmin::class);
-
-        $this->set(ServiceTransitionRole::class, fn ($c) => new ServiceTransitionRole($c->get('PDO'), $c->get(Delegation::class)));
-        $this->alias(TransitionRoleServiceInterface::class, ServiceTransitionRole::class);
-
-        // --- Services Métier (dépendent souvent des services fondamentaux) ---
-        $this->set(ServicePermissions::class, fn ($c) => new ServicePermissions($c->get('PDO'), $c->get(Utilisateur::class), $c->get(Rattacher::class), $c->get(TransitionRoleServiceInterface::class)));
-        $this->alias(PermissionsServiceInterface::class, ServicePermissions::class);
-
-        $this->set(AdministrationRBACService::class, fn ($c) => new AdministrationRBACService($c->get('PDO'), $c->get(GroupeUtilisateur::class), $c->get(Traitement::class), $c->get(Rattacher::class), $c->get(PermissionsServiceInterface::class), $c->get(AuditServiceInterface::class)));
-        $this->alias(AdministrationRBACServiceInterface::class, AdministrationRBACService::class);
-
-        $this->set(ServiceAuthentication::class, fn ($c) => new ServiceAuthentication($c->get('PDO'), $c->get(Utilisateur::class), $c->get(Sessions::class), $c->get(EmailServiceInterface::class), $c->get(AuditServiceInterface::class)));
-        $this->alias(AuthenticationServiceInterface::class, ServiceAuthentication::class);
-
-        $this->set(ServiceNotification::class, fn ($c) => new ServiceNotification($c->get('PDO'), $c->get(Notification::class), $c->get(Recevoir::class), $c->get(Utilisateur::class), $c->get(GroupeUtilisateur::class), $c->get(EmailServiceInterface::class), $c->get(IdentifiantGeneratorInterface::class)));
-        $this->alias(NotificationServiceInterface::class, ServiceNotification::class);
-
-        $this->set(ServiceFichier::class, fn ($c) => new ServiceFichier($c->get(AuditServiceInterface::class)));
-        $this->alias(FichierServiceInterface::class, ServiceFichier::class);
-
-        $this->set(ServiceAnneeAcademique::class, fn ($c) => new ServiceAnneeAcademique($c->get('PDO'), $c->get(AnneeAcademique::class), $c->get(Inscrire::class), $c->get(RapportEtudiant::class), $c->get(AuditServiceInterface::class)));
-        $this->alias(AnneeAcademiqueServiceInterface::class, ServiceAnneeAcademique::class);
-
-        $this->set(ServiceCommission::class, fn ($c) => new ServiceCommission($c->get('PDO'), $c->get(SessionValidation::class), $c->get(SessionRapport::class), $c->get(RapportEtudiant::class), $c->get(Affecter::class), $c->get(AuditServiceInterface::class), $c->get(NotificationServiceInterface::class), $c->get(IdentifiantGeneratorInterface::class)));
-        $this->alias(CommissionServiceInterface::class, ServiceCommission::class);
-
-        $this->set(ServiceCompteUtilisateur::class, fn ($c) => new ServiceCompteUtilisateur($c->get('PDO'), $c->get(Utilisateur::class), $c->get(HistoriqueMotDePasse::class), $c->get(EmailServiceInterface::class), $c->get(AuditServiceInterface::class), $c->get(IdentifiantGeneratorInterface::class)));
-        $this->alias(CompteUtilisateurServiceInterface::class, ServiceCompteUtilisateur::class);
-
-        $this->set(ServiceConformite::class, fn ($c) => new ServiceConformite($c->get('PDO'), $c->get(RapportEtudiant::class), $c->get(ConformiteRapportDetails::class), $c->get(AuditServiceInterface::class), $c->get(NotificationServiceInterface::class)));
-        $this->alias(ConformiteServiceInterface::class, ServiceConformite::class);
-
-        $this->set(ServiceCursus::class, fn ($c) => new ServiceCursus($c->get('PDO'), $c->get(Ue::class), $c->get(Ecue::class), $c->get(AuditServiceInterface::class), $c->get(IdentifiantGeneratorInterface::class)));
-        $this->alias(CursusServiceInterface::class, ServiceCursus::class);
-
-        $this->set(ServiceDocumentGenerator::class, fn ($c) => new ServiceDocumentGenerator($c->get(RapportModele::class)));
-        $this->alias(DocumentGeneratorServiceInterface::class, ServiceDocumentGenerator::class);
-
-        $this->set(ServiceDocumentAdministratif::class, fn ($c) => new ServiceDocumentAdministratif($c->get('PDO'), $c->get(Etudiant::class), $c->get(Inscrire::class), $c->get(Evaluer::class), $c->get(DocumentGenere::class), $c->get(DocumentGeneratorServiceInterface::class), $c->get(AuditServiceInterface::class), $c->get(IdentifiantGeneratorInterface::class)));
-        $this->alias(DocumentAdministratifServiceInterface::class, ServiceDocumentAdministratif::class);
-
-        $this->set(ServiceInscription::class, fn ($c) => new ServiceInscription($c->get('PDO'), $c->get(Inscrire::class), $c->get(Etudiant::class), $c->get(NiveauEtude::class), $c->get(Penalite::class), $c->get(AuditServiceInterface::class), $c->get(NotificationServiceInterface::class)));
-        $this->alias(InscriptionServiceInterface::class, ServiceInscription::class);
-
-        $this->set(ServiceMessagerie::class, fn ($c) => new ServiceMessagerie($c->get('PDO'), $c->get(Conversation::class), $c->get(MessageChat::class), $c->get(ParticipantConversation::class), $c->get(LectureMessage::class), $c->get(AuditServiceInterface::class), $c->get(NotificationServiceInterface::class), $c->get(IdentifiantGeneratorInterface::class)));
-        $this->alias(MessagerieServiceInterface::class, ServiceMessagerie::class);
-
-        $this->set(ServiceNotation::class, fn ($c) => new ServiceNotation($c->get('PDO'), $c->get(Evaluer::class), $c->get(Etudiant::class), $c->get(Ecue::class), $c->get(AuditServiceInterface::class), $c->get(NotificationServiceInterface::class)));
-        $this->alias(NotationServiceInterface::class, ServiceNotation::class);
-
-        $this->set(ServiceNotificationConfiguration::class, fn ($c) => new ServiceNotificationConfiguration($c->get('PDO'), $c->get(MatriceNotificationRegles::class), $c->get(Utilisateur::class), $c->get(AuditServiceInterface::class)));
-        $this->alias(NotificationConfigurationServiceInterface::class, ServiceNotificationConfiguration::class);
-
-        $this->set(ServiceParametrage::class, fn ($c) => new ServiceParametrage($c->get('PDO'), $c->get(ParametreSysteme::class), $c->get(AuditServiceInterface::class)));
-        $this->alias(ParametrageServiceInterface::class, ServiceParametrage::class);
-
-        $this->set(ServicePenalite::class, fn ($c) => new ServicePenalite($c->get('PDO'), $c->get(Penalite::class), $c->get(RapportEtudiant::class), $c->get(AuditServiceInterface::class), $c->get(NotificationServiceInterface::class), $c->get(IdentifiantGeneratorInterface::class)));
-        $this->alias(PenaliteServiceInterface::class, ServicePenalite::class);
-
-        $this->set(ServicePersonnelAcademique::class, fn ($c) => new ServicePersonnelAcademique($c->get(Enseignant::class), $c->get(PersonnelAdministratif::class), $c->get(Attribuer::class), $c->get(Occuper::class), $c->get(Acquerir::class)));
-        $this->alias(PersonnelAcademiqueServiceInterface::class, ServicePersonnelAcademique::class);
-
-        $this->set(ServiceProcesVerbal::class, fn ($c) => new ServiceProcesVerbal($c->get('PDO'), $c->get(CompteRendu::class), $c->get(ValidationPv::class), $c->get(Affecter::class), $c->get(AuditServiceInterface::class), $c->get(DocumentGeneratorServiceInterface::class), $c->get(NotificationServiceInterface::class)));
-        $this->alias(ProcesVerbalServiceInterface::class, ServiceProcesVerbal::class);
-
-        $this->set(ServiceProfilEtudiant::class, fn ($c) => new ServiceProfilEtudiant($c->get('PDO'), $c->get(Etudiant::class), $c->get(FichierServiceInterface::class), $c->get(AuditServiceInterface::class), $c->get(IdentifiantGeneratorInterface::class), $c->get(InscriptionServiceInterface::class), $c->get(NotationServiceInterface::class), $c->get(StageServiceInterface::class)));
-        $this->alias(ProfilEtudiantServiceInterface::class, ServiceProfilEtudiant::class);
-
-        $this->set(ServiceRapport::class, fn ($c) => new ServiceRapport($c->get('PDO'), $c->get(RapportEtudiant::class), $c->get(SectionRapport::class), $c->get(Rendre::class), $c->get(AuditServiceInterface::class), $c->get(NotificationServiceInterface::class), $c->get(IdentifiantGeneratorInterface::class)));
-        $this->alias(RapportServiceInterface::class, ServiceRapport::class);
-
-        $this->set(ServiceReclamation::class, fn ($c) => new ServiceReclamation($c->get('PDO'), $c->get(Reclamation::class), $c->get(AuditServiceInterface::class), $c->get(NotificationServiceInterface::class), $c->get(IdentifiantGeneratorInterface::class)));
-        $this->alias(ReclamationServiceInterface::class, ServiceReclamation::class);
-
-        $this->set(ServiceReferentiel::class, fn ($c) => new ServiceReferentiel($c->get('PDO'), $c->get(AuditServiceInterface::class)));
-        $this->alias(ReferentielServiceInterface::class, ServiceReferentiel::class);
-
-        $this->set(ServiceReportingAdmin::class, fn ($c) => new ServiceReportingAdmin($c->get('PDO'), $c->get(DocumentGeneratorServiceInterface::class)));
-        $this->alias(ReportingServiceInterface::class, ServiceReportingAdmin::class);
-
-        $this->set(ServiceStage::class, fn ($c) => new ServiceStage($c->get('PDO'), $c->get(FaireStage::class), $c->get(AuditServiceInterface::class), $c->get(NotificationServiceInterface::class), $c->get(IdentifiantGeneratorInterface::class)));
-        $this->alias(StageServiceInterface::class, ServiceStage::class);
-    }
-
-    /**
-     * Enregistre tous les contrôleurs en résolvant automatiquement leurs dépendances.
-     */
-    private function registerControllers(): void
-    {
-        $controllers = [
-            HomeController::class, AuthentificationController::class, AssetController::class,
-            AnneeAcademiqueController::class, AdminDashboardController::class, ConfigSystemeController::class,
-            GestionAcadController::class, HabilitationController::class, ReferentialController::class,
-            ReportingController::class, SupervisionController::class, /*UtilisateurController::class,*/
-            NotificationConfigurationController::class, TransitionRoleController::class, FichierController::class,
-            LoggerController::class, QueueController::class, CommissionDashboardController::class,
-            CommunicationCommissionController::class, CorrectionCommissionController::class, PvController::class,
-            ValidationRapportController::class, NotificationController::class, DashboardController::class,
-            DocumentEtudiantController::class, EtudiantDashboardController::class, ProfilEtudiantController::class,
-            RapportController::class, ReclamationEtudiantController::class, //RessourcesEtudiantController::class,
-            CommunicationInterneController::class, ConformiteController::class, PersonnelDashboardController::class,
-            ScolariteController::class, DocumentAdministratifController::class
-        ];
-
-        foreach ($controllers as $controller) {
-            $this->set($controller, function ($c) use ($controller) {
-                $reflection = new ReflectionClass($controller);
-                $constructor = $reflection->getConstructor();
-                $dependencies = [];
-
-                if ($constructor) {
-                    foreach ($constructor->getParameters() as $param) {
-                        $type = $param->getType();
-                        if ($type instanceof ReflectionNamedType && !$type->isBuiltin()) {
-                            // Vérifie si le service existe avant de tenter de le récupérer
-                            if (!$c->has($type->getName())) {
-                                throw new Exception("Dépendance introuvable pour le contrôleur " . $controller . ": " . $type->getName());
-                            }
-                            $dependencies[] = $c->get($type->getName());
-                        } else {
-                            throw new Exception("Paramètre de constructeur non supporté ou non typé : " . $param->getName() . " dans " . $controller);
-                        }
-                    }
-                }
-                return new $controller(...$dependencies);
-            });
-        }
-    }
-
-    /**
-     * Récupère une instance de service ou de classe.
-     * Crée l'instance si elle n'existe pas (lazy loading).
-     *
-     * @param string $id L'identifiant de la classe ou de l'alias.
-     * @return mixed L'instance demandée.
-     * @throws Exception Si la définition n'est pas trouvée.
-     */
     public function get(string $id)
     {
-        if (!$this->has($id)) {
-            throw new Exception("Service ou classe introuvable dans le conteneur : " . $id);
+        $className = self::SERVICE_INTERFACE_MAP[$id] ?? $id;
+
+        if (isset($this->instances[$className])) {
+            return $this->instances[$className];
         }
 
-        if (!isset($this->instances[$id])) {
-            $this->instances[$id] = $this->definitions[$id]($this);
+        if (isset($this->definitions[$className])) {
+            $this->instances[$className] = $this->definitions[$className]($this);
+            return $this->instances[$className];
         }
 
-        return $this->instances[$id];
+        if (!class_exists($className)) {
+            throw new Exception("Classe introuvable : {$className}");
+        }
+
+        $reflector = new ReflectionClass($className);
+        if (!$reflector->isInstantiable()) {
+            throw new Exception("La classe {$className} n'est pas instanciable. Avez-vous mappé son interface dans le conteneur ?");
+        }
+
+        $constructor = $reflector->getConstructor();
+        if (is_null($constructor)) {
+            $this->instances[$className] = new $className();
+            return $this->instances[$className];
+        }
+
+        $parameters = $constructor->getParameters();
+        $dependencies = [];
+
+        foreach ($parameters as $parameter) {
+            $type = $parameter->getType();
+            if (!$type instanceof ReflectionNamedType || $type->isBuiltin()) {
+                if ($parameter->isDefaultValueAvailable()) {
+                    $dependencies[] = $parameter->getDefaultValue();
+                    continue;
+                }
+                throw new Exception("Impossible de résoudre le paramètre non-typé ou scalaire '{$parameter->getName()}' dans le constructeur de {$className}.");
+            }
+            $dependencies[] = $this->get($type->getName());
+        }
+
+        $this->instances[$className] = $reflector->newInstanceArgs($dependencies);
+
+        if ($id !== $className) {
+            $this->instances[$id] = $this->instances[$className];
+        }
+
+        return $this->instances[$className];
     }
 
-    /**
-     * Vérifie si une définition existe dans le conteneur.
-     *
-     * @param string $id L'identifiant de la classe ou de l'alias.
-     * @return bool
-     */
-    public function has(string $id): bool
-    {
-        return isset($this->definitions[$id]);
-    }
-
-    /**
-     * Définit une nouvelle entrée dans le conteneur.
-     *
-     * @param string $id L'identifiant.
-     * @param callable $factory La fonction qui crée l'instance.
-     */
     private function set(string $id, callable $factory): void
     {
         $this->definitions[$id] = $factory;
-    }
-
-    /**
-     * Crée un alias pour une définition concrète.
-     * Utile pour lier une interface à son implémentation.
-     *
-     * @param string $alias L'interface ou l'alias.
-     * @param string $concrete La classe concrète.
-     */
-    private function alias(string $alias, string $concrete): void
-    {
-        $this->set($alias, fn ($c) => $c->get($concrete));
     }
 }

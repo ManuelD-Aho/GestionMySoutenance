@@ -17,7 +17,6 @@ use App\Backend\Util\FormValidator;
 use App\Backend\Util\DatabaseSessionHandler;
 
 // --- Importation des Interfaces de Service ---
-// Seules les interfaces nécessaires pour le mapping sont ici.
 use App\Backend\Service\Interface\AdministrationRBACServiceInterface;
 use App\Backend\Service\Interface\AnneeAcademiqueServiceInterface;
 use App\Backend\Service\Interface\AuditServiceInterface;
@@ -53,7 +52,6 @@ use App\Backend\Service\Interface\SupervisionAdminServiceInterface;
 use App\Backend\Service\Interface\TransitionRoleServiceInterface;
 
 // --- Importation des Implémentations de Service ---
-// Uniquement pour le mapping Interface -> Implémentation.
 use App\Backend\Service\AdministrationRBACService;
 use App\Backend\Service\ServiceAnneeAcademique;
 use App\Backend\Service\ServiceAudit;
@@ -91,8 +89,6 @@ use App\Backend\Service\ServiceTransitionRole;
 /**
  * Conteneur d'Injection de Dépendances par Auto-Wiring.
  *
- * Rédigé le : 2025-06-29 14:11:33 UTC par ManuelD-Aho
- *
  * Ce conteneur utilise la réflexion pour automatiquement découvrir et instancier
  * les classes (Contrôleurs, Services, Modèles) en résolvant leurs dépendances
  * via les types déclarés dans leurs constructeurs.
@@ -104,7 +100,8 @@ class Container
     private array $definitions = [];
 
     /**
-     * @var array La seule configuration manuelle requise : mapper les interfaces à leurs implémentations.
+     * La seule configuration manuelle requise : mapper les interfaces à leurs implémentations.
+     * C'est le cœur du découplage de l'application.
      */
     private const SERVICE_INTERFACE_MAP = [
         AdministrationRBACServiceInterface::class => AdministrationRBACService::class,
@@ -147,34 +144,21 @@ class Container
         $this->registerInfrastructure();
     }
 
-    /**
-     * Enregistre l'infrastructure de base (BDD, Session, etc.).
-     */
     private function registerInfrastructure(): void
     {
         $this->set(PDO::class, fn () => Database::getInstance()->getConnection());
-        $this->set(DatabaseSessionHandler::class, fn ($c) => new DatabaseSessionHandler($c->get(PDO::class)));
+        $this->set(DatabaseSessionHandler::class, fn ($c) => new DatabaseSessionHandler());
         $this->set(FormValidator::class, fn () => new FormValidator());
     }
 
-    /**
-     * Récupère une instance. Si elle n'existe pas, la construit par auto-wiring.
-     * C'est le cœur du conteneur.
-     *
-     * @param string $id Le nom complet de la classe ou de l'interface.
-     * @return mixed L'instance demandée.
-     * @throws Exception Si une dépendance ne peut être résolue.
-     */
     public function get(string $id)
     {
-        // Si c'est une interface, trouve sa classe concrète correspondante.
         $className = self::SERVICE_INTERFACE_MAP[$id] ?? $id;
 
         if (isset($this->instances[$className])) {
             return $this->instances[$className];
         }
 
-        // Si une définition manuelle existe (pour PDO par ex.), on l'utilise.
         if (isset($this->definitions[$className])) {
             $this->instances[$className] = $this->definitions[$className]($this);
             return $this->instances[$className];
@@ -186,12 +170,11 @@ class Container
 
         $reflector = new ReflectionClass($className);
         if (!$reflector->isInstantiable()) {
-            throw new Exception("La classe {$className} n'est pas instanciable.");
+            throw new Exception("La classe {$className} n'est pas instanciable. Avez-vous mappé son interface dans le conteneur ?");
         }
 
         $constructor = $reflector->getConstructor();
         if (is_null($constructor)) {
-            // Pas de constructeur, simple instanciation.
             $this->instances[$className] = new $className();
             return $this->instances[$className];
         }
@@ -202,15 +185,17 @@ class Container
         foreach ($parameters as $parameter) {
             $type = $parameter->getType();
             if (!$type instanceof ReflectionNamedType || $type->isBuiltin()) {
+                if ($parameter->isDefaultValueAvailable()) {
+                    $dependencies[] = $parameter->getDefaultValue();
+                    continue;
+                }
                 throw new Exception("Impossible de résoudre le paramètre non-typé ou scalaire '{$parameter->getName()}' dans le constructeur de {$className}.");
             }
-            // Résolution récursive des dépendances.
             $dependencies[] = $this->get($type->getName());
         }
 
         $this->instances[$className] = $reflector->newInstanceArgs($dependencies);
 
-        // Si on a demandé une interface, on garde aussi l'instance sous la clé de l'interface.
         if ($id !== $className) {
             $this->instances[$id] = $this->instances[$className];
         }
@@ -218,9 +203,6 @@ class Container
         return $this->instances[$className];
     }
 
-    /**
-     * Enregistre manuellement une définition.
-     */
     private function set(string $id, callable $factory): void
     {
         $this->definitions[$id] = $factory;

@@ -72,38 +72,31 @@ if (!file_exists(ROOT_PATH . '/vendor/autoload.php')) {
 require_once ROOT_PATH . '/vendor/autoload.php';
 
 try {
-    // Détecter l'environnement
-    $appEnv = getenv('APP_ENV') ?: 'development'; // Par défaut 'development' si non défini
-
-    // Charger le fichier .env spécifique à l'environnement
+    $appEnv = getenv('APP_ENV') ?: 'development';
     $envFile = ROOT_PATH . '/.env.' . $appEnv;
+
     if (file_exists($envFile)) {
         $dotenv = Dotenv\Dotenv::createImmutable(ROOT_PATH, '.env.' . $appEnv);
         $dotenv->load();
-    } else {
-        // Fallback pour le fichier .env général si les spécifiques n'existent pas
-        // Utile pour les setups locaux simples ou si .env est géré différemment
-        if (file_exists(ROOT_PATH . '/.env')) {
-            $dotenv = Dotenv\Dotenv::createImmutable(ROOT_PATH);
-            $dotenv->load();
-        }
+    } elseif (file_exists(ROOT_PATH . '/.env')) {
+        $dotenv = Dotenv\Dotenv::createImmutable(ROOT_PATH);
+        $dotenv->load();
     }
 } catch (\Throwable $e) {
     http_response_code(503);
-    echo "<h1>Erreur Critique de Configuration</h1><p>Impossible de charger le fichier .env.</p>";
     error_log("Erreur Dotenv: " . $e->getMessage());
+    echo "<h1>Erreur Critique de Configuration</h1><p>Impossible de charger le fichier d'environnement.</p>";
     exit;
 }
 
-// Configuration de l'affichage des erreurs en fonction de l'environnement
-if ($appEnv === 'development') {
+if (getenv('APP_ENV') === 'development') {
     ini_set('display_errors', '1');
     ini_set('display_startup_errors', '1');
     error_reporting(E_ALL);
 } else {
     ini_set('display_errors', '0');
     ini_set('display_startup_errors', '0');
-    error_reporting(0); // Désactiver l'affichage des erreurs en production
+    error_reporting(0);
 }
 
 use App\Backend\Util\DatabaseSessionHandler;
@@ -111,16 +104,14 @@ use App\Config\Container;
 
 $container = new Container();
 
-// Configuration du gestionnaire de session
 $handler = $container->get(DatabaseSessionHandler::class);
 session_set_save_handler($handler, true);
 
-// Configuration des paramètres de cookie de session
 session_set_cookie_params([
-    'lifetime' => (int)($_ENV['SESSION_LIFETIME'] ?? 3600),
+    'lifetime' => (int)(getenv('SESSION_LIFETIME') ?: 3600),
     'path' => '/',
-    'domain' => $_ENV['SESSION_DOMAIN'] ?? $_SERVER['SERVER_NAME'],
-    'secure' => ($_ENV['APP_ENV'] === 'production'), // Utiliser HTTPS en production
+    'domain' => getenv('SESSION_DOMAIN') ?: $_SERVER['SERVER_NAME'],
+    'secure' => (getenv('APP_ENV') === 'production'),
     'httponly' => true,
     'samesite' => 'Lax'
 ]);
@@ -176,16 +167,22 @@ try {
 
                 call_user_func_array([$controllerInstance, $methodName], $vars);
             } else {
-                throw new \RuntimeException("Gestionnaire de route mal configuré ou classe/méthode introuvable pour URI: " . htmlspecialchars($uri));
+                throw new \RuntimeException("Gestionnaire de route mal configuré ou classe/méthode introuvable pour l'URI: " . htmlspecialchars($uri));
             }
             break;
     }
+} catch (\App\Backend\Exception\PermissionException $e) {
+    http_response_code(403);
+    error_log("Permission Denied: " . $e->getMessage());
+    include ROOT_PATH . '/src/Frontend/views/errors/403.php';
 } catch (\Throwable $e) {
     http_response_code(500);
     error_log("Erreur non interceptée: " . $e->getMessage() . " dans " . $e->getFile() . ":" . $e->getLine() . "\n" . $e->getTraceAsString());
-    if ($appEnv === 'development') {
-        echo "<h1>Erreur 500</h1><p>Détails: " . htmlspecialchars($e->getMessage()) . "</p>";
-        echo "<pre>" . htmlspecialchars($e->getTraceAsString()) . "</pre>";
+    if (getenv('APP_ENV') === 'development') {
+        echo "<h1>Erreur 500 - Erreur Interne du Serveur</h1>";
+        echo "<p><strong>Message:</strong> " . htmlspecialchars($e->getMessage()) . "</p>";
+        echo "<p><strong>Fichier:</strong> " . htmlspecialchars($e->getFile()) . " (ligne " . $e->getLine() . ")</p>";
+        echo "<h2>Trace de la pile :</h2><pre>" . htmlspecialchars($e->getTraceAsString()) . "</pre>";
     } else {
         include ROOT_PATH . '/src/Frontend/views/errors/500.php';
     }

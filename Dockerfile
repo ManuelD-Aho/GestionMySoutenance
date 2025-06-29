@@ -84,6 +84,7 @@ COPY --from=builder /app/vendor/ /var/www/html/vendor/
 COPY --from=builder /app/composer.json /var/www/html/composer.json
 COPY --from=builder /app/composer.lock /var/www/html/composer.lock
 
+RUN mkdir -p /var/log && touch /var/log/xdebug.log && chown www-data:www-data /var/log/xdebug.log
 RUN mkdir -p /var/www/html/Public/uploads \
              /var/www/html/var/cache \
              /var/www/html/var/log \
