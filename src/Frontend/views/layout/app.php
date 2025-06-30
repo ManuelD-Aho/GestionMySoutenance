@@ -1,168 +1,104 @@
+<?php
+// src/Frontend/views/layout/app.php
+
+// Fonction d'échappement HTML, au cas où elle ne serait pas déjà définie globalement
+if (!function_exists('e')) {
+    function e($value) {
+        return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
+    }
+}
+
+// $pageTitle doit être défini par le contrôleur de la vue spécifique chargée
+// Si non défini, on fournit un titre par défaut
+$pageTitle = $pageTitle ?? 'GestionMySoutenance - Tableau de Bord';
+
+// Démarrer la session si ce n'est pas déjà fait pour que $_SESSION soit disponible
+if (session_status() == PHP_SESSION_NONE) {
+    session_start();
+}
+
+// Les messages flash doivent être récupérés et effacés APRES leur affichage
+// Ici, on les passe comme une variable au header ou au main content
+$flash_messages = $_SESSION['flash_messages'] ?? [];
+unset($_SESSION['flash_messages']); // Effacer après récupération
+
+// Passer les messages flash à la vue pour qu'elle puisse les afficher (ou un composant global)
+$data['flash_messages'] = $flash_messages;
+
+// Récupérer l'URL courante pour que le menu puisse marquer l'élément actif
+$current_url = $_SERVER['REQUEST_URI'];
+$current_url = strtok($current_url, '?'); // Nettoyer les paramètres GET
+?>
 <!DOCTYPE html>
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GestionMySoutenance - <?php echo $page_title ?? 'Accueil'; ?></title>
-    <!-- Incluez Font Awesome pour les icônes -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" xintegrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A==" crossorigin="anonymous" referrerpolicy="no-referrer" />
-    <!-- Optionnel: Lien vers vos fichiers CSS globaux existants -->
-    <link rel="stylesheet" href="/Public/assets/css/style.css">
-    <link rel="stylesheet" href="/Public/assets/css/dashboard_style.css">
-    <link rel="stylesheet" href="/Public/assets/css/gestionsoutenance-dashboard.css">
-    <!-- Remplacez les styles de menu et d'en-tête que nous avons mis en ligne par ces liens si vous les externalisez -->
-    <!-- <link rel="stylesheet" href="/Public/assets/css/dynamic_menu.css"> -->
-    <!-- <link rel="stylesheet" href="/Public/assets/css/dashboard_header.css"> -->
-    <style>
-        /* Styles pour le corps et la structure principale du layout */
-        body {
-            margin: 0;
-            font-family: 'Inter', sans-serif;
-            background-color: #f2f5f9;
-            display: flex;
-            min-height: 100vh;
-            overflow: hidden; /* Empêche le défilement global non désiré */
-        }
+    <title><?= e($pageTitle); ?></title>
 
-        .sidebar {
-            width: 250px; /* Largeur fixe pour la barre latérale */
-            flex-shrink: 0; /* Empêche la barre latérale de rétrécir */
-            background-color: #2c3e50; /* Couleur de fond sombre pour le menu */
-            padding: 20px 0;
-            display: flex;
-            flex-direction: column;
-            box-shadow: 2px 0 5px rgba(0,0,0,0.1); /* Ombre à droite de la sidebar */
-            z-index: 1000; /* Assure que la sidebar est au-dessus d'autres éléments */
-            transition: transform 0.3s ease-in-out; /* Animation pour l'ouverture/fermeture sur mobile */
-            border-radius: 0 8px 8px 0; /* Coins arrondis côté droit */
-        }
-
-        /* DEBUG: Ajout de bordures pour voir le conteneur du sidebar */
-        .sidebar {
-            border: 2px solid red !important; /* Temporaire pour le débogage */
-        }
-        .main-content-wrapper {
-            border: 2px solid blue !important; /* Temporaire pour le débogage */
-        }
-
-
-        .sidebar.collapsed {
-            transform: translateX(-100%); /* Cache la sidebar sur mobile */
-            position: absolute; /* Permet de la cacher hors de l'écran */
-        }
-
-        .sidebar-header {
-            padding: 0 20px 20px 20px;
-            display: flex;
-            align-items: center;
-            color: #ecf0f1;
-            font-size: 1.4em;
-            font-weight: 700;
-            border-bottom: 1px solid rgba(255,255,255,0.1);
-            margin-bottom: 20px;
-        }
-
-        .sidebar-header .logo {
-            width: 40px;
-            height: 40px;
-            border-radius: 8px;
-            margin-right: 10px;
-            background-color: #4CAF50;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-size: 1.2em;
-        }
-
-        .main-content-wrapper {
-            flex-grow: 1;
-            display: flex;
-            flex-direction: column;
-            overflow-y: auto;
-            padding: 0 15px 15px 15px;
-            padding-left: 0;
-            box-sizing: border-box;
-        }
-
-        .main-content-area {
-            flex-grow: 1;
-            background-color: #ffffff;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
-        }
-
-        @media (max-width: 768px) {
-            .sidebar {
-                width: 200px;
-                position: fixed;
-                height: 100vh;
-                top: 0;
-                left: 0;
-                transform: translateX(-100%);
-            }
-            .sidebar.active {
-                transform: translateX(0);
-            }
-            .main-content-wrapper {
-                padding-left: 0;
-                width: 100%;
-            }
-            .dashboard-header .menu-toggle {
-                display: block;
-            }
-        }
-    </style>
+    <link rel="stylesheet" href="/assets/css/root.css">
+    <link rel="stylesheet" href="/assets/css/style.css"> <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 </head>
-<body>
-<div class="sidebar">
-    <div class="sidebar-header">
-        <div class="logo">GS</div>
-        GestionMySoutenance
-    </div>
-    <?php
-    // Inclure votre menu dynamique ici
-    // CORRECTION DU CHEMIN: Remonter d'un dossier (..) pour trouver 'common/menu.php'
-    require_once __DIR__ . '/../common/menu.php';
-    ?>
+<body class="sidebar-open"> <?php
+// Inclusion du header
+// Passe $pageTitle et d'autres données nécessaires au header
+// Assurez-vous que les variables $currentUser, $notificationCount, etc. sont disponibles
+// soit par $_SESSION directement, soit passées via $data au header.php
+$header_data = [
+    'pageTitle' => $pageTitle,
+    // D'autres variables comme $currentUser, $notificationCount etc. seront lues directement par header.php via $_SESSION
+];
+require_once __DIR__ . '/common/header.php';
+?>
 
-</div>
+<?php
+// Inclusion du menu latéral
+// Passe les données nécessaires au menu pour la construction dynamique
+$menu_data = [
+    'current_url' => $current_url,
+    // Les permissions et user_data sont lues directement par menu.php via $_SESSION
+];
+require_once __DIR__ . '/common/menu.php';
+?>
 
-<div class="main-content-wrapper">
+<main class="main-content-area" id="mainContentArea">
     <?php
-    // Inclure l'en-tête du tableau de bord
-    require_once __DIR__ . '/../common/header.php';
+    // Cette variable $content doit être définie par le routeur/contrôleur
+    // qui inclut ce layout et charge la vue spécifique.
+    if (isset($content)) {
+        require_once $content; // $content devrait être le chemin absolu vers la vue (ex: __DIR__ . '/Administration/dashboard_admin.php')
+    } else {
+        // Fallback si aucun contenu n'est fourni (peut être utile pour le débogage)
+        echo '<div class="admin-module-container admin-card text-center mt-xl">';
+        echo '<h2>Contenu de la page non chargé.</h2>';
+        echo '<p class="text-muted">Veuillez vérifier le routeur ou le contrôleur qui utilise ce layout.</p>';
+        echo '</div>';
+    }
     ?>
-    <div class="main-content-area">
-        <?php
-        if (isset($content) && !empty($content)) {
-            echo $content;
-        } else {
-            echo '<h1>Bienvenue dans votre tableau de bord !</h1>';
-            echo '<p>Sélectionnez une option dans le menu latéral.</p>';
-        }
-        ?>
-    </div>
-</div>
+</main>
+
+<script src="/assets/js/main.js"></script> <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <script>
-    // Script pour gérer le toggle de la sidebar sur mobile
     document.addEventListener('DOMContentLoaded', function() {
-        const menuToggleButton = document.querySelector('.menu-toggle');
-        const sidebar = document.querySelector('.sidebar');
+        // Initialisation de la page titre dans le header via la fonction globale
+        if (typeof DashboardHeader !== 'undefined' && typeof DashboardHeader.updatePageTitle === 'function') {
+            DashboardHeader.updatePageTitle(<?= json_encode($pageTitle); ?>);
+        }
 
-        if (menuToggleButton && sidebar) {
-            menuToggleButton.addEventListener('click', function() {
-                sidebar.classList.toggle('active');
-            });
-
-            // Fermer la sidebar si on clique en dehors quand elle est ouverte (sur mobile)
-            document.addEventListener('click', function(event) {
-                if (!sidebar.contains(event.target) && !menuToggleButton.contains(event.target) && sidebar.classList.contains('active')) {
-                    sidebar.classList.remove('active');
+        // Gestion de l'affichage des messages flash globaux (si pas déjà affichés par une vue spécifique)
+        const globalFlashMessages = <?= json_encode($flash_messages); ?>;
+        if (Object.keys(globalFlashMessages).length > 0) {
+            for (const type in globalFlashMessages) {
+                if (globalFlashMessages.hasOwnProperty(type) && globalFlashMessages[type]) {
+                    // Supposons une fonction showNotification globale dans main.js qui peut afficher ces messages
+                    if (typeof DashboardHeader !== 'undefined' && typeof DashboardHeader.showNotification === 'function') {
+                        DashboardHeader.showNotification(globalFlashMessages[type], type);
+                    } else {
+                        console.warn('DashboardHeader.showNotification non disponible pour les messages flash.');
+                    }
                 }
-            });
+            }
         }
     });
 </script>

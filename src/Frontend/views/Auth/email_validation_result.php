@@ -1,252 +1,78 @@
 <?php
-// src/Frontend/views/Auth/email_validation_result.php - Version corrigée
+// src/Frontend/views/Auth/email_validation_result.php
+
+// Fonction d'échappement HTML pour sécuriser l'affichage
+if (!function_exists('e')) {
+    function e($value) {
+        return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
+    }
+}
+
 // Variables attendues du contrôleur :
-// $title (string) - Titre de la page (ex: 'Validation Email Réussie', 'Validation Email Échouée')
-// $flash_messages (array) - Messages flash (success, error, warning, info)
-// $validation_status (bool) - Vrai si la validation a réussi, Faux sinon (peut être passé par le contrôleur)
-// $message (string) - Message spécifique à afficher (alternative aux flash messages si plus direct)
+// $pageTitle (string) - Titre de la page (ex: 'Validation Email Réussie', 'Validation Email Échouée')
+// $flash_messages (array) - Tableau associatif des messages flash (ex: ['success' => 'Votre email a été validé.'])
+// $validation_status (bool) - Vrai si la validation a réussi, Faux sinon.
+// $message (string) - Message spécifique à afficher (si pas de flash messages).
 
-// Assurer la compatibilité avec le layout app.php qui attend $pageTitle
-if (!isset($pageTitle) && isset($title)) {
-    $pageTitle = $title;
+// Assurer les valeurs par défaut
+$pageTitle = $data['pageTitle'] ?? 'Résultat de la validation d\'Email';
+$flash_messages = $data['flash_messages'] ?? [];
+$validation_status = $data['validation_status'] ?? false; // Par défaut, échoué
+$display_message = $data['message'] ?? '';
+
+// Déterminer si des messages flash existent pour les afficher en priorité
+$has_flash_messages = !empty(array_filter($flash_messages));
+
+// Si aucun message direct ni flash message, fournir un message par défaut
+if (!$has_flash_messages && empty($display_message)) {
+    $display_message = $validation_status ? 'Votre adresse email a été validée avec succès.' : 'La validation de votre email a échoué. Veuillez réessayer ou contacter le support.';
+    // Définir le type d'alerte par défaut si le message n'est pas flashé
+    $default_alert_type = $validation_status ? 'success' : 'error';
 }
 
-// Déterminer un message par défaut si aucun message flash n'est présent
-$display_message = $message ?? '';
-
-// Check if there are any flash messages to display, and prioritize them
-$has_flash_messages = false;
-if (isset($flash_messages) && is_array($flash_messages)) {
-    foreach ($flash_messages as $msg) {
-        if (!empty($msg)) {
-            $has_flash_messages = true;
-            break;
-        }
-    }
-}
 ?>
-
-<style>
-    /* Reset CSS */
-    .email-validation-container * {
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
-        font-family: 'Segoe UI', 'Roboto', sans-serif;
-    }
-
-    .email-validation-container {
-        background: linear-gradient(135deg, #f0f7ff, #e1eeff);
-        min-height: 100vh;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        padding: 20px;
-    }
-
-    .email-validation-wrapper {
-        width: 100%;
-        max-width: 500px;
-        animation: fadeIn 0.6s ease-out;
-    }
-
-    @keyframes fadeIn {
-        from { opacity: 0; transform: translateY(20px); }
-        to { opacity: 1; transform: translateY(0); }
-    }
-
-    .email-validation-card {
-        background: white;
-        border-radius: 16px;
-        box-shadow: 0 15px 35px rgba(50, 120, 220, 0.15);
-        overflow: hidden;
-        padding: 40px;
-        position: relative;
-        z-index: 1;
-    }
-
-    .email-validation-card::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        height: 6px;
-        background: linear-gradient(90deg, #3b82f6, #60a5fa);
-        z-index: 2;
-    }
-
-    .email-validation-header {
-        text-align: center;
-        margin-bottom: 30px;
-        position: relative;
-        padding-top: 20px;
-    }
-
-    .email-validation-header h1 {
-        font-size: 28px;
-        font-weight: 700;
-        color: #1e3a8a;
-        margin-bottom: 10px;
-        letter-spacing: -0.5px;
-    }
-
-    .email-validation-icon {
-        font-size: 80px;
-        margin-bottom: 25px;
-        display: block;
-        text-align: center;
-    }
-
-    .icon-success {
-        color: #10b981;
-    }
-
-    .icon-error {
-        color: #ef4444;
-    }
-
-    .email-validation-alert {
-        padding: 20px;
-        border-radius: 12px;
-        margin-bottom: 30px;
-        font-size: 17px;
-        text-align: center;
-        line-height: 1.6;
-        animation: slideIn 0.4s ease;
-        position: relative;
-        overflow: hidden;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
-    }
-
-    @keyframes slideIn {
-        from { opacity: 0; transform: translateY(-20px); }
-        to { opacity: 1; transform: translateY(0); }
-    }
-
-    .email-validation-alert::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        height: 100%;
-        width: 6px;
-    }
-
-    .alert-success {
-        background-color: rgba(16, 185, 129, 0.08);
-        border-left: 4px solid #10b981;
-        color: #047857;
-    }
-
-    .alert-error {
-        background-color: rgba(239, 68, 68, 0.08);
-        border-left: 4px solid #ef4444;
-        color: #b91c1c;
-    }
-
-    .alert-warning {
-        background-color: rgba(245, 158, 11, 0.08);
-        border-left: 4px solid #f59e0b;
-        color: #b45309;
-    }
-
-    .alert-info {
-        background-color: rgba(59, 130, 246, 0.08);
-        border-left: 4px solid #3b82f6;
-        color: #1d4ed8;
-    }
-
-    .email-validation-link {
-        display: block;
-        text-align: center;
-        color: #3b82f6;
-        font-weight: 600;
-        font-size: 16px;
-        text-decoration: none;
-        transition: all 0.25s ease;
-        margin-top: 25px;
-        padding: 12px 20px;
-        border-radius: 10px;
-        background: rgba(59, 130, 246, 0.1);
-        max-width: 280px;
-        margin: 30px auto 0;
-    }
-
-    .email-validation-link:hover {
-        color: #1e40af;
-        background-color: rgba(59, 130, 246, 0.2);
-        text-decoration: none;
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
-    }
-
-    .email-validation-footer {
-        text-align: center;
-        margin-top: 40px;
-        color: #64748b;
-        font-size: 14px;
-        padding: 0 20px;
-    }
-
-    /* Responsive */
-    @media (max-width: 576px) {
-        .email-validation-card {
-            padding: 30px 25px;
-        }
-
-        .email-validation-header h1 {
-            font-size: 24px;
-        }
-
-        .email-validation-alert {
-            padding: 16px;
-            font-size: 16px;
-        }
-
-        .email-validation-icon {
-            font-size: 60px;
-        }
-    }
-</style>
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><?= e($pageTitle) ?> - GestionMySoutenance</title>
+    <link rel="stylesheet" href="/assets/css/root.css">
+    <link rel="stylesheet" href="/assets/css/auth.css">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+</head>
+<body>
 
 <div class="email-validation-container">
     <div class="email-validation-wrapper">
         <div class="email-validation-card">
             <div class="email-validation-header">
-                <h1><?= htmlspecialchars($pageTitle ?? 'Résultat de la validation d\'Email', ENT_QUOTES, 'UTF-8') ?></h1>
+                <h1><?= e($pageTitle) ?></h1>
             </div>
 
             <?php
-            // Afficher une icône en fonction du statut
-            if ($validation_status ?? false) {
-                echo '<span class="email-validation-icon icon-success">✓</span>';
+            // Afficher une icône en fonction du statut de validation
+            if ($validation_status) {
+                echo '<span class="email-validation-icon icon-success"><span class="material-icons">check_circle</span></span>';
             } else {
-                echo '<span class="email-validation-icon icon-error">✕</span>';
+                echo '<span class="email-validation-icon icon-error"><span class="material-icons">cancel</span></span>';
             }
             ?>
 
             <?php
-            // Affichage des messages flash (passés par BaseController via $flash_messages)
+            // Affichage des messages (priorité aux flash messages)
             if ($has_flash_messages) {
-                foreach ($flash_messages as $type => $msg) {
-                    if (!empty($msg)) {
-                        echo '<div class="email-validation-alert alert-' . htmlspecialchars($type, ENT_QUOTES, 'UTF-8') . '" role="alert">';
-                        echo '<span class="block sm:inline">' . htmlspecialchars($msg, ENT_QUOTES, 'UTF-8') . '</span>';
+                foreach ($flash_messages as $type => $msg_content) {
+                    if (!empty($msg_content)) {
+                        echo '<div class="email-validation-alert alert-' . e($type) . '" role="alert">';
+                        echo e($msg_content);
                         echo '</div>';
                     }
                 }
             } elseif (!empty($display_message)) {
-                // Si pas de flash messages, afficher le message direct passé par le contrôleur
-                // Style basé sur le statut si passé, sinon un message générique
-                $alert_class = ($validation_status ?? false) ? 'alert-success' : 'alert-error';
-                echo '<div class="email-validation-alert ' . $alert_class . '" role="alert">';
-                echo '<span class="block sm:inline">' . htmlspecialchars($display_message, ENT_QUOTES, 'UTF-8') . '</span>';
-                echo '</div>';
-            } else {
-                // Message par défaut si rien n'est spécifié
-                echo '<div class="email-validation-alert alert-info" role="alert">';
-                echo '<span class="block sm:inline">Vérification de l\'email en cours ou résultat non spécifié.</span>';
+                // Si pas de flash messages, afficher le message direct
+                echo '<div class="email-validation-alert alert-' . e($default_alert_type ?? 'info') . '" role="alert">';
+                echo e($display_message);
                 echo '</div>';
             }
             ?>
@@ -256,10 +82,17 @@ if (isset($flash_messages) && is_array($flash_messages)) {
             </a>
 
             <div class="email-validation-footer">
-                <p class="text-center text-gray-500 text-xs">
-                    &copy;<?= date('Y') ?> GestionMySoutenance. Tous droits réservés.
-                </p>
+                <p>&copy;<?= date('Y') ?> GestionMySoutenance. Tous droits réservés.</p>
             </div>
         </div>
     </div>
 </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Aucune logique JavaScript complexe n'est généralement nécessaire pour cette page statique de résultat.
+        // Les messages sont affichés directement via PHP.
+    });
+</script>
+</body>
+</html>
