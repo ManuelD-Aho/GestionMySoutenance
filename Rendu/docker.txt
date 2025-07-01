@@ -1,0 +1,111 @@
+
+/***********************************************************************************
+ * Fichier: docker\apache\apache-vhost.conf
+ ***********************************************************************************/
+
+
+<VirtualHost *:80>
+    ServerAdmin webmaster@localhost
+    DocumentRoot /var/www/html/Public
+
+    <Directory /var/www/html/Public>
+        Options Indexes FollowSymLinks
+        AllowOverride All
+        Require all granted
+    </Directory>
+
+    ErrorLog ${APACHE_LOG_DIR}/error.log
+    CustomLog ${APACHE_LOG_DIR}/access.log combined
+</VirtualHost>
+
+/***********************************************************************************
+ * Fichier: docker\nginx\conf.d\default.conf
+ ***********************************************************************************/
+
+server {
+    listen 80;
+    server_name localhost;
+    root /var/www/html/Public;
+
+    index index.php index.html index.htm;
+
+    charset utf-8;
+   # Configuration pour mobile
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location ~ \.php$ {
+        fastcgi_pass app:9000;
+        fastcgi_index index.php;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        fastcgi_param SERVER_NAME $host;
+        include fastcgi_params;
+        fastcgi_buffers 16 16k;
+        fastcgi_buffer_size 32k;
+        fastcgi_read_timeout 300;
+    }
+
+    location ~ /\.ht {
+        deny all;
+    }
+
+    location ~ /(src|vendor|config|routes|var)/ {
+        deny all;
+        return 404;
+    }
+
+    location ~ /\.env {
+        deny all;
+        return 404;
+    }
+
+    location ~* \.(css|js|jpg|jpeg|gif|png|svg|ico)$ {
+        expires 30d;
+        add_header Cache-Control "public, no-transform";
+        try_files $uri =404;
+    }
+
+    error_log /var/log/nginx/error.log;
+    access_log /var/log/nginx/access.log;
+}
+
+/***********************************************************************************
+ * Fichier: docker\php\php.ini
+ ***********************************************************************************/
+
+[PHP]
+display_errors = On
+display_startup_errors = On
+error_reporting = E_ALL
+log_errors = On
+error_log = /var/log/php_errors.log
+
+[Date]
+date.timezone = Europe/Paris
+
+[Session]
+session.save_handler = files
+session.save_path = "/var/lib/php/sessions"
+session.gc_probability = 1
+session.gc_divisor = 1000
+session.gc_maxlifetime = 3600
+
+[Upload]
+upload_max_filesize = 32M
+post_max_size = 32M
+max_file_uploads = 20
+
+[Memory]
+memory_limit = 256M
+
+[Xdebug]
+xdebug.mode = debug,develop
+xdebug.start_with_request = yes
+xdebug.client_host = host.docker.internal
+xdebug.client_port = 9003
+xdebug.log = /var/log/xdebug.log

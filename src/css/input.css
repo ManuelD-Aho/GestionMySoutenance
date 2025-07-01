@@ -1,0 +1,36 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Vous pouvez ajouter ici vos styles personnalisés ou surcharger des classes Tailwind.
+ * Par exemple, pour définir des styles de base pour le corps de la page.
+*/
+@layer base {
+    body {
+        @apply bg-slate-100 font-sans text-slate-800;
+    }
+}
+
+/*
+ * Création de composants personnalisés avec @apply.
+ * C'est utile pour réutiliser des ensembles de classes.
+*/
+@layer components {
+    .auth-card {
+        @apply w-full max-w-md bg-white rounded-2xl shadow-xl p-8 transition-all duration-500;
+    }
+    .form-label {
+        @apply block text-sm font-medium text-slate-600 mb-1;
+    }
+    .form-input {
+        @apply block w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-lg shadow-sm placeholder-slate-400
+        focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500;
+    }
+    .btn-primary {
+        @apply w-full inline-flex justify-center items-center px-6 py-3 border border-transparent
+        text-base font-medium rounded-lg shadow-sm text-white bg-blue-600
+        hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500
+        transition-transform transform hover:scale-105;
+    }
+}

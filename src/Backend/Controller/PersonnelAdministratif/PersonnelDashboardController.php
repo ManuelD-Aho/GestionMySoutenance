@@ -1,92 +1,52 @@
 <?php
+// src/Backend/Controller/PersonnelAdministratif/PersonnelDashboardController.php
+
 namespace App\Backend\Controller\PersonnelAdministratif;
 
 use App\Backend\Controller\BaseController;
-use App\Backend\Service\Authentication\ServiceAuthentication;
-use App\Backend\Service\Permissions\ServicePermissions;
+use App\Backend\Service\WorkflowSoutenance\ServiceWorkflowSoutenanceInterface;
+use App\Backend\Service\Utilisateur\ServiceUtilisateurInterface;
+use App\Backend\Service\Securite\ServiceSecuriteInterface;
+use App\Backend\Service\Supervision\ServiceSupervisionInterface;
 use App\Backend\Util\FormValidator;
-use App\Backend\Service\Conformite\ServiceConformite; // Importer le service
-use App\Backend\Service\GestionAcademique\ServiceGestionAcademique; // Importer le service
-use App\Backend\Service\Reclamation\ServiceReclamation; // Importer le service
-use App\Backend\Service\Notification\ServiceNotification; // Importer le service
-use App\Backend\Exception\ElementNonTrouveException;
-use App\Backend\Exception\OperationImpossibleException;
 
 class PersonnelDashboardController extends BaseController
 {
-    private ServiceConformite $conformiteService;
-    private ServiceGestionAcademique $gestionAcadService;
-    private ServiceReclamation $reclamationService;
-    private ServiceNotification $notificationService;
+    private ServiceWorkflowSoutenanceInterface $serviceWorkflow;
+    private ServiceUtilisateurInterface $serviceUtilisateur;
 
     public function __construct(
-        ServiceAuthentication    $authService,
-        ServicePermissions       $permissionService,
-        FormValidator            $validator,
-        ServiceConformite        $conformiteService,
-        ServiceGestionAcademique $gestionAcadService,
-        ServiceReclamation       $reclamationService,
-        ServiceNotification      $notificationService
+        ServiceSecuriteInterface $serviceSecurite,
+        ServiceSupervisionInterface $serviceSupervision,
+        FormValidator $formValidator,
+        ServiceWorkflowSoutenanceInterface $serviceWorkflow,
+        ServiceUtilisateurInterface $serviceUtilisateur
     ) {
-        parent::__construct($authService, $permissionService, $validator);
-        $this->conformiteService = $conformiteService;
-        $this->gestionAcadService = $gestionAcadService;
-        $this->reclamationService = $reclamationService;
-        $this->notificationService = $notificationService;
+        parent::__construct($serviceSecurite, $serviceSupervision, $formValidator);
+        $this->serviceWorkflow = $serviceWorkflow;
+        $this->serviceUtilisateur = $serviceUtilisateur;
     }
 
     /**
      * Affiche le tableau de bord pour le personnel administratif.
+     * Le contenu est adapté en fonction du rôle (Agent de conformité ou RS).
      */
     public function index(): void
     {
-        $this->requirePermission('TRAIT_PERS_ADMIN_DASHBOARD_ACCEDER'); // Exiger la permission
+        $this->checkPermission('TRAIT_PERS_ADMIN_DASHBOARD_ACCEDER');
+        $user = $this->serviceSecurite->getUtilisateurConnecte();
+        $data = ['title' => 'Tableau de Bord Administratif'];
 
         try {
-            $currentUser = $this->getCurrentUser();
-            if (!$currentUser || $currentUser['id_type_utilisateur'] !== 'TYPE_PERS_ADMIN') {
-                throw new OperationImpossibleException("Accès refusé. Non personnel administratif.");
+            if ($user['id_groupe_utilisateur'] === 'GRP_AGENT_CONFORMITE') {
+                $data['rapportsEnAttente'] = $this->serviceWorkflow->listerRapports(['id_statut_rapport' => 'RAP_SOUMIS']);
+            } elseif ($user['id_groupe_utilisateur'] === 'GRP_RS') {
+                $data['etudiantsAActiver'] = $this->serviceUtilisateur->listerUtilisateursComplets(['statut_compte' => 'en_attente_activation']);
             }
-            $numeroPersonnel = $currentUser['numero_utilisateur'];
-
-            // Rapports à vérifier (pour l'agent de conformité)
-            $rapportsAVerifierCount = count($this->conformiteService->recupererRapportsEnAttenteDeVerification());
-
-            // Réclamations en cours (pour le RS)
-            $reclamationsEnCoursCount = count($this->reclamationService->recupererToutesReclamations(['id_statut_reclamation' => ['operator' => 'in', 'values' => ['RECLAM_RECUE', 'RECLAM_EN_COURS']]]));
-
-            // Pénalités à régulariser (pour le RS)
-            // Note: La méthode doit être dans GestionAcademique
-            // $penalitesADueCount = count($this->gestionAcadService->listerPenalites(['id_statut_penalite' => 'PEN_DUE']));
-
-            // Notifications non lues
-            $notificationsNonLuesCount = $this->notificationService->compterNotificationsNonLues($numeroPersonnel);
-
-            $data = [
-                'page_title' => 'Tableau de Bord Personnel Administratif',
-                'rapports_a_verifier_count' => $rapportsAVerifierCount,
-                'reclamations_en_cours_count' => $reclamationsEnCoursCount,
-                'penalites_a_due_count' => 0, // Placeholder, à implémenter
-                'notifications_non_lues_count' => $notificationsNonLuesCount,
-                // Liens rapides vers les modules spécifiques
-                'links' => [
-                    ['label' => 'Vérification Conformité', 'url' => '/dashboard/personnel-admin/conformite'],
-                    ['label' => 'Gestion Scolarité', 'url' => '/dashboard/personnel-admin/scolarite'],
-                    ['label' => 'Gestion Réclamations', 'url' => '/dashboard/personnel-admin/reclamations'], // Peut être une section de Scolarité
-                    ['label' => 'Messagerie Interne', 'url' => '/dashboard/personnel-admin/communication'],
-                ]
-            ];
-            $this->render('PersonnelAdministratif/dashboard_personnel', $data);
+            $this->render('PersonnelAdministratif/dashboard_personnel.php', $data);
         } catch (\Exception $e) {
-            $this->setFlashMessage('error', "Erreur lors du chargement du tableau de bord: " . $e->getMessage());
-            $this->redirect('/dashboard');
+            $this->serviceSupervision->enregistrerAction($user['numero_utilisateur'], 'DASHBOARD_PERSONNEL_ERROR', null, null, ['error' => $e->getMessage()]);
+            $this->render('errors/500.php', ['error_message' => "Impossible de charger les données du tableau de bord."]);
         }
     }
-
-    // Les méthodes create(), update(), delete() génériques du template initial sont à supprimer.
-    /*
-    public function create(): void {}
-    public function update($id): void {}
-    public function delete($id): void {}
-    */
 }

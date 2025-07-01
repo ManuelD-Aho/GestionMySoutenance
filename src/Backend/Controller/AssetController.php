@@ -1,129 +1,120 @@
 <?php
+// src/Backend/Controller/AssetController.php
+
 namespace App\Backend\Controller;
 
-// AssetController ne dépend pas directement des services d'authentification/permissions/validator
-// Car il sert des fichiers statiques. Il peut être le seul à ne pas étendre BaseController.
-// Cependant, si vous voulez journaliser l'accès aux assets, il faudrait injecter ServiceSupervisionAdmin.
-// Pour cet exemple, je vais le faire étendre BaseController pour la cohérence des imports,
-// mais vous pouvez le faire "stand-alone" si vous le souhaitez.
-
-use App\Backend\Service\Authentication\ServiceAuthentication;
-use App\Backend\Service\Permissions\ServicePermissions;
+use App\Backend\Exception\PermissionException;
+use App\Backend\Service\Securite\ServiceSecuriteInterface;
+use App\Backend\Service\Supervision\ServiceSupervisionInterface;
+use App\Backend\Service\Systeme\ServiceSystemeInterface;
 use App\Backend\Util\FormValidator;
-use App\Backend\Service\SupervisionAdmin\ServiceSupervisionAdmin; // Ajout pour la journalisation (optionnel)
 
 class AssetController extends BaseController
 {
-    private ServiceSupervisionAdmin $supervisionService; // Optionnel, si vous voulez journaliser l'accès aux assets
+    private string $baseUploadPath;
+    private \App\Backend\Model\GenericModel $documentGenereModel;
 
     public function __construct(
-        ServiceAuthentication   $authService, // Ces services ne sont pas utilisés directement, mais requis par BaseController
-        ServicePermissions      $permissionService, // Idem
-        FormValidator           $validator, // Idem
-        ServiceSupervisionAdmin $supervisionService // Injection optionnelle
+        ServiceSecuriteInterface $serviceSecurite,
+        ServiceSupervisionInterface $serviceSupervision,
+        FormValidator $formValidator,
+        ServiceSystemeInterface $serviceSysteme,
+        \App\Config\Container $container
     ) {
-        parent::__construct($authService, $permissionService, $validator);
-        $this->supervisionService = $supervisionService;
+        parent::__construct($serviceSecurite, $serviceSupervision, $formValidator);
+        $this->baseUploadPath = $serviceSysteme->getParametre('UPLOADS_PATH_BASE', realpath(__DIR__ . '/../../../Public/uploads/'));
+        $this->documentGenereModel = $container->getModelForTable('document_genere');
     }
 
     /**
-     * Sert un fichier CSS spécifique.
-     * @param string $filename Le nom du fichier CSS à servir.
+     * Sert un fichier protégé après avoir vérifié les droits de l'utilisateur.
+     *
+     * @param string $type Le sous-dossier de l'asset (ex: 'documents_generes').
+     * @param string $filename Le nom du fichier demandé.
      */
-    public function serveCss(string $filename): void
+    public function serveProtectedAsset(string $type, string $filename): void
     {
-        $this->serveAsset('css', $filename);
-    }
+        try {
+            $this->checkPermission('ACCES_ASSET_PROTEGE');
 
-    /**
-     * Sert un fichier JavaScript spécifique.
-     * @param string $filename Le nom du fichier JavaScript à servir.
-     */
-    public function serveJs(string $filename): void
-    {
-        $this->serveAsset('js', $filename);
-    }
-
-
-    public function serveImg(string $filename): void
-    {
-        // Le type d'asset est 'img/carousel' pour correspondre à la structure de dossier
-        $this->serveAsset('img/carousel', $filename);
-    }
-
-    /**
-     * Sert un fichier image pour le carrousel.
-     * Cette méthode est publique et appelée par la route spécifique /assets/img/carousel/{filename}.
-     * Elle délègue le travail à la méthode privée serveAsset.
-     * @param string $filename Le nom du fichier image à servir.
-     */
-    public function serveCarImg(string $filename): void
-    {
-        // Le type d'asset est 'img/carousel' pour correspondre à la structure de dossier
-        $this->serveAsset('img/carousel', $filename);
-    }
-
-    /**
-     * Sert un asset générique (CSS, JS, images, etc.) en gérant le type MIME et les chemins.
-     * @param string $type Le type d'asset (ex: 'css', 'js', 'images').
-     * @param string $filename Le nom du fichier de l'asset.
-     */
-    private function serveAsset(string $type, string $filename): void
-    {
-        // Sécurité: Nettoyer le nom de fichier pour éviter le "directory traversal"
-        $filename = basename($filename); // Retire le chemin et les caractères de répertoire
-        $filePath = __DIR__ . "/../../../Public/assets/{$type}/{$filename}";
-
-        // Vérifier que le fichier existe et est bien dans le répertoire des assets
-        if (!file_exists($filePath) || !is_file($filePath)) {
-            http_response_code(404);
-            echo "Asset Not Found: " . htmlspecialchars($filename);
-            // Journaliser l'accès à un asset non trouvé (optionnel)
-            if (isset($this->supervisionService)) {
-                $this->supervisionService->enregistrerAction(
-                    $_SESSION['user_id'] ?? 'GUEST',
-                    'ACCES_ASSET_ECHEC',
-                    "Tentative d'accès à l'asset non trouvé: {$filePath}"
-                );
+            if (strpos($type, '..') !== false || strpos($filename, '..') !== false) {
+                throw new PermissionException("Chemin de fichier invalide.");
             }
-            exit();
+
+            $fullPath = realpath($this->baseUploadPath . DIRECTORY_SEPARATOR . $type . DIRECTORY_SEPARATOR . $filename);
+
+            if (!$fullPath || strpos($fullPath, realpath($this->baseUploadPath)) !== 0) {
+                $this->serveNotFound();
+                return;
+            }
+
+            $this->checkAssetPermissions($type, $filename);
+            $this->serveFile($fullPath);
+
+        } catch (PermissionException $e) {
+            http_response_code(403);
+            $this->render('errors/403.php', ['error_message' => $e->getMessage()], 'layout_auth.php');
+        } catch (\Exception $e) {
+            $this->serviceSupervision->enregistrerAction('SYSTEM', 'ASSET_CONTROLLER_EXCEPTION', null, null, ['error' => $e->getMessage()]);
+            http_response_code(500);
+            $this->render('errors/500.php', ['error_message' => 'Erreur interne du serveur.'], 'layout_auth.php');
+        }
+    }
+
+    private function checkAssetPermissions(string $type, string $filename): void
+    {
+        $user = $this->serviceSecurite->getUtilisateurConnecte();
+        if (!$user) {
+            throw new PermissionException("Utilisateur non authentifié.");
         }
 
-        // Déterminer le type MIME
-        $mimeType = mime_content_type($filePath);
-        if (!$mimeType) {
-            // Fallback ou erreur si le type MIME ne peut pas être déterminé
-            $extension = pathinfo($filename, PATHINFO_EXTENSION);
-            switch ($extension) {
-                case 'css': $mimeType = 'text/css'; break;
-                case 'js': $mimeType = 'application/javascript'; break;
-                case 'png': $mimeType = 'image/png'; break;
-                case 'jpg':
-                case 'jpeg': $mimeType = 'image/jpeg'; break;
-                case 'gif': $mimeType = 'image/gif'; break;
-                case 'svg': $mimeType = 'image/svg+xml'; break;
-                default: $mimeType = 'application/octet-stream'; // Type générique si inconnu
-            }
+        if ($user['id_groupe_utilisateur'] === 'GRP_ADMIN_SYS') {
+            return; // L'administrateur peut tout voir.
         }
 
-        // Envoyer les en-têtes appropriés
-        header("Content-Type: {$mimeType}");
-        header("Content-Length: " . filesize($filePath));
-        header("Cache-Control: public, max-age=86400"); // Mettre en cache pour 24 heures
+        switch ($type) {
+            case 'documents_generes':
+                $relativePath = $type . '/' . $filename;
+                $document = $this->documentGenereModel->trouverUnParCritere(['chemin_fichier' => $relativePath]);
+                if (!$document) {
+                    throw new PermissionException("Document non trouvé dans la base de données.");
+                }
+                if ($document['numero_utilisateur_concerne'] !== $user['numero_utilisateur']) {
+                    throw new PermissionException("Vous n'avez pas l'autorisation de consulter ce document.");
+                }
+                break;
+            default:
+                throw new PermissionException("Type de ressource protégé inconnu ou non géré.");
+        }
+    }
 
-        // Lire et servir le fichier
+    private function serveNotFound(): void
+    {
+        http_response_code(404);
+        $this->render('errors/404.php', [], 'layout_auth.php');
+    }
+
+    private function serveFile(string $filePath): void
+    {
+        if (!file_exists($filePath) || !is_readable($filePath)) {
+            $this->serveNotFound();
+            return;
+        }
+
+        $finfo = new \finfo(FILEINFO_MIME_TYPE);
+        $mimeType = $finfo->file($filePath);
+
+        header('Content-Type: ' . $mimeType);
+        header('Content-Length: ' . filesize($filePath));
+        header('Content-Disposition: inline; filename="' . basename($filePath) . '"');
+        header('Cache-Control: private, max-age=0, must-revalidate');
+        header('Pragma: public');
+
+        while (ob_get_level()) {
+            ob_end_clean();
+        }
+
         readfile($filePath);
-
-        // Journaliser l'accès à l'asset (optionnel)
-        if (isset($this->supervisionService)) {
-            $this->supervisionService->enregistrerAction(
-                $_SESSION['user_id'] ?? 'GUEST',
-                'ACCES_ASSET_SUCCES',
-                "Accès à l'asset: {$filename} (Type: {$type})",
-                $filename,
-                'Asset'
-            );
-        }
-        exit(); // Terminer l'exécution du script après avoir servi le fichier
+        exit();
     }
 }

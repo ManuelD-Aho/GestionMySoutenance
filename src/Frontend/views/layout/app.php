@@ -1,170 +1,105 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="fr" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GestionMySoutenance - <?php echo $page_title ?? 'Accueil'; ?></title>
-    <!-- Incluez Font Awesome pour les icônes -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" xintegrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A==" crossorigin="anonymous" referrerpolicy="no-referrer" />
-    <!-- Optionnel: Lien vers vos fichiers CSS globaux existants -->
-    <link rel="stylesheet" href="/Public/assets/css/style.css">
-    <link rel="stylesheet" href="/Public/assets/css/dashboard_style.css">
-    <link rel="stylesheet" href="/Public/assets/css/gestionsoutenance-dashboard.css">
-    <!-- Remplacez les styles de menu et d'en-tête que nous avons mis en ligne par ces liens si vous les externalisez -->
-    <!-- <link rel="stylesheet" href="/Public/assets/css/dynamic_menu.css"> -->
-    <!-- <link rel="stylesheet" href="/Public/assets/css/dashboard_header.css"> -->
-    <style>
-        /* Styles pour le corps et la structure principale du layout */
-        body {
-            margin: 0;
-            font-family: 'Inter', sans-serif;
-            background-color: #f2f5f9;
-            display: flex;
-            min-height: 100vh;
-            overflow: hidden; /* Empêche le défilement global non désiré */
-        }
-
-        .sidebar {
-            width: 250px; /* Largeur fixe pour la barre latérale */
-            flex-shrink: 0; /* Empêche la barre latérale de rétrécir */
-            background-color: #2c3e50; /* Couleur de fond sombre pour le menu */
-            padding: 20px 0;
-            display: flex;
-            flex-direction: column;
-            box-shadow: 2px 0 5px rgba(0,0,0,0.1); /* Ombre à droite de la sidebar */
-            z-index: 1000; /* Assure que la sidebar est au-dessus d'autres éléments */
-            transition: transform 0.3s ease-in-out; /* Animation pour l'ouverture/fermeture sur mobile */
-            border-radius: 0 8px 8px 0; /* Coins arrondis côté droit */
-        }
-
-        /* DEBUG: Ajout de bordures pour voir le conteneur du sidebar */
-        .sidebar {
-            border: 2px solid red !important; /* Temporaire pour le débogage */
-        }
-        .main-content-wrapper {
-            border: 2px solid blue !important; /* Temporaire pour le débogage */
-        }
-
-
-        .sidebar.collapsed {
-            transform: translateX(-100%); /* Cache la sidebar sur mobile */
-            position: absolute; /* Permet de la cacher hors de l'écran */
-        }
-
-        .sidebar-header {
-            padding: 0 20px 20px 20px;
-            display: flex;
-            align-items: center;
-            color: #ecf0f1;
-            font-size: 1.4em;
-            font-weight: 700;
-            border-bottom: 1px solid rgba(255,255,255,0.1);
-            margin-bottom: 20px;
-        }
-
-        .sidebar-header .logo {
-            width: 40px;
-            height: 40px;
-            border-radius: 8px;
-            margin-right: 10px;
-            background-color: #4CAF50;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-size: 1.2em;
-        }
-
-        .main-content-wrapper {
-            flex-grow: 1;
-            display: flex;
-            flex-direction: column;
-            overflow-y: auto;
-            padding: 0 15px 15px 15px;
-            padding-left: 0;
-            box-sizing: border-box;
-        }
-
-        .main-content-area {
-            flex-grow: 1;
-            background-color: #ffffff;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
-        }
-
-        @media (max-width: 768px) {
-            .sidebar {
-                width: 200px;
-                position: fixed;
-                height: 100vh;
-                top: 0;
-                left: 0;
-                transform: translateX(-100%);
-            }
-            .sidebar.active {
-                transform: translateX(0);
-            }
-            .main-content-wrapper {
-                padding-left: 0;
-                width: 100%;
-            }
-            .dashboard-header .menu-toggle {
-                display: block;
-            }
-        }
-    </style>
+    <title><?= htmlspecialchars($title ?? 'GestionMySoutenance') ?></title>
+    <link href="/assets/css/app.css" rel="stylesheet">
+    <script src="https://unpkg.com/gsap@3.12.5/dist/gsap.min.js" defer></script>
 </head>
-<body>
-<div class="sidebar">
-    <div class="sidebar-header">
-        <div class="logo">GS</div>
-        GestionMySoutenance
-    </div>
-    <?php
-    // Inclure votre menu dynamique ici
-    // CORRECTION DU CHEMIN: Remonter d'un dossier (..) pour trouver 'common/menu.php'
-    require_once __DIR__ . '/../common/menu.php';
-    ?>
+<body class="bg-base-200">
 
+<div class="drawer lg:drawer-open">
+    <input id="my-drawer-2" type="checkbox" class="drawer-toggle" />
+
+    <!-- Contenu principal de la page -->
+    <div class="drawer-content flex flex-col">
+        <!-- Barre de navigation -->
+        <header class="navbar bg-base-100 shadow-sm sticky top-0 z-30">
+            <div class="flex-none lg:hidden">
+                <label for="my-drawer-2" aria-label="open sidebar" class="btn btn-square btn-ghost">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="inline-block w-6 h-6 stroke-current"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+                </label>
+            </div>
+            <div class="flex-1">
+                <a class="btn btn-ghost text-xl normal-case"><?= htmlspecialchars($title ?? 'Dashboard') ?></a>
+            </div>
+            <div class="flex-none">
+                <!-- Menu utilisateur -->
+                <div class="dropdown dropdown-end">
+                    <label tabindex="0" class="btn btn-ghost btn-circle avatar">
+                        <div class="w-10 rounded-full">
+                            <img src="https://placehold.co/40x40/a0aec0/ffffff/png?text=<?= htmlspecialchars(strtoupper(substr($user['login_utilisateur'] ?? 'U', 0, 1))) ?>" alt="Avatar" />
+                        </div>
+                    </label>
+                    <ul tabindex="0" class="menu menu-sm dropdown-content mt-3 z-[1] p-2 shadow bg-base-100 rounded-box w-52">
+                        <li>
+                            <a href="/etudiant/profil" class="justify-between">
+                                Profil
+                                <span class="badge">Nouveau</span>
+                            </a>
+                        </li>
+                        <li><a>Paramètres</a></li>
+                        <li><a href="/logout">Déconnexion</a></li>
+                    </ul>
+                </div>
+            </div>
+        </header>
+
+        <!-- Contenu de la vue spécifique -->
+        <main class="flex-1 p-4 lg:p-6">
+            <!-- Affichage des alertes de session -->
+            <?php if (!empty($_SESSION['success'])): ?>
+                <div role="alert" class="alert alert-success mb-4">
+                    <span><?= htmlspecialchars($_SESSION['success']) ?></span>
+                </div>
+                <?php unset($_SESSION['success']); ?>
+            <?php endif; ?>
+            <?php if (!empty($_SESSION['error'])): ?>
+                <div role="alert" class="alert alert-error mb-4">
+                    <span><?= htmlspecialchars($_SESSION['error']) ?></span>
+                </div>
+                <?php unset($_SESSION['error']); ?>
+            <?php endif; ?>
+
+            <?= $content ?? '' ?>
+        </main>
+    </div>
+
+    <!-- Menu latéral (Drawer) -->
+    <aside class="drawer-side">
+        <label for="my-drawer-2" aria-label="close sidebar" class="drawer-overlay"></label>
+        <ul class="menu p-4 w-80 min-h-full bg-base-100 text-base-content">
+            <!-- Logo/Titre -->
+            <li class="mb-4">
+                <a href="/dashboard" class="text-2xl font-bold text-primary">GestionMySoutenance</a>
+            </li>
+
+            <!-- NOTE: Le menu ci-dessous doit être rendu dynamiquement en fonction des permissions de l'utilisateur -->
+            <li><a href="/dashboard"><svg_icon>Dashboard</svg_icon></a></li>
+
+            <?php if ($this->serviceSecurite->utilisateurPossedePermission('TRAIT_ETUDIANT_RAPPORT_SUIVRE')): ?>
+                <li><a href="/etudiant/rapport"><svg_icon>Mon Rapport</svg_icon></a></li>
+            <?php endif; ?>
+
+            <?php if ($this->serviceSecurite->utilisateurPossedePermission('ADMIN_USERS_LIST')): ?>
+                <li class="menu-title"><span>Administration</span></li>
+                <li><a href="/admin/dashboard"><svg_icon>Dashboard Admin</svg_icon></a></li>
+                <li><a href="/admin/users"><svg_icon>Utilisateurs</svg_icon></a></li>
+                <li><a href="/admin/config"><svg_icon>Configuration</svg_icon></a></li>
+                <li><a href="/admin/supervision/logs"><svg_icon>Logs</svg_icon></a></li>
+            <?php endif; ?>
+
+            <?php if ($this->serviceSecurite->utilisateurPossedePermission('COMMISSION_SESSIONS_LIST')): ?>
+                <li class="menu-title"><span>Commission</span></li>
+                <li><a href="/commission/dashboard"><svg_icon>Dashboard Commission</svg_icon></a></li>
+                <li><a href="/commission/sessions"><svg_icon>Sessions</svg_icon></a></li>
+            <?php endif; ?>
+        </ul>
+    </aside>
 </div>
 
-<div class="main-content-wrapper">
-    <?php
-    // Inclure l'en-tête du tableau de bord
-    require_once __DIR__ . '/../common/header.php';
-    ?>
-    <div class="main-content-area">
-        <?php
-        if (isset($content) && !empty($content)) {
-            echo $content;
-        } else {
-            echo '<h1>Bienvenue dans votre tableau de bord !</h1>';
-            echo '<p>Sélectionnez une option dans le menu latéral.</p>';
-        }
-        ?>
-    </div>
-</div>
-
-<script>
-    // Script pour gérer le toggle de la sidebar sur mobile
-    document.addEventListener('DOMContentLoaded', function() {
-        const menuToggleButton = document.querySelector('.menu-toggle');
-        const sidebar = document.querySelector('.sidebar');
-
-        if (menuToggleButton && sidebar) {
-            menuToggleButton.addEventListener('click', function() {
-                sidebar.classList.toggle('active');
-            });
-
-            // Fermer la sidebar si on clique en dehors quand elle est ouverte (sur mobile)
-            document.addEventListener('click', function(event) {
-                if (!sidebar.contains(event.target) && !menuToggleButton.contains(event.target) && sidebar.classList.contains('active')) {
-                    sidebar.classList.remove('active');
-                }
-            });
-        }
-    });
-</script>
+<!-- Scripts globaux de l'application -->
+<script src="/assets/js/app.js" defer></script>
 </body>
 </html>

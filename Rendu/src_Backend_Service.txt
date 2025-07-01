@@ -1,0 +1,2551 @@
+
+/***********************************************************************************
+ * Fichier: src/Backend/Service\Communication\ServiceCommunication.php
+ ***********************************************************************************/
+
+<?php
+// src/Backend/Service/Communication/ServiceCommunication.php
+
+namespace App\Backend\Service\Communication;
+
+use PDO;
+use PHPMailer\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\Exception as PHPMailerException;
+use App\Backend\Model\GenericModel;
+use App\Backend\Service\Systeme\ServiceSystemeInterface;
+use App\Backend\Service\Supervision\ServiceSupervisionInterface;
+use App\Backend\Exception\{ElementNonTrouveException, OperationImpossibleException, EmailException};
+
+class ServiceCommunication implements ServiceCommunicationInterface
+{
+    private PDO $db;
+    private GenericModel $notificationModel;
+    private GenericModel $recevoirModel;
+    private GenericModel $conversationModel;
+    private GenericModel $messageChatModel;
+    private GenericModel $participantConversationModel;
+    private GenericModel $matriceNotificationModel;
+    private GenericModel $utilisateurModel;
+    private ServiceSystemeInterface $systemeService;
+    private ServiceSupervisionInterface $supervisionService;
+
+    public function __construct(
+        PDO $db,
+        GenericModel $notificationModel,
+        GenericModel $recevoirModel,
+        GenericModel $conversationModel,
+        GenericModel $messageChatModel,
+        GenericModel $participantConversationModel,
+        GenericModel $matriceNotificationModel,
+        GenericModel $utilisateurModel,
+        ServiceSystemeInterface $systemeService,
+        ServiceSupervisionInterface $supervisionService
+    ) {
+        $this->db = $db;
+        $this->notificationModel = $notificationModel;
+        $this->recevoirModel = $recevoirModel;
+        $this->conversationModel = $conversationModel;
+        $this->messageChatModel = $messageChatModel;
+        $this->participantConversationModel = $participantConversationModel;
+        $this->matriceNotificationModel = $matriceNotificationModel;
+        $this->utilisateurModel = $utilisateurModel;
+        $this->systemeService = $systemeService;
+        $this->supervisionService = $supervisionService;
+    }
+
+    // --- Section 1: Envoi de Messages ---
+
+    public function envoyerNotificationInterne(string $numeroUtilisateur, string $idNotificationTemplate, array $variables = []): bool
+    {
+        if (!$this->notificationModel->trouverParIdentifiant($idNotificationTemplate)) {
+            throw new ElementNonTrouveException("Modèle de notification '{$idNotificationTemplate}' non trouvé.");
+        }
+
+        $idReception = $this->systemeService->genererIdentifiantUnique('RECEP');
+
+        return (bool) $this->recevoirModel->creer([
+            'id_reception' => $idReception,
+            'numero_utilisateur' => $numeroUtilisateur,
+            'id_notification' => $idNotificationTemplate,
+            'variables_contenu' => !empty($variables) ? json_encode($variables) : null,
+            'date_reception' => date('Y-m-d H:i:s'),
+            'lue' => 0
+        ]);
+    }
+
+    public function envoyerNotificationGroupe(string $idGroupeUtilisateur, string $idNotificationTemplate, array $variables = []): bool
+    {
+        $membres = $this->utilisateurModel->trouverParCritere(['id_groupe_utilisateur' => $idGroupeUtilisateur, 'statut_compte' => 'actif']);
+        if (empty($membres)) return false;
+
+        $succesCount = 0;
+        foreach ($membres as $membre) {
+            if ($this->envoyerNotificationInterne($membre['numero_utilisateur'], $idNotificationTemplate, $variables)) {
+                $succesCount++;
+            }
+        }
+        return $succesCount > 0;
+    }
+
+    public function envoyerEmail(string $destinataireEmail, string $idNotificationTemplate, array $variables = [], array $piecesJointes = []): bool
+    {
+        // Option A : Vérifier les préférences utilisateur ici
+        $utilisateur = $this->utilisateurModel->trouverUnParCritere(['email_principal' => $destinataireEmail]);
+        if ($utilisateur) {
+            $preferences = json_decode($utilisateur['preferences_notifications'] ?? '[]', true);
+            // Si l'utilisateur a spécifiquement désactivé ce type de notification par email, on arrête.
+            if (isset($preferences[$idNotificationTemplate]['email']) && $preferences[$idNotificationTemplate]['email'] === false) {
+                return true; // On considère que c'est un "succès" pour ne pas bloquer le workflow.
+            }
+        }
+
+        $template = $this->notificationModel->trouverParIdentifiant($idNotificationTemplate);
+        if (!$template) throw new ElementNonTrouveException("Modèle d'email '{$idNotificationTemplate}' non trouvé.");
+
+        $sujet = $this->personnaliserMessage($template['libelle_notification'], $variables);
+
+        // Assemblage du corps de l'email avec le layout
+        $corpsMessage = $this->personnaliserMessage($template['contenu'], $variables);
+        $layoutPath = __DIR__ . '/../../../templates/email/layout_email_generique.html';
+        if (file_exists($layoutPath)) {
+            $corpsFinal = file_get_contents($layoutPath);
+            $corpsFinal = str_replace('{{contenu_principal}}', $corpsMessage, $corpsFinal);
+        } else {
+            $corpsFinal = $corpsMessage; // Fallback si le layout n'existe pas
+        }
+
+        $mailer = new PHPMailer(true);
+        try {
+            // Configuration SMTP
+            $mailer->isSMTP();
+            $mailer->Host = $this->systemeService->getParametre('SMTP_HOST');
+            $mailer->SMTPAuth = (bool) $this->systemeService->getParametre('SMTP_AUTH', true);
+            $mailer->Username = $this->systemeService->getParametre('SMTP_USER');
+            $mailer->Password = $this->systemeService->getParametre('SMTP_PASS');
+            $mailer->SMTPSecure = $this->systemeService->getParametre('SMTP_SECURE', PHPMailer::ENCRYPTION_STARTTLS);
+            $mailer->Port = (int) $this->systemeService->getParametre('SMTP_PORT', 587);
+
+            $mailer->setFrom($this->systemeService->getParametre('SMTP_FROM_EMAIL'), $this->systemeService->getParametre('SMTP_FROM_NAME'));
+            $mailer->addAddress($destinataireEmail);
+            $mailer->isHTML(true);
+            $mailer->CharSet = 'UTF-8';
+            $mailer->Subject = $sujet;
+            $mailer->Body = $corpsFinal;
+            $mailer->AltBody = strip_tags($corpsFinal);
+
+            // Ajout des pièces jointes
+            foreach ($piecesJointes as $pj) {
+                $mailer->addAttachment($pj['path'], $pj['name']);
+            }
+
+            $mailer->send();
+            $this->supervisionService->enregistrerAction('SYSTEM', 'ENVOI_EMAIL_SUCCES', null, $destinataireEmail, 'Email', ['template' => $idNotificationTemplate]);
+            return true;
+        } catch (PHPMailerException $e) {
+            $this->supervisionService->enregistrerAction('SYSTEM', 'ENVOI_EMAIL_ECHEC', null, $destinataireEmail, 'Email', ['error' => $e->errorMessage()]);
+            throw new EmailException("Erreur PHPMailer : " . $e->errorMessage());
+        }
+    }
+
+    // --- Section 2: Messagerie Instantanée ---
+
+    public function demarrerConversationDirecte(string $initiateurId, string $destinataireId): string { /* ... */ }
+    public function envoyerMessageChat(string $idConversation, string $expediteurId, string $contenu): string { /* ... */ }
+
+    // --- Section 3: Consultation ---
+
+    public function listerNotificationsNonLues(string $numeroUtilisateur): array
+    {
+        // Requête enrichie pour obtenir le libellé du template
+        $sql = "SELECT r.*, n.libelle_notification 
+                FROM recevoir r
+                JOIN notification n ON r.id_notification = n.id_notification
+                WHERE r.numero_utilisateur = :user_id AND r.lue = 0
+                ORDER BY r.date_reception DESC";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([':user_id' => $numeroUtilisateur]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function marquerNotificationLue(string $idReception): bool
+    {
+        return $this->recevoirModel->mettreAJourParIdentifiant($idReception, ['lue' => 1, 'date_lecture' => date('Y-m-d H:i:s')]);
+    }
+
+    // --- Méthode privée ---
+    private function personnaliserMessage(string $message, array $variables): string
+    {
+        foreach ($variables as $key => $value) {
+            $message = str_replace("{{{$key}}}", htmlspecialchars((string)$value), $message);
+        }
+        return $message;
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Service\Communication\ServiceCommunicationInterface.php
+ ***********************************************************************************/
+
+<?php
+// src/Backend/Service/Communication/ServiceCommunicationInterface.php
+
+namespace App\Backend\Service\Communication;
+
+interface ServiceCommunicationInterface
+{
+    // --- Section 1: Envoi de Messages ---
+
+    /**
+     * Envoie une notification interne à un utilisateur spécifique.
+     *
+     * @param string $numeroUtilisateur L'ID de l'utilisateur destinataire.
+     * @param string $idNotificationTemplate L'ID du modèle de notification.
+     * @param array $variables Pour remplacer les placeholders dans le message.
+     * @return bool True si la notification a été créée.
+     */
+    public function envoyerNotificationInterne(string $numeroUtilisateur, string $idNotificationTemplate, array $variables = []): bool;
+
+    /**
+     * Envoie une notification interne à tous les membres d'un groupe.
+     *
+     * @param string $idGroupeUtilisateur L'ID du groupe destinataire.
+     * @param string $idNotificationTemplate L'ID du modèle de notification.
+     * @param array $variables Pour remplacer les placeholders dans le message.
+     * @return bool True si au moins une notification a été envoyée.
+     */
+    public function envoyerNotificationGroupe(string $idGroupeUtilisateur, string $idNotificationTemplate, array $variables = []): bool;
+
+    /**
+     * Envoie un email en utilisant un modèle et des variables.
+     *
+     * @param string $destinataireEmail L'adresse email du destinataire.
+     * @param string $idNotificationTemplate L'ID du modèle de notification/email.
+     * @param array $variables Pour remplacer les placeholders dans le sujet et le corps.
+     * @return bool True si l'email a été envoyé avec succès.
+     */
+    public function envoyerEmail(string $destinataireEmail, string $idNotificationTemplate, array $variables = []): bool;
+
+    // --- Section 2: Messagerie Instantanée ---
+
+    /**
+     * Démarre une conversation directe entre deux utilisateurs ou récupère l'existante.
+     *
+     * @param string $initiateurId L'ID de l'utilisateur qui initie.
+     * @param string $destinataireId L'ID de l'autre participant.
+     * @return string L'ID de la conversation.
+     */
+    public function demarrerConversationDirecte(string $initiateurId, string $destinataireId): string;
+
+    /**
+     * Envoie un message dans une conversation.
+     *
+     * @param string $idConversation L'ID de la conversation.
+     * @param string $expediteurId L'ID de l'expéditeur.
+     * @param string $contenu Le contenu du message.
+     * @return string L'ID du message envoyé.
+     */
+    public function envoyerMessageChat(string $idConversation, string $expediteurId, string $contenu): string;
+
+    // --- Section 3: Consultation ---
+
+    /**
+     * Récupère les notifications non lues pour un utilisateur.
+     *
+     * @param string $numeroUtilisateur L'ID de l'utilisateur.
+     * @return array La liste des notifications.
+     */
+    public function listerNotificationsNonLues(string $numeroUtilisateur): array;
+
+    /**
+     * Marque une notification comme lue.
+     *
+     * @param string $idReception L'ID de la réception de la notification.
+     * @return bool True en cas de succès.
+     */
+    public function marquerNotificationLue(string $idReception): bool;
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Service\Document\ServiceDocument.php
+ ***********************************************************************************/
+
+<?php
+// src/Backend/Service/Document/ServiceDocument.php
+
+namespace App\Backend\Service\Document;
+
+use PDO;
+use TCPDF;
+use App\Backend\Model\GenericModel;
+use App\Backend\Model\RapportEtudiant;
+use App\Backend\Service\Systeme\ServiceSystemeInterface;
+use App\Backend\Service\Supervision\ServiceSupervisionInterface;
+use App\Backend\Exception\{ElementNonTrouveException, OperationImpossibleException, ValidationException};
+
+class ServiceDocument implements ServiceDocumentInterface
+{
+    private PDO $db;
+    private GenericModel $documentGenereModel;
+    private GenericModel $etudiantModel;
+    private GenericModel $inscrireModel;
+    private GenericModel $evaluerModel;
+    private GenericModel $compteRenduModel;
+    private GenericModel $anneeAcademiqueModel;
+    private RapportEtudiant $rapportModel;
+    private GenericModel $sectionRapportModel;
+    private ServiceSystemeInterface $systemeService;
+    private ServiceSupervisionInterface $supervisionService;
+
+    public function __construct(
+        PDO $db,
+        GenericModel $documentGenereModel,
+        GenericModel $etudiantModel,
+        GenericModel $inscrireModel,
+        GenericModel $evaluerModel,
+        GenericModel $compteRenduModel,
+        GenericModel $anneeAcademiqueModel,
+        RapportEtudiant $rapportModel,
+        GenericModel $sectionRapportModel,
+        ServiceSystemeInterface $systemeService,
+        ServiceSupervisionInterface $supervisionService
+    ) {
+        $this->db = $db;
+        $this->documentGenereModel = $documentGenereModel;
+        $this->etudiantModel = $etudiantModel;
+        $this->inscrireModel = $inscrireModel;
+        $this->evaluerModel = $evaluerModel;
+        $this->compteRenduModel = $compteRenduModel;
+        $this->anneeAcademiqueModel = $anneeAcademiqueModel;
+        $this->rapportModel = $rapportModel;
+        $this->sectionRapportModel = $sectionRapportModel;
+        $this->systemeService = $systemeService;
+        $this->supervisionService = $supervisionService;
+    }
+
+    // ====================================================================
+    // SECTION 1: GÉNÉRATION DE DOCUMENTS PDF
+    // ====================================================================
+
+    public function genererAttestationScolarite(string $numeroEtudiant, string $idAnneeAcademique): string
+    {
+        $etudiant = $this->etudiantModel->trouverParIdentifiant($numeroEtudiant);
+        $annee = $this->anneeAcademiqueModel->trouverParIdentifiant($idAnneeAcademique);
+        $inscription = $this->inscrireModel->trouverUnParCritere(['numero_carte_etudiant' => $numeroEtudiant, 'id_annee_academique' => $idAnneeAcademique]);
+
+        if (!$etudiant || !$inscription || !$annee) {
+            throw new ElementNonTrouveException("Données d'inscription introuvables pour l'étudiant {$numeroEtudiant} pour l'année {$idAnneeAcademique}.");
+        }
+
+        $templatePath = __DIR__ . '/../../../templates/pdf/attestation_scolarite.html';
+        if (!file_exists($templatePath)) throw new OperationImpossibleException("Le modèle de l'attestation est introuvable.");
+
+        $htmlContent = file_get_contents($templatePath);
+
+        $variables = [
+            '{{nom_etudiant}}' => htmlspecialchars($etudiant['prenom'] . ' ' . $etudiant['nom']),
+            '{{date_naissance}}' => date('d/m/Y', strtotime($etudiant['date_naissance'])),
+            '{{lieu_naissance}}' => htmlspecialchars($etudiant['lieu_naissance']),
+            '{{annee_academique}}' => htmlspecialchars($annee['libelle_annee_academique']),
+            '{{date_generation}}' => date('d/m/Y')
+        ];
+        $htmlFinal = strtr($htmlContent, $variables);
+
+        // L'ID de l'entité concernée est l'ID composite de l'inscription pour garantir l'unicité
+        $idEntite = $numeroEtudiant . '_' . $inscription['id_niveau_etude'] . '_' . $idAnneeAcademique;
+        return $this->genererPdfDepuisHtml($htmlFinal, 'AttestationScolarite', $idEntite, 'DOC_ATTESTATION', $numeroEtudiant);
+    }
+
+    public function genererBulletinNotes(string $numeroEtudiant, string $idAnneeAcademique): string
+    {
+        $etudiant = $this->etudiantModel->trouverParIdentifiant($numeroEtudiant);
+        $annee = $this->anneeAcademiqueModel->trouverParIdentifiant($idAnneeAcademique);
+        if (!$etudiant || !$annee) throw new ElementNonTrouveException("Étudiant ou année académique introuvable.");
+
+        $notes = $this->evaluerModel->trouverParCritere(['numero_carte_etudiant' => $numeroEtudiant, 'id_annee_academique' => $idAnneeAcademique]);
+
+        $templatePath = __DIR__ . '/../../../templates/pdf/bulletin_notes.html';
+        if (!file_exists($templatePath)) throw new OperationImpossibleException("Le modèle du bulletin est introuvable.");
+        $htmlContent = file_get_contents($templatePath);
+
+        $lignesNotes = '';
+        foreach ($notes as $note) {
+            $lignesNotes .= "<tr><td>" . htmlspecialchars($note['id_ecue']) . "</td><td>" . htmlspecialchars($note['note']) . "</td></tr>";
+        }
+
+        $variables = [
+            '{{nom_etudiant}}' => htmlspecialchars($etudiant['prenom'] . ' ' . $etudiant['nom']),
+            '{{annee_academique}}' => htmlspecialchars($annee['libelle_annee_academique']),
+            '{{lignes_notes}}' => $lignesNotes,
+            '{{date_generation}}' => date('d/m/Y')
+        ];
+        $htmlFinal = strtr($htmlContent, $variables);
+
+        $idEntite = $numeroEtudiant . '_' . $idAnneeAcademique;
+        return $this->genererPdfAvecVersionning($htmlFinal, 'BulletinNotes', $idEntite, 'DOC_BULLETIN', $numeroEtudiant);
+    }
+
+    public function genererPvValidation(string $idCompteRendu): string
+    {
+        $pv = $this->compteRenduModel->trouverParIdentifiant($idCompteRendu);
+        if (!$pv) throw new ElementNonTrouveException("PV '{$idCompteRendu}' non trouvé.");
+
+        $templatePath = __DIR__ . '/../../../templates/pdf/pv_validation.html';
+        if (!file_exists($templatePath)) throw new OperationImpossibleException("Le modèle du PV est introuvable.");
+        $htmlContent = file_get_contents($templatePath);
+
+        $variables = [
+            '{{titre_pv}}' => htmlspecialchars($pv['libelle_compte_rendu']),
+            '{{contenu_pv}}' => nl2br(htmlspecialchars($pv['contenu'])), // nl2br pour conserver les sauts de ligne
+            '{{date_creation_pv}}' => date('d/m/Y', strtotime($pv['date_creation_pv']))
+        ];
+        $htmlFinal = strtr($htmlContent, $variables);
+
+        return $this->genererPdfDepuisHtml($htmlFinal, 'PV', $idCompteRendu, 'DOC_PV', $pv['id_redacteur']);
+    }
+
+    public function genererRecuPaiement(string $idInscription): string
+    {
+        // ... (logique pour décomposer l'ID composite de l'inscription si nécessaire)
+        $inscription = $this->inscrireModel->trouverUnParCritere(['id_inscription' => $idInscription]); // Suppose un ID unique
+        if (!$inscription) throw new ElementNonTrouveException("Inscription non trouvée.");
+
+        $htmlContent = "<h1>Reçu de Paiement</h1>";
+        $htmlContent .= "<p>Reçu N°: " . htmlspecialchars($inscription['numero_recu_paiement']) . "</p>";
+        $htmlContent .= "<p>Date de paiement: " . htmlspecialchars($inscription['date_paiement']) . "</p>";
+        $htmlContent .= "<p>Montant: " . htmlspecialchars($inscription['montant_inscription']) . " €</p>";
+
+        return $this->genererPdfDepuisHtml($htmlContent, 'RecuPaiement', $idInscription, 'DOC_RECU', $inscription['numero_carte_etudiant']);
+    }
+
+    public function genererRapportEtudiantPdf(string $idRapport): string
+    {
+        $rapport = $this->rapportModel->trouverParIdentifiant($idRapport);
+        if (!$rapport) throw new ElementNonTrouveException("Rapport non trouvé.");
+        $sections = $this->sectionRapportModel->trouverParCritere(['id_rapport_etudiant' => $idRapport], ['*'], 'AND', 'ordre ASC');
+
+        $htmlContent = "<h1>" . htmlspecialchars($rapport['libelle_rapport_etudiant']) . "</h1>";
+        $htmlContent .= "<h2>Thème : " . htmlspecialchars($rapport['theme']) . "</h2>";
+        $htmlContent .= "<h3>Résumé</h3><div>" . $rapport['resume'] . "</div>"; // Le contenu est déjà du HTML
+
+        foreach ($sections as $section) {
+            $htmlContent .= "<h3>" . htmlspecialchars($section['titre_section']) . "</h3>";
+            $htmlContent .= "<div>" . $section['contenu_section'] . "</div>";
+        }
+
+        return $this->genererPdfDepuisHtml($htmlContent, 'Rapport', $idRapport, 'DOC_RAPPORT', $rapport['numero_carte_etudiant']);
+    }
+
+    public function genererListePdf(string $nomListe, array $donnees, array $colonnes): string
+    {
+        if (empty($donnees)) throw new OperationImpossibleException("Aucune donnée à exporter.");
+
+        $htmlContent = "<h1>Liste : " . htmlspecialchars($nomListe) . "</h1>";
+        $htmlContent .= '<table border="1" cellpadding="4" cellspacing="0" style="width:100%; border-collapse: collapse;"><thead><tr style="background-color:#f2f2f2;">';
+        foreach ($colonnes as $libelle) {
+            $htmlContent .= '<th>' . htmlspecialchars($libelle) . '</th>';
+        }
+        $htmlContent .= '</tr></thead><tbody>';
+        foreach ($donnees as $ligne) {
+            $htmlContent .= '<tr>';
+            foreach (array_keys($colonnes) as $key) {
+                $htmlContent .= '<td>' . htmlspecialchars($ligne[$key] ?? '') . '</td>';
+            }
+            $htmlContent .= '</tr>';
+        }
+        $htmlContent .= '</tbody></table>';
+
+        $idEntite = 'export_' . str_replace(' ', '_', $nomListe) . '_' . time();
+        return $this->genererPdfDepuisHtml($htmlContent, 'ExportListe', $idEntite, 'DOC_EXPORT', $_SESSION['user_id'] ?? 'SYSTEM');
+    }
+
+    // --- Section 2: Gestion des Fichiers Uploadés ---
+
+    public function uploadFichierSecurise(array $fileData, string $destinationType, array $allowedMimeTypes, int $maxSizeInBytes): string
+    {
+        if (!isset($fileData['error']) || is_array($fileData['error']) || $fileData['error'] !== UPLOAD_ERR_OK) {
+            throw new ValidationException("Erreur lors de l'upload du fichier.");
+        }
+        if ($fileData['size'] > $maxSizeInBytes) {
+            throw new ValidationException("Le fichier est trop volumineux.");
+        }
+
+        $finfo = new \finfo(FILEINFO_MIME_TYPE);
+        $mimeType = $finfo->file($fileData['tmp_name']);
+        if (!in_array($mimeType, $allowedMimeTypes)) {
+            throw new ValidationException("Le type de fichier '{$mimeType}' n'est pas autorisé.");
+        }
+
+        $uploadBasePath = $this->systemeService->getParametre('UPLOADS_PATH_BASE', ROOT_PATH . '/Public/uploads/');
+        $destinationPath = $uploadBasePath . $destinationType;
+        if (!is_dir($destinationPath)) mkdir($destinationPath, 0755, true);
+
+        $safeFileName = bin2hex(random_bytes(16)) . '.' . pathinfo($fileData['name'], PATHINFO_EXTENSION);
+        $filePath = $destinationPath . '/' . $safeFileName;
+
+        if (!move_uploaded_file($fileData['tmp_name'], $filePath)) {
+            throw new OperationImpossibleException("Échec du déplacement du fichier uploadé.");
+        }
+
+        $this->supervisionService->enregistrerAction($_SESSION['user_id'] ?? 'SYSTEM', 'UPLOAD_FICHIER', null, $filePath, 'Fichier');
+        return $destinationType . '/' . $safeFileName; // Retourne le chemin relatif
+    }
+
+    public function supprimerFichier(string $relativePath): bool
+    {
+        $uploadBasePath = $this->systemeService->getParametre('UPLOADS_PATH_BASE', ROOT_PATH . '/Public/uploads/');
+        $fullPath = $uploadBasePath . $relativePath;
+
+        if (file_exists($fullPath) && is_file($fullPath)) {
+            if (unlink($fullPath)) {
+                $this->supervisionService->enregistrerAction($_SESSION['user_id'] ?? 'SYSTEM', 'DELETE_FICHIER', null, $relativePath, 'Fichier');
+                return true;
+            }
+        }
+        return false;
+    }
+    // --- Méthodes privées techniques ---
+    private function genererPdfAvecVersionning(string $html, string $prefixeNomFichier, string $idEntite, string $typeDocumentRef, ?string $numeroUtilisateurConcerne): string
+    {
+        $anciennesVersions = $this->documentGenereModel->trouverParCritere(['id_entite_concernee' => $idEntite, 'id_type_document' => $typeDocumentRef], ['*'], 'AND', 'version DESC');
+        $nouvelleVersion = 1;
+        if (!empty($anciennesVersions)) {
+            $derniereVersion = $anciennesVersions[0];
+            $this->documentGenereModel->mettreAJourParIdentifiant($derniereVersion['id_document_genere'], ['est_archive' => 1]);
+            $nouvelleVersion = $derniereVersion['version'] + 1;
+        }
+        return $this->genererPdfDepuisHtml($html, $prefixeNomFichier, $idEntite, $typeDocumentRef, $numeroUtilisateurConcerne, $nouvelleVersion);
+    }
+
+    private function genererPdfDepuisHtml(string $html, string $prefixeNomFichier, string $idEntite, string $typeDocumentRef, ?string $numeroUtilisateurConcerne, int $version = 1): string
+    {
+        $pdf = new TCPDF(PDF_PAGE_ORIENTATION, PDF_UNIT, PDF_PAGE_FORMAT, true, 'UTF-8', false);
+        $pdf->SetCreator('GestionMySoutenance');
+        $pdf->SetAuthor('Université XYZ');
+        $pdf->SetTitle($prefixeNomFichier . ' - ' . $idEntite);
+        $pdf->AddPage();
+        $pdf->writeHTML($html, true, false, true, false, '');
+
+        $uploadBasePath = $this->systemeService->getParametre('UPLOADS_PATH_BASE', ROOT_PATH . '/Public/uploads/');
+        $destinationPath = $uploadBasePath . 'documents_generes';
+        if (!is_dir($destinationPath)) mkdir($destinationPath, 0755, true);
+
+        $filename = "{$prefixeNomFichier}_{$idEntite}_v{$version}_" . time() . ".pdf";
+        $absoluteFilePath = $destinationPath . '/' . $filename;
+        $pdf->Output($absoluteFilePath, 'F');
+
+        if (!file_exists($absoluteFilePath)) throw new OperationImpossibleException("Échec de la sauvegarde du fichier PDF sur le serveur.");
+
+        $idDocumentGenere = $this->systemeService->genererIdentifiantUnique('DOC');
+        $this->documentGenereModel->creer([
+            'id_document_genere' => $idDocumentGenere,
+            'id_type_document' => $typeDocumentRef,
+            'chemin_fichier' => 'documents_generes/' . $filename,
+            'version' => $version,
+            'id_entite_concernee' => $idEntite,
+            'type_entite_concernee' => $prefixeNomFichier,
+            'numero_utilisateur_concerne' => $numeroUtilisateurConcerne,
+            'est_archive' => 0
+        ]);
+
+        $this->supervisionService->enregistrerAction('SYSTEM', 'GENERATION_DOCUMENT', $idDocumentGenere, 'DocumentGenere', ['type' => $typeDocumentRef, 'version' => $version]);
+
+        return $idDocumentGenere;
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Service\Document\ServiceDocumentInterface.php
+ ***********************************************************************************/
+
+<?php
+// src/Backend/Service/Document/ServiceDocumentInterface.php
+
+namespace App\Backend\Service\Document;
+
+interface ServiceDocumentInterface
+{
+    // --- Section 1: Génération de Documents PDF ---
+    public function genererAttestationScolarite(string $numeroEtudiant, string $idAnneeAcademique): string;
+    public function genererBulletinNotes(string $numeroEtudiant, string $idAnneeAcademique): string;
+    public function genererPvValidation(string $idCompteRendu): string;
+    public function genererRecuPaiement(string $idInscription): string; // NOUVEAU
+    public function genererRapportEtudiantPdf(string $idRapport): string; // NOUVEAU
+    public function genererListePdf(string $nomListe, array $donnees, array $colonnes): string; // NOUVEAU
+
+    // --- Section 2: Gestion des Fichiers ---
+    public function uploadFichierSecurise(array $fileData, string $destinationType, array $allowedMimeTypes, int $maxSizeInBytes): string;
+    public function supprimerFichier(string $relativePath): bool;
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Service\ParcoursAcademique\ServiceParcoursAcademique.php
+ ***********************************************************************************/
+
+<?php
+// src/Backend/Service/ParcoursAcademique/ServiceParcoursAcademique.php
+
+namespace App\Backend\Service\ParcoursAcademique;
+
+use PDO;
+use App\Backend\Model\GenericModel;
+use App\Backend\Service\Systeme\ServiceSystemeInterface;
+use App\Backend\Service\Supervision\ServiceSupervisionInterface;
+use App\Backend\Exception\{ElementNonTrouveException, OperationImpossibleException};
+
+class ServiceParcoursAcademique implements ServiceParcoursAcademiqueInterface
+{
+    private PDO $db;
+    private GenericModel $inscrireModel;
+    private GenericModel $evaluerModel;
+    private GenericModel $faireStageModel;
+    private GenericModel $penaliteModel;
+    private ServiceSystemeInterface $systemeService;
+    private ServiceSupervisionInterface $supervisionService;
+
+    public function __construct(
+        PDO $db,
+        GenericModel $inscrireModel,
+        GenericModel $evaluerModel,
+        GenericModel $faireStageModel,
+        GenericModel $penaliteModel,
+        ServiceSystemeInterface $systemeService,
+        ServiceSupervisionInterface $supervisionService
+    ) {
+        $this->db = $db;
+        $this->inscrireModel = $inscrireModel;
+        $this->evaluerModel = $evaluerModel;
+        $this->faireStageModel = $faireStageModel;
+        $this->penaliteModel = $penaliteModel;
+        $this->systemeService = $systemeService;
+        $this->supervisionService = $supervisionService;
+    }
+
+    // --- CRUD Inscriptions ---
+    public function creerInscription(array $donnees): bool {
+        $donnees['date_inscription'] = date('Y-m-d H:i:s');
+        return (bool) $this->inscrireModel->creer($donnees);
+    }
+    public function lireInscription(string $numeroEtudiant, string $idNiveau, string $idAnnee): ?array {
+        return $this->inscrireModel->trouverUnParCritere(['numero_carte_etudiant' => $numeroEtudiant, 'id_niveau_etude' => $idNiveau, 'id_annee_academique' => $idAnnee]);
+    }
+    public function mettreAJourInscription(string $numeroEtudiant, string $idNiveau, string $idAnnee, array $donnees): bool {
+        return $this->inscrireModel->mettreAJourParCles(['numero_carte_etudiant' => $numeroEtudiant, 'id_niveau_etude' => $idNiveau, 'id_annee_academique' => $idAnnee], $donnees);
+    }
+    public function supprimerInscription(string $numeroEtudiant, string $idNiveau, string $idAnnee): bool {
+        return $this->inscrireModel->supprimerParCles(['numero_carte_etudiant' => $numeroEtudiant, 'id_niveau_etude' => $idNiveau, 'id_annee_academique' => $idAnnee]);
+    }
+    public function listerInscriptions(array $filtres = []): array {
+        return $this->inscrireModel->trouverParCritere($filtres);
+    }
+
+    // --- CRUD Notes ---
+    public function creerOuMettreAJourNote(array $donnees): bool {
+        $existing = $this->lireNote($donnees['numero_carte_etudiant'], $donnees['id_ecue'], $donnees['id_annee_academique']);
+        if ($existing) {
+            return $this->evaluerModel->mettreAJourParCles(['numero_carte_etudiant' => $donnees['numero_carte_etudiant'], 'id_ecue' => $donnees['id_ecue'], 'id_annee_academique' => $donnees['id_annee_academique']], ['note' => $donnees['note']]);
+        } else {
+            $donnees['date_evaluation'] = date('Y-m-d H:i:s');
+            return (bool) $this->evaluerModel->creer($donnees);
+        }
+    }
+    public function lireNote(string $numeroEtudiant, string $idEcue, string $idAnnee): ?array {
+        return $this->evaluerModel->trouverUnParCritere(['numero_carte_etudiant' => $numeroEtudiant, 'id_ecue' => $idEcue, 'id_annee_academique' => $idAnnee]);
+    }
+    public function supprimerNote(string $numeroEtudiant, string $idEcue, string $idAnnee): bool {
+        return $this->evaluerModel->supprimerParCles(['numero_carte_etudiant' => $numeroEtudiant, 'id_ecue' => $idEcue, 'id_annee_academique' => $idAnnee]);
+    }
+    public function listerNotes(array $filtres = []): array {
+        return $this->evaluerModel->trouverParCritere($filtres);
+    }
+
+    // --- CRUD Stages ---
+    public function creerStage(array $donnees): bool { return (bool) $this->faireStageModel->creer($donnees); }
+    public function lireStage(string $numeroEtudiant, string $idEntreprise): ?array { return $this->faireStageModel->trouverUnParCritere(['numero_carte_etudiant' => $numeroEtudiant, 'id_entreprise' => $idEntreprise]); }
+    public function mettreAJourStage(string $numeroEtudiant, string $idEntreprise, array $donnees): bool { return $this->faireStageModel->mettreAJourParCles(['numero_carte_etudiant' => $numeroEtudiant, 'id_entreprise' => $idEntreprise], $donnees); }
+    public function supprimerStage(string $numeroEtudiant, string $idEntreprise): bool { return $this->faireStageModel->supprimerParCles(['numero_carte_etudiant' => $numeroEtudiant, 'id_entreprise' => $idEntreprise]); }
+
+    public function validerStage(string $numeroEtudiant, string $idEntreprise): bool {
+        // La logique reste simple : la présence de l'enregistrement vaut validation.
+        // On se contente de tracer l'action.
+        $this->supervisionService->enregistrerAction($_SESSION['user_id'] ?? 'SYSTEM', 'VALIDATION_STAGE', $numeroEtudiant, 'Etudiant', ['entreprise' => $idEntreprise]);
+        return true;
+    }
+
+    // --- CRUD Pénalités ---
+    public function creerPenalite(array $donnees): string {
+        $donnees['id_penalite'] = $this->systemeService->genererIdentifiantUnique('PEN');
+        $donnees['id_statut_penalite'] = 'PEN_DUE';
+        $donnees['date_creation'] = date('Y-m-d H:i:s');
+        $this->penaliteModel->creer($donnees);
+        return $donnees['id_penalite'];
+    }
+    public function lirePenalite(string $idPenalite): ?array { return $this->penaliteModel->trouverParIdentifiant($idPenalite); }
+    public function mettreAJourPenalite(string $idPenalite, array $donnees): bool { return $this->penaliteModel->mettreAJourParIdentifiant($idPenalite, $donnees); }
+
+    public function regulariserPenalite(string $idPenalite, string $numeroPersonnel): bool {
+        return $this->mettreAJourPenalite($idPenalite, [
+            'id_statut_penalite' => 'PEN_REGLEE',
+            'date_regularisation' => date('Y-m-d H:i:s'),
+            'numero_personnel_traitant' => $numeroPersonnel
+        ]);
+    }
+    public function listerPenalites(array $filtres = []): array { return $this->penaliteModel->trouverParCritere($filtres); }
+
+    // --- Logique Métier ---
+    public function estEtudiantEligibleSoumission(string $numeroEtudiant): bool
+    {
+        $anneeActive = $this->systemeService->getAnneeAcademiqueActive();
+        if (!$anneeActive) return false;
+
+        // 1. Vérifier si l'étudiant est bien inscrit et a payé pour l'année active
+        $derniereInscription = $this->inscrireModel->trouverUnParCritere(
+            ['numero_carte_etudiant' => $numeroEtudiant],
+            ['*'],
+            'AND',
+            'id_annee_academique DESC'
+        );
+
+        // Si pas d'inscription du tout, il n'est pas éligible.
+        if (!$derniereInscription) return false;
+
+        // **Logique améliorée :** On vérifie si la dernière inscription est de niveau Master 2
+        // et si le paiement est en règle.
+        // Note : 'M2' est un exemple, il faudrait utiliser l'ID réel du niveau Master 2.
+        if ($derniereInscription['id_niveau_etude'] !== 'ID_MASTER_2' || $derniereInscription['id_statut_paiement'] !== 'PAIE_OK') {
+            return false;
+        }
+
+        // 2. Vérifier si un stage a été validé (la simple existence suffit selon notre règle)
+        $stage = $this->faireStageModel->trouverUnParCritere(['numero_carte_etudiant' => $numeroEtudiant]);
+        if (!$stage) {
+            return false;
+        }
+
+        // 3. Vérifier s'il n'y a pas de pénalités non réglées
+        $penalitesNonReglees = $this->penaliteModel->trouverUnParCritere(['numero_carte_etudiant' => $numeroEtudiant, 'id_statut_penalite' => 'PEN_DUE']);
+        if ($penalitesNonReglees) {
+            return false;
+        }
+
+        return true;
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Service\ParcoursAcademique\ServiceParcoursAcademiqueInterface.php
+ ***********************************************************************************/
+
+<?php
+// src/Backend/Service/ParcoursAcademique/ServiceParcoursAcademiqueInterface.php
+
+namespace App\Backend\Service\ParcoursAcademique;
+
+interface ServiceParcoursAcademiqueInterface
+{
+    // --- CRUD Inscriptions ---
+    public function creerInscription(array $donnees): bool;
+    public function lireInscription(string $numeroEtudiant, string $idNiveau, string $idAnnee): ?array;
+    public function mettreAJourInscription(string $numeroEtudiant, string $idNiveau, string $idAnnee, array $donnees): bool;
+    public function supprimerInscription(string $numeroEtudiant, string $idNiveau, string $idAnnee): bool;
+    public function listerInscriptions(array $filtres = []): array;
+
+    // --- CRUD Notes ---
+    public function creerOuMettreAJourNote(array $donnees): bool;
+    public function lireNote(string $numeroEtudiant, string $idEcue, string $idAnnee): ?array;
+    public function supprimerNote(string $numeroEtudiant, string $idEcue, string $idAnnee): bool;
+    public function listerNotes(array $filtres = []): array;
+
+    // --- CRUD Stages ---
+    public function creerStage(array $donnees): bool;
+    public function lireStage(string $numeroEtudiant, string $idEntreprise): ?array;
+    public function mettreAJourStage(string $numeroEtudiant, string $idEntreprise, array $donnees): bool;
+    public function supprimerStage(string $numeroEtudiant, string $idEntreprise): bool;
+    public function validerStage(string $numeroEtudiant, string $idEntreprise): bool;
+
+    // --- CRUD Pénalités ---
+    public function creerPenalite(array $donnees): string;
+    public function lirePenalite(string $idPenalite): ?array;
+    public function mettreAJourPenalite(string $idPenalite, array $donnees): bool;
+    public function regulariserPenalite(string $idPenalite, string $numeroPersonnel): bool;
+    public function listerPenalites(array $filtres = []): array;
+
+    // --- Logique Métier ---
+    public function estEtudiantEligibleSoumission(string $numeroEtudiant): bool;
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Service\Securite\ServiceSecurite.php
+ ***********************************************************************************/
+
+<?php
+// src/Backend/Service/Securite/ServiceSecurite.php
+
+namespace App\Backend\Service\Securite;
+
+use App\Backend\Model\Delegation;
+use PDO;
+use App\Backend\Model\Utilisateur;
+use App\Backend\Model\HistoriqueMotDePasse;
+use App\Backend\Model\Sessions;
+use App\Backend\Model\GenericModel;
+use App\Backend\Service\Supervision\ServiceSupervisionInterface;
+use App\Backend\Service\Communication\ServiceCommunicationInterface;
+use App\Backend\Exception\{
+    IdentifiantsInvalidesException,
+    CompteBloqueException,
+    CompteNonValideException,
+    MotDePasseInvalideException,
+    ElementNonTrouveException,
+    TokenInvalideException,
+    TokenExpireException,
+    EmailException
+};
+use RobThree\Auth\TwoFactorAuth;
+
+class ServiceSecurite implements ServiceSecuriteInterface
+{
+    private PDO $db;
+    private Utilisateur $utilisateurModel;
+    private HistoriqueMotDePasse $historiqueMdpModel;
+    private Sessions $sessionsModel;
+    private GenericModel $rattacherModel;
+    private ServiceSupervisionInterface $supervisionService;
+
+    // Constantes de sécurité (peuvent être externalisées via un service de configuration)
+    private const MAX_LOGIN_ATTEMPTS = 5;
+    private const LOCKOUT_TIME_MINUTES = 30;
+    private const PASSWORD_HISTORY_LIMIT = 3;
+    private const PASSWORD_MIN_LENGTH = 8;
+    private Delegation $delegationModel;
+
+    public function __construct(
+        PDO $db,
+        Utilisateur $utilisateurModel,
+        HistoriqueMotDePasse $historiqueMdpModel,
+        Sessions $sessionsModel,
+        GenericModel $rattacherModel,
+        ServiceSupervisionInterface $supervisionService,
+        Delegation $delegationModel // <-- 1. AJOUTER le paramètre ici
+)
+    {
+        $this->db = $db;
+        $this->utilisateurModel = $utilisateurModel;
+        $this->historiqueMdpModel = $historiqueMdpModel;
+        $this->sessionsModel = $sessionsModel;
+        $this->rattacherModel = $rattacherModel;
+        $this->supervisionService = $supervisionService;
+        $this->delegationModel = $delegationModel;
+    }
+
+    //================================================================
+    // SECTION 1 : AUTHENTIFICATION & GESTION DE SESSION (API PUBLIQUE)
+    //================================================================
+
+    public function tenterConnexion(string $identifiant, string $motDePasseClair): array
+    {
+        $utilisateur = $this->utilisateurModel->trouverParLoginOuEmailPrincipal($identifiant);
+
+        if (!$utilisateur || !password_verify($motDePasseClair, $utilisateur['mot_de_passe'])) {
+            if ($utilisateur) {
+                $this->traiterTentativeEchouee($utilisateur['numero_utilisateur']);
+            }
+            $this->supervisionService->enregistrerAction($identifiant, 'ECHEC_LOGIN', null, null, ['reason' => 'Identifiants invalides']);
+            throw new IdentifiantsInvalidesException("Le login ou le mot de passe est incorrect.");
+        }
+
+        $numeroUtilisateur = $utilisateur['numero_utilisateur'];
+
+        if ($this->estCompteBloque($utilisateur)) {
+            $this->supervisionService->enregistrerAction($numeroUtilisateur, 'ECHEC_LOGIN', null, null, ['reason' => 'Compte bloqué']);
+            throw new CompteBloqueException("Votre compte est temporairement bloqué. Veuillez réessayer plus tard.");
+        }
+
+        if ($utilisateur['statut_compte'] !== 'actif' || !$utilisateur['email_valide']) {
+            $this->supervisionService->enregistrerAction($numeroUtilisateur, 'ECHEC_LOGIN', null, null, ['reason' => 'Compte non actif ou email non validé']);
+            throw new CompteNonValideException("Votre compte n'est pas actif ou votre email n'a pas été validé.");
+        }
+
+        $this->reinitialiserTentativesConnexion($numeroUtilisateur);
+        $this->supervisionService->enregistrerAction($numeroUtilisateur, 'SUCCES_LOGIN');
+
+        if ($utilisateur['preferences_2fa_active']) {
+            $_SESSION['2fa_user_id'] = $numeroUtilisateur;
+            $_SESSION['2fa_pending'] = true;
+            return ['status' => '2fa_required'];
+        }
+
+        $this->demarrerSessionUtilisateur($numeroUtilisateur);
+        return ['status' => 'success'];
+    }
+
+    public function demarrerSessionUtilisateur(string $numeroUtilisateur): void
+    {
+        session_regenerate_id(true);
+        $_SESSION['user_id'] = $numeroUtilisateur;
+        $_SESSION['last_activity'] = time();
+
+        $user = $this->utilisateurModel->trouverParIdentifiant($numeroUtilisateur, ['id_groupe_utilisateur']);
+        $rattachements = $this->rattacherModel->trouverParCritere(['id_groupe_utilisateur' => $user['id_groupe_utilisateur']]);
+        $_SESSION['user_group_permissions'] = array_column($rattachements, 'id_traitement');
+
+        $_SESSION['user_delegations'] = $this->recupererDelegationsActivesPourUtilisateur($numeroUtilisateur);
+
+        $userData = $this->utilisateurModel->trouverParIdentifiant($numeroUtilisateur);
+        unset($userData['mot_de_passe'], $userData['token_reset_mdp'], $userData['token_validation_email'], $userData['secret_2fa']);
+        $_SESSION['user_data'] = $userData;
+
+        unset($_SESSION['2fa_pending'], $_SESSION['2fa_user_id']);
+        $this->utilisateurModel->mettreAJourParIdentifiant($numeroUtilisateur, ['derniere_connexion' => date('Y-m-d H:i:s')]);
+    }
+
+    public function logout(): void
+    {
+        $numeroUtilisateur = $_SESSION['user_id'] ?? 'ANONYMOUS';
+        $_SESSION = [];
+        if (ini_get("session.use_cookies")) {
+            $params = session_get_cookie_params();
+            setcookie(session_name(), '', time() - 42000, $params["path"], $params["domain"], $params["secure"], $params["httponly"]);
+        }
+        session_destroy();
+        $this->supervisionService->enregistrerAction($numeroUtilisateur, 'LOGOUT');
+    }
+
+    public function estUtilisateurConnecte(): bool
+    {
+        return isset($_SESSION['user_id']);
+    }
+
+    public function getUtilisateurConnecte(): ?array
+    {
+        return $this->estUtilisateurConnecte() ? $_SESSION['user_data'] : null;
+    }
+
+    //================================================================
+    // SECTION 2 : GESTION DES MOTS DE PASSE (API PUBLIQUE)
+    //================================================================
+
+    public function demanderReinitialisationMotDePasse(string $emailPrincipal, ServiceCommunicationInterface $communicationService): void
+    {
+        $utilisateur = $this->utilisateurModel->trouverUnParCritere(['email_principal' => $emailPrincipal]);
+        if (!$utilisateur) {
+            return; // Ne pas révéler l'existence de l'email
+        }
+
+        $tokenClair = bin2hex(random_bytes(32));
+        $this->utilisateurModel->mettreAJourParIdentifiant($utilisateur['numero_utilisateur'], [
+            'token_reset_mdp' => hash('sha256', $tokenClair),
+            'date_expiration_token_reset' => date('Y-m-d H:i:s', time() + 3600) // Expire dans 1 heure
+        ]);
+
+        $communicationService->envoyerEmail([
+            'destinataire_email' => $emailPrincipal,
+            'sujet' => 'Réinitialisation de votre mot de passe',
+            'corps_html' => "Cliquez sur ce lien pour réinitialiser votre mot de passe : <a href='/reset-password/{$tokenClair}'>Réinitialiser</a>"
+        ]);
+    }
+
+    public function reinitialiserMotDePasseViaToken(string $tokenClair, string $nouveauMotDePasseClair): bool
+    {
+        $tokenHache = hash('sha256', $tokenClair);
+        $utilisateur = $this->utilisateurModel->trouverParTokenResetMdp($tokenHache);
+
+        if (!$utilisateur) {
+            throw new TokenInvalideException("Token invalide ou déjà utilisé.");
+        }
+        if (new \DateTime() > new \DateTime($utilisateur['date_expiration_token_reset'])) {
+            throw new TokenExpireException("Le token a expiré.");
+        }
+
+        return $this->definirNouveauMotDePasse($utilisateur['numero_utilisateur'], $nouveauMotDePasseClair);
+    }
+
+    public function modifierMotDePasse(string $numeroUtilisateur, string $nouveauMotDePasseClair, string $ancienMotDePasseClair): bool
+    {
+        $utilisateur = $this->utilisateurModel->trouverParIdentifiant($numeroUtilisateur);
+        if (!$utilisateur || !password_verify($ancienMotDePasseClair, $utilisateur['mot_de_passe'])) {
+            throw new MotDePasseInvalideException("L'ancien mot de passe est incorrect.");
+        }
+        return $this->definirNouveauMotDePasse($numeroUtilisateur, $nouveauMotDePasseClair);
+    }
+
+    //================================================================
+    // SECTION 3 : AUTHENTIFICATION À DEUX FACTEURS (2FA) (API PUBLIQUE)
+    //================================================================
+
+    public function genererEtStockerSecret2FA(string $numeroUtilisateur): array
+    {
+        $tfa = new TwoFactorAuth('GestionMySoutenance');
+        $secret = $tfa->createSecret();
+
+        $utilisateur = $this->utilisateurModel->trouverParIdentifiant($numeroUtilisateur, ['email_principal']);
+        if (!$utilisateur) {
+            throw new ElementNonTrouveException("Utilisateur non trouvé.");
+        }
+
+        $qrCodeUrl = $tfa->getQRCodeImageAsDataUri($utilisateur['email_principal'], $secret);
+
+        $this->utilisateurModel->mettreAJourParIdentifiant($numeroUtilisateur, ['secret_2fa' => $secret]);
+        $this->supervisionService->enregistrerAction($numeroUtilisateur, 'GENERATION_2FA_SECRET');
+
+        return ['secret' => $secret, 'qr_code_url' => $qrCodeUrl];
+    }
+
+    public function activerAuthentificationDeuxFacteurs(string $numeroUtilisateur, string $codeTOTP): bool
+    {
+        $utilisateur = $this->utilisateurModel->trouverParIdentifiant($numeroUtilisateur, ['secret_2fa']);
+        if (!$utilisateur || empty($utilisateur['secret_2fa'])) {
+            throw new OperationImpossibleException("Impossible d'activer la 2FA : aucun secret n'est généré.");
+        }
+
+        if (!$this->verifierCodeAuthentificationDeuxFacteurs($numeroUtilisateur, $codeTOTP, $utilisateur['secret_2fa'])) {
+            $this->supervisionService->enregistrerAction($numeroUtilisateur, 'ECHEC_ACTIVATION_2FA', null, null, ['reason' => 'Code invalide']);
+            throw new IdentifiantsInvalidesException("Le code de vérification est incorrect.");
+        }
+
+        $success = $this->utilisateurModel->mettreAJourParIdentifiant($numeroUtilisateur, ['preferences_2fa_active' => 1]);
+        if ($success) {
+            $this->supervisionService->enregistrerAction($numeroUtilisateur, 'ACTIVATION_2FA');
+        }
+        return $success;
+    }
+
+    public function desactiverAuthentificationDeuxFacteurs(string $numeroUtilisateur, string $motDePasseClair): bool
+    {
+        $utilisateur = $this->utilisateurModel->trouverParIdentifiant($numeroUtilisateur, ['mot_de_passe']);
+        if (!$utilisateur || !password_verify($motDePasseClair, $utilisateur['mot_de_passe'])) {
+            throw new MotDePasseInvalideException("Le mot de passe est incorrect.");
+        }
+
+        $success = $this->utilisateurModel->mettreAJourParIdentifiant($numeroUtilisateur, ['preferences_2fa_active' => 0, 'secret_2fa' => null]);
+        if ($success) {
+            $this->supervisionService->enregistrerAction($numeroUtilisateur, 'DESACTIVATION_2FA');
+        }
+        return $success;
+    }
+
+    public function verifierCodeAuthentificationDeuxFacteurs(string $numeroUtilisateur, string $codeTOTP, ?string $secret = null): bool
+    {
+        if ($secret === null) {
+            $user = $this->utilisateurModel->trouverParIdentifiant($numeroUtilisateur, ['secret_2fa']);
+            if (!$user || empty($user['secret_2fa'])) return false;
+            $secret = $user['secret_2fa'];
+        }
+
+        $tfa = new TwoFactorAuth('GestionMySoutenance');
+        return $tfa->verifyCode($secret, $codeTOTP);
+    }
+
+    //================================================================
+    // SECTION 4 : AUTORISATION & PERMISSIONS (API PUBLIQUE)
+    //================================================================
+
+    public function utilisateurPossedePermission(string $permissionCode, ?string $contexteId = null, ?string $contexteType = null): bool
+    {
+        if (!$this->estUtilisateurConnecte()) {
+            return false;
+        }
+
+        if (in_array($permissionCode, $_SESSION['user_group_permissions'] ?? [])) {
+            return true;
+        }
+
+        $delegations = $_SESSION['user_delegations'] ?? [];
+        foreach ($delegations as $delegation) {
+            if ($delegation['id_traitement'] === $permissionCode) {
+                if ($delegation['contexte_id'] === null) {
+                    return true;
+                }
+                if ($delegation['contexte_id'] === $contexteId && $delegation['contexte_type'] === $contexteType) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    public function synchroniserPermissionsSessionsUtilisateur(string $numeroUtilisateur): void
+    {
+        $sessions = $this->sessionsModel->trouverSessionsParUtilisateur($numeroUtilisateur);
+        if (!$sessions) return;
+
+        $user = $this->utilisateurModel->trouverParIdentifiant($numeroUtilisateur, ['id_groupe_utilisateur']);
+        if (!$user) return;
+
+        $newGroupPermissions = array_column($this->rattacherModel->trouverParCritere(['id_groupe_utilisateur' => $user['id_groupe_utilisateur']]), 'id_traitement');
+        $newDelegations = $this->recupererDelegationsActivesPourUtilisateur($numeroUtilisateur);
+
+        foreach ($sessions as $session) {
+            $sessionData = unserialize($session['session_data']);
+            $sessionData['user_group_permissions'] = $newGroupPermissions;
+            $sessionData['user_delegations'] = $newDelegations;
+            $this->sessionsModel->mettreAJourParIdentifiant($session['session_id'], ['session_data' => serialize($sessionData)]);
+        }
+
+        $this->supervisionService->enregistrerAction('SYSTEM', 'SYNCHRONISATION_RBAC', $numeroUtilisateur, 'Utilisateur');
+    }
+
+    //================================================================
+    // SECTION 5 : LOGIQUE INTERNE & MÉTHODES PRIVÉES
+    //================================================================
+
+    private function traiterTentativeEchouee(string $numeroUtilisateur): void
+    {
+        $this->db->exec("UPDATE utilisateur SET tentatives_connexion_echouees = tentatives_connexion_echouees + 1 WHERE numero_utilisateur = '{$numeroUtilisateur}'");
+        $user = $this->utilisateurModel->trouverParIdentifiant($numeroUtilisateur, ['tentatives_connexion_echouees']);
+
+        if ($user && $user['tentatives_connexion_echouees'] >= self::MAX_LOGIN_ATTEMPTS) {
+            $lockoutTime = date('Y-m-d H:i:s', time() + (self::LOCKOUT_TIME_MINUTES * 60));
+            $this->utilisateurModel->mettreAJourParIdentifiant($numeroUtilisateur, ['statut_compte' => 'bloque', 'compte_bloque_jusqua' => $lockoutTime]);
+        }
+    }
+
+    private function reinitialiserTentativesConnexion(string $numeroUtilisateur): void
+    {
+        $this->utilisateurModel->mettreAJourParIdentifiant($numeroUtilisateur, ['tentatives_connexion_echouees' => 0, 'compte_bloque_jusqua' => null]);
+    }
+
+    private function estCompteBloque(array $utilisateur): bool
+    {
+        if ($utilisateur['statut_compte'] === 'bloque') {
+            if ($utilisateur['compte_bloque_jusqua'] && new \DateTime() < new \DateTime($utilisateur['compte_bloque_jusqua'])) {
+                return true;
+            }
+            // Le temps de blocage est écoulé, on réactive le compte au passage
+            $this->utilisateurModel->mettreAJourParIdentifiant($utilisateur['numero_utilisateur'], ['statut_compte' => 'actif', 'compte_bloque_jusqua' => null]);
+        }
+        return false;
+    }
+
+    private function definirNouveauMotDePasse(string $numeroUtilisateur, string $nouveauMotDePasseClair): bool
+    {
+        $this->verifierRobustesseMotDePasse($nouveauMotDePasseClair);
+        if ($this->estNouveauMotDePasseDansHistorique($numeroUtilisateur, $nouveauMotDePasseClair)) {
+            throw new MotDePasseInvalideException("Ce mot de passe a été utilisé récemment. Veuillez en choisir un autre.");
+        }
+
+        $ancienMotDePasse = $this->utilisateurModel->trouverParIdentifiant($numeroUtilisateur, ['mot_de_passe'])['mot_de_passe'];
+        $nouveauMotDePasseHache = password_hash($nouveauMotDePasseClair, PASSWORD_BCRYPT);
+
+        $this->utilisateurModel->commencerTransaction();
+        try {
+            $this->utilisateurModel->mettreAJourParIdentifiant($numeroUtilisateur, [
+                'mot_de_passe' => $nouveauMotDePasseHache,
+                'token_reset_mdp' => null,
+                'date_expiration_token_reset' => null
+            ]);
+            $this->historiqueMdpModel->creer([
+                'id_historique_mdp' => uniqid('HMP_'),
+                'numero_utilisateur' => $numeroUtilisateur,
+                'mot_de_passe_hache' => $ancienMotDePasse,
+                'date_changement' => date('Y-m-d H:i:s')
+            ]);
+            $this->utilisateurModel->validerTransaction();
+            $this->supervisionService->enregistrerAction($numeroUtilisateur, 'CHANGEMENT_MDP');
+            return true;
+        } catch (\Exception $e) {
+            $this->utilisateurModel->annulerTransaction();
+            throw $e;
+        }
+    }
+
+    private function verifierRobustesseMotDePasse(string $motDePasse): void
+    {
+        if (strlen($motDePasse) < self::PASSWORD_MIN_LENGTH) {
+            throw new MotDePasseInvalideException("Le mot de passe doit contenir au moins " . self::PASSWORD_MIN_LENGTH . " caractères.");
+        }
+        if (!preg_match('/[A-Z]/', $motDePasse)) {
+            throw new MotDePasseInvalideException("Le mot de passe doit contenir au moins une majuscule.");
+        }
+        if (!preg_match('/[a-z]/', $motDePasse)) {
+            throw new MotDePasseInvalideException("Le mot de passe doit contenir au moins une minuscule.");
+        }
+        if (!preg_match('/[0-9]/', $motDePasse)) {
+            throw new MotDePasseInvalideException("Le mot de passe doit contenir au moins un chiffre.");
+        }
+    }
+
+    private function estNouveauMotDePasseDansHistorique(string $numeroUtilisateur, string $nouveauMotDePasseClair): bool
+    {
+        $historique = $this->historiqueMdpModel->recupererHistoriquePourUtilisateur($numeroUtilisateur, self::PASSWORD_HISTORY_LIMIT);
+        foreach ($historique as $entry) {
+            if (password_verify($nouveauMotDePasseClair, $entry['mot_de_passe_hache'])) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private function recupererDelegationsActivesPourUtilisateur(string $numeroUtilisateur): array
+    {
+        // Utilisation de la méthode spécifique du modèle Delegation
+        return $this->delegationModel->trouverDelegationActivePourUtilisateur($numeroUtilisateur);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Service\Securite\ServiceSecuriteInterface.php
+ ***********************************************************************************/
+
+<?php
+// src/Backend/Service/Securite/ServiceSecuriteInterface.php
+
+namespace App\Backend\Service\Securite;
+
+use App\Backend\Service\Communication\ServiceCommunicationInterface;
+
+interface ServiceSecuriteInterface
+{
+    //================================================================
+    // AUTHENTIFICATION & GESTION DE SESSION
+    //================================================================
+
+    /**
+     * Tente de connecter un utilisateur avec son identifiant et son mot de passe.
+     * Gère les tentatives échouées et le blocage de compte.
+     *
+     * @param string $identifiant Le login ou l'email de l'utilisateur.
+     * @param string $motDePasseClair Le mot de passe en clair.
+     * @return array Un tableau indiquant le statut ('success', '2fa_required').
+     */
+    public function tenterConnexion(string $identifiant, string $motDePasseClair): array;
+
+    /**
+     * Démarre une session complète pour un utilisateur après une authentification réussie.
+     * Charge les permissions et les données utilisateur en session.
+     *
+     * @param string $numeroUtilisateur L'ID de l'utilisateur.
+     */
+    public function demarrerSessionUtilisateur(string $numeroUtilisateur): void;
+
+    /**
+     * Déconnecte l'utilisateur actuel en détruisant sa session.
+     */
+    public function logout(): void;
+
+    /**
+     * Vérifie si un utilisateur est actuellement connecté.
+     *
+     * @return bool True si l'utilisateur est connecté.
+     */
+    public function estUtilisateurConnecte(): bool;
+
+    /**
+     * Récupère les données de l'utilisateur actuellement connecté stockées en session.
+     *
+     * @return array|null Les données de l'utilisateur ou null.
+     */
+    public function getUtilisateurConnecte(): ?array;
+
+    //================================================================
+    // GESTION DES MOTS DE PASSE
+    //================================================================
+
+    /**
+     * Déclenche le processus de réinitialisation de mot de passe pour un email donné.
+     *
+     * @param string $emailPrincipal L'email du compte.
+     * @param ServiceCommunicationInterface $communicationService Le service pour envoyer l'email.
+     */
+    public function demanderReinitialisationMotDePasse(string $emailPrincipal, ServiceCommunicationInterface $communicationService): void;
+
+    /**
+     * Réinitialise le mot de passe d'un utilisateur en utilisant un token de validation.
+     *
+     * @param string $tokenClair Le token reçu par l'utilisateur.
+     * @param string $nouveauMotDePasseClair Le nouveau mot de passe.
+     * @return bool True si la modification a réussi.
+     */
+    public function reinitialiserMotDePasseViaToken(string $tokenClair, string $nouveauMotDePasseClair): bool;
+
+    /**
+     * Permet à un utilisateur connecté de modifier son propre mot de passe.
+     *
+     * @param string $numeroUtilisateur L'ID de l'utilisateur.
+     * @param string $nouveauMotDePasseClair Le nouveau mot de passe.
+     * @param string $ancienMotDePasseClair L'ancien mot de passe pour vérification.
+     * @return bool True si la modification a réussi.
+     */
+    public function modifierMotDePasse(string $numeroUtilisateur, string $nouveauMotDePasseClair, string $ancienMotDePasseClair): bool;
+
+    //================================================================
+    // AUTHENTIFICATION À DEUX FACTEURS (2FA)
+    //================================================================
+
+    /**
+     * Génère un nouveau secret 2FA et le QR code associé pour un utilisateur.
+     *
+     * @param string $numeroUtilisateur L'ID de l'utilisateur.
+     * @return array Contenant le secret ('secret') et l'URL du QR code ('qr_code_url').
+     */
+    public function genererEtStockerSecret2FA(string $numeroUtilisateur): array;
+
+    /**
+     * Active l'authentification à deux facteurs après vérification d'un code TOTP.
+     *
+     * @param string $numeroUtilisateur L'ID de l'utilisateur.
+     * @param string $codeTOTP Le code généré par l'application d'authentification.
+     * @return bool True si l'activation a réussi.
+     */
+    public function activerAuthentificationDeuxFacteurs(string $numeroUtilisateur, string $codeTOTP): bool;
+
+    /**
+     * Désactive l'authentification à deux facteurs après vérification du mot de passe.
+     *
+     * @param string $numeroUtilisateur L'ID de l'utilisateur.
+     * @param string $motDePasseClair Le mot de passe actuel pour confirmation.
+     * @return bool True si la désactivation a réussi.
+     */
+    public function desactiverAuthentificationDeuxFacteurs(string $numeroUtilisateur, string $motDePasseClair): bool;
+
+    /**
+     * Vérifie la validité d'un code TOTP pour un utilisateur.
+     *
+     * @param string $numeroUtilisateur L'ID de l'utilisateur.
+     * @param string $codeTOTP Le code à vérifier.
+     * @param string|null $secret Le secret 2FA (optionnel, sera récupéré si non fourni).
+     * @return bool True si le code est valide.
+     */
+    public function verifierCodeAuthentificationDeuxFacteurs(string $numeroUtilisateur, string $codeTOTP, ?string $secret = null): bool;
+
+    //================================================================
+    // AUTORISATION & PERMISSIONS
+    //================================================================
+
+    /**
+     * Vérifie si l'utilisateur connecté possède une permission, potentiellement dans un contexte spécifique.
+     *
+     * @param string $permissionCode Le code de la permission à vérifier (ex: 'TRAIT_ETUDIANT_RAPPORT_SOUMETTRE').
+     * @param string|null $contexteId L'ID de l'entité sur laquelle la permission est vérifiée (ex: un ID de rapport).
+     * @param string|null $contexteType Le type de l'entité (ex: 'RapportEtudiant').
+     * @return bool True si l'utilisateur a la permission.
+     */
+    public function utilisateurPossedePermission(string $permissionCode, ?string $contexteId = null, ?string $contexteType = null): bool;
+
+    /**
+     * Met à jour les permissions dans toutes les sessions actives d'un utilisateur.
+     * Utile lorsqu'un rôle ou une délégation est modifié.
+     *
+     * @param string $numeroUtilisateur L'ID de l'utilisateur dont les sessions doivent être mises à jour.
+     */
+    public function synchroniserPermissionsSessionsUtilisateur(string $numeroUtilisateur): void;
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Service\Supervision\ServiceSupervision.php
+ ***********************************************************************************/
+
+<?php
+// src/Backend/Service/Supervision/ServiceSupervision.php
+
+namespace App\Backend\Service\Supervision;
+
+use PDO;
+use App\Backend\Model\GenericModel;
+use App\Backend\Model\Utilisateur;
+use App\Backend\Model\RapportEtudiant;
+
+class ServiceSupervision implements ServiceSupervisionInterface
+{
+    private PDO $db;
+    private GenericModel $enregistrerModel;
+    private GenericModel $pisterModel;
+    private GenericModel $actionModel;
+    private Utilisateur $utilisateurModel;
+    private RapportEtudiant $rapportEtudiantModel;
+
+    public function __construct(
+        PDO $db,
+        GenericModel $enregistrerModel,
+        GenericModel $pisterModel,
+        GenericModel $actionModel,
+        Utilisateur $utilisateurModel,
+        RapportEtudiant $rapportEtudiantModel
+    ) {
+        $this->db = $db;
+        $this->enregistrerModel = $enregistrerModel;
+        $this->pisterModel = $pisterModel;
+        $this->actionModel = $actionModel;
+        $this->utilisateurModel = $utilisateurModel;
+        $this->rapportEtudiantModel = $rapportEtudiantModel;
+    }
+
+    /**
+     * Enregistre une action utilisateur dans le journal d'audit.
+     * L'approche est "auto-réparatrice" : si l'action n'existe pas, elle est créée.
+     * La méthode est conçue pour ne jamais bloquer l'exécution principale.
+     */
+    public function enregistrerAction(
+        string $numeroUtilisateur,
+        string $idAction,
+        ?string $idEntiteConcernee = null,
+        ?string $typeEntiteConcernee = null,
+        array $detailsJson = []
+    ): bool {
+        if (empty($numeroUtilisateur) || empty($idAction)) {
+            error_log("ServiceSupervision::enregistrerAction - Paramètres obligatoires manquants.");
+            return false;
+        }
+        try {
+            $this->db->beginTransaction();
+            $action = $this->actionModel->trouverParIdentifiant($idAction);
+            if (!$action)
+                $this->actionModel->creer([
+                    'id_action' => $idAction,
+                    'libelle_action' => ucwords(strtolower(str_replace('_', ' ', $idAction))),
+                    'categorie_action' => 'Dynamique'
+                ]);
+            $data = [
+                'id_enregistrement' => uniqid('LOG_'),
+                'numero_utilisateur' => $numeroUtilisateur,
+                'id_action' => $idAction,
+                'date_action' => date('Y-m-d H:i:s'),
+                'adresse_ip' => $_SERVER['REMOTE_ADDR'] ?? 'CLI',
+                'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'N/A',
+                'id_entite_concernee' => $idEntiteConcernee,
+                'type_entite_concernee' => $typeEntiteConcernee,
+                'details_action' => !empty($detailsJson) ? json_encode($detailsJson, JSON_UNESCAPED_UNICODE) : null,
+                'session_id_utilisateur' => session_id() ?: null
+            ];
+
+            $result = $this->enregistrerModel->creer($data);
+            $this->db->commit();
+            return (bool) $result;
+        } catch (\Exception $e) {
+            $this->db->rollBack();
+            error_log("ServiceSupervision::enregistrerAction a échoué : " . $e->getMessage());
+            return false;
+        }
+    }
+
+    public function pisterAcces(string $numeroUtilisateur, string $idTraitement): bool
+    {
+        try {
+            $data = [
+                'id_piste' => uniqid('PISTE_'),
+                'numero_utilisateur' => $numeroUtilisateur,
+                'id_traitement' => $idTraitement,
+                'date_pister' => date('Y-m-d H:i:s'),
+                'acceder' => 1
+            ];
+            return (bool) $this->pisterModel->creer($data);
+        } catch (\Exception $e) {
+            error_log("ServiceSupervision::pisterAcces a échoué : " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Consulte les journaux d'audit, enrichis avec les informations des entités liées.
+     * Cette version inclut le nom de l'étudiant ou du personnel si l'entité concernée est un rapport.
+     */
+    public function consulterJournaux(array $filtres = [], int $limit = 50, int $offset = 0): array
+    {
+        $sql = "SELECT 
+                    enr.*, 
+                    act.libelle_action,
+                    usr.login_utilisateur,
+                    -- Enrichissement contextuel de l'entité concernée
+                    CASE 
+                        WHEN enr.type_entite_concernee = 'RapportEtudiant' THEN CONCAT(etu.prenom, ' ', etu.nom)
+                        WHEN enr.type_entite_concernee = 'Utilisateur' THEN CONCAT(u_conc.prenom, ' ', u_conc.nom)
+                        ELSE NULL
+                    END as nom_entite_concernee
+                FROM `enregistrer` enr
+                LEFT JOIN `action` act ON enr.id_action = act.id_action
+                LEFT JOIN `utilisateur` usr ON enr.numero_utilisateur = usr.numero_utilisateur
+                -- Jointure pour récupérer le nom de l'étudiant si l'entité est un rapport
+                LEFT JOIN `rapport_etudiant` rap ON enr.id_entite_concernee = rap.id_rapport_etudiant AND enr.type_entite_concernee = 'RapportEtudiant'
+                LEFT JOIN `etudiant` etu ON rap.numero_carte_etudiant = etu.numero_carte_etudiant
+                -- Jointure pour récupérer le nom si l'entité est un utilisateur (ex: création de compte)
+                LEFT JOIN `etudiant` u_conc ON enr.id_entite_concernee = u_conc.numero_utilisateur AND enr.type_entite_concernee = 'Utilisateur'
+                ";
+
+        $params = [];
+        if (!empty($filtres)) {
+            $whereParts = [];
+            foreach ($filtres as $key => $value) {
+                $whereParts[] = "enr.`{$key}` = :{$key}";
+                $params[":{$key}"] = $value;
+            }
+            $sql .= " WHERE " . implode(" AND ", $whereParts);
+        }
+
+        $sql .= " ORDER BY enr.date_action DESC LIMIT :limit OFFSET :offset";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+        $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+        foreach ($params as $key => $value) {
+            $stmt->bindValue($key, $value);
+        }
+
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Génère un ensemble complet de statistiques pour le tableau de bord de l'administrateur.
+     */
+    public function genererStatistiquesDashboardAdmin(): array
+    {
+        $stats = [];
+
+        // 1. Statistiques sur les utilisateurs
+        $stmtUsers = $this->db->query("SELECT statut_compte, COUNT(*) as count FROM utilisateur GROUP BY statut_compte");
+        $stats['utilisateurs'] = $stmtUsers->fetchAll(PDO::FETCH_KEY_PAIR);
+        $stats['utilisateurs']['total'] = array_sum($stats['utilisateurs']);
+
+        // 2. Statistiques sur les rapports
+        $stmtRapports = $this->db->query("
+            SELECT s.libelle_statut_rapport, COUNT(r.id_rapport_etudiant) as count 
+            FROM statut_rapport_ref s
+            LEFT JOIN rapport_etudiant r ON s.id_statut_rapport = r.id_statut_rapport
+            GROUP BY s.id_statut_rapport
+        ");
+        $stats['rapports'] = $stmtRapports->fetchAll(PDO::FETCH_KEY_PAIR);
+
+        // 3. Statistiques sur les tâches en attente
+        $stmtQueue = $this->db->query("SELECT status, COUNT(*) as count FROM queue_jobs GROUP BY status");
+        $stats['queue'] = $stmtQueue->fetchAll(PDO::FETCH_KEY_PAIR);
+
+        // 4. Statistiques sur l'activité récente (7 derniers jours)
+        $dateLimite = (new \DateTime())->modify('-7 days')->format('Y-m-d H:i:s');
+        $stmtActivity = $this->db->prepare("
+            SELECT id_action, COUNT(*) as count 
+            FROM enregistrer 
+            WHERE date_action >= :date_limite 
+            GROUP BY id_action
+        ");
+        $stmtActivity->bindParam(':date_limite', $dateLimite);
+        $stmtActivity->execute();
+        $stats['activite_recente'] = $stmtActivity->fetchAll(PDO::FETCH_KEY_PAIR);
+
+        // 5. Statistiques sur les réclamations
+        $stmtReclamations = $this->db->query("
+            SELECT s.libelle_statut_reclamation, COUNT(r.id_reclamation) as count
+            FROM statut_reclamation_ref s
+            LEFT JOIN reclamation r ON s.id_statut_reclamation = r.id_statut_reclamation
+            GROUP BY s.id_statut_reclamation
+        ");
+        $stats['reclamations'] = $stmtReclamations->fetchAll(PDO::FETCH_KEY_PAIR);
+
+        return $stats;
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Service\Supervision\ServiceSupervisionInterface.php
+ ***********************************************************************************/
+
+<?php
+// src/Backend/Service/Supervision/ServiceSupervisionInterface.php
+
+namespace App\Backend\Service\Supervision;
+
+interface ServiceSupervisionInterface
+{
+    /**
+     * Enregistre une action système dans le journal d'audit. C'est la méthode la plus critique du service.
+     *
+     * @param string $numeroUtilisateur L'ID de l'utilisateur qui a effectué l'action (ou 'SYSTEM').
+     * @param string $idAction Le code unique de l'action (ex: 'SUCCES_LOGIN').
+     * @param string|null $idEntiteConcernee L'ID de l'entité principale concernée (ex: un ID de rapport).
+     * @param string|null $typeEntiteConcernee Le type de l'entité (ex: 'RapportEtudiant').
+     * @param array $detailsJson Données contextuelles riches à stocker en JSON (ex: ancienne et nouvelle valeur).
+     * @return bool True si l'action a été enregistrée avec succès.
+     */
+    public function enregistrerAction(string $numeroUtilisateur, string $idAction, ?string $idEntiteConcernee = null, ?string $typeEntiteConcernee = null, array $detailsJson = []): bool;
+
+    /**
+     * Enregistre une trace d'accès à une fonctionnalité protégée (un "traitement").
+     *
+     * @param string $numeroUtilisateur L'ID de l'utilisateur.
+     * @param string $idTraitement L'ID du traitement accédé.
+     * @return bool True si la trace a été enregistrée.
+     */
+    public function pisterAcces(string $numeroUtilisateur, string $idTraitement): bool;
+
+    /**
+     * Consulte les journaux d'audit avec des options de filtrage et de pagination.
+     *
+     * @param array $filtres Critères de filtrage (ex: ['numero_utilisateur' => 'ETU-2024-0001']).
+     * @param int $limit Limite de résultats.
+     * @param int $offset Offset pour la pagination.
+     * @return array Liste des actions journalisées, enrichies avec les libellés.
+     */
+    public function consulterJournaux(array $filtres = [], int $limit = 50, int $offset = 0): array;
+
+    /**
+     * Génère des statistiques agrégées pour le tableau de bord de l'administrateur.
+     *
+     * @return array Un tableau contenant diverses statistiques (ex: nombre de rapports par statut).
+     */
+    public function genererStatistiquesDashboardAdmin(): array;
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Service\Systeme\ServiceSysteme.php
+ ***********************************************************************************/
+
+<?php
+// src/Backend/Service/Systeme/ServiceSysteme.php
+
+namespace App\Backend\Service\Systeme;
+
+use PDO;
+use App\Backend\Model\GenericModel;
+use App\Backend\Service\Supervision\ServiceSupervisionInterface;
+use App\Backend\Exception\ElementNonTrouveException;
+use App\Backend\Exception\OperationImpossibleException;
+use App\Config\Container; // Important pour accéder au schéma
+
+class ServiceSysteme implements ServiceSystemeInterface
+{
+    private PDO $db;
+    private GenericModel $parametresModel;
+    private GenericModel $anneeAcademiqueModel;
+    private GenericModel $sequencesModel;
+    private ServiceSupervisionInterface $supervisionService;
+    private Container $container; // Le conteneur est injecté pour accéder au schéma
+    private ?array $parametresCache = null;
+    private array $modelFactoryCache = [];
+
+    public function __construct(
+        PDO $db,
+        GenericModel $parametresModel,
+        GenericModel $anneeAcademiqueModel,
+        GenericModel $sequencesModel,
+        ServiceSupervisionInterface $supervisionService,
+        Container $container // Injection du conteneur lui-même
+    ) {
+        $this->db = $db;
+        $this->parametresModel = $parametresModel;
+        $this->anneeAcademiqueModel = $anneeAcademiqueModel;
+        $this->sequencesModel = $sequencesModel;
+        $this->supervisionService = $supervisionService;
+        $this->container = $container;
+    }
+
+    // --- Gestion des Identifiants ---
+    public function genererIdentifiantUnique(string $prefixe): string
+    {
+        $this->db->beginTransaction();
+        try {
+            $anneeActive = $this->getAnneeAcademiqueActive();
+            if (!$anneeActive) {
+                throw new OperationImpossibleException("Impossible de générer un ID : aucune année académique n'est active.");
+            }
+            $annee = (int) substr($anneeActive['libelle_annee_academique'], 0, 4);
+
+            $stmt = $this->db->prepare("SELECT valeur_actuelle FROM sequences WHERE nom_sequence = :prefixe AND annee = :annee FOR UPDATE");
+            $stmt->execute([':prefixe' => $prefixe, ':annee' => $annee]);
+            $sequence = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            $nextValue = $sequence ? $sequence['valeur_actuelle'] + 1 : 1;
+
+            $sequencesModel = $this->container->getModelForTable('sequences');
+            if ($sequence) {
+                // Note: BaseModel n'a pas de méthode pour les clés composites, il faut utiliser une requête directe ou l'améliorer.
+                // Pour la robustesse, utilisons une requête directe ici.
+                $updateStmt = $this->db->prepare("UPDATE sequences SET valeur_actuelle = :valeur WHERE nom_sequence = :prefixe AND annee = :annee");
+                $updateStmt->execute([':valeur' => $nextValue, ':prefixe' => $prefixe, ':annee' => $annee]);
+            } else {
+                $sequencesModel->creer([
+                    'nom_sequence' => $prefixe,
+                    'annee' => $annee,
+                    'valeur_actuelle' => $nextValue
+                ]);
+            }
+
+            $this->db->commit();
+            $identifiant = sprintf('%s-%d-%04d', $prefixe, $annee, $nextValue);
+            $this->supervisionService->enregistrerAction('SYSTEM', 'GENERATION_ID_UNIQUE', null, $identifiant, 'Identifiant');
+            return $identifiant;
+        } catch (\Exception $e) {
+            $this->db->rollBack();
+            $this->supervisionService->enregistrerAction('SYSTEM', 'ECHEC_GENERATION_ID_UNIQUE', null, $prefixe, 'Identifiant', ['error' => $e->getMessage()]);
+            throw new OperationImpossibleException("Échec de la génération de l'identifiant unique pour le préfixe '{$prefixe}'.", 0, $e);
+        }
+    }
+
+    // --- Gestion des Paramètres et du Mode Maintenance ---
+    public function getParametre(string $cle, mixed $defaut = null)
+    {
+        if ($this->parametresCache === null) {
+            $this->getAllParametres();
+        }
+        return $this->parametresCache[$cle] ?? $defaut;
+    }
+
+    public function getAllParametres(): array
+    {
+        if ($this->parametresCache === null) {
+            $params = $this->parametresModel->trouverTout();
+            $this->parametresCache = array_column($params, 'valeur', 'cle');
+        }
+        return $this->parametresCache;
+    }
+
+    public function setParametres(array $parametres): bool
+    {
+        $this->parametresModel->commencerTransaction();
+        try {
+            foreach ($parametres as $cle => $valeur) {
+                $this->parametresModel->mettreAJourParIdentifiant($cle, ['valeur' => (string) $valeur]);
+            }
+            $this->parametresModel->validerTransaction();
+            $this->parametresCache = null;
+            $this->supervisionService->enregistrerAction($_SESSION['user_id'] ?? 'SYSTEM', 'MISE_AJOUR_PARAMETRES');
+            return true;
+        } catch (\Exception $e) {
+            $this->parametresModel->annulerTransaction();
+            throw $e;
+        }
+    }
+
+    public function activerMaintenanceMode(bool $actif, string $message = "Le site est en cours de maintenance. Veuillez réessayer plus tard."): bool
+    {
+        return $this->setParametres([
+            'MAINTENANCE_MODE_ENABLED' => $actif ? '1' : '0',
+            'MAINTENANCE_MODE_MESSAGE' => $message
+        ]);
+    }
+
+    public function estEnMaintenance(): bool
+    {
+        return (bool) $this->getParametre('MAINTENANCE_MODE_ENABLED', false);
+    }
+
+    // --- Gestion des Années Académiques ---
+    public function getAnneeAcademiqueActive(): ?array
+    {
+        return $this->anneeAcademiqueModel->trouverUnParCritere(['est_active' => 1]);
+    }
+
+    public function setAnneeAcademiqueActive(string $idAnneeAcademique): bool
+    {
+        $this->anneeAcademiqueModel->commencerTransaction();
+        try {
+            $this->db->exec("UPDATE annee_academique SET est_active = 0 WHERE est_active = 1");
+            $success = $this->anneeAcademiqueModel->mettreAJourParIdentifiant($idAnneeAcademique, ['est_active' => 1]);
+            if (!$success) throw new OperationImpossibleException("Impossible d'activer l'année académique '{$idAnneeAcademique}'.");
+            $this->anneeAcademiqueModel->validerTransaction();
+            $this->supervisionService->enregistrerAction($_SESSION['user_id'] ?? 'SYSTEM', 'CHANGEMENT_ANNEE_ACTIVE', $idAnneeAcademique, 'AnneeAcademique');
+            return true;
+        } catch (\Exception $e) {
+            $this->anneeAcademiqueModel->annulerTransaction();
+            throw $e;
+        }
+    }
+
+    // --- Gestion des Référentiels ---
+    public function gererReferentiel(string $operation, string $nomReferentiel, ?string $id = null, ?array $donnees = null)
+    {
+        $model = $this->container->getModelForTable($nomReferentiel);
+
+        switch (strtolower($operation)) {
+            case 'list':
+                return $model->trouverTout();
+
+            case 'read':
+                if ($id === null) throw new \InvalidArgumentException("L'ID est requis pour l'opération 'read'.");
+                return $model->trouverParIdentifiant($id);
+
+            case 'create':
+                if ($donnees === null) throw new \InvalidArgumentException("Les données sont requises pour l'opération 'create'.");
+                $result = $model->creer($donnees);
+                $this->supervisionService->enregistrerAction($_SESSION['user_id'] ?? 'SYSTEM', 'CREATE_REFERENTIEL', null, $id, $nomReferentiel, $donnees);
+                return $result;
+
+            case 'update':
+                if ($id === null || $donnees === null) throw new \InvalidArgumentException("L'ID et les données sont requis pour l'opération 'update'.");
+                $result = $model->mettreAJourParIdentifiant($id, $donnees);
+                $this->supervisionService->enregistrerAction($_SESSION['user_id'] ?? 'SYSTEM', 'UPDATE_REFERENTIEL', null, $id, $nomReferentiel, $donnees);
+                return $result;
+
+            case 'delete':
+                if ($id === null) throw new \InvalidArgumentException("L'ID est requis pour l'opération 'delete'.");
+                // Ajouter une vérification de dépendances avant de supprimer serait une bonne pratique
+                $result = $model->supprimerParIdentifiant($id);
+                $this->supervisionService->enregistrerAction($_SESSION['user_id'] ?? 'SYSTEM', 'DELETE_REFERENTIEL', null, $id, $nomReferentiel);
+                return $result;
+
+            default:
+                throw new \InvalidArgumentException("Opération '{$operation}' non reconnue sur le référentiel '{$nomReferentiel}'.");
+        }
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Service\Systeme\ServiceSystemeInterface.php
+ ***********************************************************************************/
+
+<?php
+// src/Backend/Service/Systeme/ServiceSystemeInterface.php
+
+namespace App\Backend\Service\Systeme;
+
+interface ServiceSystemeInterface
+{
+    /**
+     * Génère un identifiant unique et sémantique pour une entité.
+     * Format : PREFIXE-ANNEE-SEQUENCE (ex: RAP-2024-0001).
+     *
+     * @param string $prefixe Le préfixe de l'entité (ex: 'ETU', 'RAP', 'PV').
+     * @return string L'identifiant unique généré.
+     */
+    public function genererIdentifiantUnique(string $prefixe): string;
+
+    /**
+     * Récupère la valeur d'un paramètre système spécifique.
+     *
+     * @param string $cle La clé du paramètre (ex: 'MAX_LOGIN_ATTEMPTS').
+     * @param mixed $defaut La valeur à retourner si la clé n'est pas trouvée.
+     * @return mixed La valeur du paramètre.
+     */
+    public function getParametre(string $cle, mixed $defaut = null);
+
+    /**
+     * Récupère l'ensemble des paramètres système sous forme de tableau associatif.
+     *
+     * @return array Un tableau [clé => valeur].
+     */
+    public function getAllParametres(): array;
+
+    /**
+     * Met à jour un ou plusieurs paramètres système.
+     *
+     * @param array $parametres Tableau associatif [clé => valeur] des paramètres à mettre à jour.
+     * @return bool True en cas de succès.
+     */
+    public function setParametres(array $parametres): bool;
+
+    /**
+     * Récupère l'année académique actuellement active.
+     *
+     * @return array|null Les données de l'année académique active ou null si aucune n'est définie.
+     */
+    public function getAnneeAcademiqueActive(): ?array;
+
+    /**
+     * Définit une année académique comme étant l'année active.
+     * Désactive automatiquement l'ancienne année active.
+     *
+     * @param string $idAnneeAcademique L'ID de l'année à activer.
+     * @return bool True en cas de succès.
+     */
+    public function setAnneeAcademiqueActive(string $idAnneeAcademique): bool;
+
+    /**
+     * Gère le CRUD pour n'importe quelle table de référentiel simple.
+     *
+     * @param string $operation L'opération à effectuer ('create', 'read', 'update', 'delete', 'list').
+     * @param string $nomReferentiel Le nom de la table du référentiel (ex: 'grade').
+     * @param string|null $id L'ID de l'enregistrement pour les opérations 'read', 'update', 'delete'.
+     * @param array|null $donnees Les données pour les opérations 'create', 'update'.
+     * @return mixed Le résultat de l'opération (bool, array, ou null).
+     */
+    public function gererReferentiel(string $operation, string $nomReferentiel, ?string $id = null, ?array $donnees = null);
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Service\Utilisateur\ServiceUtilisateur.php
+ ***********************************************************************************/
+
+<?php
+// src/Backend/Service/Utilisateur/ServiceUtilisateur.php
+
+namespace App\Backend\Service\Utilisateur;
+
+use InvalidArgumentException;
+use PDO;
+use App\Backend\Model\Utilisateur;
+use App\Backend\Model\GenericModel;
+use App\Backend\Model\Delegation;
+use App\Backend\Service\Systeme\ServiceSystemeInterface;
+use App\Backend\Service\Supervision\ServiceSupervisionInterface;
+use App\Backend\Service\Communication\ServiceCommunicationInterface;
+use App\Backend\Exception\{ElementNonTrouveException, OperationImpossibleException, DoublonException};
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
+use PhpOffice\PhpSpreadsheet\IOFactory;
+
+class ServiceUtilisateur implements ServiceUtilisateurInterface
+{
+    private PDO $db;
+    private Utilisateur $utilisateurModel;
+    private GenericModel $etudiantModel;
+    private GenericModel $enseignantModel;
+    private GenericModel $personnelAdminModel;
+    private Delegation $delegationModel;
+    private ServiceSystemeInterface $systemeService;
+    private ServiceSupervisionInterface $supervisionService;
+    private ?ServiceCommunicationInterface $communicationService = null;
+
+    public function __construct(
+        PDO $db,
+        Utilisateur $utilisateurModel,
+        GenericModel $etudiantModel,
+        GenericModel $enseignantModel,
+        GenericModel $personnelAdminModel,
+        Delegation $delegationModel,
+        ServiceSystemeInterface $systemeService,
+        ServiceSupervisionInterface $supervisionService
+    ) {
+        $this->db = $db;
+        $this->utilisateurModel = $utilisateurModel;
+        $this->etudiantModel = $etudiantModel;
+        $this->enseignantModel = $enseignantModel;
+        $this->personnelAdminModel = $personnelAdminModel;
+        $this->delegationModel = $delegationModel;
+        $this->systemeService = $systemeService;
+        $this->supervisionService = $supervisionService;
+    }
+
+    public function setCommunicationService(ServiceCommunicationInterface $communicationService): void
+    {
+        $this->communicationService = $communicationService;
+    }
+
+    // --- CREATE ---
+    public function creerEntite(string $typeEntite, array $donneesProfil): string
+    {
+        $prefixe = match (strtolower($typeEntite)) {
+            'etudiant' => 'ETU',
+            'enseignant' => 'ENS',
+            'personnel' => 'ADM',
+            default => throw new InvalidArgumentException("Type d'entité '{$typeEntite}' non reconnu."),
+        };
+
+        $model = $this->getModelForType($typeEntite);
+        $pkCol = is_array($model->getClePrimaire()) ? $model->getClePrimaire()[0] : $model->getClePrimaire();
+
+        $this->db->beginTransaction();
+        try {
+            $numeroEntite = $this->systemeService->genererIdentifiantUnique($prefixe);
+            $donneesProfil[$pkCol] = $numeroEntite;
+
+            if (!$model->creer($donneesProfil)) {
+                throw new OperationImpossibleException("Échec de la création de l'entité {$typeEntite}.");
+            }
+
+            $this->db->commit();
+            $this->supervisionService->enregistrerAction($_SESSION['user_id'] ?? 'SYSTEM', 'CREATE_ENTITE', $numeroEntite, $typeEntite, $donneesProfil);
+            return $numeroEntite;
+        } catch (\Exception $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
+    }
+
+    public function activerComptePourEntite(string $numeroEntite, array $donneesCompte, bool $envoyerEmailValidation = true): bool
+    {
+        $this->db->beginTransaction();
+        try {
+            if ($this->utilisateurModel->trouverParIdentifiant($numeroEntite)) throw new DoublonException("Un compte utilisateur existe déjà pour l'entité '{$numeroEntite}'.");
+            if ($this->utilisateurModel->loginExiste($donneesCompte['login_utilisateur'])) throw new DoublonException("Ce login est déjà utilisé.");
+            if ($this->utilisateurModel->emailExiste($donneesCompte['email_principal'])) throw new DoublonException("Cet email est déjà utilisé.");
+
+            $typeEntite = explode('-', $numeroEntite)[0];
+            $typeUtilisateur = match ($typeEntite) {
+                'ETU' => 'TYPE_ETUD', 'ENS' => 'TYPE_ENS', 'ADM' => 'TYPE_PERS_ADMIN', 'SYS' => 'TYPE_ADMIN',
+                default => throw new InvalidArgumentException("Préfixe d'entité non reconnu."),
+            };
+
+            $donneesCompte['numero_utilisateur'] = $numeroEntite;
+            $donneesCompte['id_type_utilisateur'] = $typeUtilisateur;
+            $donneesCompte['mot_de_passe'] = password_hash($donneesCompte['mot_de_passe'], PASSWORD_BCRYPT);
+            $donneesCompte['statut_compte'] = 'en_attente_validation';
+
+            $tokenClair = bin2hex(random_bytes(32));
+            $donneesCompte['token_validation_email'] = hash('sha256', $tokenClair);
+
+            if (!$this->utilisateurModel->creer($donneesCompte)) throw new OperationImpossibleException("Échec de la création du compte utilisateur.");
+
+            $this->db->commit();
+            $this->supervisionService->enregistrerAction($_SESSION['user_id'] ?? 'SYSTEM', 'ACTIVATION_COMPTE', $numeroEntite, 'Utilisateur');
+
+            if ($envoyerEmailValidation && $this->communicationService) {
+                $this->communicationService->envoyerEmail(['destinataire_email' => $donneesCompte['email_principal'], 'sujet' => 'Activez votre compte GestionMySoutenance', 'corps_html' => "Bienvenue ! Cliquez sur ce lien pour activer votre compte : <a href='/validate-email/{$tokenClair}'>Activer</a>"]);
+            }
+            return true;
+        } catch (\Exception $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
+    }
+
+    // --- READ ---
+    public function listerUtilisateursComplets(array $filtres = []): array
+    {
+        $sql = "SELECT 
+                    u.numero_utilisateur, u.login_utilisateur, u.email_principal, u.statut_compte,
+                    g.libelle_groupe_utilisateur,
+                    t.libelle_type_utilisateur,
+                    COALESCE(e.nom, en.nom, pa.nom) as nom,
+                    COALESCE(e.prenom, en.prenom, pa.prenom) as prenom,
+                    -- Ajout d'un champ 'details' pour les informations spécifiques au rôle
+                    CASE u.id_type_utilisateur
+                        WHEN 'TYPE_ETUD' THEN (SELECT libelle_niveau_etude FROM niveau_etude WHERE id_niveau_etude = (SELECT id_niveau_etude FROM inscrire WHERE numero_carte_etudiant = u.numero_utilisateur ORDER BY id_annee_academique DESC LIMIT 1))
+                        WHEN 'TYPE_ENS' THEN (SELECT libelle_grade FROM grade WHERE id_grade = (SELECT id_grade FROM acquerir WHERE numero_enseignant = u.numero_utilisateur ORDER BY date_acquisition DESC LIMIT 1))
+                    END as details_role
+                FROM utilisateur u
+                LEFT JOIN groupe_utilisateur g ON u.id_groupe_utilisateur = g.id_groupe_utilisateur
+                LEFT JOIN type_utilisateur t ON u.id_type_utilisateur = t.id_type_utilisateur
+                LEFT JOIN etudiant e ON u.numero_utilisateur = e.numero_carte_etudiant
+                LEFT JOIN enseignant en ON u.numero_utilisateur = en.numero_enseignant
+                LEFT JOIN personnel_administratif pa ON u.numero_utilisateur = pa.numero_personnel_administratif
+                ";
+
+        $params = [];
+        if (!empty($filtres)) {
+            $whereParts = [];
+            foreach ($filtres as $key => $value) {
+                $whereParts[] = "u.`{$key}` = :{$key}";
+                $params[":{$key}"] = $value;
+            }
+            $sql .= " WHERE " . implode(" AND ", $whereParts);
+        }
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    // --- UPDATE ---
+    public function mettreAJourUtilisateur(string $numeroUtilisateur, array $donneesProfil, array $donneesCompte): bool
+    {
+        $this->db->beginTransaction();
+        try {
+            if (!empty($donneesCompte)) $this->utilisateurModel->mettreAJourParIdentifiant($numeroUtilisateur, $donneesCompte);
+            if (!empty($donneesProfil)) {
+                $user = $this->utilisateurModel->trouverParIdentifiant($numeroUtilisateur, ['id_type_utilisateur']);
+                if (!$user) throw new ElementNonTrouveException("Utilisateur non trouvé.");
+                $modelProfil = $this->getModelForType(explode('_', $user['id_type_utilisateur'])[1]);
+                $modelProfil->mettreAJourParIdentifiant($numeroUtilisateur, $donneesProfil);
+            }
+            $this->db->commit();
+            $this->supervisionService->enregistrerAction($_SESSION['user_id'] ?? 'SYSTEM', 'UPDATE_UTILISATEUR', $numeroUtilisateur, 'Utilisateur');
+            return true;
+        } catch (\Exception $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
+    }
+
+    public function changerStatutCompte(string $numeroUtilisateur, string $nouveauStatut): bool
+    {
+        $success = $this->utilisateurModel->mettreAJourParIdentifiant($numeroUtilisateur, ['statut_compte' => $nouveauStatut]);
+        if ($success) {
+            $this->supervisionService->enregistrerAction($_SESSION['user_id'] ?? 'SYSTEM', 'CHANGEMENT_STATUT_COMPTE', $numeroUtilisateur, 'Utilisateur', ['nouveau_statut' => $nouveauStatut]);
+        }
+        return $success;
+    }
+
+    // --- DELETE (Logique) ---
+    // Pas de méthode de suppression physique. La suppression est gérée par le changement de statut via changerStatutCompte('...','archive').
+
+    // --- Gestion des Délégations ---
+    public function creerDelegation(string $idDelegant, string $idDelegue, string $idTraitement, string $dateDebut, string $dateFin, ?string $contexteId = null, ?string $contexteType = null): string
+    {
+        $idDelegation = $this->systemeService->genererIdentifiantUnique('DEL');
+        $data = [
+            'id_delegation' => $idDelegation, 'id_delegant' => $idDelegant, 'id_delegue' => $idDelegue,
+            'id_traitement' => $idTraitement, 'date_debut' => $dateDebut, 'date_fin' => $dateFin,
+            'statut' => 'Active', 'contexte_id' => $contexteId, 'contexte_type' => $contexteType
+        ];
+        $this->delegationModel->creer($data);
+        $this->supervisionService->enregistrerAction($idDelegant, 'CREATION_DELEGATION', $idDelegation, 'Delegation', ['delegue' => $idDelegue, 'traitement' => $idTraitement]);
+        if ($this->communicationService) {
+            $this->communicationService->envoyerNotificationInterne($idDelegue, 'NOUVELLE_DELEGATION', "Vous avez reçu une nouvelle délégation de droits.");
+        }
+        return $idDelegation;
+    }
+
+    public function revoquerDelegation(string $idDelegation): bool
+    {
+        $delegation = $this->delegationModel->trouverParIdentifiant($idDelegation);
+        if (!$delegation) throw new ElementNonTrouveException("Délégation non trouvée.");
+        $success = $this->delegationModel->mettreAJourParIdentifiant($idDelegation, ['statut' => 'Révoquée']);
+        if ($success) {
+            $this->supervisionService->enregistrerAction($_SESSION['user_id'] ?? 'SYSTEM', 'REVOCATION_DELEGATION', $idDelegation, 'Delegation');
+        }
+        return $success;
+    }
+
+    private function getModelForType(string $type): GenericModel
+    {
+        return match (strtolower($type)) {
+            'etudiant' => $this->etudiantModel,
+            'enseignant' => $this->enseignantModel,
+            'personnel' => $this->personnelAdminModel,
+            default => throw new InvalidArgumentException("Type de profil '{$type}' non géré."),
+        };
+    }
+    // --- NOUVEAU : IMPORTATION EN MASSE ---
+    public function importerEtudiantsDepuisFichier(string $filePath, array $mapping): array
+    {
+        $rapport = ['succes' => 0, 'echecs' => 0, 'erreurs' => []];
+
+        try {
+            $spreadsheet = IOFactory::load($filePath);
+            $worksheet = $spreadsheet->getActiveSheet();
+            $highestRow = $worksheet->getHighestRow();
+        } catch (\Exception $e) {
+            throw new OperationImpossibleException("Impossible de lire le fichier fourni : " . $e->getMessage());
+        }
+
+        // La première ligne est l'en-tête, on commence à la deuxième
+        for ($row = 2; $row <= $highestRow; $row++) {
+            $rowData = [];
+            foreach ($mapping as $colonneFichier => $champDb) {
+                // PhpSpreadsheet utilise des indices de colonne basés sur 1 (A=1, B=2, etc.)
+                // On suppose que le mapping est fait avec les noms des colonnes.
+                // Il faut trouver l'index de la colonne à partir de son nom.
+                $colIndex = $this->getColumnIndexByName($worksheet, $colonneFichier);
+                if ($colIndex) {
+                    $colString = Coordinate::stringFromColumnIndex($colIndex);
+                    $rowData[$champDb] = $worksheet->getCell($colString . $row)->getValue();
+                }
+            }
+
+            // Validation simple des données extraites
+            if (empty($rowData['nom']) || empty($rowData['prenom'])) {
+                $rapport['echecs']++;
+                $rapport['erreurs'][] = "Ligne {$row}: Le nom et le prénom sont obligatoires.";
+                continue;
+            }
+
+            // On utilise une transaction pour chaque étudiant pour garantir l'atomicité
+            $this->db->beginTransaction();
+            try {
+                // On appelle la méthode de création d'entité existante
+                $this->creerEntite('etudiant', $rowData);
+                $this->db->commit();
+                $rapport['succes']++;
+            } catch (\Exception $e) {
+                $this->db->rollBack();
+                $rapport['echecs']++;
+                $rapport['erreurs'][] = "Ligne {$row} (Étudiant: {$rowData['prenom']} {$rowData['nom']}): " . $e->getMessage();
+            }
+        }
+
+        $this->supervisionService->enregistrerAction(
+            $_SESSION['user_id'] ?? 'SYSTEM',
+            'IMPORT_ETUDIANTS',
+            null, null,
+            ['succes' => $rapport['succes'], 'echecs' => $rapport['echecs']]
+        );
+
+        return $rapport;
+    }
+
+    // --- Méthodes privées ---
+    /**
+     * Méthode utilitaire pour trouver l'index d'une colonne par son nom dans la première ligne.
+     */
+    private function getColumnIndexByName($worksheet, $columnName): ?int
+    {
+        $highestColumn = $worksheet->getHighestColumn();
+        for ($col = 'A'; $col <= $highestColumn; $col++) {
+            if ($worksheet->getCell($col . '1')->getValue() == $columnName) {
+                // Convertit la lettre de colonne en index numérique (A=1, B=2...)
+                return Coordinate::columnIndexFromString($col);
+            }
+        }
+        return null;
+    }
+}
+
+
+/***********************************************************************************
+ * Fichier: src/Backend/Service\Utilisateur\ServiceUtilisateurInterface.php
+ ***********************************************************************************/
+
+<?php
+// src/Backend/Service/Utilisateur/ServiceUtilisateurInterface.php
+
+namespace App\Backend\Service\Utilisateur;
+
+interface ServiceUtilisateurInterface
+{
+    /**
+     * Crée une entité métier (Etudiant, Enseignant...) sans créer de compte utilisateur.
+     *
+     * @param string $typeEntite 'etudiant', 'enseignant', ou 'personnel'.
+     * @param array $donneesProfil Les données du profil (nom, prénom, etc.).
+     * @return string Le numéro unique de l'entité créée (ex: 'ETU-2024-0125').
+     */
+    public function creerEntite(string $typeEntite, array $donneesProfil): string;
+
+    /**
+     * Active l'accès à la plateforme pour une entité existante en créant son compte utilisateur.
+     *
+     * @param string $numeroEntite L'ID de l'entité (ex: numero_carte_etudiant).
+     * @param array $donneesCompte Données pour le compte (login, email, groupe, etc.).
+     * @param bool $envoyerEmailValidation Indique s'il faut envoyer un email de validation.
+     * @return bool True si le compte a été activé avec succès.
+     */
+    public function activerComptePourEntite(string $numeroEntite, array $donneesCompte, bool $envoyerEmailValidation = true): bool;
+
+    /**
+     * Récupère la liste complète des utilisateurs avec leurs profils et statuts de compte.
+     *
+     * @param array $filtres Critères de filtrage.
+     * @return array Liste des utilisateurs.
+     */
+    public function listerUtilisateursComplets(array $filtres = []): array;
+
+    /**
+     * Met à jour les informations d'un profil et/ou du compte utilisateur associé.
+     *
+     * @param string $numeroUtilisateur L'ID de l'utilisateur.
+     * @param array $donneesProfil Données du profil à mettre à jour.
+     * @param array $donneesCompte Données du compte à mettre à jour.
+     * @return bool True en cas de succès.
+     */
+    public function mettreAJourUtilisateur(string $numeroUtilisateur, array $donneesProfil, array $donneesCompte): bool;
+
+    /**
+     * Change le statut d'un compte utilisateur (actif, inactif, bloqué, archivé).
+     *
+     * @param string $numeroUtilisateur L'ID de l'utilisateur.
+     * @param string $nouveauStatut Le nouveau statut.
+     * @return bool True en cas de succès.
+     */
+    public function changerStatutCompte(string $numeroUtilisateur, string $nouveauStatut): bool;
+
+    /**
+     * Crée une délégation de permission d'un utilisateur à un autre.
+     *
+     * @param string $idDelegant L'ID de l'utilisateur qui délègue.
+     * @param string $idDelegue L'ID de l'utilisateur qui reçoit la délégation.
+     * @param string $idTraitement L'ID de la permission déléguée.
+     * @param string $dateDebut Date de début de la délégation.
+     * @param string $dateFin Date de fin de la délégation.
+     * @param string|null $contexteId Contexte spécifique de la délégation (optionnel).
+     * @param string|null $contexteType Type de contexte (optionnel).
+     * @return string L'ID de la délégation créée.
+     */
+    public function creerDelegation(string $idDelegant, string $idDelegue, string $idTraitement, string $dateDebut, string $dateFin, ?string $contexteId = null, ?string $contexteType = null): string;
+
+    /**
+     * Révoque une délégation avant sa date de fin.
+     *
+     * @param string $idDelegation L'ID de la délégation à révoquer.
+     * @return bool True en cas de succès.
+     */
+    public function revoquerDelegation(string $idDelegation): bool;
+    /**
+     * Récupère les permissions déléguées d'un utilisateur.
+     *
+     * @param string $numeroUtilisateur L'ID de l'utilisateur.
+     * @return array Liste des permissions déléguées.
+     */
+/**
+ * Importe des entités étudiant en masse depuis un fichier (CSV ou Excel).
+ * Ne crée pas les comptes utilisateurs, seulement les profils.
+ *
+ * @param string $filePath Le chemin absolu vers le fichier temporaire uploadé.
+ * @param array $mapping Un tableau associatif qui mappe les colonnes du fichier aux champs de la DB.
+ *                      Ex: ['Nom de famille' => 'nom', 'Prénom' => 'prenom', 'Email U' => 'email_contact_secondaire']
+ * @return array Un rapport d'importation avec le nombre de succès et les erreurs détaillées.
+ */
+public function importerEtudiantsDepuisFichier(string $filePath, array $mapping): array;
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Service\WorkflowSoutenance\ServiceWorkflowSoutenance.php
+ ***********************************************************************************/
+
+<?php
+// src/Backend/Service/WorkflowSoutenance/ServiceWorkflowSoutenance.php
+
+namespace App\Backend\Service\WorkflowSoutenance;
+
+use PDO;
+use App\Backend\Model\RapportEtudiant;
+use App\Backend\Model\Reclamation;
+use App\Backend\Model\GenericModel;
+use App\Backend\Service\Communication\ServiceCommunicationInterface;
+use App\Backend\Service\Document\ServiceDocumentInterface;
+use App\Backend\Service\Supervision\ServiceSupervisionInterface;
+use App\Backend\Service\Systeme\ServiceSystemeInterface;
+use App\Backend\Exception\{ElementNonTrouveException, OperationImpossibleException, DoublonException, PermissionException};
+
+class ServiceWorkflowSoutenance implements ServiceWorkflowSoutenanceInterface
+{
+    private PDO $db;
+    private RapportEtudiant $rapportModel;
+    private Reclamation $reclamationModel;
+    private GenericModel $sectionRapportModel;
+    private GenericModel $approuverModel;
+    private GenericModel $conformiteDetailsModel;
+    private GenericModel $affecterModel;
+    private GenericModel $voteModel;
+    private GenericModel $compteRenduModel;
+    private GenericModel $validationPvModel;
+    private GenericModel $sessionValidationModel;
+    private GenericModel $sessionRapportModel;
+    private ServiceCommunicationInterface $communicationService;
+    private ServiceDocumentInterface $documentService;
+    private ServiceSupervisionInterface $supervisionService;
+    private ServiceSystemeInterface $systemeService;
+
+    public function __construct(
+        PDO $db,
+        RapportEtudiant $rapportModel,
+        Reclamation $reclamationModel,
+        GenericModel $sectionRapportModel,
+        GenericModel $approuverModel,
+        GenericModel $conformiteDetailsModel,
+        GenericModel $affecterModel,
+        GenericModel $voteModel,
+        GenericModel $compteRenduModel,
+        GenericModel $validationPvModel,
+        GenericModel $sessionValidationModel,
+        GenericModel $sessionRapportModel,
+        ServiceCommunicationInterface $communicationService,
+        ServiceDocumentInterface $documentService,
+        ServiceSupervisionInterface $supervisionService,
+        ServiceSystemeInterface $systemeService
+    ) {
+        $this->db = $db;
+        $this->rapportModel = $rapportModel;
+        $this->reclamationModel = $reclamationModel;
+        $this->sectionRapportModel = $sectionRapportModel;
+        $this->approuverModel = $approuverModel;
+        $this->conformiteDetailsModel = $conformiteDetailsModel;
+        $this->affecterModel = $affecterModel;
+        $this->voteModel = $voteModel;
+        $this->compteRenduModel = $compteRenduModel;
+        $this->validationPvModel = $validationPvModel;
+        $this->sessionValidationModel = $sessionValidationModel;
+        $this->sessionRapportModel = $sessionRapportModel;
+        $this->communicationService = $communicationService;
+        $this->documentService = $documentService;
+        $this->supervisionService = $supervisionService;
+        $this->systemeService = $systemeService;
+    }
+
+    // ====================================================================
+    // PHASE 1: GESTION DU RAPPORT PAR L'ÉTUDIANT
+    // ====================================================================
+
+    public function creerOuMettreAJourBrouillon(string $numeroEtudiant, array $metadonnees, array $sections): string
+    {
+        $this->db->beginTransaction();
+        try {
+            $brouillon = $this->rapportModel->trouverUnParCritere(['numero_carte_etudiant' => $numeroEtudiant, 'id_statut_rapport' => 'RAP_BROUILLON']);
+
+            $metadonnees['date_derniere_modif'] = date('Y-m-d H:i:s');
+
+            if ($brouillon) {
+                $idRapport = $brouillon['id_rapport_etudiant'];
+                $this->rapportModel->mettreAJourParIdentifiant($idRapport, $metadonnees);
+            } else {
+                $idRapport = $this->systemeService->genererIdentifiantUnique('RAP');
+                $metadonnees['id_rapport_etudiant'] = $idRapport;
+                $metadonnees['numero_carte_etudiant'] = $numeroEtudiant;
+                $metadonnees['id_statut_rapport'] = 'RAP_BROUILLON';
+                $this->rapportModel->creer($metadonnees);
+            }
+
+            foreach ($sections as $titre => $contenu) {
+                $this->sectionRapportModel->mettreAJourParCles(['id_rapport_etudiant' => $idRapport, 'titre_section' => $titre], ['contenu_section' => $contenu])
+                || $this->sectionRapportModel->creer(['id_rapport_etudiant' => $idRapport, 'titre_section' => $titre, 'contenu_section' => $contenu]);
+            }
+
+            $this->db->commit();
+            return $idRapport;
+        } catch (\Exception $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
+    }
+
+    public function soumettreRapport(string $idRapport, string $numeroEtudiant): bool
+    {
+        $rapport = $this->rapportModel->trouverParIdentifiant($idRapport);
+        if (!$rapport || $rapport['numero_carte_etudiant'] !== $numeroEtudiant) throw new PermissionException("Action non autorisée sur ce rapport.");
+        if ($rapport['id_statut_rapport'] !== 'RAP_BROUILLON') throw new OperationImpossibleException("Seul un brouillon peut être soumis.");
+
+        $this->supervisionService->enregistrerAction($numeroEtudiant, 'SOUMISSION_RAPPORT', $idRapport, 'RapportEtudiant');
+        return $this->changerStatutRapport($idRapport, 'RAP_SOUMIS', 'GRP_AGENT_CONFORMITE', 'NOUVEAU_RAPPORT_A_VERIFIER');
+    }
+
+    public function soumettreCorrections(string $idRapport, string $numeroEtudiant, array $sections, string $noteExplicative): bool
+    {
+        $rapport = $this->rapportModel->trouverParIdentifiant($idRapport);
+        if (!$rapport || $rapport['numero_carte_etudiant'] !== $numeroEtudiant) throw new PermissionException("Action non autorisée sur ce rapport.");
+        if (!in_array($rapport['id_statut_rapport'], ['RAP_NON_CONF', 'RAP_CORRECT'])) throw new OperationImpossibleException("Ce rapport n'est pas en attente de corrections.");
+
+        $this->creerOuMettreAJourBrouillon($numeroEtudiant, [], $sections);
+        $this->supervisionService->enregistrerAction($numeroEtudiant, 'SOUMISSION_CORRECTIONS', $idRapport, 'RapportEtudiant', ['note_explicative' => $noteExplicative]);
+        return $this->changerStatutRapport($idRapport, 'RAP_SOUMIS', 'GRP_AGENT_CONFORMITE', 'RAPPORT_CORRIGE_A_VERIFIER');
+    }
+
+    public function lireRapportComplet(string $idRapport): ?array
+    {
+        $rapport = $this->rapportModel->trouverParIdentifiant($idRapport);
+        if (!$rapport) return null;
+        $rapport['sections'] = $this->sectionRapportModel->trouverParCritere(['id_rapport_etudiant' => $idRapport]);
+        $rapport['conformite_details'] = $this->conformiteDetailsModel->trouverParCritere(['id_rapport_etudiant' => $idRapport]);
+        $rapport['votes'] = $this->voteModel->trouverParCritere(['id_rapport_etudiant' => $idRapport]);
+        return $rapport;
+    }
+
+    public function listerRapports(array $filtres = []): array
+    {
+        return $this->rapportModel->trouverRapportsAvecDetailsEtudiant($filtres);
+    }
+
+    // ====================================================================
+    // PHASE 2: VÉRIFICATION DE CONFORMITÉ
+    // ====================================================================
+
+    public function traiterVerificationConformite(string $idRapport, string $numeroPersonnel, bool $estConforme, array $detailsChecklist, ?string $commentaireGeneral): bool
+    {
+        $this->db->beginTransaction();
+        try {
+            $this->approuverModel->creer([
+                'numero_personnel_administratif' => $numeroPersonnel,
+                'id_rapport_etudiant' => $idRapport,
+                'id_statut_conformite' => $estConforme ? 'CONF_OK' : 'CONF_NOK',
+                'commentaire_conformite' => $commentaireGeneral,
+                'date_verification_conformite' => date('Y-m-d H:i:s')
+            ]);
+
+            foreach ($detailsChecklist as $critere) {
+                $this->conformiteDetailsModel->creer([
+                    'id_conformite_detail' => $this->systemeService->genererIdentifiantUnique('CRD'),
+                    'id_rapport_etudiant' => $idRapport,
+                    'id_critere' => $critere['id'],
+                    'statut_validation' => $critere['statut'],
+                    'commentaire' => $critere['commentaire']
+                ]);
+            }
+            $this->db->commit();
+
+            if ($estConforme) {
+                return $this->changerStatutRapport($idRapport, 'RAP_CONF', 'GRP_COMMISSION', 'RAPPORT_CONFORME_A_EVALUER');
+            } else {
+                return $this->changerStatutRapport($idRapport, 'RAP_NON_CONF', null, 'CORRECTIONS_REQUISES');
+            }
+        } catch (\Exception $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
+    }
+
+    // ====================================================================
+    // PHASE 3: GESTION DE LA SESSION DE VALIDATION
+    // ====================================================================
+
+    public function creerSession(string $idPresident, array $donneesSession): string
+    {
+        $idSession = $this->systemeService->genererIdentifiantUnique('SESS');
+        $donneesSession['id_session'] = $idSession;
+        $donneesSession['id_president_session'] = $idPresident;
+        $donneesSession['statut_session'] = 'planifiee';
+        $this->sessionValidationModel->creer($donneesSession);
+        return $idSession;
+    }
+
+    public function modifierSession(string $idSession, string $idPresident, array $donnees): bool { /* ... */ }
+    public function composerSession(string $idSession, string $idPresident, array $idsRapports): bool { /* ... */ }
+    public function demarrerSession(string $idSession, string $idPresident): bool { /* ... */ }
+    public function cloturerSession(string $idSession, string $idPresident): bool { /* ... */ }
+    public function listerSessionsPourCommission(): array { /* ... */ }
+
+    // ====================================================================
+    // PHASE 4: ÉVALUATION ET VOTE
+    // ====================================================================
+
+    public function enregistrerVote(string $idRapport, string $numeroEnseignant, string $decision, ?string $commentaire): bool { /* ... */ }
+    public function lancerNouveauTourDeVote(string $idRapport, string $idPresident): bool { /* ... */ }
+    public function consulterEtatVotes(string $idSession): array { /* ... */ }
+    public function finaliserDecisionCommission(string $idRapport): ?string { /* ... */ }
+
+    // ====================================================================
+    // PHASE 5: GESTION DES PROCÈS-VERBAUX (PV)
+    // ====================================================================
+
+    public function initierRedactionPv(string $idSession, string $idRedacteur): string { /* ... */ }
+    public function mettreAJourContenuPv(string $idCompteRendu, string $idRedacteur, string $contenu): bool { /* ... */ }
+    public function soumettrePvPourValidation(string $idCompteRendu, string $idRedacteur): bool { /* ... */ }
+    public function approuverOuRejeterPv(string $idCompteRendu, string $numeroMembre, bool $approbation, ?string $commentaire): bool { /* ... */ }
+    public function forcerValidationPv(string $idCompteRendu, string $idPresident, string $methode, string $justification): bool { /* ... */ }
+    public function genererContenuPvAssiste(string $idSession): array { /* ... */ }
+
+    // ====================================================================
+    // PHASE 6: FINALISATION POST-VALIDATION
+    // ====================================================================
+
+    public function designerDirecteurMemoire(string $idRapport, string $idPresident, string $numeroEnseignantDirecteur): bool { /* ... */ }
+
+    // --- Méthode privée utilitaire ---
+    private function changerStatutRapport(string $idRapport, string $nouveauStatut, ?string $groupeANotifier, ?string $templateNotification): bool
+    {
+        $rapport = $this->rapportModel->trouverParIdentifiant($idRapport);
+        if (!$rapport) throw new ElementNonTrouveException("Rapport non trouvé.");
+
+        $success = $this->rapportModel->mettreAJourParIdentifiant($idRapport, ['id_statut_rapport' => $nouveauStatut]);
+
+        if ($success) {
+            $this->supervisionService->enregistrerAction($_SESSION['user_id'] ?? 'SYSTEM', 'CHANGEMENT_STATUT_RAPPORT', $idRapport, 'RapportEtudiant', ['nouveau_statut' => $nouveauStatut]);
+
+            $this->communicationService->envoyerNotificationInterne($rapport['numero_carte_etudiant'], 'STATUT_RAPPORT_MAJ', "Le statut de votre rapport est passé à : {$nouveauStatut}");
+
+            if ($groupeANotifier && $templateNotification) {
+                $this->communicationService->envoyerNotificationGroupe($groupeANotifier, $templateNotification, "Le rapport {$idRapport} nécessite votre attention.");
+            }
+        }
+        return $success;
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Service\WorkflowSoutenance\ServiceWorkflowSoutenanceInterface.php
+ ***********************************************************************************/
+
+<?php
+// src/Backend/Service/WorkflowSoutenance/ServiceWorkflowSoutenanceInterface.php
+
+namespace App\Backend\Service\WorkflowSoutenance;
+
+interface ServiceWorkflowSoutenanceInterface
+{
+    // --- PHASE 1: GESTION DU RAPPORT PAR L'ÉTUDIANT ---
+    public function creerOuMettreAJourBrouillon(string $numeroEtudiant, array $metadonnees, array $sections): string;
+    public function soumettreRapport(string $idRapport, string $numeroEtudiant): bool;
+    public function soumettreCorrections(string $idRapport, string $numeroEtudiant, array $sections, string $noteExplicative): bool;
+    public function lireRapportComplet(string $idRapport): ?array;
+    public function listerRapports(array $filtres = []): array;
+
+    // --- PHASE 2: VÉRIFICATION DE CONFORMITÉ PAR L'ADMINISTRATION ---
+    public function traiterVerificationConformite(string $idRapport, string $numeroPersonnel, bool $estConforme, array $detailsChecklist, ?string $commentaireGeneral): bool;
+
+    // --- PHASE 3: GESTION DE LA SESSION DE VALIDATION (PRÉSIDENT) ---
+    public function creerSession(string $idPresident, array $donneesSession): string;
+    public function modifierSession(string $idSession, string $idPresident, array $donnees): bool;
+    public function composerSession(string $idSession, string $idPresident, array $idsRapports): bool;
+    public function demarrerSession(string $idSession, string $idPresident): bool;
+    public function cloturerSession(string $idSession, string $idPresident): bool;
+    public function listerSessionsPourCommission(): array;
+
+    // --- PHASE 4: ÉVALUATION ET VOTE PAR LA COMMISSION ---
+    public function enregistrerVote(string $idRapport, string $numeroEnseignant, string $decision, ?string $commentaire): bool;
+    public function lancerNouveauTourDeVote(string $idRapport, string $idPresident): bool;
+    public function consulterEtatVotes(string $idSession): array;
+
+    // --- PHASE 5: GESTION DES PROCÈS-VERBAUX (PV) ---
+    public function initierRedactionPv(string $idSession, string $idRedacteur): string;
+    public function mettreAJourContenuPv(string $idCompteRendu, string $idRedacteur, string $contenu): bool;
+    public function soumettrePvPourValidation(string $idCompteRendu, string $idRedacteur): bool;
+    public function approuverOuRejeterPv(string $idCompteRendu, string $numeroMembre, bool $approbation, ?string $commentaire): bool;
+    public function forcerValidationPv(string $idCompteRendu, string $idPresident, string $methode, string $justification): bool; // 'substitution' ou 'quorum'
+
+    // --- PHASE 6: FINALISATION POST-VALIDATION (PRÉSIDENT) ---
+    public function designerDirecteurMemoire(string $idRapport, string $idPresident, string $numeroEnseignantDirecteur): bool;
+}

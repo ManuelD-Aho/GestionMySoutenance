@@ -1,10 +1,32 @@
 # Ignorer les fichiers d'environnement spécifiques
+.env
+.env.dev
+.env.prod
+.env.example
 
+# Ignorer les fichiers de logs
+*.log
+
+# Ignorer les fichiers de base de données
+*.sql
+*.sqlite
+
+# Ignorer les fichiers de sauvegarde et temporaires
+*.bak
+*.tmp
+
+# Ignorer les fichiers et dossiers spécifiques à macOS
+.DS_Store
+Thumbs.db
+
+# Ignorer les fichiers et dossiers spécifiques à l'IDE
+.idea/
+.vscode/
 
 # Ignorer les dépendances Composer
 composer.phar
 /vendor/
-
+/node_modules/
 # Ignorer les assets générés ou les caches
 /Public/assets/css/bulma/
 /Public/uploads/
@@ -12,4 +34,3 @@ composer.phar
 /var/log/
 
 # Ignorer les fichiers Docker spécifiques au développement
-

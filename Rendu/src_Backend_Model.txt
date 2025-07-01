@@ -1,0 +1,507 @@
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\BaseModel.php
+ ***********************************************************************************/
+
+<?php
+// src/Backend/Model/BaseModel.php
+
+namespace App\Backend\Model;
+
+use PDO;
+use PDOStatement;
+use App\Backend\Exception\DoublonException;
+
+abstract class BaseModel
+{
+    protected string $table;
+    protected string|array $primaryKey;
+    protected PDO $db;
+
+    public function __construct(PDO $db)
+    {
+        $this->db = $db;
+    }
+
+    public function getDb(): PDO
+    {
+        return $this->db;
+    }
+
+    public function trouverTout(array $colonnes = ['*']): array
+    {
+        $cols = implode(', ', $colonnes);
+        $stmt = $this->db->query("SELECT {$cols} FROM `{$this->table}`");
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function trouverParIdentifiant(int|string $id, array $colonnes = ['*']): ?array
+    {
+        if (is_array($this->primaryKey)) {
+            throw new \BadMethodCallException("Cette méthode ne supporte pas les clés primaires composites. Utilisez trouverUnParCritere().");
+        }
+        $cols = implode(', ', $colonnes);
+        $stmt = $this->db->prepare("SELECT {$cols} FROM `{$this->table}` WHERE `{$this->primaryKey}` = :id");
+        $stmt->bindParam(':id', $id);
+        $stmt->execute();
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $result ?: null;
+    }
+
+    public function trouverParCritere(array $criteres, array $colonnes = ['*'], string $op = 'AND', ?string $orderBy = null, ?int $limit = null, ?int $offset = null): array
+    {
+        $cols = implode(', ', $colonnes);
+        $sql = "SELECT {$cols} FROM `{$this->table}`";
+        $params = [];
+
+        if (!empty($criteres)) {
+            $whereParts = [];
+            foreach ($criteres as $key => $value) {
+                if (is_array($value) && isset($value['operator'])) {
+                    $whereParts[] = "`{$key}` {$value['operator']} :{$key}";
+                    $params[":{$key}"] = $value['value'];
+                } else {
+                    $whereParts[] = "`{$key}` = :{$key}";
+                    $params[":{$key}"] = $value;
+                }
+            }
+            $sql .= " WHERE " . implode(" {$op} ", $whereParts);
+        }
+
+        if ($orderBy) $sql .= " ORDER BY {$orderBy}";
+        if ($limit !== null) $sql .= " LIMIT {$limit}";
+        if ($offset !== null) $sql .= " OFFSET {$offset}";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function trouverUnParCritere(array $criteres, array $colonnes = ['*'], string $op = 'AND'): ?array
+    {
+        $result = $this->trouverParCritere($criteres, $colonnes, $op, null, 1);
+        return $result[0] ?? null;
+    }
+
+    public function creer(array $donnees): string|bool
+    {
+        $cols = implode('`, `', array_keys($donnees));
+        $placeholders = ':' . implode(', :', array_keys($donnees));
+        $sql = "INSERT INTO `{$this->table}` (`{$cols}`) VALUES ({$placeholders})";
+        $stmt = $this->db->prepare($sql);
+
+        try {
+            if ($stmt->execute($donnees)) {
+                if (is_string($this->primaryKey) && !isset($donnees[$this->primaryKey])) {
+                    return $this->db->lastInsertId();
+                }
+                return true;
+            }
+            return false;
+        } catch (\PDOException $e) {
+            if ($e->getCode() == 23000) {
+                throw new DoublonException("Une entrée avec des attributs uniques similaires existe déjà.");
+            }
+            throw $e;
+        }
+    }
+
+    public function mettreAJourParIdentifiant(int|string $id, array $donnees): bool
+    {
+        if (is_array($this->primaryKey)) {
+            throw new \BadMethodCallException("Cette méthode ne supporte pas les clés primaires composites.");
+        }
+        $setParts = [];
+        foreach ($donnees as $key => $value) {
+            $setParts[] = "`{$key}` = :{$key}";
+        }
+        $sql = "UPDATE `{$this->table}` SET " . implode(', ', $setParts) . " WHERE `{$this->primaryKey}` = :id";
+        $stmt = $this->db->prepare($sql);
+        $donnees['id'] = $id;
+        return $stmt->execute($donnees);
+    }
+
+    public function supprimerParIdentifiant(int|string $id): bool
+    {
+        if (is_array($this->primaryKey)) {
+            throw new \BadMethodCallException("Cette méthode ne supporte pas les clés primaires composites.");
+        }
+        $sql = "DELETE FROM `{$this->table}` WHERE `{$this->primaryKey}` = :id";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bindParam(':id', $id);
+        return $stmt->execute();
+    }
+
+    public function commencerTransaction(): void { $this->db->beginTransaction(); }
+    public function validerTransaction(): void { $this->db->commit(); }
+    public function annulerTransaction(): void { $this->db->rollBack(); }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\Delegation.php
+ ***********************************************************************************/
+
+<?php
+// src/Backend/Model/Delegation.php
+
+namespace App\Backend\Model;
+
+use PDO;
+
+class Delegation extends BaseModel
+{
+    protected string $table = 'delegation';
+    protected string|array $primaryKey = 'id_delegation';
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+
+    /**
+     * Trouve toutes les délégations actives pour un utilisateur donné.
+     * Une délégation est active si son statut est 'Active' et si la date actuelle
+     * est comprise entre la date de début et la date de fin.
+     *
+     * @param string $numeroUtilisateur L'ID de l'utilisateur délégué.
+     * @return array La liste des délégations actives.
+     */
+    public function trouverDelegationActivePourUtilisateur(string $numeroUtilisateur): array
+    {
+        return $this->trouverParCritere([
+            'id_delegue' => $numeroUtilisateur,
+            'statut' => 'Active',
+            'date_debut' => ['operator' => '<=', 'value' => date('Y-m-d H:i:s')],
+            'date_fin' => ['operator' => '>=', 'value' => date('Y-m-d H:i:s')]
+        ]);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\GenericModel.php
+ ***********************************************************************************/
+
+<?php
+// src/Backend/Model/GenericModel.php
+
+namespace App\Backend\Model;
+
+use PDO;
+
+class GenericModel extends BaseModel
+{
+    public function __construct(PDO $db, string $table, string|array $primaryKey)
+    {
+        parent::__construct($db);
+        $this->table = $table;
+        $this->primaryKey = $primaryKey;
+    }
+
+    public function getClePrimaire(): array|string
+    {
+        return $this->primaryKey;
+    }
+
+    /**
+     * Met à jour les lignes correspondant aux clés fournies.
+     */
+    public function mettreAJourParCles(array $cles, array $donnees): bool
+    {
+        $setParts = [];
+        $params = [];
+        foreach ($donnees as $col => $val) {
+            $setParts[] = "$col = :set_$col";
+            $params[":set_$col"] = $val;
+        }
+        $whereParts = [];
+        foreach ($cles as $col => $val) {
+            $whereParts[] = "$col = :where_$col";
+            $params[":where_$col"] = $val;
+        }
+        $sql = "UPDATE {$this->table} SET ".implode(', ', $setParts)." WHERE ".implode(' AND ', $whereParts);
+        $stmt = $this->db->prepare($sql);
+        return $stmt->execute($params);
+    }
+
+    /**
+     * Supprime les lignes correspondant aux clés fournies.
+     */
+    public function supprimerParCles(array $cles): bool
+    {
+        $whereParts = [];
+        $params = [];
+        foreach ($cles as $col => $val) {
+            $whereParts[] = "$col = :$col";
+            $params[":$col"] = $val;
+        }
+        $sql = "DELETE FROM {$this->table} WHERE ".implode(' AND ', $whereParts);
+        $stmt = $this->db->prepare($sql);
+        return $stmt->execute($params);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\HistoriqueMotDePasse.php
+ ***********************************************************************************/
+
+<?php
+// src/Backend/Model/HistoriqueMotDePasse.php
+
+namespace App\Backend\Model;
+
+use PDO;
+
+class HistoriqueMotDePasse extends BaseModel
+{
+    protected string $table = 'historique_mot_de_passe';
+    protected string|array $primaryKey = 'id_historique_mdp';
+    protected array $fields = [
+        'id_historique_mdp', 'numero_utilisateur', 'mot_de_passe_hache', 'date_changement'
+    ];
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+
+    /**
+     * Récupère les N derniers mots de passe hachés pour un utilisateur.
+     * Utilisé pour empêcher la réutilisation des mots de passe récents.
+     *
+     * @param string $numeroUtilisateur L'ID de l'utilisateur.
+     * @param int $limite Le nombre d'entrées à récupérer (ex: les 3 derniers).
+     * @return array La liste des mots de passe hachés.
+     */
+    public function recupererHistoriquePourUtilisateur(string $numeroUtilisateur, int $limite = 3): array
+    {
+        return $this->trouverParCritere(
+            ['numero_utilisateur' => $numeroUtilisateur],
+            ['mot_de_passe_hache'],
+            'AND',
+            'date_changement DESC',
+            $limite
+        );
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\RapportEtudiant.php
+ ***********************************************************************************/
+
+<?php
+// src/Backend/Model/RapportEtudiant.php
+
+namespace App\Backend\Model;
+
+use PDO;
+
+class RapportEtudiant extends BaseModel
+{
+    protected string $table = 'rapport_etudiant';
+    protected string|array $primaryKey = 'id_rapport_etudiant';
+    protected array $fields = [
+        'id_rapport_etudiant', 'libelle_rapport_etudiant', 'theme', 'resume', 'numero_attestation_stage',
+        'numero_carte_etudiant', 'nombre_pages', 'id_statut_rapport', 'date_soumission', 'date_derniere_modif'
+    ];
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+
+    public function trouverRapportsAvecDetailsEtudiant(array $criteres = []): array
+    {
+        $sql = "SELECT r.*, e.nom, e.prenom, s.libelle_statut_rapport
+                FROM `{$this->table}` r 
+                JOIN `etudiant` e ON r.numero_carte_etudiant = e.numero_carte_etudiant
+                JOIN `statut_rapport_ref` s ON r.id_statut_rapport = s.id_statut_rapport";
+
+        $params = [];
+        if (!empty($criteres)) {
+            $whereParts = [];
+            foreach ($criteres as $key => $value) {
+                $whereParts[] = "r.`{$key}` = :{$key}";
+                $params[":{$key}"] = $value;
+            }
+            $sql .= " WHERE " . implode(" AND ", $whereParts);
+        }
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\Reclamation.php
+ ***********************************************************************************/
+
+<?php
+// src/Backend/Model/Reclamation.php
+
+namespace App\Backend\Model;
+
+use PDO;
+
+class Reclamation extends BaseModel
+{
+    protected string $table = 'reclamation';
+    protected string|array $primaryKey = 'id_reclamation';
+    protected array $fields = [
+        'id_reclamation', 'numero_carte_etudiant', 'sujet_reclamation', 'description_reclamation',
+        'date_soumission', 'id_statut_reclamation', 'reponse_reclamation', 'date_reponse', 'numero_personnel_traitant'
+    ];
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+
+    public function getDetailsReclamation(string $idReclamation): ?array
+    {
+        $sql = "SELECT rec.*, 
+                       et.nom as etudiant_nom, et.prenom as etudiant_prenom,
+                       st.libelle_statut_reclamation,
+                       pa.nom as personnel_nom, pa.prenom as personnel_prenom
+                FROM `{$this->table}` rec
+                JOIN `etudiant` et ON rec.numero_carte_etudiant = et.numero_carte_etudiant
+                JOIN `statut_reclamation_ref` st ON rec.id_statut_reclamation = st.id_statut_reclamation
+                LEFT JOIN `personnel_administratif` pa ON rec.numero_personnel_traitant = pa.numero_personnel_administratif
+                WHERE rec.id_reclamation = :id";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->bindParam(':id', $idReclamation);
+        $stmt->execute();
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\Sessions.php
+ ***********************************************************************************/
+
+<?php
+// src/Backend/Model/Sessions.php
+
+namespace App\Backend\Model;
+
+use PDO;
+
+class Sessions extends BaseModel
+{
+    protected string $table = 'sessions';
+    protected string|array $primaryKey = 'session_id';
+    protected array $fields = [
+        'session_id', 'session_data', 'session_last_activity', 'session_lifetime', 'user_id'
+    ];
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+
+    public function trouverSessionsParUtilisateur(string $userId): array
+    {
+        return $this->trouverParCritere(['user_id' => $userId]);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Model\Utilisateur.php
+ ***********************************************************************************/
+
+<?php
+// src/Backend/Model/Utilisateur.php
+
+namespace App\Backend\Model;
+
+use PDO;
+
+class Utilisateur extends BaseModel
+{
+    protected string $table = 'utilisateur';
+    protected string|array $primaryKey = 'numero_utilisateur';
+    protected array $fields = [
+        'numero_utilisateur', 'login_utilisateur', 'email_principal', 'mot_de_passe', 'date_creation',
+        'derniere_connexion', 'token_reset_mdp', 'date_expiration_token_reset', 'token_validation_email',
+        'email_valide', 'tentatives_connexion_echouees', 'compte_bloque_jusqua', 'preferences_2fa_active',
+        'secret_2fa', 'photo_profil', 'statut_compte', 'id_niveau_acces_donne', 'id_groupe_utilisateur', 'id_type_utilisateur'
+    ];
+
+    public function __construct(PDO $db)
+    {
+        parent::__construct($db);
+    }
+
+    /**
+     * Trouve un utilisateur par son login ou son email principal.
+     * Utilisé pour la première étape de l'authentification.
+     *
+     * @param string $identifiant Le login ou l'email à rechercher.
+     * @return array|null Les données de l'utilisateur ou null si non trouvé.
+     */
+    public function trouverParLoginOuEmailPrincipal(string $identifiant): ?array
+    {
+        $sql = "SELECT * FROM `{$this->table}` WHERE `login_utilisateur` = :identifiant OR `email_principal` = :identifiant LIMIT 1";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bindParam(':identifiant', $identifiant);
+        $stmt->execute();
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $result ?: null;
+    }
+
+    /**
+     * Trouve un utilisateur par son token de réinitialisation de mot de passe (haché).
+     *
+     * @param string $tokenHache Le token haché à rechercher.
+     * @return array|null Les données de l'utilisateur ou null si non trouvé.
+     */
+    public function trouverParTokenResetMdp(string $tokenHache): ?array
+    {
+        return $this->trouverUnParCritere(['token_reset_mdp' => $tokenHache]);
+    }
+
+    /**
+     * Trouve un utilisateur par son token de validation d'email (haché).
+     *
+     * @param string $tokenHache Le token haché à rechercher.
+     * @return array|null Les données de l'utilisateur ou null si non trouvé.
+     */
+    public function trouverParTokenValidationEmail(string $tokenHache): ?array
+    {
+        return $this->trouverUnParCritere(['token_validation_email' => $tokenHache]);
+    }
+
+    /**
+     * Vérifie si un login est déjà utilisé par un autre utilisateur.
+     * Essentiel pour garantir l'unicité lors de la création ou de la mise à jour.
+     *
+     * @param string $login Le login à vérifier.
+     * @param string|null $excludeUserId L'ID de l'utilisateur à exclure de la recherche (pour les mises à jour).
+     * @return bool Vrai si le login est déjà pris, faux sinon.
+     */
+    public function loginExiste(string $login, ?string $excludeUserId = null): bool
+    {
+        $criteres = ['login_utilisateur' => $login];
+        if ($excludeUserId) {
+            $criteres['numero_utilisateur'] = ['operator' => '!=', 'value' => $excludeUserId];
+        }
+        return $this->trouverUnParCritere($criteres) !== null;
+    }
+
+    /**
+     * Vérifie si un email est déjà utilisé par un autre utilisateur.
+     *
+     * @param string $email L'email à vérifier.
+     * @param string|null $excludeUserId L'ID de l'utilisateur à exclure de la recherche.
+     * @return bool Vrai si l'email est déjà pris, faux sinon.
+     */
+    public function emailExiste(string $email, ?string $excludeUserId = null): bool
+    {
+        $criteres = ['email_principal' => $email];
+        if ($excludeUserId) {
+            $criteres['numero_utilisateur'] = ['operator' => '!=', 'value' => $excludeUserId];
+        }
+        return $this->trouverUnParCritere($criteres) !== null;
+    }
+}

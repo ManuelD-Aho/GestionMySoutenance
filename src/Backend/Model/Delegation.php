@@ -1,4 +1,6 @@
 <?php
+// src/Backend/Model/Delegation.php
+
 namespace App\Backend\Model;
 
 use PDO;
@@ -6,7 +8,7 @@ use PDO;
 class Delegation extends BaseModel
 {
     protected string $table = 'delegation';
-    protected string|array $primaryKey = 'id_delegation'; // Clé primaire simple
+    protected string|array $primaryKey = 'id_delegation';
 
     public function __construct(PDO $db)
     {
@@ -14,53 +16,20 @@ class Delegation extends BaseModel
     }
 
     /**
-     * Liste toutes les délégations faites par un utilisateur.
-     * @param string $idDelegant L'ID de l'utilisateur délégant.
-     * @param array $colonnes Les colonnes à sélectionner.
-     * @return array Liste des délégations.
+     * Trouve toutes les délégations actives pour un utilisateur donné.
+     * Une délégation est active si son statut est 'Active' et si la date actuelle
+     * est comprise entre la date de début et la date de fin.
+     *
+     * @param string $numeroUtilisateur L'ID de l'utilisateur délégué.
+     * @return array La liste des délégations actives.
      */
-    public function trouverDelegationsParDelegant(string $idDelegant, array $colonnes = ['*']): array
+    public function trouverDelegationActivePourUtilisateur(string $numeroUtilisateur): array
     {
-        return $this->trouverParCritere(['id_delegant' => $idDelegant], $colonnes);
-    }
-
-    /**
-     * Liste toutes les délégations reçues par un utilisateur.
-     * @param string $idDelegue L'ID de l'utilisateur délégué.
-     * @param array $colonnes Les colonnes à sélectionner.
-     * @return array Liste des délégations.
-     */
-    public function trouverDelegationsParDelegue(string $idDelegue, array $colonnes = ['*']): array
-    {
-        return $this->trouverParCritere(['id_delegue' => $idDelegue], $colonnes);
-    }
-
-    /**
-     * Trouve une délégation active spécifique pour un délégué, un traitement et un contexte optionnel.
-     * @param string $idDelegue L'ID de l'utilisateur délégué.
-     * @param string $idTraitement L'ID du traitement délégué.
-     * @param string|null $contexteId L'ID du contexte (ex: ID de session).
-     * @param string|null $contexteType Le type du contexte (ex: 'Session').
-     * @param array $colonnes Les colonnes à sélectionner.
-     * @return array|null La délégation active ou null.
-     */
-    public function trouverDelegationActive(string $idDelegue, string $idTraitement, ?string $contexteId = null, ?string $contexteType = null, array $colonnes = ['*']): ?array
-    {
-        $criteres = [
-            'id_delegue' => $idDelegue,
-            'id_traitement' => $idTraitement,
+        return $this->trouverParCritere([
+            'id_delegue' => $numeroUtilisateur,
             'statut' => 'Active',
             'date_debut' => ['operator' => '<=', 'value' => date('Y-m-d H:i:s')],
             'date_fin' => ['operator' => '>=', 'value' => date('Y-m-d H:i:s')]
-        ];
-
-        if ($contexteId !== null) {
-            $criteres['contexte_id'] = $contexteId;
-        }
-        if ($contexteType !== null) {
-            $criteres['contexte_type'] = $contexteType;
-        }
-
-        return $this->trouverUnParCritere($criteres);
+        ]);
     }
 }

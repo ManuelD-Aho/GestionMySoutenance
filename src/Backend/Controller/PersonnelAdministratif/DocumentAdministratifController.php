@@ -1,2 +1,0 @@
-<?php
-// DocumentAdministratifController.php

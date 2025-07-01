@@ -1,94 +1,137 @@
 <?php
+// src/Backend/Util/DatabaseSessionHandler.php
 
 namespace App\Backend\Util;
 
 use PDO;
 use SessionHandlerInterface;
-use App\Config\Database; // Assurez-vous que cette classe est correctement importée
+use App\Config\Database;
 
+/**
+ * Gère le stockage des sessions PHP directement dans la base de données.
+ * Cela permet de centraliser les sessions, de les lier à un utilisateur
+ * et de les manipuler programmatiquement (ex: mise à jour des permissions).
+ */
 class DatabaseSessionHandler implements SessionHandlerInterface
 {
     private ?PDO $pdo = null;
 
-    public function __construct()
-    {
-        // Le constructeur n'initialise plus PDO directement ici.
-        // La connexion sera obtenue via getDb() au moment du besoin.
-    }
-
+    /**
+     * Obtient une instance de la connexion PDO.
+     * La connexion est établie "paresseusement" (lazy loading) au premier besoin.
+     */
     private function getDb(): PDO
     {
         if ($this->pdo === null) {
-            try {
-                $this->pdo = Database::getInstance()->getConnection();
-            } catch (\PDOException $e) {
-                // Log l'erreur de connexion à la DB pour le débogage
-                error_log("DatabaseSessionHandler PDO Connection Error: " . $e->getMessage());
-                // Il est crucial de ne pas laisser l'application continuer sans DB pour les sessions
-                // Vous pouvez choisir de relancer l'exception ou de gérer une défaillance gracieuse
-                throw new \RuntimeException("Impossible d'établir la connexion à la base de données pour les sessions.", 0, $e);
-            }
+            // Utilise le singleton Database pour garantir une seule connexion
+            $this->pdo = Database::getInstance()->getConnection();
         }
         return $this->pdo;
     }
 
+    /**
+     * Ouvre la session. Ne fait rien car la connexion est gérée paresseusement.
+     */
     public function open(string $path, string $name): bool
     {
-        // La connexion est établie au premier appel à getDb() (par read/write/destroy/gc)
         return true;
     }
 
+    /**
+     * Ferme la session. Libère la connexion PDO.
+     */
     public function close(): bool
     {
-        // Optionnel: libérer la connexion si elle n'est plus nécessaire
         $this->pdo = null;
         return true;
     }
 
+    /**
+     * Lit les données d'une session à partir de la base de données.
+     * @param string $id L'ID de la session.
+     * @return string|false Les données de session sérialisées ou false en cas d'échec.
+     */
     public function read(string $id): string|false
     {
-        $stmt = $this->getDb()->prepare('SELECT session_data FROM sessions WHERE session_id = :id');
-        $stmt->bindParam(':id', $id);
-        $stmt->execute();
-        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        try {
+            $stmt = $this->getDb()->prepare('SELECT session_data FROM sessions WHERE session_id = :id');
+            $stmt->bindParam(':id', $id, PDO::PARAM_STR);
+            $stmt->execute();
+            $result = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        return $result ? $result['session_data'] : '';
+            return $result ? $result['session_data'] : '';
+        } catch (\PDOException $e) {
+            error_log("Session Read Error: " . $e->getMessage());
+            return false;
+        }
     }
 
+    /**
+     * Écrit les données d'une session dans la base de données.
+     * C'est ici que nous lions la session à un user_id.
+     * @param string $id L'ID de la session.
+     * @param string $data Les données de session sérialisées.
+     * @return bool True en cas de succès, false sinon.
+     */
     public function write(string $id, string $data): bool
     {
-        $time = time();
-        $lifetime = (int) ini_get('session.gc_maxlifetime');
-        $userId = $_SESSION['user_id'] ?? null;
+        try {
+            $time = time();
+            $lifetime = (int) ini_get('session.gc_maxlifetime');
+            // Récupère le user_id depuis la superglobale $_SESSION si elle existe
+            $userId = $_SESSION['user_id'] ?? null;
 
-        $stmt = $this->getDb()->prepare(
-            'REPLACE INTO sessions (session_id, session_data, session_last_activity, session_lifetime, user_id)
-             VALUES (:id, :data, :last_activity_time, :lifetime, :user_id)'
-        );
+            $stmt = $this->getDb()->prepare(
+                'REPLACE INTO sessions (session_id, session_data, session_last_activity, session_lifetime, user_id)
+                 VALUES (:id, :data, :last_activity, :lifetime, :user_id)'
+            );
 
-        $stmt->bindParam(':id', $id, PDO::PARAM_STR);
-        $stmt->bindParam(':data', $data, PDO::PARAM_LOB);
-        $stmt->bindParam(':last_activity_time', $time, PDO::PARAM_INT);
-        $stmt->bindParam(':lifetime', $lifetime, PDO::PARAM_INT);
-        $stmt->bindParam(':user_id', $userId, PDO::PARAM_STR);
+            $stmt->bindParam(':id', $id, PDO::PARAM_STR);
+            $stmt->bindParam(':data', $data, PDO::PARAM_LOB); // LOB pour les données potentiellement volumineuses
+            $stmt->bindParam(':last_activity', $time, PDO::PARAM_INT);
+            $stmt->bindParam(':lifetime', $lifetime, PDO::PARAM_INT);
+            $stmt->bindParam(':user_id', $userId, PDO::PARAM_STR);
 
-        return $stmt->execute();
+            return $stmt->execute();
+        } catch (\PDOException $e) {
+            error_log("Session Write Error: " . $e->getMessage());
+            return false;
+        }
     }
 
+    /**
+     * Détruit une session de la base de données (utilisé lors du logout).
+     * @param string $id L'ID de la session.
+     * @return bool True en cas de succès, false sinon.
+     */
     public function destroy(string $id): bool
     {
-        $stmt = $this->getDb()->prepare('DELETE FROM sessions WHERE session_id = :id');
-        $stmt->bindParam(':id', $id);
-        return $stmt->execute();
+        try {
+            $stmt = $this->getDb()->prepare('DELETE FROM sessions WHERE session_id = :id');
+            $stmt->bindParam(':id', $id, PDO::PARAM_STR);
+            return $stmt->execute();
+        } catch (\PDOException $e) {
+            error_log("Session Destroy Error: " . $e->getMessage());
+            return false;
+        }
     }
 
+    /**
+     * Le "Garbage Collector" : supprime les sessions expirées de la base de données.
+     * @param int $max_lifetime La durée de vie maximale d'une session en secondes.
+     * @return int|false Le nombre de sessions supprimées ou false en cas d'échec.
+     */
     public function gc(int $max_lifetime): int|false
     {
-        $old = time() - $max_lifetime;
-        $stmt = $this->getDb()->prepare('DELETE FROM sessions WHERE session_last_activity < :old');
-        $stmt->bindParam(':old', $old);
-        $stmt->execute();
-
-        return $stmt->rowCount();
+        try {
+            $old = time() - $max_lifetime;
+            $stmt = $this->getDb()->prepare('DELETE FROM sessions WHERE session_last_activity < :old');
+            $stmt->bindParam(':old', $old, PDO::PARAM_INT);
+            $stmt->execute();
+            return $stmt->rowCount();
+        } catch (\PDOException $e) {
+            error_log("Session GC Error: " . $e->getMessage());
+            return false;
+        }
     }
 }

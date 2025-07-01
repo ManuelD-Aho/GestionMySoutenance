@@ -1,0 +1,90 @@
+
+/***********************************************************************************
+ * Fichier: routes\web.php
+ ***********************************************************************************/
+
+<?php
+// routes/web.php
+
+use App\Backend\Controller\Administration\AdminDashboardController;
+use App\Backend\Controller\Administration\ConfigurationController;
+use App\Backend\Controller\Administration\SupervisionController;
+use App\Backend\Controller\Administration\UtilisateurController;
+use App\Backend\Controller\AssetController;
+use App\Backend\Controller\AuthentificationController;
+use App\Backend\Controller\Commission\CommissionDashboardController;
+use App\Backend\Controller\Commission\WorkflowCommissionController;
+use App\Backend\Controller\DashboardController;
+use App\Backend\Controller\Etudiant\EtudiantDashboardController;
+use App\Backend\Controller\Etudiant\ProfilEtudiantController;
+use App\Backend\Controller\Etudiant\RapportController;
+use App\Backend\Controller\HomeController;
+use App\Backend\Controller\PersonnelAdministratif\PersonnelDashboardController;
+use App\Backend\Controller\PersonnelAdministratif\ScolariteController;
+use FastRoute\RouteCollector;
+
+/**
+ * Ce fichier ne fait que retourner une fonction qui définit les routes de l'application.
+ * Le contrôleur frontal (index.php) se charge de l'appeler.
+ */
+return function(RouteCollector $r) {
+    // --- Routes Publiques (Authentification) ---
+    $r->addRoute('GET', '/', [HomeController::class, 'index']);
+    $r->addRoute('GET', '/login', [AuthentificationController::class, 'showLoginForm']);
+    $r->addRoute('POST', '/login', [AuthentificationController::class, 'handleLogin']);
+    $r->addRoute('GET', '/logout', [AuthentificationController::class, 'logout']);
+    $r->addRoute('GET', '/forgot-password', [AuthentificationController::class, 'showForgotPasswordForm']);
+    $r->addRoute('POST', '/forgot-password', [AuthentificationController::class, 'handleForgotPassword']);
+    $r->addRoute('GET', '/reset-password/{token}', [AuthentificationController::class, 'showResetPasswordForm']);
+    $r->addRoute('POST', '/reset-password', [AuthentificationController::class, 'handleResetPassword']);
+    $r->addRoute('GET', '/verify-2fa', [AuthentificationController::class, 'show2faForm']);
+    $r->addRoute('POST', '/verify-2fa', [AuthentificationController::class, 'handle2faVerification']);
+
+    // --- Route de Dispatching Principale (Après Connexion) ---
+    $r->addRoute('GET', '/dashboard', [DashboardController::class, 'index']);
+
+    // --- Route pour les Assets Protégés ---
+    $r->addRoute('GET', '/assets/protected/{type}/{filename}', [AssetController::class, 'serveProtectedAsset']);
+
+    // --- Routes Spécifiques aux Rôles ---
+
+    // Administration (GRP_ADMIN_SYS)
+    $r->addRoute('GET', '/admin/dashboard', [AdminDashboardController::class, 'index']);
+    $r->addRoute('GET', '/admin/users', [UtilisateurController::class, 'listUsers']);
+    $r->addRoute('GET', '/admin/users/new', [UtilisateurController::class, 'showUserForm']);
+    $r->addRoute('POST', '/admin/users', [UtilisateurController::class, 'createUser']);
+    $r->addRoute('GET', '/admin/users/{id}/edit', [UtilisateurController::class, 'showUserForm']);
+
+    // ** CORRECTION APPLIQUÉE ICI **
+    // La route statique 'import' est déclarée AVANT la route dynamique '{id}'
+    $r->addRoute('POST', '/admin/users/import', [UtilisateurController::class, 'importUsers']);
+    $r->addRoute('POST', '/admin/users/{id}', [UtilisateurController::class, 'updateUser']);
+
+    $r->addRoute('GET', '/admin/config', [ConfigurationController::class, 'showConfigForm']);
+    $r->addRoute('POST', '/admin/config', [ConfigurationController::class, 'saveConfig']);
+    $r->addRoute('GET', '/admin/supervision/logs', [SupervisionController::class, 'showLogs']);
+    $r->addRoute('GET', '/admin/supervision/queue', [SupervisionController::class, 'showQueue']);
+
+    // Étudiant (GRP_ETUDIANT)
+    $r->addRoute('GET', '/etudiant/dashboard', [EtudiantDashboardController::class, 'index']);
+    $r->addRoute('GET', '/etudiant/rapport', [RapportController::class, 'showRapportForm']);
+    $r->addRoute('POST', '/etudiant/rapport', [RapportController::class, 'saveRapport']);
+    $r->addRoute('POST', '/etudiant/rapport/submit', [RapportController::class, 'submitRapport']);
+    $r->addRoute('GET', '/etudiant/profil', [ProfilEtudiantController::class, 'showProfile']);
+    $r->addRoute('POST', '/etudiant/profil', [ProfilEtudiantController::class, 'updateProfile']);
+
+    // Commission (GRP_COMMISSION)
+    $r->addRoute('GET', '/commission/dashboard', [CommissionDashboardController::class, 'index']);
+    $r->addRoute('GET', '/commission/sessions', [WorkflowCommissionController::class, 'listSessions']);
+    $r->addRoute('POST', '/commission/sessions', [WorkflowCommissionController::class, 'createSession']);
+    $r->addRoute('GET', '/commission/sessions/{id}', [WorkflowCommissionController::class, 'viewSession']);
+    $r->addRoute('POST', '/commission/sessions/{id}/vote', [WorkflowCommissionController::class, 'submitVote']);
+
+    // Personnel Administratif (GRP_AGENT_CONFORMITE, GRP_RS, GRP_PERS_ADMIN)
+    $r->addRoute('GET', '/personnel/dashboard', [PersonnelDashboardController::class, 'index']);
+    $r->addRoute('GET', '/personnel/conformite', [ScolariteController::class, 'listConformiteQueue']);
+    $r->addRoute('GET', '/personnel/conformite/{id}', [ScolariteController::class, 'showConformiteForm']);
+    $r->addRoute('POST', '/personnel/conformite/{id}', [ScolariteController::class, 'processConformite']);
+    $r->addRoute('GET', '/personnel/scolarite/dossiers', [ScolariteController::class, 'listStudentRecords']);
+    $r->addRoute('POST', '/personnel/scolarite/activate-account', [ScolariteController::class, 'activateStudentAccount']);
+};

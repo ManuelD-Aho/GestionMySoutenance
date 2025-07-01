@@ -1,0 +1,583 @@
+
+/***********************************************************************************
+ * Fichier: src/Backend/Controller\Administration\AdminDashboardController.php
+ ***********************************************************************************/
+
+
+
+/***********************************************************************************
+ * Fichier: src/Backend/Controller\Administration\ConfigurationController.php
+ ***********************************************************************************/
+
+
+
+/***********************************************************************************
+ * Fichier: src/Backend/Controller\Administration\SupervisionController.php
+ ***********************************************************************************/
+
+
+
+/***********************************************************************************
+ * Fichier: src/Backend/Controller\Administration\UtilisateurController.php
+ ***********************************************************************************/
+
+
+
+/***********************************************************************************
+ * Fichier: src/Backend/Controller\AssetController.php
+ ***********************************************************************************/
+
+<?php
+// src/Backend/Controller/AssetController.php
+
+namespace App\Backend\Controller;
+
+use App\Backend\Exception\PermissionException;
+use App\Backend\Service\Securite\ServiceSecuriteInterface;
+use App\Backend\Service\Supervision\ServiceSupervisionInterface;
+use App\Backend\Service\Systeme\ServiceSystemeInterface;
+use App\Backend\Util\FormValidator;
+
+class AssetController extends BaseController
+{
+    private string $baseUploadPath;
+    private \App\Backend\Model\GenericModel $documentGenereModel;
+
+    public function __construct(
+        ServiceSecuriteInterface $serviceSecurite,
+        ServiceSupervisionInterface $serviceSupervision,
+        FormValidator $formValidator,
+        ServiceSystemeInterface $serviceSysteme,
+        \App\Config\Container $container
+    ) {
+        parent::__construct($serviceSecurite, $serviceSupervision, $formValidator);
+        $this->baseUploadPath = $serviceSysteme->getParametre('UPLOADS_PATH_BASE', realpath(__DIR__ . '/../../../Public/uploads/'));
+        $this->documentGenereModel = $container->getModelForTable('document_genere');
+    }
+
+    /**
+     * Sert un fichier protégé après avoir vérifié les droits de l'utilisateur.
+     *
+     * @param string $type Le sous-dossier de l'asset (ex: 'documents_generes').
+     * @param string $filename Le nom du fichier demandé.
+     */
+    public function serveProtectedAsset(string $type, string $filename): void
+    {
+        try {
+            $this->checkPermission('ACCES_ASSET_PROTEGE');
+
+            if (strpos($type, '..') !== false || strpos($filename, '..') !== false) {
+                throw new PermissionException("Chemin de fichier invalide.");
+            }
+
+            $fullPath = realpath($this->baseUploadPath . DIRECTORY_SEPARATOR . $type . DIRECTORY_SEPARATOR . $filename);
+
+            if (!$fullPath || strpos($fullPath, realpath($this->baseUploadPath)) !== 0) {
+                $this->serveNotFound();
+                return;
+            }
+
+            $this->checkAssetPermissions($type, $filename);
+            $this->serveFile($fullPath);
+
+        } catch (PermissionException $e) {
+            http_response_code(403);
+            $this->render('errors/403.php', ['error_message' => $e->getMessage()], 'layout_auth.php');
+        } catch (\Exception $e) {
+            $this->serviceSupervision->enregistrerAction('SYSTEM', 'ASSET_CONTROLLER_EXCEPTION', null, null, ['error' => $e->getMessage()]);
+            http_response_code(500);
+            $this->render('errors/500.php', ['error_message' => 'Erreur interne du serveur.'], 'layout_auth.php');
+        }
+    }
+
+    private function checkAssetPermissions(string $type, string $filename): void
+    {
+        $user = $this->serviceSecurite->getUtilisateurConnecte();
+        if (!$user) {
+            throw new PermissionException("Utilisateur non authentifié.");
+        }
+
+        if ($user['id_groupe_utilisateur'] === 'GRP_ADMIN_SYS') {
+            return; // L'administrateur peut tout voir.
+        }
+
+        switch ($type) {
+            case 'documents_generes':
+                $relativePath = $type . '/' . $filename;
+                $document = $this->documentGenereModel->trouverUnParCritere(['chemin_fichier' => $relativePath]);
+                if (!$document) {
+                    throw new PermissionException("Document non trouvé dans la base de données.");
+                }
+                if ($document['numero_utilisateur_concerne'] !== $user['numero_utilisateur']) {
+                    throw new PermissionException("Vous n'avez pas l'autorisation de consulter ce document.");
+                }
+                break;
+            default:
+                throw new PermissionException("Type de ressource protégé inconnu ou non géré.");
+        }
+    }
+
+    private function serveNotFound(): void
+    {
+        http_response_code(404);
+        $this->render('errors/404.php', [], 'layout_auth.php');
+    }
+
+    private function serveFile(string $filePath): void
+    {
+        if (!file_exists($filePath) || !is_readable($filePath)) {
+            $this->serveNotFound();
+            return;
+        }
+
+        $finfo = new \finfo(FILEINFO_MIME_TYPE);
+        $mimeType = $finfo->file($filePath);
+
+        header('Content-Type: ' . $mimeType);
+        header('Content-Length: ' . filesize($filePath));
+        header('Content-Disposition: inline; filename="' . basename($filePath) . '"');
+        header('Cache-Control: private, max-age=0, must-revalidate');
+        header('Pragma: public');
+
+        while (ob_get_level()) {
+            ob_end_clean();
+        }
+
+        readfile($filePath);
+        exit();
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Controller\AuthentificationController.php
+ ***********************************************************************************/
+
+<?php
+// src/Backend/Controller/AuthentificationController.php
+
+namespace App\Backend\Controller;
+
+use App\Backend\Service\Communication\ServiceCommunicationInterface;
+use App\Backend\Service\Securite\ServiceSecuriteInterface;
+use App\Backend\Service\Supervision\ServiceSupervisionInterface;
+use App\Backend\Util\FormValidator;
+use App\Backend\Exception\IdentifiantsInvalidesException;
+use App\Backend\Exception\CompteBloqueException;
+use App\Backend\Exception\CompteNonValideException;
+use App\Backend\Exception\TokenInvalideException;
+use App\Backend\Exception\TokenExpireException;
+use App\Backend\Exception\MotDePasseInvalideException;
+
+class AuthentificationController extends BaseController
+{
+    private ServiceCommunicationInterface $serviceCommunication;
+
+    public function __construct(
+        ServiceSecuriteInterface $serviceSecurite,
+        ServiceSupervisionInterface $serviceSupervision,
+        FormValidator $formValidator,
+        ServiceCommunicationInterface $serviceCommunication
+    ) {
+        parent::__construct($serviceSecurite, $serviceSupervision, $formValidator);
+        $this->serviceCommunication = $serviceCommunication;
+    }
+
+    /**
+     * Affiche le formulaire de connexion.
+     * Prépare toutes les données nécessaires pour la vue afin d'éviter la logique dans les templates.
+     */
+    public function showLoginForm(): void
+    {
+        if ($this->serviceSecurite->estUtilisateurConnecte()) {
+            $this->redirect('/dashboard');
+        }
+
+        // --- Préparation centralisée des données pour la vue ---
+        $data = [
+            'page' => 'login',
+            'title' => 'Connexion',
+            'pageTitle' => 'Bienvenue',
+            'pageSubtitle' => 'Accédez à votre espace personnel',
+            'alerts' => [],
+            'loginValue' => ''
+        ];
+
+        // Récupérer et formater les messages d'erreur de la session
+        if (!empty($_SESSION['error'])) {
+            $data['alerts'][] = ['type' => 'error', 'message' => $_SESSION['error']];
+            unset($_SESSION['error']);
+        }
+
+        // Récupérer et formater les messages de succès de la session
+        if (!empty($_SESSION['success'])) {
+            $data['alerts'][] = ['type' => 'success', 'message' => $_SESSION['success']];
+            unset($_SESSION['success']);
+        }
+
+        // Pré-remplir le champ de login si une valeur précédente existe et est valide
+        if (isset($_SESSION['old_input']['login']) && is_scalar($_SESSION['old_input']['login'])) {
+            $data['loginValue'] = (string) $_SESSION['old_input']['login'];
+        }
+        unset($_SESSION['old_input']);
+
+        $this->render('Auth/auth.php', $data, 'layout_auth.php');
+    }
+
+    public function handleLogin(): void
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !$this->verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+            $this->jsonResponse(['success' => false, 'message' => 'Requête invalide ou expirée.'], 403);
+            return;
+        }
+
+        $identifiant = $_POST['login'] ?? '';
+        $motDePasse = $_POST['password'] ?? '';
+
+        try {
+            $resultat = $this->serviceSecurite->tenterConnexion($identifiant, $motDePasse);
+            if ($resultat['status'] === '2fa_required') {
+                $this->jsonResponse(['success' => true, 'redirect' => '/verify-2fa']);
+            } else {
+                $this->jsonResponse(['success' => true, 'redirect' => '/dashboard']);
+            }
+        } catch (IdentifiantsInvalidesException | CompteBloqueException | CompteNonValideException $e) {
+            $_SESSION['error'] = $e->getMessage();
+            $_SESSION['old_input']['login'] = $identifiant;
+            $this->jsonResponse(['success' => false, 'message' => $e->getMessage()], 401);
+        } catch (\Exception $e) {
+            $this->serviceSupervision->enregistrerAction('SYSTEM', 'LOGIN_EXCEPTION', null, null, ['error' => $e->getMessage()]);
+            $this->jsonResponse(['success' => false, 'message' => 'Une erreur technique est survenue.'], 500);
+        }
+    }
+
+    public function show2faForm(): void
+    {
+        if (!isset($_SESSION['2fa_pending']) || $_SESSION['2fa_pending'] !== true) {
+            $this->redirect('/login');
+        }
+        $this->render('Auth/auth.php', ['page' => '2fa'], 'layout_auth.php');
+    }
+
+    public function handle2faVerification(): void
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !isset($_SESSION['2fa_pending']) || !$this->verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+            $this->jsonResponse(['success' => false, 'message' => 'Requête invalide ou expirée.'], 403);
+            return;
+        }
+
+        $codeTOTP = $_POST['2fa_code'] ?? '';
+        $userId = $_SESSION['2fa_user_id'];
+
+        if ($this->serviceSecurite->verifierCodeAuthentificationDeuxFacteurs($userId, $codeTOTP)) {
+            $this->serviceSecurite->demarrerSessionUtilisateur($userId);
+            $this->jsonResponse(['success' => true, 'redirect' => '/dashboard']);
+        } else {
+            $this->jsonResponse(['success' => false, 'message' => 'Le code de vérification est incorrect.'], 401);
+        }
+    }
+
+    public function logout(): void
+    {
+        $this->serviceSecurite->logout();
+        $this->redirect('/login?action=logout');
+    }
+
+    public function showForgotPasswordForm(): void
+    {
+        $this->render('Auth/auth.php', ['page' => 'forgot-password'], 'layout_auth.php');
+    }
+
+    public function handleForgotPassword(): void
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !$this->verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+            $this->jsonResponse(['success' => false, 'message' => 'Requête invalide ou expirée.'], 403);
+            return;
+        }
+
+        $email = $_POST['email'] ?? '';
+        $this->serviceSecurite->demanderReinitialisationMotDePasse($email, $this->serviceCommunication);
+
+        $this->jsonResponse(['success' => true, 'message' => 'Si un compte est associé à cet email, un lien de réinitialisation a été envoyé.']);
+    }
+}
+
+
+/***********************************************************************************
+ * Fichier: src/Backend/Controller\BaseController.php
+ ***********************************************************************************/
+
+<?php
+// src/Backend/Controller/BaseController.php
+
+namespace App\Backend\Controller;
+
+use App\Backend\Exception\PermissionException;
+use App\Backend\Service\Securite\ServiceSecuriteInterface;
+use App\Backend\Service\Supervision\ServiceSupervisionInterface;
+use App\Backend\Util\FormValidator;
+
+abstract class BaseController
+{
+    protected ServiceSecuriteInterface $serviceSecurite;
+    protected ServiceSupervisionInterface $serviceSupervision;
+    protected FormValidator $formValidator;
+
+    public function __construct(
+        ServiceSecuriteInterface $serviceSecurite,
+        ServiceSupervisionInterface $serviceSupervision,
+        FormValidator $formValidator
+    ) {
+        $this->serviceSecurite = $serviceSecurite;
+        $this->serviceSupervision = $serviceSupervision;
+        $this->formValidator = $formValidator;
+
+        $this->initializeCsrf();
+    }
+
+    /**
+     * Affiche une vue en l'intégrant dans un layout principal.
+     *
+     * @param string $viewPath Le chemin vers le fichier de la vue (ex: 'Etudiant/dashboard_etudiant.php').
+     * @param array $data Les données à extraire et à rendre accessibles dans la vue.
+     * @param string $layout Le fichier de layout à utiliser.
+     */
+    protected function render(string $viewPath, array $data = [], string $layout = 'app.php'): void
+    {
+        extract($data);
+        $user = $this->serviceSecurite->getUtilisateurConnecte();
+
+        ob_start();
+        require_once __DIR__ . '/../../Frontend/views/' . $viewPath;
+        $content = ob_get_clean();
+
+        require_once __DIR__ . '/../../Frontend/views/layout/' . $layout;
+    }
+
+    /**
+     * Redirige l'utilisateur vers une autre URL.
+     *
+     * @param string $url L'URL de destination.
+     */
+    protected function redirect(string $url): void
+    {
+        header('Location: ' . $url);
+        exit();
+    }
+
+    /**
+     * Retourne une réponse JSON et termine l'exécution.
+     *
+     * @param mixed $data Les données à encoder en JSON.
+     * @param int $statusCode Le code de statut HTTP.
+     */
+    protected function jsonResponse(mixed $data, int $statusCode = 200): void
+    {
+        http_response_code($statusCode);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode($data);
+        exit();
+    }
+
+    /**
+     * Vérifie si l'utilisateur possède une permission. Si non, lance une exception.
+     * Enregistre également l'accès dans la piste d'audit.
+     *
+     * @param string $permissionCode Le code de la permission à vérifier.
+     * @throws PermissionException si l'utilisateur n'a pas la permission.
+     */
+    protected function checkPermission(string $permissionCode): void
+    {
+        if (!$this->serviceSecurite->utilisateurPossedePermission($permissionCode)) {
+            $this->serviceSupervision->enregistrerAction(
+                $_SESSION['user_id'] ?? 'ANONYMOUS',
+                'ACCES_ASSET_ECHEC',
+                $permissionCode,
+                'Traitement'
+            );
+            throw new PermissionException("Accès refusé. Vous n'avez pas la permission '{$permissionCode}'.");
+        }
+
+        if (isset($_SESSION['user_id'])) {
+            $this->serviceSupervision->pisterAcces($_SESSION['user_id'], $permissionCode);
+        }
+    }
+
+    /**
+     * Initialise le token CSRF s'il n'existe pas ou est expiré.
+     */
+    private function initializeCsrf(): void
+    {
+        if (session_status() === PHP_SESSION_NONE) {
+            return;
+        }
+
+        if (empty($_SESSION['csrf_token']) || empty($_SESSION['csrf_token']['expires_at']) || $_SESSION['csrf_token']['expires_at'] < time()) {
+            $_SESSION['csrf_token'] = [
+                'value' => bin2hex(random_bytes(32)),
+                'expires_at' => time() + 3600
+            ];
+        }
+    }
+
+    /**
+     * Vérifie la validité d'un token CSRF soumis via un formulaire.
+     *
+     * @param string|null $submittedToken Le token provenant du champ de formulaire.
+     * @return bool True si le token est valide, false sinon.
+     */
+    protected function verifyCsrfToken(?string $submittedToken): bool
+    {
+        if (empty($submittedToken) || empty($_SESSION['csrf_token']['value'])) {
+            return false;
+        }
+        return hash_equals($_SESSION['csrf_token']['value'], $submittedToken);
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Controller\Commission\CommissionDashboardController.php
+ ***********************************************************************************/
+
+
+
+/***********************************************************************************
+ * Fichier: src/Backend/Controller\Commission\WorkflowCommissionController.php
+ ***********************************************************************************/
+
+
+
+/***********************************************************************************
+ * Fichier: src/Backend/Controller\DashboardController.php
+ ***********************************************************************************/
+
+<?php
+// src/Backend/Controller/DashboardController.php
+
+namespace App\Backend\Controller;
+
+use App\Backend\Service\Securite\ServiceSecuriteInterface;
+use App\Backend\Service\Supervision\ServiceSupervisionInterface;
+use App\Backend\Util\FormValidator;
+
+class DashboardController extends BaseController
+{
+    public function __construct(
+        ServiceSecuriteInterface $serviceSecurite,
+        ServiceSupervisionInterface $serviceSupervision,
+        FormValidator $formValidator
+    ) {
+        parent::__construct($serviceSecurite, $serviceSupervision, $formValidator);
+    }
+
+    /**
+     * Aiguille l'utilisateur vers le tableau de bord approprié en fonction de son rôle.
+     * C'est le point d'entrée principal après la connexion.
+     */
+    public function index(): void
+    {
+        if (!$this->serviceSecurite->estUtilisateurConnecte()) {
+            $this->redirect('/login');
+            return;
+        }
+
+        $user = $this->serviceSecurite->getUtilisateurConnecte();
+        $userGroupId = $user['id_groupe_utilisateur'] ?? null;
+
+        switch ($userGroupId) {
+            case 'GRP_ADMIN_SYS':
+                $this->redirect('/admin/dashboard');
+                break;
+            case 'GRP_ETUDIANT':
+                $this->redirect('/etudiant/dashboard');
+                break;
+            case 'GRP_COMMISSION':
+                $this->redirect('/commission/dashboard');
+                break;
+            case 'GRP_AGENT_CONFORMITE':
+            case 'GRP_RS':
+            case 'GRP_PERS_ADMIN':
+                $this->redirect('/personnel/dashboard');
+                break;
+            case 'GRP_ENSEIGNANT':
+                // Conformément à la règle "Les enseignants sans rôle n'ont pas accès au système",
+                // s'ils n'ont que ce groupe de base, ils ne peuvent pas accéder à un dashboard.
+                $this->serviceSupervision->enregistrerAction($user['numero_utilisateur'], 'ECHEC_LOGIN', null, null, ['reason' => 'Rôle enseignant de base sans permissions de dashboard.']);
+                $this->serviceSecurite->logout();
+                $this->redirect('/login?error=access_denied_role');
+                break;
+            default:
+                $this->serviceSupervision->enregistrerAction($user['numero_utilisateur'], 'ECHEC_LOGIN', null, null, ['reason' => 'Rôle utilisateur non défini ou inconnu.']);
+                $this->serviceSecurite->logout();
+                $this->redirect('/login?error=role_undefined');
+                break;
+        }
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Controller\Etudiant\EtudiantDashboardController.php
+ ***********************************************************************************/
+
+
+
+/***********************************************************************************
+ * Fichier: src/Backend/Controller\Etudiant\ProfilEtudiantController.php
+ ***********************************************************************************/
+
+
+
+/***********************************************************************************
+ * Fichier: src/Backend/Controller\Etudiant\RapportController.php
+ ***********************************************************************************/
+
+
+
+/***********************************************************************************
+ * Fichier: src/Backend/Controller\HomeController.php
+ ***********************************************************************************/
+
+<?php
+// src/Backend/Controller/HomeController.php
+
+namespace App\Backend\Controller;
+
+use App\Backend\Service\Securite\ServiceSecuriteInterface;
+use App\Backend\Service\Supervision\ServiceSupervisionInterface;
+use App\Backend\Util\FormValidator;
+
+class HomeController extends BaseController
+{
+    public function __construct(
+        ServiceSecuriteInterface $serviceSecurite,
+        ServiceSupervisionInterface $serviceSupervision,
+        FormValidator $formValidator
+    ) {
+        parent::__construct($serviceSecurite, $serviceSupervision, $formValidator);
+    }
+
+    /**
+     * Gère la racine du site ("/").
+     * Redirige vers le tableau de bord si l'utilisateur est connecté,
+     * sinon, vers la page de connexion.
+     */
+    public function index(): void
+    {
+        if ($this->serviceSecurite->estUtilisateurConnecte()) {
+            $this->redirect('/dashboard');
+        } else {
+            $this->redirect('/login');
+        }
+    }
+}
+
+/***********************************************************************************
+ * Fichier: src/Backend/Controller\PersonnelAdministratif\PersonnelDashboardController.php
+ ***********************************************************************************/
+
+
+
+/***********************************************************************************
+ * Fichier: src/Backend/Controller\PersonnelAdministratif\ScolariteController.php
+ ***********************************************************************************/
+
+

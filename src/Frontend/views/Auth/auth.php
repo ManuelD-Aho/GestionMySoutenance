@@ -1,138 +1,124 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Authentification - GestionMySoutenance</title>
-    <link rel="stylesheet" href="/assets/css/root.css">
-    <link rel="stylesheet" href="/assets/css/auth.css">
-</head>
-<body>
-<div class="auth-container">
-    <!-- Carrousel d'images - Côté gauche -->
-    <div class="carousel-section">
-        <div class="carousel-wrapper">
-            <div class="carousel-container">
-                <div class="carousel-slide active">
-                    <img src="/assets/img/ufhb.jpeg" alt="Étudiant présentant sa soutenance">
-                    <div class="slide-content">
-                        <h3>Excellence Académique</h3>
-                        <p>Accompagnez vos étudiants vers la réussite de leurs soutenances</p>
-                    </div>
-                </div>
-                <div class="carousel-slide">
-                    <img src="/assets/img/student2.jpg" alt="Jury de soutenance">
-                    <div class="slide-content">
-                        <h3>Gestion Simplifiée</h3>
-                        <p>Organisez efficacement vos soutenances et jurys</p>
-                    </div>
-                </div>
-                <div class="carousel-slide">
-                    <img src="/assets/img/student3.jpg" alt="Étudiant travaillant">
-                    <div class="slide-content">
-                        <h3>Suivi Personnalisé</h3>
-                        <p>Suivez le progrès de chaque étudiant en temps réel</p>
-                    </div>
-                </div>
-                <div class="carousel-indicators">
-                    <button class="indicator active" data-slide="0"></button>
-                    <button class="indicator" data-slide="1"></button>
-                    <button class="indicator" data-slide="2"></button>
-                </div>
-            </div>
-
+<div class="card w-full max-w-md bg-base-100 shadow-xl">
+    <div class="card-body">
+        <div class="text-center mb-4">
+            <h1 class="text-2xl font-bold text-primary"><?= htmlspecialchars($pageTitle ?? 'GestionMySoutenance') ?></h1>
+            <p class="text-base-content/70"><?= htmlspecialchars($pageSubtitle ?? 'Veuillez vous connecter') ?></p>
         </div>
-    </div>
 
-    <!-- Section des formulaires - Côté droit -->
-    <div class="forms-section">
-        <div class="form-container">
-            <!-- Header avec logo -->
-            <div class="form-header">
-                <div class="logo">
-                    <h1>GestionMySoutenance</h1>
-                    <p>Plateforme de gestion des soutenances</p>
-                </div>
+        <!-- Zone pour les alertes globales (erreurs de session, succès) -->
+        <?php if (!empty($alerts)): ?>
+            <div id="global-alerts" class="space-y-2">
+                <?php foreach ($alerts as $alert): ?>
+                    <div role="alert" class="alert <?= $alert['type'] === 'error' ? 'alert-error' : 'alert-success' ?>">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2 2m2-2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        <span><?= htmlspecialchars($alert['message']) ?></span>
+                    </div>
+                <?php endforeach; ?>
             </div>
+        <?php endif; ?>
 
-            <!-- Formulaire de connexion -->
-            <form id="loginForm" class="auth-form active" method="POST" action="/login">
-                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf_token ?? '', ENT_QUOTES, 'UTF-8') ?>">
+        <!-- Zone pour les messages d'erreur/succès dynamiques du JS -->
+        <div id="form-feedback" class="hidden"></div>
 
-                <h2>Connexion</h2>
-                <div class="form-group">
-                    <label for="login_email">Login ou Email :</label>
-                    <input type="text" id="login_email" name="login_email" required>
-                </div>
-                <div class="form-group">
-                    <label for="password">Mot de passe</label>
-                    <input type="password" id="password" name="password" required>
-                </div>
-                <div class="form-options">
-                    <label class="checkbox-container">
-                        <input type="checkbox" name="remember_me">
-                        <span class="checkmark"></span>
-                        Se souvenir de moi
+        <?php // =================== FORMULAIRE DE CONNEXION =================== ?>
+        <?php if ($page === 'login'): ?>
+            <form id="login-form" action="/login" method="POST" class="space-y-4">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']['value'] ?? '') ?>">
+
+                <div class="form-control">
+                    <label class="label" for="login">
+                        <span class="label-text">Identifiant ou Email</span>
                     </label>
-                    <a href="#" class="forgot-link" onclick="showForm('forgotForm')">Mot de passe oublié ?</a>
+                    <input type="text" id="login" name="login" placeholder="votre.identifiant" class="input input-bordered w-full" value="<?= htmlspecialchars($loginValue ?? '') ?>" required>
                 </div>
-                <button type="submit" class="btn-primary">Se connecter</button>
-            </form>
 
-            <!-- Formulaire mot de passe oublié -->
-            <form id="forgotForm" class="auth-form" method="POST" action="/forgot_password">
-                <h2>Mot de passe oublié</h2>
-                <p class="form-description">Entrez votre email pour recevoir un lien de réinitialisation</p>
-                <div class="form-group">
-                    <label for="email_principal">Email</label>
-                    <input type="email" id="email_principal" name="email_principal" required>
+                <div class="form-control">
+                    <label class="label" for="password">
+                        <span class="label-text">Mot de passe</span>
+                    </label>
+                    <input type="password" id="password" name="password" placeholder="••••••••" class="input input-bordered w-full" required>
+                    <label class="label">
+                        <a href="/forgot-password" class="label-text-alt link link-hover">Mot de passe oublié ?</a>
+                    </label>
                 </div>
-                <button type="submit" class="btn-primary">Envoyer le lien</button>
-                <div class="form-footer">
-                    <p><a href="#" onclick="showForm('loginForm')">← Retour à la connexion</a></p>
-                </div>
-            </form>
 
-            <!-- Formulaire réinitialisation mot de passe -->
-            <form id="resetForm" class="auth-form" method="POST" action="/reset_password">
-                <h2>Nouveau mot de passe</h2>
-                <p class="form-description">Choisissez un nouveau mot de passe sécurisé</p>
-                <input type="hidden" name="token" id="reset_token">
-                <div class="form-group">
-                    <label for="new_password">Nouveau mot de passe</label>
-                    <input type="password" id="new_password" name="new_password" required>
-                </div>
-                <div class="form-group">
-                    <label for="confirm_password">Confirmer le mot de passe</label>
-                    <input type="password" id="confirm_password" name="confirm_password" required>
-                </div>
-                <button type="submit" class="btn-primary">Réinitialiser</button>
-                <div class="form-footer">
-                    <p><a href="#" onclick="showForm('loginForm')">← Retour à la connexion</a></p>
+                <div class="form-control mt-6">
+                    <button type="submit" class="btn btn-primary">
+                        <span class="loading loading-spinner hidden"></span>
+                        Connexion
+                    </button>
                 </div>
             </form>
 
-            <!-- Formulaire 2FA -->
-            <form id="twoFactorForm" class="auth-form" method="POST" action="/2fa">
-                <h2>Authentification à deux facteurs</h2>
-                <p class="form-description">Entrez le code de vérification envoyé sur votre téléphone</p>
-                <div class="form-group">
-                    <label for="verification_code">Code de vérification</label>
-                    <input type="text" id="code_2fa" name="code_2fa" maxlength="6" required>
+            <?php // =================== FORMULAIRE 2FA =================== ?>
+        <?php elseif ($page === '2fa'): ?>
+            <form id="2fa-form" action="/verify-2fa" method="POST" class="space-y-4">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']['value'] ?? '') ?>">
+                <p class="text-center">Un code de vérification a été envoyé. Veuillez le saisir ci-dessous.</p>
+                <div class="form-control">
+                    <label class="label" for="2fa_code">
+                        <span class="label-text">Code de vérification</span>
+                    </label>
+                    <input type="text" id="2fa_code" name="2fa_code" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" class="input input-bordered w-full text-center tracking-[1em]" required>
                 </div>
-                <button type="submit" class="btn-primary">Vérifier</button>
-                <div class="form-footer">
-                    <p><a href="#" onclick="showForm('loginForm')">← Retour à la connexion</a></p>
-                    <p><a href="#" onclick="resend2FA()">Renvoyer le code</a></p>
+                <div class="form-control mt-6">
+                    <button type="submit" class="btn btn-primary">
+                        <span class="loading loading-spinner hidden"></span>
+                        Vérifier
+                    </button>
                 </div>
             </form>
 
-            <!-- Messages d'erreur/succès -->
-            <div id="message" class="message"></div>
-        </div>
+            <?php // =================== FORMULAIRE MOT DE PASSE OUBLIÉ =================== ?>
+        <?php elseif ($page === 'forgot-password'): ?>
+            <form id="forgot-password-form" action="/forgot-password" method="POST" class="space-y-4">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']['value'] ?? '') ?>">
+                <p class="text-center">Saisissez votre adresse email pour recevoir un lien de réinitialisation.</p>
+                <div class="form-control">
+                    <label class="label" for="email">
+                        <span class="label-text">Adresse Email</span>
+                    </label>
+                    <input type="email" id="email" name="email" placeholder="votre.email@example.com" class="input input-bordered w-full" required>
+                </div>
+                <div class="form-control mt-6">
+                    <button type="submit" class="btn btn-primary">
+                        <span class="loading loading-spinner hidden"></span>
+                        Envoyer le lien
+                    </button>
+                </div>
+                <div class="text-center">
+                    <a href="/login" class="link link-hover">Retour à la connexion</a>
+                </div>
+            </form>
+
+            <?php // =================== FORMULAIRE DE RÉINITIALISATION DE MOT DE PASSE =================== ?>
+        <?php elseif ($page === 'reset-password'): ?>
+            <form id="reset-password-form" action="/reset-password" method="POST" class="space-y-4">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']['value'] ?? '') ?>">
+                <input type="hidden" name="token" value="<?= htmlspecialchars($token ?? '') ?>">
+                <p class="text-center">Veuillez saisir votre nouveau mot de passe.</p>
+
+                <div class="form-control">
+                    <label class="label" for="password">
+                        <span class="label-text">Nouveau mot de passe</span>
+                    </label>
+                    <input type="password" id="password" name="password" class="input input-bordered w-full" required>
+                </div>
+
+                <div class="form-control">
+                    <label class="label" for="password_confirm">
+                        <span class="label-text">Confirmer le mot de passe</span>
+                    </label>
+                    <input type="password" id="password_confirm" name="password_confirm" class="input input-bordered w-full" required>
+                </div>
+
+                <div class="form-control mt-6">
+                    <button type="submit" class="btn btn-primary">
+                        <span class="loading loading-spinner hidden"></span>
+                        Réinitialiser
+                    </button>
+                </div>
+            </form>
+        <?php endif; ?>
     </div>
 </div>
-
-<script src="/assets/js/auth.js"></script>
-</body>
-</html>
