@@ -5,6 +5,13 @@
 composer.phar
 /vendor/
 
+# Ignorer les dépendances Node.js
+node_modules/
+package-lock.json
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
 # Ignorer les assets générés ou les caches
 /Public/assets/css/bulma/
 /Public/uploads/
