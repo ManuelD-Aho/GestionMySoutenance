@@ -86,12 +86,18 @@ use App\Backend\Service\Conformite\ServiceConformite;
 use App\Backend\Service\DocumentAdministratif\ServiceDocumentAdministratif;
 use App\Backend\Service\DocumentGenerator\ServiceDocumentGenerator;
 use App\Backend\Service\Email\ServiceEmail;
+use App\Backend\Service\Email\ServiceEmailInterface;
 use App\Backend\Service\Fichier\ServiceFichier;
+use App\Backend\Service\Fichier\ServiceFichierInterface;
 use App\Backend\Service\GestionAcademique\ServiceGestionAcademique;
 use App\Backend\Service\IdentifiantGenerator\IdentifiantGenerator;
+use App\Backend\Service\IdentifiantGenerator\IdentifiantGeneratorInterface;
 use App\Backend\Service\Logger\ServiceLogger;
+use App\Backend\Service\Logger\ServiceLoggerInterface;
 use App\Backend\Service\Messagerie\ServiceMessagerie;
+use App\Backend\Service\Messagerie\ServiceMessagerieInterface;
 use App\Backend\Service\Notification\ServiceNotification;
+use App\Backend\Service\Notification\ServiceNotificationInterface;
 use App\Backend\Service\NotificationConfiguration\ServiceNotificationConfiguration;
 use App\Backend\Service\Permissions\ServicePermissions;
 use App\Backend\Service\ProfilEtudiant\ServiceProfilEtudiant;
@@ -103,6 +109,29 @@ use App\Backend\Service\RessourcesEtudiant\ServiceRessourcesEtudiant;
 use App\Backend\Service\SupervisionAdmin\ServiceSupervisionAdmin;
 use App\Backend\Service\TransitionRole\ServiceTransitionRole;
 use App\Backend\Service\SupervisionAdmin\ServiceSupervisionAdminInterface; // L'interface est bien importée
+use App\Backend\Service\Commission\ServiceCommissionInterface;
+use App\Backend\Service\Conformite\ServiceConformiteInterface;
+use App\Backend\Service\DocumentGenerator\ServiceDocumentGeneratorInterface;
+use App\Backend\Service\ConfigurationSysteme\ServiceConfigurationSystemeInterface;
+use App\Backend\Service\Authentication\ServiceAuthenticationInterface;
+
+// Importation des nouveaux services
+use App\Backend\Service\Securite\ServiceSecurite;
+use App\Backend\Service\Securite\ServiceSecuriteInterface;
+use App\Backend\Service\Utilisateur\ServiceUtilisateur;
+use App\Backend\Service\Utilisateur\ServiceUtilisateurInterface;
+use App\Backend\Service\ParcoursAcademique\ServiceParcoursAcademique;
+use App\Backend\Service\ParcoursAcademique\ServiceParcoursAcademiqueInterface;
+use App\Backend\Service\WorkflowSoutenance\ServiceWorkflowSoutenance;
+use App\Backend\Service\WorkflowSoutenance\ServiceWorkflowSoutenanceInterface;
+use App\Backend\Service\Systeme\ServiceSysteme;
+use App\Backend\Service\Systeme\ServiceSystemeInterface;
+use App\Backend\Service\Communication\ServiceCommunication;
+use App\Backend\Service\Communication\ServiceCommunicationInterface;
+use App\Backend\Service\Document\ServiceDocument;
+use App\Backend\Service\Document\ServiceDocumentInterface;
+use App\Backend\Service\Supervision\ServiceSupervision;
+use App\Backend\Service\Supervision\ServiceSupervisionInterface;
 
 // Importation de tous les contrôleurs (comme dans votre code original)
 use App\Backend\Controller\HomeController;
@@ -228,6 +257,31 @@ class Container
         $this->definitions[ServiceTransitionRole::class] = fn ($c) => new ServiceTransitionRole($c->get('PDO'), $c->get(Delegation::class), $c->get(Utilisateur::class), $c->get(VoteCommission::class), $c->get(Approuver::class), $c->get(CompteRendu::class), $c->get(ValidationPv::class), $c->get(Reclamation::class), $c->get(ServiceSupervisionAdmin::class), $c->get(ServiceNotification::class), $c->get(ServicePermissions::class), $c->get(IdentifiantGenerator::class));
         $this->definitions[ServiceProfilEtudiant::class] = fn ($c) => new ServiceProfilEtudiant($c->get('PDO'), $c->get(Etudiant::class), $c->get(Utilisateur::class), $c->get(ServiceSupervisionAdmin::class), $c->get(ServiceFichier::class));
         $this->definitions[ServiceRessourcesEtudiant::class] = fn ($c) => new ServiceRessourcesEtudiant($c->get('PDO'), $c->get(ServiceSupervisionAdmin::class), $c->get(CritereConformiteRef::class), $c->get(ParametreSysteme::class));
+
+        // Définition des nouveaux services
+        $this->definitions[ServiceSecurite::class] = fn ($c) => new ServiceSecurite($c->get('PDO'), $c->get(ServiceSupervisionAdmin::class), $c->get(ServiceLogger::class));
+        $this->alias(ServiceSecuriteInterface::class, ServiceSecurite::class);
+
+        $this->definitions[ServiceUtilisateur::class] = fn ($c) => new ServiceUtilisateur($c->get('PDO'), $c->get(Utilisateur::class), $c->get(Etudiant::class), $c->get(Enseignant::class), $c->get(PersonnelAdministratif::class), $c->get(Delegation::class), $c->get(ServiceAuthentication::class), $c->get(ServiceSupervisionAdmin::class), $c->get(IdentifiantGenerator::class), $c->get(ServiceNotification::class));
+        $this->alias(ServiceUtilisateurInterface::class, ServiceUtilisateur::class);
+
+        $this->definitions[ServiceParcoursAcademique::class] = fn ($c) => new ServiceParcoursAcademique($c->get('PDO'), $c->get(Inscrire::class), $c->get(Evaluer::class), $c->get(FaireStage::class), $c->get(Acquerir::class), $c->get(Penalite::class), $c->get(Etudiant::class), $c->get(AnneeAcademique::class), $c->get(Ecue::class), $c->get(NiveauEtude::class), $c->get(DecisionPassageRef::class), $c->get(ServiceSupervisionAdmin::class), $c->get(IdentifiantGenerator::class), $c->get(ServiceNotification::class));
+        $this->alias(ServiceParcoursAcademiqueInterface::class, ServiceParcoursAcademique::class);
+
+        $this->definitions[ServiceWorkflowSoutenance::class] = fn ($c) => new ServiceWorkflowSoutenance($c->get('PDO'), $c->get(RapportEtudiant::class), $c->get(SessionValidation::class), $c->get(SessionRapport::class), $c->get(VoteCommission::class), $c->get(Affecter::class), $c->get(CompteRendu::class), $c->get(Approuver::class), $c->get(ServiceCommission::class), $c->get(ServiceConformite::class), $c->get(ServiceDocumentGenerator::class), $c->get(ServiceSupervisionAdmin::class), $c->get(IdentifiantGenerator::class), $c->get(ServiceNotification::class));
+        $this->alias(ServiceWorkflowSoutenanceInterface::class, ServiceWorkflowSoutenance::class);
+
+        $this->definitions[ServiceSysteme::class] = fn ($c) => new ServiceSysteme($c->get('PDO'), $c->get(ServiceSupervisionAdmin::class), $c->get(ServiceLogger::class), $c->get(ServiceConfigurationSysteme::class));
+        $this->alias(ServiceSystemeInterface::class, ServiceSysteme::class);
+
+        $this->definitions[ServiceCommunication::class] = fn ($c) => new ServiceCommunication($c->get('PDO'), $c->get(Conversation::class), $c->get(MessageChat::class), $c->get(ParticipantConversation::class), $c->get(LectureMessage::class), $c->get(ServiceMessagerie::class), $c->get(ServiceNotification::class), $c->get(ServiceSupervisionAdmin::class), $c->get(IdentifiantGenerator::class));
+        $this->alias(ServiceCommunicationInterface::class, ServiceCommunication::class);
+
+        $this->definitions[ServiceDocument::class] = fn ($c) => new ServiceDocument($c->get('PDO'), $c->get(DocumentGenere::class), $c->get(ServiceDocumentGenerator::class), $c->get(ServiceSupervisionAdmin::class), $c->get(IdentifiantGenerator::class), $c->get(ServiceFichier::class));
+        $this->alias(ServiceDocumentInterface::class, ServiceDocument::class);
+
+        $this->definitions[ServiceSupervision::class] = fn ($c) => new ServiceSupervision($c->get('PDO'), $c->get(ServiceSupervisionAdmin::class), $c->get(ServiceLogger::class), $c->get(ServiceNotification::class));
+        $this->alias(ServiceSupervisionInterface::class, ServiceSupervision::class);
 
         // Enregistrement des contrôleurs (pas de changement ici, votre logique est bonne)
         $controllers = [
