@@ -1,30 +1,23 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="fr" data-theme="academictheme">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= htmlspecialchars($pageTitle ?? 'GestionMySoutenance', ENT_QUOTES, 'UTF-8') ?></title>
+    
+    <!-- Modern CSS Frameworks -->
     <link rel="stylesheet" href="/assets/css/style.css">
+    <link rel="stylesheet" href="/assets/css/root.css">
+    
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="/node_modules/@fortawesome/fontawesome-free/css/all.min.css">
+    
+    <!-- Inter Font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
     <style>
-        /* Styles généraux pour le layout d'authentification */
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: 'Segoe UI', system-ui, sans-serif;
-        }
-
-        body {
-            background: linear-gradient(135deg, #e6f2ff, #c2d9ff);
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-            color: #1e293b;
-            line-height: 1.6;
-        }
-
         .auth-layout-container {
             width: 100%;
             max-width: 500px;
@@ -118,7 +111,7 @@
         }
     </style>
 </head>
-<body>
+<body class="auth-layout-main">
 <div class="auth-layout-container">
     <main>
         <?php if (isset($content)): ?>
@@ -132,11 +125,36 @@
         <?php endif; ?>
     </main>
 
-    <div class="auth-layout-footer">
-        <p class="text-center text-gray-500 text-xs">
-            &copy;<?= date('Y') ?> GestionMySoutenance. Tous droits réservés.
-        </p>
-    </div>
+    <footer class="auth-footer">
+        <p>&copy;<?= date('Y') ?> GestionMySoutenance. Tous droits réservés.</p>
+    </footer>
 </div>
+
+<!-- GSAP Animation Library -->
+<script src="/node_modules/gsap/dist/gsap.min.js"></script>
+
+<!-- Auth JavaScript -->
+<script src="/assets/js/auth.js"></script>
+<script src="/assets/js/auth-validation.js"></script>
+<script src="/assets/js/auth-animations.js"></script>
+
+<script>
+// Initialize GSAP animations
+document.addEventListener('DOMContentLoaded', function() {
+    // Animate container entrance
+    gsap.from('.auth-layout-container', {
+        duration: 0.8,
+        y: 50,
+        opacity: 0,
+        ease: "power3.out"
+    });
+    
+    // Initialize auth animations if available
+    if (typeof AuthAnimations !== 'undefined') {
+        AuthAnimations.init();
+    }
+});
+</script>
+
 </body>
 </html>

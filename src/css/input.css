@@ -1,0 +1,46 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Import Bulma for additional components */
+@import 'bulma/css/bulma.min.css';
+
+/* Import DaisyUI (already included via Tailwind plugin) */
+
+/* Import FontAwesome */
+@import '@fortawesome/fontawesome-free/css/all.min.css';
+
+/* Import custom auth styles */
+@import './auth.css';
+
+/* Additional global styles */
+@layer base {
+  html {
+    font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+  }
+  
+  body {
+    @apply antialiased;
+  }
+}
+
+@layer components {
+  /* Custom button component */
+  .btn-primary {
+    @apply bg-primary-blue hover:bg-primary-blue-dark text-white font-medium py-3 px-6 rounded-lg transition-all duration-300 shadow-md hover:shadow-lg;
+  }
+  
+  .btn-secondary {
+    @apply bg-primary-green hover:bg-primary-green-dark text-white font-medium py-3 px-6 rounded-lg transition-all duration-300 shadow-md hover:shadow-lg;
+  }
+  
+  /* Form input component */
+  .form-input {
+    @apply w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-blue focus:border-transparent transition-all duration-300;
+  }
+  
+  /* Auth container */
+  .auth-container {
+    @apply min-h-screen flex flex-col lg:flex-row;
+  }
+}
