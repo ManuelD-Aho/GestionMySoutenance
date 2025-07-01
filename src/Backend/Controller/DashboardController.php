@@ -3,20 +3,15 @@
 
 namespace App\Backend\Controller;
 
-use App\Backend\Service\Securite\ServiceSecuriteInterface;
-use App\Backend\Service\Supervision\ServiceSupervisionInterface;
-use App\Backend\Util\FormValidator;
-
+/**
+ * Contrôleur de redirection qui aiguille l'utilisateur connecté
+ * vers le tableau de bord correspondant à son rôle.
+ */
 class DashboardController extends BaseController
 {
-    public function __construct(
-        ServiceSecuriteInterface $serviceSecurite,
-        ServiceSupervisionInterface $serviceSupervision,
-        FormValidator $formValidator
-    ) {
-        parent::__construct($serviceSecurite, $serviceSupervision, $formValidator);
-    }
-
+    /**
+     * Redirige l'utilisateur vers son tableau de bord spécifique après la connexion.
+     */
     public function index(): void
     {
         if (!$this->serviceSecurite->estUtilisateurConnecte()) {
@@ -24,34 +19,26 @@ class DashboardController extends BaseController
             return;
         }
 
-        $user = $this->serviceSecurite->getUtilisateurConnecte();
-        $userGroupId = $user['id_groupe_utilisateur'] ?? null;
+        $utilisateur = $this->serviceSecurite->getUtilisateurConnecte();
+        $idGroupe = $utilisateur['id_groupe_utilisateur'] ?? null;
 
-        switch ($userGroupId) {
-            case 'GRP_ADMIN_SYS':
-                $this->redirect('/admin/dashboard');
-                break;
-            case 'GRP_ETUDIANT':
-                $this->redirect('/etudiant/dashboard');
-                break;
-            case 'GRP_COMMISSION':
-                $this->redirect('/commission/dashboard');
-                break;
-            case 'GRP_AGENT_CONFORMITE':
-            case 'GRP_RS':
-            case 'GRP_PERS_ADMIN':
-                $this->redirect('/personnel/dashboard');
-                break;
-            case 'GRP_ENSEIGNANT':
-                $this->serviceSupervision->enregistrerAction($user['numero_utilisateur'], 'ECHEC_LOGIN', null, null, ['reason' => 'Rôle enseignant de base sans permissions de dashboard.']);
-                $this->serviceSecurite->logout();
-                $this->redirect('/login?error=access_denied_role');
-                break;
-            default:
-                $this->serviceSupervision->enregistrerAction($user['numero_utilisateur'], 'ECHEC_LOGIN', null, null, ['reason' => 'Rôle utilisateur non défini ou inconnu.']);
-                $this->serviceSecurite->logout();
-                $this->redirect('/login?error=role_undefined');
-                break;
+        $redirectionMap = [
+            'GRP_ADMIN_SYS' => '/admin/dashboard',
+            'GRP_ETUDIANT' => '/etudiant/dashboard',
+            'GRP_COMMISSION' => '/commission/dashboard',
+            'GRP_AGENT_CONFORMITE' => '/personnel/dashboard',
+            'GRP_RS' => '/personnel/dashboard',
+            'GRP_PERS_ADMIN' => '/personnel/dashboard',
+        ];
+
+        if (isset($redirectionMap[$idGroupe])) {
+            $this->redirect($redirectionMap[$idGroupe]);
+        } else {
+            // Gère le cas d'un enseignant simple (GRP_ENSEIGNANT) ou de tout autre rôle
+            // sans dashboard assigné. La session est détruite et un message clair est affiché.
+            $this->setFlash('error', 'Votre rôle actuel ne vous donne pas accès à un tableau de bord. Veuillez contacter un administrateur.');
+            $this->serviceSecurite->logout();
+            $this->redirect('/login');
         }
     }
 }

@@ -34,11 +34,34 @@ docker-compose -f docker-compose.dev.yml ps
 # Voir les logs en temps réel
 docker-compose -f docker-compose.dev.yml logs -f
 
-Mot de passe : Password123!
-admin_sys
-etu_martin
-prof_dupont
-agent_conf
-resp_sco
+🧑‍💻 Administrateur Système
+
+Aho
+
+Password123!
+
+🎓 Étudiant
+
+sophie.martin
+
+Password123!
+
+👨‍🏫 Enseignant / Commission
+
+jean.dupont
+
+Password123!
+
+📋 Responsable Scolarité
+
+alain.terieur
+
+Password123!
+
+✅ Agent de Conformité
+
+alex.terieur
+
+Password123!
 
 

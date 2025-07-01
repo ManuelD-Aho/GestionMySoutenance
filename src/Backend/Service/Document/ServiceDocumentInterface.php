@@ -23,4 +23,15 @@ interface ServiceDocumentInterface
     // --- Section 3: Gestion des Fichiers ---
     public function uploadFichierSecurise(array $fileData, string $destinationType, array $allowedMimeTypes, int $maxSizeInBytes): string;
     public function supprimerFichier(string $relativePath): bool;
+// --- Section 4: Vérification des Droits (NOUVEAU) ---
+    /**
+     * Vérifie si un utilisateur est le propriétaire d'un document généré.
+     *
+     * @param string $filename Le nom du fichier (pas le chemin complet).
+     * @param string $numeroUtilisateur L'ID de l'utilisateur à vérifier.
+     * @return bool True si l'utilisateur est le propriétaire.
+     */
+    public function verifierProprieteDocument(string $filename, string $numeroUtilisateur): bool;
+
+
 }

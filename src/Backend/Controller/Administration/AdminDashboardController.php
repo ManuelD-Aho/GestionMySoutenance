@@ -6,16 +6,19 @@ namespace App\Backend\Controller\Administration;
 use App\Backend\Controller\BaseController;
 use App\Backend\Service\Supervision\ServiceSupervisionInterface;
 use App\Backend\Service\Securite\ServiceSecuriteInterface;
-use App\Backend\Util\FormValidator;
+use App\Config\Container;
 
 class AdminDashboardController extends BaseController
 {
+    private ServiceSupervisionInterface $serviceSupervision;
+
     public function __construct(
+        Container $container,
         ServiceSecuriteInterface $serviceSecurite,
-        ServiceSupervisionInterface $serviceSupervision,
-        FormValidator $formValidator
+        ServiceSupervisionInterface $serviceSupervision
     ) {
-        parent::__construct($serviceSecurite, $serviceSupervision, $formValidator);
+        parent::__construct($container, $serviceSecurite);
+        $this->serviceSupervision = $serviceSupervision;
     }
 
     /**
@@ -30,11 +33,17 @@ class AdminDashboardController extends BaseController
             $stats = $this->serviceSupervision->genererStatistiquesDashboardAdmin();
             $this->render('Administration/dashboard_admin.php', [
                 'title' => 'Tableau de Bord Administrateur',
-                'stats' => $stats
+                'stats' => $stats,
+                'flash' => $this->getFlashMessages()
             ]);
         } catch (\Exception $e) {
-            $this->serviceSupervision->enregistrerAction('SYSTEM', 'DASHBOARD_ADMIN_ERROR', null, null, ['error' => $e->getMessage()]);
-            $this->render('errors/500.php', ['error_message' => "Impossible de charger les statistiques du tableau de bord."]);
+            error_log("Erreur Dashboard Admin: " . $e->getMessage());
+            $this->setFlash('error', "Impossible de charger les statistiques du tableau de bord.");
+            $this->render('Administration/dashboard_admin.php', [
+                'title' => 'Tableau de Bord Administrateur',
+                'stats' => [],
+                'flash' => $this->getFlashMessages()
+            ]);
         }
     }
 }

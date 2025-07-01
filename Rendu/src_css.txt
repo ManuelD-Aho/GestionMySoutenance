@@ -1,3 +1,8 @@
+
+/***********************************************************************************
+ * Fichier: src/css\input.css
+ ***********************************************************************************/
+
 @import 'bulma/css/bulma.min.css';
 /* Importe les dépendances depuis node_modules */
 @import 'tailwindcss/base';

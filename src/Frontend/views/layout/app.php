@@ -4,11 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= htmlspecialchars($title ?? 'GestionMySoutenance') ?></title>
-
-    <!-- CSS Compilé -->
     <link href="/assets/css/app.css" rel="stylesheet">
-
-    <!-- GSAP -->
     <script src="https://unpkg.com/gsap@3.12.5/dist/gsap.min.js" defer></script>
 </head>
 <body class="bg-base-200">
@@ -16,7 +12,6 @@
 <div class="drawer lg:drawer-open">
     <input id="my-drawer-2" type="checkbox" class="drawer-toggle" />
 
-    <!-- Contenu principal de la page -->
     <div class="drawer-content flex flex-col">
         <!-- Barre de navigation -->
         <header class="navbar bg-base-100 shadow-sm sticky top-0 z-30">
@@ -29,15 +24,14 @@
                 <a class="btn btn-ghost text-xl normal-case"><?= htmlspecialchars($title ?? 'Dashboard') ?></a>
             </div>
             <div class="flex-none gap-2">
-                <!-- Menu utilisateur -->
                 <div class="dropdown dropdown-end">
                     <label tabindex="0" class="btn btn-ghost btn-circle avatar">
                         <div class="w-10 rounded-full ring ring-primary ring-offset-base-100 ring-offset-2">
-                            <img src="https://placehold.co/40x40/a0aec0/ffffff/png?text=<?= htmlspecialchars(strtoupper(substr($user['login_utilisateur'] ?? 'U', 0, 1))) ?>" alt="Avatar" />
+                            <img src="/assets/images/avatars/<?= htmlspecialchars($utilisateurConnecte['photo_profil'] ?? 'default.png') ?>" alt="Avatar" />
                         </div>
                     </label>
                     <ul tabindex="0" class="menu menu-sm dropdown-content mt-3 z-[1] p-2 shadow bg-base-100 rounded-box w-52">
-                        <li><a href="/etudiant/profil">Profil</a></li>
+                        <li><a href="/profil">Profil</a></li>
                         <li><a>Paramètres</a></li>
                         <li class="divider"></li>
                         <li><a href="/logout">Déconnexion</a></li>
@@ -46,27 +40,19 @@
             </div>
         </header>
 
-        <!-- Contenu de la vue spécifique -->
-        <main class="flex-1 p-4 lg:p-6">
-            <!-- Affichage des alertes de session -->
-            <?php if (!empty($_SESSION['success'])): ?>
-                <div role="alert" class="alert alert-success mb-4 shadow-lg">
-                    <span><?= htmlspecialchars($_SESSION['success']) ?></span>
-                </div>
-                <?php unset($_SESSION['success']); ?>
-            <?php endif; ?>
-            <?php if (!empty($_SESSION['error'])): ?>
-                <div role="alert" class="alert alert-error mb-4 shadow-lg">
-                    <span><?= htmlspecialchars($_SESSION['error']) ?></span>
-                </div>
-                <?php unset($_SESSION['error']); ?>
-            <?php endif; ?>
+        <!-- Bannière d'impersonation -->
+        <?php if ($estEnModeImpersonation && $impersonatorData): ?>
+            <div class="bg-warning text-warning-content text-center p-2 sticky top-16 z-20">
+                Vous agissez en tant que <strong><?= htmlspecialchars($utilisateurConnecte['prenom'] . ' ' . $utilisateurConnecte['nom']) ?></strong>.
+                <a href="/stop-impersonating" class="btn btn-xs btn-outline ml-4">Arrêter l'impersonation</a>
+            </div>
+        <?php endif; ?>
 
+        <main class="flex-1 p-4 lg:p-6">
             <?= $content ?? '' ?>
         </main>
     </div>
 
-    <!-- Menu latéral (Drawer) -->
     <aside class="drawer-side">
         <label for="my-drawer-2" aria-label="close sidebar" class="drawer-overlay"></label>
         <ul class="menu p-4 w-80 min-h-full bg-base-100 text-base-content">
@@ -74,31 +60,27 @@
                 <a href="/dashboard" class="text-2xl font-bold text-primary">GestionMySoutenance</a>
             </li>
 
-            <!-- Menu dynamique basé sur les permissions -->
-            <li><a href="/dashboard">Tableau de Bord</a></li>
-
-            <?php if ($this->serviceSecurite->utilisateurPossedePermission('TRAIT_ETUDIANT_RAPPORT_SUIVRE')): ?>
-                <li><a href="/etudiant/rapport">Mon Rapport</a></li>
-            <?php endif; ?>
-
-            <?php if ($this->serviceSecurite->utilisateurPossedePermission('ADMIN_USERS_LIST')): ?>
-                <li class="menu-title"><span>Administration</span></li>
-                <li><a href="/admin/dashboard">Dashboard Admin</a></li>
-                <li><a href="/admin/users">Utilisateurs</a></li>
-                <li><a href="/admin/config">Configuration</a></li>
-                <li><a href="/admin/supervision/logs">Logs</a></li>
-            <?php endif; ?>
-
-            <?php if ($this->serviceSecurite->utilisateurPossedePermission('COMMISSION_SESSIONS_LIST')): ?>
-                <li class="menu-title"><span>Commission</span></li>
-                <li><a href="/commission/dashboard">Dashboard Commission</a></li>
-                <li><a href="/commission/sessions">Sessions de validation</a></li>
-            <?php endif; ?>
+            <!-- Menu dynamique généré par ServiceSecurite -->
+            <?php foreach ($menuItems as $item): ?>
+                <?php if (empty($item['enfants'])): ?>
+                    <li><a href="<?= htmlspecialchars($item['url_associee']) ?>"><i class="<?= htmlspecialchars($item['icone_class']) ?> mr-2"></i><?= htmlspecialchars($item['libelle_menu']) ?></a></li>
+                <?php else: ?>
+                    <li>
+                        <details>
+                            <summary><i class="<?= htmlspecialchars($item['icone_class']) ?> mr-2"></i><?= htmlspecialchars($item['libelle_menu']) ?></summary>
+                            <ul>
+                                <?php foreach ($item['enfants'] as $enfant): ?>
+                                    <li><a href="<?= htmlspecialchars($enfant['url_associee']) ?>"><?= htmlspecialchars($enfant['libelle_menu']) ?></a></li>
+                                <?php endforeach; ?>
+                            </ul>
+                        </details>
+                    </li>
+                <?php endif; ?>
+            <?php endforeach; ?>
         </ul>
     </aside>
 </div>
 
-<!-- Scripts globaux de l'application -->
 <script src="/assets/js/app.js" defer></script>
 </body>
 </html>

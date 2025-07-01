@@ -336,4 +336,18 @@ class ServiceDocument implements ServiceDocumentInterface
 
         return $idDocumentGenere;
     }
+    public function verifierProprieteDocument(string $filename, string $numeroUtilisateur): bool
+    {
+        // Le chemin stocké en base est relatif, ex: 'documents_generes/mon_fichier.pdf'
+        // Nous devons donc chercher en utilisant le nom de fichier.
+        $document = $this->documentGenereModel->trouverUnParCritere([
+            'chemin_fichier' => ['operator' => 'LIKE', 'value' => '%' . $filename]
+        ]);
+
+        if (!$document) {
+            return false;
+        }
+
+        return $document['numero_utilisateur_concerne'] === $numeroUtilisateur;
+    }
 }

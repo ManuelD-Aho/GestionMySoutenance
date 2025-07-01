@@ -29,6 +29,7 @@ class ServiceSecurite implements ServiceSecuriteInterface
     private HistoriqueMotDePasse $historiqueMdpModel;
     private Sessions $sessionsModel;
     private GenericModel $rattacherModel;
+    private GenericModel $traitementModel;
     private Delegation $delegationModel;
     private ServiceSupervisionInterface $supervisionService;
 
@@ -43,6 +44,7 @@ class ServiceSecurite implements ServiceSecuriteInterface
         HistoriqueMotDePasse $historiqueMdpModel,
         Sessions $sessionsModel,
         GenericModel $rattacherModel,
+        GenericModel $traitementModel,
         Delegation $delegationModel,
         ServiceSupervisionInterface $supervisionService
     ) {
@@ -51,6 +53,7 @@ class ServiceSecurite implements ServiceSecuriteInterface
         $this->historiqueMdpModel = $historiqueMdpModel;
         $this->sessionsModel = $sessionsModel;
         $this->rattacherModel = $rattacherModel;
+        $this->traitementModel = $traitementModel;
         $this->delegationModel = $delegationModel;
         $this->supervisionService = $supervisionService;
     }
@@ -368,7 +371,7 @@ class ServiceSecurite implements ServiceSecuriteInterface
         // 1. Récupérer tous les éléments de menu auxquels l'utilisateur a droit
         $placeholders = implode(',', array_fill(0, count($permissionsUtilisateur), '?'));
         $sql = "SELECT id_traitement, libelle_menu, url_associee, icone_class, id_parent_traitement 
-                FROM traitement 
+                FROM `{$this->traitementModel->getDb()->quote($this->traitementModel->getTable())}`
                 WHERE est_visible_menu = 1 AND id_traitement IN ($placeholders)
                 ORDER BY ordre_affichage ASC";
 

@@ -72,6 +72,8 @@ FROM builder AS dev
 
 WORKDIR /var/www/html
 
+COPY --from=builder /app .
+
 # Installer et activer Xdebug
 RUN pecl install xdebug && docker-php-ext-enable xdebug
 

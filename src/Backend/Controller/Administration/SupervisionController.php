@@ -5,64 +5,74 @@ namespace App\Backend\Controller\Administration;
 
 use App\Backend\Controller\BaseController;
 use App\Backend\Service\Supervision\ServiceSupervisionInterface;
+use App\Backend\Service\Systeme\ServiceSystemeInterface;
 use App\Backend\Service\Securite\ServiceSecuriteInterface;
-use App\Backend\Util\FormValidator;
+use App\Config\Container;
 
 class SupervisionController extends BaseController
 {
+    private ServiceSupervisionInterface $serviceSupervision;
+    private ServiceSystemeInterface $serviceSysteme;
+
     public function __construct(
+        Container $container,
         ServiceSecuriteInterface $serviceSecurite,
         ServiceSupervisionInterface $serviceSupervision,
-        FormValidator $formValidator
+        ServiceSystemeInterface $serviceSysteme
     ) {
-        parent::__construct($serviceSecurite, $serviceSupervision, $formValidator);
+        parent::__construct($container, $serviceSecurite);
+        $this->serviceSupervision = $serviceSupervision;
+        $this->serviceSysteme = $serviceSysteme;
     }
 
     /**
-     * Affiche les journaux d'audit avec pagination.
+     * Affiche les journaux d'audit avec filtres et pagination.
      */
-    public function showLogs(): void
+    public function showAuditLogs(): void
     {
-        $this->checkPermission('ADMIN_LOGS_READ');
+        $this->checkPermission('TRAIT_ADMIN_SUPERVISION_AUDIT_VIEW');
+        // ... Logique de filtres et pagination ...
+        $logs = $this->serviceSupervision->consulterJournaux($_GET);
+        $this->render('Administration/supervision_audit.php', [
+            'title' => 'Journaux d\'Audit',
+            'logs' => $logs
+        ]);
+    }
 
-        $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
-        $limit = 25;
-        $offset = ($page - 1) * $limit;
-
-        try {
-            $logs = $this->serviceSupervision->consulterJournaux([], $limit, $offset);
-            $this->render('Administration/supervision.php', [
-                'title' => 'Journaux d\'Audit',
-                'logs' => $logs,
-                'page' => $page,
-                'limit' => $limit
-            ]);
-        } catch (\Exception $e) {
-            $this->serviceSupervision->enregistrerAction('SYSTEM', 'LOGS_VIEW_ERROR', null, null, ['error' => $e->getMessage()]);
-            $this->render('errors/500.php', ['error_message' => "Impossible de charger les journaux d'audit."]);
-        }
+    /**
+     * Affiche les journaux d'erreurs du serveur.
+     */
+    public function showErrorLogs(): void
+    {
+        $this->checkPermission('TRAIT_ADMIN_SUPERVISION_ERRORS_VIEW');
+        $logPath = $this->serviceSysteme->getParametre('PHP_ERROR_LOG_PATH');
+        $logContent = $this->serviceSupervision->consulterJournauxErreurs($logPath);
+        $this->render('Administration/supervision_errors.php', [
+            'title' => 'Journaux d\'Erreurs',
+            'logContent' => $logContent
+        ]);
     }
 
     /**
      * Affiche l'état de la file d'attente des tâches asynchrones.
      */
-    public function showQueue(): void
+    public function showQueueStatus(): void
     {
-        $this->checkPermission('ADMIN_QUEUE_READ');
+        $this->checkPermission('TRAIT_ADMIN_SUPERVISION_QUEUE_VIEW');
+        $jobs = $this->serviceSupervision->listerTachesAsynchrones();
+        $this->render('Administration/supervision_queue.php', [
+            'title' => 'File d\'attente des Tâches',
+            'jobs' => $jobs
+        ]);
+    }
 
-        try {
-// Cette méthode devrait être implémentée dans le ServiceSupervision
-// Pour l'exemple, nous simulons la récupération depuis la base.
-            $queueModel = new \App\Backend\Model\GenericModel($this->serviceSupervision->getDb(), 'queue_jobs', 'id');
-            $jobs = $queueModel->trouverTout();
-
-            $this->render('Administration/supervision_queue.php', [
-                'title' => 'File d\'attente des Tâches',
-                'jobs' => $jobs
-            ]);
-        } catch (\Exception $e) {
-            $this->serviceSupervision->enregistrerAction('SYSTEM', 'QUEUE_VIEW_ERROR', null, null, ['error' => $e->getMessage()]);
-            $this->render('errors/500.php', ['error_message' => "Impossible de charger l'état de la file d'attente."]);
-        }
+    /**
+     * Gère une action sur une tâche de la file d'attente (relancer, supprimer).
+     */
+    public function manageQueueTask(string $id, string $action): void
+    {
+        $this->checkPermission('TRAIT_ADMIN_SUPERVISION_QUEUE_MANAGE');
+        $this->serviceSupervision->gererTacheAsynchrone($id, $action);
+        $this->redirect('/admin/supervision/queue');
     }
 }

@@ -1,5 +1,5 @@
 /* Import local Bulma */
-@import "bulma/css/bulma.min.css";
+@import "../node_modules/bulma/css/bulma.min.css";
 
 /* Import Google Fonts */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');

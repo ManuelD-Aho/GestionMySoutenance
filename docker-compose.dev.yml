@@ -15,6 +15,10 @@ services:
       - app_dev_cache:/var/www/html/var/cache
     env_file:
       - .env.dev
+    environment:
+      # La valeur 'soutenance_docker' doit correspondre EXACTEMENT
+      # au nom que vous avez donné au serveur dans votre IDE.
+      - PHP_IDE_CONFIG=serverName=localhost
     depends_on:
       db:
         condition: service_healthy

@@ -622,6 +622,20 @@ class ServiceDocument implements ServiceDocumentInterface
 
         return $idDocumentGenere;
     }
+    public function verifierProprieteDocument(string $filename, string $numeroUtilisateur): bool
+    {
+        // Le chemin stocké en base est relatif, ex: 'documents_generes/mon_fichier.pdf'
+        // Nous devons donc chercher en utilisant le nom de fichier.
+        $document = $this->documentGenereModel->trouverUnParCritere([
+            'chemin_fichier' => ['operator' => 'LIKE', 'value' => '%' . $filename]
+        ]);
+
+        if (!$document) {
+            return false;
+        }
+
+        return $document['numero_utilisateur_concerne'] === $numeroUtilisateur;
+    }
 }
 
 /***********************************************************************************
@@ -653,7 +667,19 @@ interface ServiceDocumentInterface
     // --- Section 3: Gestion des Fichiers ---
     public function uploadFichierSecurise(array $fileData, string $destinationType, array $allowedMimeTypes, int $maxSizeInBytes): string;
     public function supprimerFichier(string $relativePath): bool;
+// --- Section 4: Vérification des Droits (NOUVEAU) ---
+    /**
+     * Vérifie si un utilisateur est le propriétaire d'un document généré.
+     *
+     * @param string $filename Le nom du fichier (pas le chemin complet).
+     * @param string $numeroUtilisateur L'ID de l'utilisateur à vérifier.
+     * @return bool True si l'utilisateur est le propriétaire.
+     */
+    public function verifierProprieteDocument(string $filename, string $numeroUtilisateur): bool;
+
+
 }
+
 
 /***********************************************************************************
  * Fichier: src/Backend/Service\ParcoursAcademique\ServiceParcoursAcademique.php
@@ -1009,6 +1035,7 @@ class ServiceSecurite implements ServiceSecuriteInterface
     private HistoriqueMotDePasse $historiqueMdpModel;
     private Sessions $sessionsModel;
     private GenericModel $rattacherModel;
+    private GenericModel $traitementModel;
     private Delegation $delegationModel;
     private ServiceSupervisionInterface $supervisionService;
 
@@ -1023,6 +1050,7 @@ class ServiceSecurite implements ServiceSecuriteInterface
         HistoriqueMotDePasse $historiqueMdpModel,
         Sessions $sessionsModel,
         GenericModel $rattacherModel,
+        GenericModel $traitementModel,
         Delegation $delegationModel,
         ServiceSupervisionInterface $supervisionService
     ) {
@@ -1031,6 +1059,7 @@ class ServiceSecurite implements ServiceSecuriteInterface
         $this->historiqueMdpModel = $historiqueMdpModel;
         $this->sessionsModel = $sessionsModel;
         $this->rattacherModel = $rattacherModel;
+        $this->traitementModel = $traitementModel;
         $this->delegationModel = $delegationModel;
         $this->supervisionService = $supervisionService;
     }
@@ -1323,9 +1352,70 @@ class ServiceSecurite implements ServiceSecuriteInterface
     }
 
     //================================================================
-    // SECTION 6 : LOGIQUE INTERNE & MÉTHODES PRIVÉES
+    // SECTION 6 : GESTION DYNAMIQUE DE L'INTERFACE
     //================================================================
 
+    public function construireMenuPourUtilisateurConnecte(): array
+    {
+        if (!$this->estUtilisateurConnecte()) {
+            return [];
+        }
+
+        $permissionsUtilisateur = $_SESSION['user_group_permissions'] ?? [];
+        $delegationsUtilisateur = $_SESSION['user_delegations'] ?? [];
+
+        // Ajouter les permissions déléguées à la liste des permissions de l'utilisateur pour cette requête
+        foreach ($delegationsUtilisateur as $delegation) {
+            $permissionsUtilisateur[] = $delegation['id_traitement'];
+        }
+        $permissionsUtilisateur = array_unique($permissionsUtilisateur);
+
+        if (empty($permissionsUtilisateur)) {
+            return [];
+        }
+
+        // 1. Récupérer tous les éléments de menu auxquels l'utilisateur a droit
+        $placeholders = implode(',', array_fill(0, count($permissionsUtilisateur), '?'));
+        $sql = "SELECT id_traitement, libelle_menu, url_associee, icone_class, id_parent_traitement 
+                FROM `{$this->traitementModel->getDb()->quote($this->traitementModel->getTable())}`
+                WHERE est_visible_menu = 1 AND id_traitement IN ($placeholders)
+                ORDER BY ordre_affichage ASC";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($permissionsUtilisateur);
+        $itemsMenu = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // 2. Construire l'arborescence
+        $menuHierarchique = [];
+        $itemsParId = [];
+
+        // Indexer tous les items par leur ID
+        foreach ($itemsMenu as $item) {
+            $itemsParId[$item['id_traitement']] = $item;
+            $itemsParId[$item['id_traitement']]['enfants'] = [];
+        }
+
+        // Associer les enfants à leurs parents
+        foreach ($itemsParId as $id => &$item) {
+            if (!empty($item['id_parent_traitement']) && isset($itemsParId[$item['id_parent_traitement']])) {
+                $itemsParId[$item['id_parent_traitement']]['enfants'][] = &$item;
+            }
+        }
+        unset($item); // Rompre la référence
+
+        // Récupérer uniquement les éléments de premier niveau (ceux sans parent ou dont le parent n'est pas dans la liste)
+        foreach ($itemsParId as $id => $item) {
+            if (empty($item['id_parent_traitement']) || !isset($itemsParId[$item['id_parent_traitement']])) {
+                $menuHierarchique[] = $item;
+            }
+        }
+
+        return $menuHierarchique;
+    }
+
+    //================================================================
+    // SECTION 7 : LOGIQUE INTERNE & MÉTHODES PRIVÉES
+    //================================================================
     private function traiterTentativeEchouee(string $numeroUtilisateur): void
     {
         $this->db->exec("UPDATE utilisateur SET tentatives_connexion_echouees = tentatives_connexion_echouees + 1 WHERE numero_utilisateur = '{$numeroUtilisateur}'");
@@ -1464,12 +1554,23 @@ interface ServiceSecuriteInterface
     public function synchroniserPermissionsSessionsUtilisateur(string $numeroUtilisateur): void;
 
     //================================================================
-    // SECTION 5 : IMPERSONATION (NOUVEAU)
+    // SECTION 5 : IMPERSONATION
     //================================================================
     public function demarrerImpersonation(string $adminId, string $targetUserId): bool;
     public function arreterImpersonation(): bool;
     public function estEnModeImpersonation(): bool;
     public function getImpersonatorData(): ?array;
+
+    //================================================================
+    // SECTION 6 : GESTION DYNAMIQUE DE L'INTERFACE (NOUVEAU)
+    //================================================================
+    /**
+     * Construit la structure hiérarchique du menu de navigation pour l'utilisateur connecté.
+     * Se base sur les permissions de l'utilisateur et les paramètres de visibilité/ordre des menus.
+     *
+     * @return array La structure du menu prête à être parcourue dans une vue.
+     */
+    public function construireMenuPourUtilisateurConnecte(): array;
 }
 
 /***********************************************************************************

@@ -3,95 +3,99 @@
 
 namespace App\Backend\Controller;
 
-use App\Backend\Exception\PermissionException;
+use App\Backend\Model\RapportEtudiant;
 use App\Backend\Service\Securite\ServiceSecuriteInterface;
-use App\Backend\Service\Supervision\ServiceSupervisionInterface;
+use App\Backend\Service\Document\ServiceDocumentInterface;
 use App\Backend\Service\Systeme\ServiceSystemeInterface;
-use App\Backend\Util\FormValidator;
+use App\Config\Container;
+use App\Backend\Exception\PermissionException;
 
 class AssetController extends BaseController
 {
-    private string $baseUploadPath;
-    private \App\Backend\Model\GenericModel $documentGenereModel;
+    private ServiceDocumentInterface $serviceDocument;
+    private ServiceSystemeInterface $serviceSysteme;
 
     public function __construct(
+        Container $container,
         ServiceSecuriteInterface $serviceSecurite,
-        ServiceSupervisionInterface $serviceSupervision,
-        FormValidator $formValidator,
-        ServiceSystemeInterface $serviceSysteme,
-        \App\Config\Container $container
+        ServiceDocumentInterface $serviceDocument,
+        ServiceSystemeInterface $serviceSysteme
     ) {
-        parent::__construct($serviceSecurite, $serviceSupervision, $formValidator);
-        $this->baseUploadPath = $serviceSysteme->getParametre('UPLOADS_PATH_BASE', realpath(__DIR__ . '/../../../Public/uploads/'));
-        $this->documentGenereModel = $container->getModelForTable('document_genere');
+        parent::__construct($container, $serviceSecurite);
+        $this->serviceDocument = $serviceDocument;
+        $this->serviceSysteme = $serviceSysteme;
     }
 
-    /**
-     * Sert un fichier protégé après avoir vérifié les droits de l'utilisateur.
-     *
-     * @param string $type Le sous-dossier de l'asset (ex: 'documents_generes').
-     * @param string $filename Le nom du fichier demandé.
-     */
     public function serveProtectedAsset(string $type, string $filename): void
     {
         try {
-            $this->checkPermission('ACCES_ASSET_PROTEGE');
-
-            if (strpos($type, '..') !== false || strpos($filename, '..') !== false) {
-                throw new PermissionException("Chemin de fichier invalide.");
+            // La vérification de connexion est la première étape
+            if (!$this->serviceSecurite->estUtilisateurConnecte()) {
+                throw new PermissionException("Accès non authentifié.");
             }
 
-            $fullPath = realpath($this->baseUploadPath . DIRECTORY_SEPARATOR . $type . DIRECTORY_SEPARATOR . $filename);
+            $utilisateurConnecte = $this->serviceSecurite->getUtilisateurConnecte();
+            $numeroUtilisateur = $utilisateurConnecte['numero_utilisateur'];
+            $idGroupe = $utilisateurConnecte['id_groupe_utilisateur'];
 
-            if (!$fullPath || strpos($fullPath, realpath($this->baseUploadPath)) !== 0) {
+            // CORRECTION : Utilisation de la méthode correcte getParametre
+            $basePath = $this->serviceSysteme->getParametre('UPLOADS_PATH_BASE');
+            if (!$basePath) {
+                error_log("Le paramètre système 'UPLOADS_PATH_BASE' n'est pas configuré.");
                 $this->serveNotFound();
                 return;
             }
 
-            $this->checkAssetPermissions($type, $filename);
-            $this->serveFile($fullPath);
+            // Sécurisation du chemin
+            $fullPath = realpath($basePath . DIRECTORY_SEPARATOR . $type . DIRECTORY_SEPARATOR . $filename);
+            if ($fullPath === false || strpos($fullPath, realpath($basePath)) !== 0) {
+                $this->serveNotFound();
+                return;
+            }
+
+            $hasAccess = false;
+            switch ($type) {
+                case 'documents_generes':
+                    // L'admin a toujours accès
+                    if ($idGroupe === 'GRP_ADMIN_SYS') {
+                        $hasAccess = true;
+                    } else {
+                        // CORRECTION : Utilisation de la nouvelle méthode du service
+                        $hasAccess = $this->serviceDocument->verifierProprieteDocument($filename, $numeroUtilisateur);
+                    }
+                    break;
+
+                case 'profile_pictures':
+                    // Tout utilisateur connecté peut voir les photos de profil
+                    $hasAccess = true;
+                    break;
+
+                case 'rapport_images':
+                    // Logique plus complexe : vérifier si l'utilisateur est l'étudiant propriétaire,
+                    // un membre de la commission qui évalue le rapport, ou un admin.
+                    // Cette logique serait implémentée dans un service.
+                    // Pour l'exemple, on autorise l'admin et le propriétaire.
+                    $rapportId = explode('_', $filename)[0]; // Suppose un nommage de fichier comme 'RAP-ID_image.jpg'
+                    $rapport = $this->container->get(RapportEtudiant::class)->trouverParIdentifiant($rapportId);
+                    if ($idGroupe === 'GRP_ADMIN_SYS' || ($rapport && $rapport['numero_carte_etudiant'] === $numeroUtilisateur)) {
+                        $hasAccess = true;
+                    }
+                    // Il faudrait ajouter la vérification pour les membres de la commission
+                    break;
+            }
+
+            if ($hasAccess) {
+                $this->serveFile($fullPath);
+            } else {
+                throw new PermissionException("Vous n'avez pas les droits pour accéder à ce fichier.");
+            }
 
         } catch (PermissionException $e) {
-            http_response_code(403);
-            $this->render('errors/403.php', ['error_message' => $e->getMessage()], 'layout_auth.php');
+            $this->serveForbidden($e->getMessage());
         } catch (\Exception $e) {
-            $this->serviceSupervision->enregistrerAction('SYSTEM', 'ASSET_CONTROLLER_EXCEPTION', null, null, ['error' => $e->getMessage()]);
-            http_response_code(500);
-            $this->render('errors/500.php', ['error_message' => 'Erreur interne du serveur.'], 'layout_auth.php');
+            error_log("Erreur dans AssetController: " . $e->getMessage());
+            $this->serveNotFound();
         }
-    }
-
-    private function checkAssetPermissions(string $type, string $filename): void
-    {
-        $user = $this->serviceSecurite->getUtilisateurConnecte();
-        if (!$user) {
-            throw new PermissionException("Utilisateur non authentifié.");
-        }
-
-        if ($user['id_groupe_utilisateur'] === 'GRP_ADMIN_SYS') {
-            return; // L'administrateur peut tout voir.
-        }
-
-        switch ($type) {
-            case 'documents_generes':
-                $relativePath = $type . '/' . $filename;
-                $document = $this->documentGenereModel->trouverUnParCritere(['chemin_fichier' => $relativePath]);
-                if (!$document) {
-                    throw new PermissionException("Document non trouvé dans la base de données.");
-                }
-                if ($document['numero_utilisateur_concerne'] !== $user['numero_utilisateur']) {
-                    throw new PermissionException("Vous n'avez pas l'autorisation de consulter ce document.");
-                }
-                break;
-            default:
-                throw new PermissionException("Type de ressource protégé inconnu ou non géré.");
-        }
-    }
-
-    private function serveNotFound(): void
-    {
-        http_response_code(404);
-        $this->render('errors/404.php', [], 'layout_auth.php');
     }
 
     private function serveFile(string $filePath): void
@@ -100,9 +104,9 @@ class AssetController extends BaseController
             $this->serveNotFound();
             return;
         }
-
-        $finfo = new \finfo(FILEINFO_MIME_TYPE);
-        $mimeType = $finfo->file($filePath);
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $mimeType = finfo_file($finfo, $filePath);
+        finfo_close($finfo);
 
         header('Content-Type: ' . $mimeType);
         header('Content-Length: ' . filesize($filePath));
@@ -110,11 +114,23 @@ class AssetController extends BaseController
         header('Cache-Control: private, max-age=0, must-revalidate');
         header('Pragma: public');
 
-        while (ob_get_level()) {
-            ob_end_clean();
-        }
-
+        ob_clean();
+        flush();
         readfile($filePath);
         exit();
+    }
+
+    private function serveForbidden(string $message = "Accès interdit."): void
+    {
+        http_response_code(403);
+        // On utilise le layout 'app' car l'utilisateur est connecté mais n'a pas les droits
+        $this->render('errors/403.php', ['error_message' => $message], 'app');
+    }
+
+    private function serveNotFound(): void
+    {
+        http_response_code(404);
+        $layout = $this->serviceSecurite->estUtilisateurConnecte() ? 'app' : 'auth';
+        $this->render('errors/404.php', [], $layout);
     }
 }

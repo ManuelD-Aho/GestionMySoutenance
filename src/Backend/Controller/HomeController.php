@@ -3,20 +3,16 @@
 
 namespace App\Backend\Controller;
 
-use App\Backend\Service\Securite\ServiceSecuriteInterface;
-use App\Backend\Service\Supervision\ServiceSupervisionInterface;
-use App\Backend\Util\FormValidator;
-
+/**
+ * Gère la page d'accueil publique de l'application.
+ * Son unique rôle est de rediriger l'utilisateur.
+ */
 class HomeController extends BaseController
 {
-    public function __construct(
-        ServiceSecuriteInterface $serviceSecurite,
-        ServiceSupervisionInterface $serviceSupervision,
-        FormValidator $formValidator
-    ) {
-        parent::__construct($serviceSecurite, $serviceSupervision, $formValidator);
-    }
-
+    /**
+     * Redirige vers le tableau de bord si l'utilisateur est déjà connecté,
+     * sinon, redirige vers la page de connexion.
+     */
     public function index(): void
     {
         if ($this->serviceSecurite->estUtilisateurConnecte()) {

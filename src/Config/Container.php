@@ -7,7 +7,6 @@ use PDO;
 use Exception;
 use App\Backend\Util\FormValidator;
 use App\Backend\Util\DatabaseSessionHandler;
-
 // --- Importation des Modèles Spécifiques ---
 use App\Backend\Model\BaseModel;
 use App\Backend\Model\GenericModel;
@@ -27,7 +26,6 @@ use App\Backend\Service\Systeme\{ServiceSysteme, ServiceSystemeInterface};
 use App\Backend\Service\Communication\{ServiceCommunication, ServiceCommunicationInterface};
 use App\Backend\Service\Document\{ServiceDocument, ServiceDocumentInterface};
 use App\Backend\Service\Supervision\{ServiceSupervision, ServiceSupervisionInterface};
-
 // --- Importation de tous les Contrôleurs ---
 use App\Backend\Controller\Administration\{AdminDashboardController, ConfigurationController, SupervisionController, UtilisateurController};
 use App\Backend\Controller\Commission\{CommissionDashboardController, WorkflowCommissionController};
@@ -120,6 +118,9 @@ class Container
         $this->definitions[FormValidator::class] = fn () => new FormValidator();
         $this->definitions[DatabaseSessionHandler::class] = fn () => new DatabaseSessionHandler();
 
+        // Enregistre l'instance actuelle du conteneur pour qu'elle puisse être injectée
+        $this->definitions[self::class] = fn () => $this;
+
         // Enregistrement des composants
         $this->registerModels();
         $this->registerServices();
@@ -133,6 +134,7 @@ class Container
             Utilisateur::class, HistoriqueMotDePasse::class, Sessions::class,
             RapportEtudiant::class, Reclamation::class, Delegation::class
         ];
+
         foreach ($specificModels as $modelClass) {
             $this->definitions[$modelClass] = fn ($c) => new $modelClass($c->get('PDO'));
         }
@@ -170,7 +172,7 @@ class Container
             $c->get(HistoriqueMotDePasse::class),
             $c->get(Sessions::class),
             $c->getModelForTable('rattacher'),
-            $c->getModelForTable('traitement'), // Dépendance pour les menus dynamiques
+            $c->getModelForTable('traitement'),
             $c->get(Delegation::class),
             $c->get(ServiceSupervisionInterface::class)
         );

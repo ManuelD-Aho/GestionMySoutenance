@@ -1,269 +1,279 @@
 <?php
-
 /**
- * Script de Seeding Complet pour la base de données GestionMySoutenance.
+ * Script d'initialisation (seeding) complet pour la base de données GestionMySoutenance.
  *
- * Ce script initialise :
- * 1. Les données de référence (types, groupes, niveaux d'accès).
- * 2. Une année académique active (essentiel pour la génération d'ID).
- * 3. Les permissions (traitements) de l'application.
- * 4. L'attribution des permissions aux groupes (rôles).
- * 5. Les utilisateurs par défaut pour chaque rôle.
+ * Ce script est idempotent : il peut être exécuté plusieurs fois sans causer d'erreurs.
+ * 1. Nettoie les tables critiques (utilisateurs, profils, permissions, etc.).
+ * 2. Peuple les tables de référence (statuts, types, groupes).
+ * 3. Crée la structure des permissions et des menus.
+ * 4. Crée un jeu d'utilisateurs complets et DÉJÀ VALIDES pour chaque rôle majeur.
+ * 5. Associe les permissions aux rôles.
+ * 6. Initialise les configurations de base (année académique, séquences d'ID).
  *
- * USAGE : Exécuter depuis la racine du projet via la commande :
- * > php seeds.php
+ * USAGE : docker-compose -f docker-compose.dev.yml exec app php seeds.php
  */
 
 declare(strict_types=1);
 
-// --- Bootstrap de l'application ---
-define('ROOT_PATH', __DIR__);
-require_once ROOT_PATH . '/vendor/autoload.php';
-
-if (file_exists(ROOT_PATH . '/.env')) {
-    $dotenv = Dotenv\Dotenv::createImmutable(ROOT_PATH);
+// Bootstrap de l'application (chargement de l'autoloader et des variables .env)
+require_once __DIR__ . '/vendor/autoload.php';
+if (file_exists(__DIR__ . '/.env')) {
+    $dotenv = Dotenv\Dotenv::createImmutable(__DIR__);
     $dotenv->load();
 }
 
-use App\Config\Container;
-use App\Backend\Service\Authentication\ServiceAuthentication;
-use App\Backend\Service\Permissions\ServicePermissions;
-use App\Backend\Service\ConfigurationSysteme\ServiceConfigurationSysteme;
-use App\Backend\Exception\DoublonException;
+use App\Config\Database;
 
-/**
- * Crée les données de référence (Types, Groupes, Niveaux d'accès).
- */
-function seedReferenceData(ServicePermissions $permissionService): void
+class Seeder
 {
-    echo "--- Début du seeding des données de référence ---\n";
+    private ?PDO $pdo = null;
 
-    // 1. Types d'utilisateurs
-    $types = [
-        ['id' => 'TYPE_ADMIN', 'libelle' => 'Administrateur Système'],
-        ['id' => 'TYPE_PERS_ADMIN', 'libelle' => 'Personnel Administratif'],
-        ['id' => 'TYPE_ENS', 'libelle' => 'Enseignant'],
-        ['id' => 'TYPE_ETUD', 'libelle' => 'Étudiant'],
-    ];
-    echo "\n[INFO] Seeding des Types d'Utilisateurs...\n";
-    foreach ($types as $type) {
+    public function __construct()
+    {
         try {
-            $permissionService->creerTypeUtilisateur($type['id'], $type['libelle']);
-            echo "  [SUCCÈS] Type '{$type['libelle']}' créé.\n";
-        } catch (DoublonException $e) {
-            echo "  [AVERTISSEMENT] Type '{$type['libelle']}' existe déjà.\n";
+            $this->pdo = Database::getInstance()->getConnection();
+            $this->pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        } catch (PDOException $e) {
+            die("ERREUR CRITIQUE : Impossible de se connecter à la base de données. " . $e->getMessage() . "\n");
         }
     }
 
-    // 2. Groupes d'utilisateurs (Rôles)
-    $groupes = [
-        ['id' => 'GRP_ADMIN_SYS', 'libelle' => 'Administrateur Système'],
-        ['id' => 'GRP_RS', 'libelle' => 'Responsable Scolarité'],
-        ['id' => 'GRP_AGENT_CONFORMITE', 'libelle' => 'Agent de Conformité'],
-        ['id' => 'GRP_COMMISSION', 'libelle' => 'Membre de Commission'],
-        ['id' => 'GRP_ETUDIANT', 'libelle' => 'Étudiant'],
-        // <-- AJOUT DES GROUPES MANQUANTS -->
-        ['id' => 'GRP_PERS_ADMIN', 'libelle' => 'Personnel Administratif (Rôle de base)'],
-        ['id' => 'GRP_ENSEIGNANT', 'libelle' => 'Enseignant (Rôle de base)'],
-    ];
-    echo "\n[INFO] Seeding des Groupes d'Utilisateurs (Rôles)...\n";
-    foreach ($groupes as $groupe) {
+    /**
+     * Point d'entrée principal pour exécuter toutes les étapes du seeding.
+     */
+    public function run(): void
+    {
+        echo "==================================================\n";
+        echo "== Lancement du Seeding de GestionMySoutenance ==\n";
+        echo "==================================================\n";
+
+        $this->pdo->beginTransaction();
         try {
-            $permissionService->creerGroupeUtilisateur($groupe['id'], $groupe['libelle']);
-            echo "  [SUCCÈS] Groupe '{$groupe['libelle']}' créé.\n";
-        } catch (DoublonException $e) {
-            echo "  [AVERTISSEMENT] Groupe '{$groupe['libelle']}' existe déjà.\n";
+            $this->cleanup();
+            $this->seedReferentiels();
+            $this->seedPermissionsEtNavigation();
+            $this->seedUsers();
+            $this->seedMatricePermissions();
+            $this->seedAnneeAcademique();
+
+            $this->pdo->commit();
+            echo "\n✅ Seeding terminé avec succès !\n";
+        } catch (Exception $e) {
+            $this->pdo->rollBack();
+            die("\n❌ ERREUR LORS DU SEEDING : " . $e->getMessage() . "\n");
         }
     }
 
-    // 3. Niveaux d'accès aux données
-    $niveaux = [
-        ['id' => 'ACCES_TOTAL', 'libelle' => 'Accès Total (Admin)'],
-        ['id' => 'ACCES_DEPARTEMENT', 'libelle' => 'Accès Niveau Département'],
-        ['id' => 'ACCES_PERSONNEL', 'libelle' => 'Accès aux Données Personnelles Uniquement'],
-    ];
-    echo "\n[INFO] Seeding des Niveaux d'Accès...\n";
-    foreach ($niveaux as $niveau) {
-        try {
-            $permissionService->creerNiveauAcces($niveau['id'], $niveau['libelle']);
-            echo "  [SUCCÈS] Niveau d'accès '{$niveau['libelle']}' créé.\n";
-        } catch (DoublonException $e) {
-            echo "  [AVERTISSEMENT] Niveau d'accès '{$niveau['libelle']}' existe déjà.\n";
+    /**
+     * Vide les tables pour garantir un état propre avant le seeding.
+     */
+    private function cleanup(): void
+    {
+        echo "\n1. Nettoyage des tables...\n";
+        $tablesToTruncate = [
+            'rattacher', 'delegation', 'personnel_administratif', 'enseignant', 'etudiant',
+            'utilisateur', 'sequences', 'annee_academique', 'traitement',
+            'groupe_utilisateur', 'type_utilisateur', 'niveau_acces_donne', 'statut_rapport_ref'
+        ];
+
+        $this->pdo->exec('SET FOREIGN_KEY_CHECKS = 0;');
+        foreach ($tablesToTruncate as $table) {
+            $this->pdo->exec("TRUNCATE TABLE `{$table}`;");
+            echo "  - Table `{$table}` vidée.\n";
         }
+        $this->pdo->exec('SET FOREIGN_KEY_CHECKS = 1;');
+        echo "  ✔️ Nettoyage terminé.\n";
     }
-    echo "--- Fin du seeding des données de référence ---\n";
-}
 
-/**
- * Crée une année académique active, prérequis pour la création d'utilisateurs.
- */
-function seedAcademicYear(ServiceConfigurationSysteme $configService): void
-{
-    echo "\n--- Début du seeding de l'Année Académique ---\n";
-    $year = date('Y');
-    $nextYear = $year + 1;
-    $academicYearId = "ANNEE-{$year}-{$nextYear}";
-    $academicYearLabel = "{$year}-{$nextYear}";
+    /**
+     * Peuple toutes les tables de référence.
+     */
+    private function seedReferentiels(): void
+    {
+        echo "\n2. Seeding des tables de référence...\n";
+        $this->executeInsert('groupe_utilisateur', [
+            ['id_groupe_utilisateur' => 'GRP_ADMIN_SYS', 'libelle_groupe_utilisateur' => 'Administrateur Système'],
+            ['id_groupe_utilisateur' => 'GRP_AGENT_CONFORMITE', 'libelle_groupe_utilisateur' => 'Agent de Conformité'],
+            ['id_groupe_utilisateur' => 'GRP_COMMISSION', 'libelle_groupe_utilisateur' => 'Membre de Commission'],
+            ['id_groupe_utilisateur' => 'GRP_ENSEIGNANT', 'libelle_groupe_utilisateur' => 'Enseignant'],
+            ['id_groupe_utilisateur' => 'GRP_ETUDIANT', 'libelle_groupe_utilisateur' => 'Étudiant'],
+            ['id_groupe_utilisateur' => 'GRP_RS', 'libelle_groupe_utilisateur' => 'Responsable Scolarité'],
+            ['id_groupe_utilisateur' => 'GRP_PERS_ADMIN', 'libelle_groupe_utilisateur' => 'Personnel Administratif (Base)']
+        ]);
 
-    try {
-        $configService->creerAnneeAcademique(
-            $academicYearId,
-            $academicYearLabel,
-            "{$year}-09-01",
-            "{$nextYear}-08-31",
-            true // Marquer comme active
+        $this->executeInsert('type_utilisateur', [
+            ['id_type_utilisateur' => 'TYPE_ADMIN', 'libelle_type_utilisateur' => 'Administrateur Système'],
+            ['id_type_utilisateur' => 'TYPE_ENS', 'libelle_type_utilisateur' => 'Enseignant'],
+            ['id_type_utilisateur' => 'TYPE_ETUD', 'libelle_type_utilisateur' => 'Étudiant'],
+            ['id_type_utilisateur' => 'TYPE_PERS_ADMIN', 'libelle_type_utilisateur' => 'Personnel Administratif']
+        ]);
+
+        $this->executeInsert('niveau_acces_donne', [
+            ['id_niveau_acces_donne' => 'ACCES_TOTAL', 'libelle_niveau_acces_donne' => 'Accès Total (Admin)'],
+            ['id_niveau_acces_donne' => 'ACCES_DEPARTEMENT', 'libelle_niveau_acces_donne' => 'Accès Niveau Département'],
+            ['id_niveau_acces_donne' => 'ACCES_PERSONNEL', 'libelle_niveau_acces_donne' => 'Accès Données Personnelles']
+        ]);
+
+        $this->executeInsert('statut_rapport_ref', [
+            ['id_statut_rapport' => 'RAP_BROUILLON', 'libelle_statut_rapport' => 'Brouillon', 'etape_workflow' => 1],
+            ['id_statut_rapport' => 'RAP_SOUMIS', 'libelle_statut_rapport' => 'Soumis', 'etape_workflow' => 2],
+            ['id_statut_rapport' => 'RAP_NON_CONF', 'libelle_statut_rapport' => 'Non Conforme', 'etape_workflow' => 2],
+            ['id_statut_rapport' => 'RAP_CONF', 'libelle_statut_rapport' => 'Conforme', 'etape_workflow' => 3],
+            ['id_statut_rapport' => 'RAP_EN_COMMISSION', 'libelle_statut_rapport' => 'En Évaluation', 'etape_workflow' => 4],
+            ['id_statut_rapport' => 'RAP_CORRECT', 'libelle_statut_rapport' => 'Corrections Demandées', 'etape_workflow' => 5],
+            ['id_statut_rapport' => 'RAP_VALID', 'libelle_statut_rapport' => 'Validé', 'etape_workflow' => 6],
+            ['id_statut_rapport' => 'RAP_REFUSE', 'libelle_statut_rapport' => 'Refusé', 'etape_workflow' => 6]
+        ]);
+        echo "  ✔️ Référentiels créés.\n";
+    }
+
+    /**
+     * Crée la structure hiérarchique des permissions et des menus.
+     */
+    private function seedPermissionsEtNavigation(): void
+    {
+        echo "\n3. Seeding des permissions et menus (table `traitement`)...\n";
+        $this->executeInsert('traitement', [
+            ['id_traitement' => 'MENU_ADMIN', 'libelle_traitement' => 'Administration', 'id_parent_traitement' => null, 'icone_class' => 'fa-solid fa-cogs', 'url_associee' => '#', 'est_visible_menu' => 1, 'ordre_affichage' => 900],
+            ['id_traitement' => 'MENU_ETUDIANT', 'libelle_traitement' => 'Mon Espace', 'id_parent_traitement' => null, 'icone_class' => 'fa-solid fa-user-graduate', 'url_associee' => '#', 'est_visible_menu' => 1, 'ordre_affichage' => 100],
+            ['id_traitement' => 'MENU_COMMISSION', 'libelle_traitement' => 'Commission', 'id_parent_traitement' => null, 'icone_class' => 'fa-solid fa-gavel', 'url_associee' => '#', 'est_visible_menu' => 1, 'ordre_affichage' => 200],
+            ['id_traitement' => 'MENU_PERSONNEL', 'libelle_traitement' => 'Scolarité', 'id_parent_traitement' => null, 'icone_class' => 'fa-solid fa-briefcase', 'url_associee' => '#', 'est_visible_menu' => 1, 'ordre_affichage' => 300],
+
+            ['id_traitement' => 'TRAIT_ADMIN_DASHBOARD_ACCEDER', 'libelle_traitement' => 'Tableau de Bord Admin', 'id_parent_traitement' => 'MENU_ADMIN', 'icone_class' => null, 'url_associee' => '/admin/dashboard', 'est_visible_menu' => 1, 'ordre_affichage' => 10],
+            ['id_traitement' => 'TRAIT_ADMIN_GERER_UTILISATEURS_LISTER', 'libelle_traitement' => 'Gestion Utilisateurs', 'id_parent_traitement' => 'MENU_ADMIN', 'icone_class' => null, 'url_associee' => '/admin/utilisateurs', 'est_visible_menu' => 1, 'ordre_affichage' => 20],
+            ['id_traitement' => 'TRAIT_ADMIN_CONFIG_ACCEDER', 'libelle_traitement' => 'Configuration', 'id_parent_traitement' => 'MENU_ADMIN', 'icone_class' => null, 'url_associee' => '/admin/configuration', 'est_visible_menu' => 1, 'ordre_affichage' => 30],
+            ['id_traitement' => 'TRAIT_ADMIN_SUPERVISION_VOIR_LOGS', 'libelle_traitement' => 'Supervision', 'id_parent_traitement' => 'MENU_ADMIN', 'icone_class' => null, 'url_associee' => '/admin/supervision', 'est_visible_menu' => 1, 'ordre_affichage' => 40],
+        ]);
+        echo "  ✔️ Permissions et menus créés.\n";
+    }
+
+    /**
+     * Crée les utilisateurs de base pour chaque rôle.
+     */
+    private function seedUsers(): void
+    {
+        echo "\n4. Seeding des utilisateurs et de leurs profils...\n";
+        $defaultPassword = 'Password123!';
+        echo "  - Mot de passe par défaut pour tous les utilisateurs : $defaultPassword\n";
+
+        $this->creerUtilisateurComplet(
+            ['id' => 'SYS-2025-0001', 'login' => 'Aho', 'email' => 'ahopaul18@gmail.com', 'password' => $defaultPassword, 'type' => 'TYPE_ADMIN', 'groupe' => 'GRP_ADMIN_SYS', 'acces' => 'ACCES_TOTAL'],
+            ['nom' => 'D-Aho', 'prenom' => 'Manuel'],
+            'personnel_administratif'
         );
-        echo "  [SUCCÈS] Année académique '{$academicYearLabel}' créée et activée.\n";
-    } catch (DoublonException $e) {
-        echo "  [AVERTISSEMENT] L'année académique '{$academicYearLabel}' existe déjà.\n";
-        // S'assurer qu'elle est bien active si elle existe déjà
-        $configService->definirAnneeAcademiqueActive($academicYearId);
-        echo "  [INFO] Année académique '{$academicYearLabel}' définie comme active.\n";
+
+        $this->creerUtilisateurComplet(
+            ['id' => 'ETU-2025-0001', 'login' => 'sophie.martin', 'email' => 'sophie.martin@etu.dev', 'password' => $defaultPassword, 'type' => 'TYPE_ETUD', 'groupe' => 'GRP_ETUDIANT', 'acces' => 'ACCES_PERSONNEL'],
+            ['nom' => 'Martin', 'prenom' => 'Sophie', 'date_naissance' => '2002-05-15'],
+            'etudiant'
+        );
+
+        $this->creerUtilisateurComplet(
+            ['id' => 'ENS-2025-0001', 'login' => 'jean.dupont', 'email' => 'jean.dupont@ens.dev', 'password' => $defaultPassword, 'type' => 'TYPE_ENS', 'groupe' => 'GRP_COMMISSION', 'acces' => 'ACCES_DEPARTEMENT'],
+            ['nom' => 'Dupont', 'prenom' => 'Jean'],
+            'enseignant'
+        );
+
+        $this->creerUtilisateurComplet(
+            ['id' => 'ADM-2025-0001', 'login' => 'alain.terieur', 'email' => 'alain.terieur@adm.dev', 'password' => $defaultPassword, 'type' => 'TYPE_PERS_ADMIN', 'groupe' => 'GRP_RS', 'acces' => 'ACCES_DEPARTEMENT'],
+            ['nom' => 'Térieur', 'prenom' => 'Alain'],
+            'personnel_administratif'
+        );
+
+        $this->creerUtilisateurComplet(
+            ['id' => 'ADM-2025-0002', 'login' => 'alex.terieur', 'email' => 'alex.terieur@adm.dev', 'password' => $defaultPassword, 'type' => 'TYPE_PERS_ADMIN', 'groupe' => 'GRP_AGENT_CONFORMITE', 'acces' => 'ACCES_DEPARTEMENT'],
+            ['nom' => 'Térieur', 'prenom' => 'Alex'],
+            'personnel_administratif'
+        );
+
+        echo "  ✔️ Utilisateurs créés.\n";
     }
-    echo "--- Fin du seeding de l'Année Académique ---\n";
-}
 
-/**
- * Crée les permissions (traitements) de l'application.
- */
-function seedTraitements(ServicePermissions $permissionService): void
-{
-    echo "\n--- Début du seeding des Traitements (Permissions) ---\n";
-    $traitements = [
-        ['id' => 'TRAIT_ADMIN_DASHBOARD_ACCEDER', 'libelle' => 'Accéder au Dashboard Admin'],
-        ['id' => 'TRAIT_ADMIN_GERER_UTILISATEURS_LISTER', 'libelle' => 'Lister les utilisateurs'],
-        ['id' => 'TRAIT_ADMIN_GERER_UTILISATEURS_CREER', 'libelle' => 'Créer un utilisateur'],
-        ['id' => 'TRAIT_ETUDIANT_DASHBOARD_ACCEDER', 'libelle' => 'Accéder au Dashboard Étudiant'],
-        ['id' => 'TRAIT_ETUDIANT_RAPPORT_SUIVRE', 'libelle' => 'Suivre son rapport'],
-        ['id' => 'TRAIT_ETUDIANT_RAPPORT_SOUMETTRE', 'libelle' => 'Soumettre son rapport'],
-        ['id' => 'TRAIT_PERS_ADMIN_DASHBOARD_ACCEDER', 'libelle' => 'Accéder au Dashboard Personnel Admin'],
-        ['id' => 'TRAIT_PERS_ADMIN_CONFORMITE_LISTER', 'libelle' => 'Lister les rapports à vérifier'],
-        ['id' => 'TRAIT_PERS_ADMIN_CONFORMITE_VERIFIER', 'libelle' => 'Vérifier la conformité d\'un rapport'],
-        ['id' => 'TRAIT_PERS_ADMIN_SCOLARITE_ACCEDER', 'libelle' => 'Accéder à la gestion de la scolarité'],
-        ['id' => 'TRAIT_PERS_ADMIN_SCOLARITE_PENALITE_GERER', 'libelle' => 'Gérer les pénalités'],
-        ['id' => 'TRAIT_COMMISSION_DASHBOARD_ACCEDER', 'libelle' => 'Accéder au Dashboard Commission'],
-        ['id' => 'TRAIT_COMMISSION_VALIDATION_RAPPORT_VOTER', 'libelle' => 'Voter pour un rapport'],
-    ];
+    /**
+     * Associe les permissions aux groupes d'utilisateurs.
+     */
+    private function seedMatricePermissions(): void
+    {
+        echo "\n5. Association des permissions aux rôles (table `rattacher`)...\n";
+        $matrice = [
+            'GRP_ADMIN_SYS' => ['MENU_ADMIN', 'TRAIT_ADMIN_DASHBOARD_ACCEDER', 'TRAIT_ADMIN_GERER_UTILISATEURS_LISTER', 'TRAIT_ADMIN_CONFIG_ACCEDER', 'TRAIT_ADMIN_SUPERVISION_VOIR_LOGS'],
+            'GRP_ETUDIANT' => ['MENU_ETUDIANT'],
+            'GRP_COMMISSION' => ['MENU_COMMISSION'],
+            'GRP_RS' => ['MENU_PERSONNEL'],
+            'GRP_AGENT_CONFORMITE' => ['MENU_PERSONNEL']
+        ];
 
-    foreach ($traitements as $traitement) {
-        try {
-            $permissionService->creerTraitement($traitement['id'], $traitement['libelle']);
-            echo "  [SUCCÈS] Traitement '{$traitement['libelle']}' créé.\n";
-        } catch (DoublonException $e) {
-            echo "  [AVERTISSEMENT] Traitement '{$traitement['libelle']}' existe déjà.\n";
-        }
-    }
-    echo "--- Fin du seeding des Traitements ---\n";
-}
-
-/**
- * Attribue les permissions aux groupes.
- */
-function seedPermissions(ServicePermissions $permissionService): void
-{
-    echo "\n--- Début du seeding des Permissions (Rattachements) ---\n";
-    $rattachements = [
-        'GRP_ADMIN_SYS' => ['TRAIT_ADMIN_DASHBOARD_ACCEDER', 'TRAIT_ADMIN_GERER_UTILISATEURS_LISTER', 'TRAIT_ADMIN_GERER_UTILISATEURS_CREER'],
-        'GRP_ETUDIANT' => ['TRAIT_ETUDIANT_DASHBOARD_ACCEDER', 'TRAIT_ETUDIANT_RAPPORT_SUIVRE', 'TRAIT_ETUDIANT_RAPPORT_SOUMETTRE'],
-        'GRP_AGENT_CONFORMITE' => ['TRAIT_PERS_ADMIN_DASHBOARD_ACCEDER', 'TRAIT_PERS_ADMIN_CONFORMITE_LISTER', 'TRAIT_PERS_ADMIN_CONFORMITE_VERIFIER'],
-        'GRP_RS' => ['TRAIT_PERS_ADMIN_DASHBOARD_ACCEDER', 'TRAIT_PERS_ADMIN_SCOLARITE_ACCEDER', 'TRAIT_PERS_ADMIN_SCOLARITE_PENALITE_GERER'],
-        'GRP_COMMISSION' => ['TRAIT_COMMISSION_DASHBOARD_ACCEDER', 'TRAIT_COMMISSION_VALIDATION_RAPPORT_VOTER'],
-    ];
-
-    foreach ($rattachements as $groupeId => $permissions) {
-        echo "[INFO] Attribution des permissions pour le groupe '{$groupeId}'...\n";
-        foreach ($permissions as $permId) {
-            try {
-                $permissionService->attribuerPermissionGroupe($groupeId, $permId);
-                echo "  [SUCCÈS] Permission '{$permId}' attribuée.\n";
-            } catch (DoublonException $e) {
-                echo "  [AVERTISSEMENT] Permission '{$permId}' déjà attribuée.\n";
-            } catch (Exception $e) {
-                echo "  [ERREUR] Échec de l'attribution de '{$permId}': " . $e->getMessage() . "\n";
+        $dataToInsert = [];
+        foreach ($matrice as $groupe => $permissions) {
+            foreach ($permissions as $perm) {
+                $dataToInsert[] = ['id_groupe_utilisateur' => $groupe, 'id_traitement' => $perm];
             }
         }
+        $this->executeInsert('rattacher', $dataToInsert);
+        echo "  ✔️ Permissions associées.\n";
     }
-    echo "--- Fin du seeding des Permissions ---\n";
-}
 
-/**
- * Crée les utilisateurs par défaut.
- */
-function seedUsers(ServiceAuthentication $authService): void
-{
-    echo "\n--- Début du seeding des utilisateurs par défaut ---\n";
+    /**
+     * Crée une année académique active.
+     */
+    private function seedAnneeAcademique(): void
+    {
+        echo "\n6. Création de l'année académique active...\n";
+        $this->executeInsert('annee_academique', [
+            ['id_annee_academique' => 'ANNEE-2024-2025', 'libelle_annee_academique' => '2024-2025', 'date_debut' => '2024-09-01', 'date_fin' => '2025-08-31', 'est_active' => 1]
+        ]);
+        echo "  ✔️ Année académique créée.\n";
+    }
 
-    $defaultPassword = 'Password123!';
-    echo "[INFO] Le mot de passe par défaut pour tous les utilisateurs est : {$defaultPassword}\n\n";
+    // ==================================================================
+    // == Méthodes Utilitaires
+    // ==================================================================
 
-    $usersToCreate = [
-        [
-            'type_code' => 'TYPE_ADMIN',
-            'user_data' => ['login_utilisateur' => 'admin_sys', 'email_principal' => 'admin.sys@gestionsoutenance.dev', 'mot_de_passe' => $defaultPassword, 'id_niveau_acces_donne' => 'ACCES_TOTAL', 'id_groupe_utilisateur' => 'GRP_ADMIN_SYS'],
-            'profile_data' => ['nom' => 'Système', 'prenom' => 'Admin']
-        ],
-        [
-            'type_code' => 'TYPE_PERS_ADMIN',
-            'user_data' => ['login_utilisateur' => 'resp_sco', 'email_principal' => 'resp.sco@gestionsoutenance.dev', 'mot_de_passe' => $defaultPassword, 'id_niveau_acces_donne' => 'ACCES_DEPARTEMENT', 'id_groupe_utilisateur' => 'GRP_RS'],
-            'profile_data' => ['nom' => 'Scolarité', 'prenom' => 'Responsable', 'telephone_professionnel' => '0123456789']
-        ],
-        [
-            'type_code' => 'TYPE_PERS_ADMIN',
-            'user_data' => ['login_utilisateur' => 'agent_conf', 'email_principal' => 'agent.conf@gestionsoutenance.dev', 'mot_de_passe' => $defaultPassword, 'id_niveau_acces_donne' => 'ACCES_DEPARTEMENT', 'id_groupe_utilisateur' => 'GRP_AGENT_CONFORMITE'],
-            'profile_data' => ['nom' => 'Conformité', 'prenom' => 'Agent', 'telephone_professionnel' => '0123456788']
-        ],
-        [
-            'type_code' => 'TYPE_ENS',
-            'user_data' => ['login_utilisateur' => 'prof_dupont', 'email_principal' => 'prof.dupont@gestionsoutenance.dev', 'mot_de_passe' => $defaultPassword, 'id_niveau_acces_donne' => 'ACCES_DEPARTEMENT', 'id_groupe_utilisateur' => 'GRP_COMMISSION'],
-            'profile_data' => ['nom' => 'Dupont', 'prenom' => 'Jean', 'telephone_professionnel' => '0611223344']
-        ],
-        [
-            'type_code' => 'TYPE_ETUD',
-            'user_data' => ['login_utilisateur' => 'etu_martin', 'email_principal' => 'etu.martin@gestionsoutenance.dev', 'mot_de_passe' => $defaultPassword, 'id_niveau_acces_donne' => 'ACCES_PERSONNEL', 'id_groupe_utilisateur' => 'GRP_ETUDIANT'],
-            'profile_data' => ['nom' => 'Martin', 'prenom' => 'Sophie', 'date_naissance' => '2002-05-15', 'telephone' => '0788990011']
-        ]
-    ];
-
-    foreach ($usersToCreate as $user) {
-        echo "Tentative de création de l'utilisateur : {$user['user_data']['login_utilisateur']}...\n";
-        try {
-            $userId = $authService->creerCompteUtilisateurComplet(
-                $user['user_data'],
-                $user['profile_data'],
-                $user['type_code'],
-                false // false pour ne pas envoyer d'email de validation
-            );
-            echo "  [SUCCÈS] Utilisateur '{$user['user_data']['login_utilisateur']}' créé avec l'ID : {$userId}\n";
-
-            $authService->changerStatutDuCompte($userId, 'actif');
-            echo "  [INFO] Compte '{$userId}' activé manuellement.\n";
-
-        } catch (DoublonException $e) {
-            echo "  [AVERTISSEMENT] L'utilisateur '{$user['user_data']['login_utilisateur']}' existe déjà.\n";
-        } catch (Exception $e) {
-            echo "  [ERREUR] Échec de la création de '{$user['user_data']['login_utilisateur']}': " . $e->getMessage() . "\n";
+    private function executeInsert(string $table, array $data): void
+    {
+        foreach ($data as $row) {
+            $columns = '`' . implode('`, `', array_keys($row)) . '`';
+            $placeholders = ':' . implode(', :', array_keys($row));
+            $sql = "INSERT IGNORE INTO `{$table}` ({$columns}) VALUES ({$placeholders})";
+            $stmt = $this->pdo->prepare($sql);
+            $stmt->execute($row);
         }
     }
-    echo "--- Fin du seeding des utilisateurs ---\n";
+
+    private function creerUtilisateurComplet(array $compte, array $profil, string $typeProfil): void
+    {
+        $passwordHash = password_hash($compte['password'], PASSWORD_DEFAULT);
+
+        $this->executeInsert('utilisateur', [[
+            'numero_utilisateur' => $compte['id'],
+            'login_utilisateur' => $compte['login'],
+            'email_principal' => $compte['email'],
+            'mot_de_passe' => $passwordHash,
+            'email_valide' => 1, // L'utilisateur est considéré comme valide
+            'statut_compte' => 'actif', // Le compte est directement actif
+            'id_niveau_acces_donne' => $compte['acces'],
+            'id_groupe_utilisateur' => $compte['groupe'],
+            'id_type_utilisateur' => $compte['type']
+        ]]);
+
+        $profil['numero_utilisateur'] = $compte['id'];
+        $pkProfil = match($typeProfil) {
+            'etudiant' => 'numero_carte_etudiant',
+            'enseignant' => 'numero_enseignant',
+            'personnel_administratif' => 'numero_personnel_administratif'
+        };
+        $profil[$pkProfil] = $compte['id'];
+        $this->executeInsert($typeProfil, [$profil]);
+
+        $prefixe = explode('-', $compte['id'])[0];
+        $annee = date('Y');
+        $stmt = $this->pdo->prepare("INSERT INTO sequences (nom_sequence, annee, valeur_actuelle) VALUES (:p, :a, 1) ON DUPLICATE KEY UPDATE valeur_actuelle = valeur_actuelle + 1");
+        $stmt->execute(['p' => $prefixe, 'a' => $annee]);
+
+        echo "  - Utilisateur '{$compte['login']}' créé.\n";
+    }
 }
 
-// --- Exécution du Script ---
-try {
-    $container = new Container();
-    $permissionService = $container->get(ServicePermissions::class);
-    $authService = $container->get(ServiceAuthentication::class);
-    $configService = $container->get(ServiceConfigurationSysteme::class);
-
-    // <-- ORDRE D'EXÉCUTION CORRIGÉ -->
-    seedReferenceData($permissionService);
-    seedAcademicYear($configService); // Doit être exécuté avant la création des utilisateurs
-    seedTraitements($permissionService);
-    seedPermissions($permissionService);
-    seedUsers($authService);
-
-    echo "\n[FIN] Le script de seeding s'est terminé avec succès.\n";
-
-} catch (Exception $e) {
-    echo "\n[ERREUR CRITIQUE] Le script de seeding a échoué : " . $e->getMessage() . "\n";
-    exit(1);
-}
+// Exécution du seeder
+$seeder = new Seeder();
+$seeder->run();
