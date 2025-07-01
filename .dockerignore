@@ -7,8 +7,6 @@
 .github/
 
 # Fichiers d'environnement (très important de ne pas les inclure dans l'image)
-.env
-.env.dev
 .env.prod
 .env.example
 

@@ -77,7 +77,12 @@ $form = $form ?? 'login';
                 </div>
                 <div class="form-control">
                     <label class="label" for="mot_de_passe"><span class="label-text">Mot de passe</span></label>
-                    <input type="password" id="mot_de_passe" name="mot_de_passe" class="input input-bordered w-full" required>
+                    <div class="relative w-full">
+                        <input type="password" id="mot_de_passe" name="mot_de_passe" class="input input-bordered w-full pr-10" required>
+                        <button type="button" data-toggle-password="mot_de_passe" class="absolute inset-y-0 right-0 px-3 flex items-center text-gray-400 hover:text-gray-600">
+                            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.022 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                        </button>
+                    </div>
                     <label class="label"><a href="/forgot-password" class="label-text-alt link link-hover">Mot de passe oublié ?</a></label>
                 </div>
                 <div class="form-control mt-6">
@@ -127,11 +132,21 @@ $form = $form ?? 'login';
                 <input type="hidden" name="token" value="<?= htmlspecialchars($token ?? '') ?>">
                 <div class="form-control">
                     <label class="label" for="nouveau_mot_de_passe"><span class="label-text">Nouveau mot de passe</span></label>
-                    <input type="password" id="nouveau_mot_de_passe" name="nouveau_mot_de_passe" class="input input-bordered w-full" required>
+                    <div class="relative w-full">
+                        <input type="password" id="nouveau_mot_de_passe" name="nouveau_mot_de_passe" class="input input-bordered w-full pr-10" required>
+                        <button type="button" data-toggle-password="nouveau_mot_de_passe" class="absolute inset-y-0 right-0 px-3 flex items-center text-gray-400 hover:text-gray-600">
+                            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.022 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                        </button>
+                    </div>
                 </div>
                 <div class="form-control">
                     <label class="label" for="confirmer_mot_de_passe"><span class="label-text">Confirmer le mot de passe</span></label>
-                    <input type="password" id="confirmer_mot_de_passe" name="confirmer_mot_de_passe" class="input input-bordered w-full" required>
+                    <div class="relative w-full">
+                        <input type="password" id="confirmer_mot_de_passe" name="confirmer_mot_de_passe" class="input input-bordered w-full pr-10" required>
+                        <button type="button" data-toggle-password="confirmer_mot_de_passe" class="absolute inset-y-0 right-0 px-3 flex items-center text-gray-400 hover:text-gray-600">
+                            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.022 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                        </button>
+                    </div>
                 </div>
                 <div class="form-control mt-6">
                     <button type="submit" class="btn btn-primary w-full">
@@ -142,6 +157,8 @@ $form = $form ?? 'login';
         <?php endif; ?>
     </div>
 </div>
+<script src="/assets/js/auth.js" defer></script>
+
 
 /***********************************************************************************
  * Fichier: src/Frontend\views\Commission\dashboard_commission.php

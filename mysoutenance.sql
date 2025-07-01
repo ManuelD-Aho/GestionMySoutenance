@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Hôte : db:3306
--- Généré le : mar. 01 juil. 2025 à 14:32
+-- Généré le : mar. 01 juil. 2025 à 17:12
 -- Version du serveur : 8.3.0
 -- Version de PHP : 8.2.27
 
@@ -72,13 +72,6 @@ CREATE TABLE `annee_academique` (
                                     `date_fin` date DEFAULT NULL,
                                     `est_active` tinyint(1) NOT NULL DEFAULT '0'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
---
--- Déchargement des données de la table `annee_academique`
---
-
-INSERT INTO `annee_academique` (`id_annee_academique`, `libelle_annee_academique`, `date_debut`, `date_fin`, `est_active`) VALUES
-    ('ANNEE-2024-2025', '2024-2025', '2024-09-01', '2025-08-31', 1);
 
 -- --------------------------------------------------------
 
@@ -393,19 +386,6 @@ CREATE TABLE `groupe_utilisateur` (
                                       `libelle_groupe_utilisateur` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
---
--- Déchargement des données de la table `groupe_utilisateur`
---
-
-INSERT INTO `groupe_utilisateur` (`id_groupe_utilisateur`, `libelle_groupe_utilisateur`) VALUES
-                                                                                             ('GRP_ADMIN_SYS', 'Administrateur Système'),
-                                                                                             ('GRP_AGENT_CONFORMITE', 'Agent de Conformité'),
-                                                                                             ('GRP_ENSEIGNANT', 'Enseignant'),
-                                                                                             ('GRP_ETUDIANT', 'Étudiant'),
-                                                                                             ('GRP_COMMISSION', 'Membre de Commission'),
-                                                                                             ('GRP_PERS_ADMIN', 'Personnel Administratif (Base)'),
-                                                                                             ('GRP_RS', 'Responsable Scolarité');
-
 -- --------------------------------------------------------
 
 --
@@ -488,15 +468,6 @@ CREATE TABLE `niveau_acces_donne` (
                                       `libelle_niveau_acces_donne` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
---
--- Déchargement des données de la table `niveau_acces_donne`
---
-
-INSERT INTO `niveau_acces_donne` (`id_niveau_acces_donne`, `libelle_niveau_acces_donne`) VALUES
-                                                                                             ('ACCES_PERSONNEL', 'Accès aux Données Personnelles Uniquement'),
-                                                                                             ('ACCES_DEPARTEMENT', 'Accès Niveau Département'),
-                                                                                             ('ACCES_TOTAL', 'Accès Total (Admin)');
-
 -- --------------------------------------------------------
 
 --
@@ -545,17 +516,6 @@ CREATE TABLE `parametres_systeme` (
                                       `description` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
                                       `type` enum('string','integer','boolean','json') CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL DEFAULT 'string'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
---
--- Déchargement des données de la table `parametres_systeme`
---
-
-INSERT INTO `parametres_systeme` (`cle`, `valeur`, `description`, `type`) VALUES
-                                                                              ('LOCKOUT_TIME_MINUTES', '30', 'Durée en minutes du blocage de compte.', 'integer'),
-                                                                              ('MAX_LOGIN_ATTEMPTS', '5', 'Nombre maximum de tentatives de connexion avant blocage.', 'integer'),
-                                                                              ('PASSWORD_MIN_LENGTH', '8', 'Longueur minimale requise pour les mots de passe.', 'integer'),
-                                                                              ('UPLOADS_PATH_DOCUMENTS_GENERES', '/var/www/html/Public/uploads/documents_generes/', 'Chemin de stockage des documents PDF générés.', 'string'),
-                                                                              ('UPLOADS_PATH_PROFILE_PICTURES', '/var/www/html/Public/uploads/profile_pictures/', 'Chemin de stockage des photos de profil.', 'string');
 
 -- --------------------------------------------------------
 
@@ -613,13 +573,6 @@ CREATE TABLE `personnel_administratif` (
                                            `telephone_personnel` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
                                            `email_personnel_secondaire` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
---
--- Déchargement des données de la table `personnel_administratif`
---
-
-INSERT INTO `personnel_administratif` (`numero_personnel_administratif`, `nom`, `prenom`, `telephone_professionnel`, `email_professionnel`, `date_affectation_service`, `responsabilites_cles`, `numero_utilisateur`, `date_naissance`, `lieu_naissance`, `pays_naissance`, `nationalite`, `sexe`, `adresse_postale`, `ville`, `code_postal`, `telephone_personnel`, `email_personnel_secondaire`) VALUES
-    ('SYS-2025-0001', 'D-Aho', 'Manuel', NULL, 'ahopaul18@gmail.com', NULL, NULL, 'SYS-2025-0001', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
 
 -- --------------------------------------------------------
 
@@ -733,29 +686,6 @@ CREATE TABLE `rattacher` (
                              `id_traitement` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
---
--- Déchargement des données de la table `rattacher`
---
-
-INSERT INTO `rattacher` (`id_groupe_utilisateur`, `id_traitement`) VALUES
-                                                                       ('GRP_ADMIN_SYS', 'ACCES_ASSET_PROTEGE'),
-                                                                       ('GRP_ADMIN_SYS', 'MENU_ADMIN'),
-                                                                       ('GRP_ADMIN_SYS', 'TRAIT_ADMIN_CONFIG_ACCEDER'),
-                                                                       ('GRP_ADMIN_SYS', 'TRAIT_ADMIN_CONFIG_ANNEE_MODIFIER'),
-                                                                       ('GRP_ADMIN_SYS', 'TRAIT_ADMIN_CONFIG_PARAM_MODIFIER'),
-                                                                       ('GRP_ADMIN_SYS', 'TRAIT_ADMIN_CONFIG_REFERENTIEL_ECRIRE'),
-                                                                       ('GRP_ADMIN_SYS', 'TRAIT_ADMIN_CONFIG_REFERENTIEL_LIRE'),
-                                                                       ('GRP_ADMIN_SYS', 'TRAIT_ADMIN_CONFIG_REFERENTIEL_SUPPRIMER'),
-                                                                       ('GRP_ADMIN_SYS', 'TRAIT_ADMIN_DASHBOARD_ACCEDER'),
-                                                                       ('GRP_ADMIN_SYS', 'TRAIT_ADMIN_GERER_UTILISATEURS_CREER'),
-                                                                       ('GRP_ADMIN_SYS', 'TRAIT_ADMIN_GERER_UTILISATEURS_LISTER'),
-                                                                       ('GRP_ADMIN_SYS', 'TRAIT_ADMIN_GERER_UTILISATEURS_MODIFIER'),
-                                                                       ('GRP_ADMIN_SYS', 'TRAIT_ADMIN_GERER_UTILISATEURS_SUPPRIMER'),
-                                                                       ('GRP_ADMIN_SYS', 'TRAIT_ADMIN_SUPERVISION_GERER_QUEUE'),
-                                                                       ('GRP_ADMIN_SYS', 'TRAIT_ADMIN_SUPERVISION_VOIR_LOGS'),
-                                                                       ('GRP_ADMIN_SYS', 'TRAIT_ADMIN_SUPERVISION_VOIR_QUEUE'),
-                                                                       ('GRP_ADMIN_SYS', 'TRAIT_ADMIN_UTILISATEUR_IMPERSONATE');
-
 -- --------------------------------------------------------
 
 --
@@ -828,13 +758,6 @@ CREATE TABLE `sequences` (
                              `valeur_actuelle` int UNSIGNED NOT NULL DEFAULT '0'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
---
--- Déchargement des données de la table `sequences`
---
-
-INSERT INTO `sequences` (`nom_sequence`, `annee`, `valeur_actuelle`) VALUES
-    ('SYS', 2025, 1);
-
 -- --------------------------------------------------------
 
 --
@@ -848,15 +771,6 @@ CREATE TABLE `sessions` (
                             `session_lifetime` int UNSIGNED NOT NULL,
                             `user_id` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
---
--- Déchargement des données de la table `sessions`
---
-
-INSERT INTO `sessions` (`session_id`, `session_data`, `session_last_activity`, `session_lifetime`, `user_id`) VALUES
-                                                                                                                  ('026861c72e314a6f3b6c1819e4724572', 0x637372665f746f6b656e7c613a323a7b733a353a2276616c7565223b733a36343a2236353062356237326664666330386366643331346431366138353062623630343639313866616635366339376634353635623834333661633637393336373039223b733a31303a22657870697265735f6174223b693a313735313338333032373b7d, 1751379429, 3600, NULL),
-                                                                                                                  ('795aef88e391863243e7e3c50516d587', 0x637372665f746f6b656e7c613a323a7b733a353a2276616c7565223b733a36343a2234643037363337323432343839376631326663643836396662396437626136623238663766396664636437376235353335376635343961663933633433616365223b733a31303a22657870697265735f6174223b693a313735313338323331353b7d, 1751379104, 3600, NULL),
-                                                                                                                  ('aea585a7655c0644f062af0be2c7da64', 0x637372665f746f6b656e7c613a323a7b733a353a2276616c7565223b733a36343a2264363530383265353865323838353737376230666230616362386463663138333339333434363066613134626530616435613461363531393234333037623633223b733a31303a22657870697265735f6174223b693a313735313338323039373b7d, 1751379415, 3600, NULL);
 
 -- --------------------------------------------------------
 
@@ -966,20 +880,6 @@ CREATE TABLE `statut_rapport_ref` (
                                       `etape_workflow` int DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
---
--- Déchargement des données de la table `statut_rapport_ref`
---
-
-INSERT INTO `statut_rapport_ref` (`id_statut_rapport`, `libelle_statut_rapport`, `etape_workflow`) VALUES
-                                                                                                       ('RAP_BROUILLON', 'Brouillon', 1),
-                                                                                                       ('RAP_CONF', 'Conforme', 3),
-                                                                                                       ('RAP_CORRECT', 'Corrections demandées', 5),
-                                                                                                       ('RAP_EN_COMMISSION', 'En cours d\'évaluation', 4),
-                                                                                                       ('RAP_NON_CONF', 'Non Conforme', 2),
-                                                                                                       ('RAP_REFUSE', 'Refusé', 6),
-                                                                                                       ('RAP_SOUMIS', 'Soumis pour vérification', 2),
-                                                                                                       ('RAP_VALID', 'Validé', 6);
-
 -- --------------------------------------------------------
 
 --
@@ -1005,32 +905,6 @@ CREATE TABLE `traitement` (
                               `url_associee` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT 'URL ou route associée à ce traitement pour la navigation'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
---
--- Déchargement des données de la table `traitement`
---
-
-INSERT INTO `traitement` (`id_traitement`, `libelle_traitement`, `id_parent_traitement`, `icone_class`, `url_associee`) VALUES
-                                                                                                                            ('ACCES_ASSET_PROTEGE', 'Accéder aux fichiers protégés', NULL, NULL, NULL),
-                                                                                                                            ('MENU_ADMIN', 'Administration', NULL, 'fas fa-cogs', '#'),
-                                                                                                                            ('MENU_COMMISSION', 'Espace Commission', NULL, 'fas fa-gavel', '#'),
-                                                                                                                            ('MENU_ETUDIANT', 'Espace Étudiant', NULL, 'fas fa-user-graduate', '#'),
-                                                                                                                            ('MENU_PERSONNEL', 'Espace Administratif', NULL, 'fas fa-briefcase', '#'),
-                                                                                                                            ('TRAIT_ADMIN_CONFIG_ACCEDER', 'Configuration', 'MENU_ADMIN', 'fas fa-sliders-h', '/admin/configuration'),
-                                                                                                                            ('TRAIT_ADMIN_CONFIG_ANNEE_MODIFIER', 'Gérer les années académiques', 'TRAIT_ADMIN_CONFIG_ACCEDER', NULL, NULL),
-                                                                                                                            ('TRAIT_ADMIN_CONFIG_PARAM_MODIFIER', 'Modifier les paramètres système', 'TRAIT_ADMIN_CONFIG_ACCEDER', NULL, NULL),
-                                                                                                                            ('TRAIT_ADMIN_CONFIG_REFERENTIEL_ECRIRE', 'Écrire dans les référentiels', 'TRAIT_ADMIN_CONFIG_ACCEDER', NULL, NULL),
-                                                                                                                            ('TRAIT_ADMIN_CONFIG_REFERENTIEL_LIRE', 'Lire les référentiels', 'TRAIT_ADMIN_CONFIG_ACCEDER', NULL, NULL),
-                                                                                                                            ('TRAIT_ADMIN_CONFIG_REFERENTIEL_SUPPRIMER', 'Supprimer des référentiels', 'TRAIT_ADMIN_CONFIG_ACCEDER', NULL, NULL),
-                                                                                                                            ('TRAIT_ADMIN_DASHBOARD_ACCEDER', 'Tableau de Bord', 'MENU_ADMIN', 'fas fa-tachometer-alt', '/admin/dashboard'),
-                                                                                                                            ('TRAIT_ADMIN_GERER_UTILISATEURS_CREER', 'Créer un utilisateur', 'TRAIT_ADMIN_GERER_UTILISATEURS_LISTER', NULL, NULL),
-                                                                                                                            ('TRAIT_ADMIN_GERER_UTILISATEURS_LISTER', 'Gestion Utilisateurs', 'MENU_ADMIN', 'fas fa-users', '/admin/utilisateurs'),
-                                                                                                                            ('TRAIT_ADMIN_GERER_UTILISATEURS_MODIFIER', 'Modifier un utilisateur', 'TRAIT_ADMIN_GERER_UTILISATEURS_LISTER', NULL, NULL),
-                                                                                                                            ('TRAIT_ADMIN_GERER_UTILISATEURS_SUPPRIMER', 'Archiver un utilisateur', 'TRAIT_ADMIN_GERER_UTILISATEURS_LISTER', NULL, NULL),
-                                                                                                                            ('TRAIT_ADMIN_SUPERVISION_GERER_QUEUE', 'Gérer la file d\'attente', 'TRAIT_ADMIN_SUPERVISION_VOIR_LOGS', NULL, NULL),
-                                                                                                                            ('TRAIT_ADMIN_SUPERVISION_VOIR_LOGS', 'Supervision', 'MENU_ADMIN', 'fas fa-binoculars', '/admin/supervision'),
-                                                                                                                            ('TRAIT_ADMIN_SUPERVISION_VOIR_QUEUE', 'Voir la file d\'attente', 'TRAIT_ADMIN_SUPERVISION_VOIR_LOGS', NULL, NULL),
-                                                                                                                            ('TRAIT_ADMIN_UTILISATEUR_IMPERSONATE', 'Impersonnaliser un utilisateur', 'TRAIT_ADMIN_GERER_UTILISATEURS_LISTER', NULL, NULL);
-
 -- --------------------------------------------------------
 
 --
@@ -1053,16 +927,6 @@ CREATE TABLE `type_utilisateur` (
                                     `id_type_utilisateur` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
                                     `libelle_type_utilisateur` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
---
--- Déchargement des données de la table `type_utilisateur`
---
-
-INSERT INTO `type_utilisateur` (`id_type_utilisateur`, `libelle_type_utilisateur`) VALUES
-                                                                                       ('TYPE_ADMIN', 'Administrateur Système'),
-                                                                                       ('TYPE_ENS', 'Enseignant'),
-                                                                                       ('TYPE_ETUD', 'Étudiant'),
-                                                                                       ('TYPE_PERS_ADMIN', 'Personnel Administratif');
 
 -- --------------------------------------------------------
 
@@ -1103,13 +967,6 @@ CREATE TABLE `utilisateur` (
                                `id_groupe_utilisateur` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
                                `id_type_utilisateur` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
---
--- Déchargement des données de la table `utilisateur`
---
-
-INSERT INTO `utilisateur` (`numero_utilisateur`, `login_utilisateur`, `email_principal`, `mot_de_passe`, `date_creation`, `derniere_connexion`, `token_reset_mdp`, `date_expiration_token_reset`, `token_validation_email`, `email_valide`, `tentatives_connexion_echouees`, `compte_bloque_jusqua`, `preferences_2fa_active`, `secret_2fa`, `photo_profil`, `statut_compte`, `id_niveau_acces_donne`, `id_groupe_utilisateur`, `id_type_utilisateur`) VALUES
-    ('SYS-2025-0001', 'Aho', 'ahopaul18@gmail.com', '$2y$10$QARzkjcRaiiKqcCEl/.vqODK02zhMgGexKtrNZ7NDqUE1s7TDUgmq', '2025-07-01 13:00:00', NULL, 'd8fcb2a286a566796f16e1345235cbb7ad516665780f4d5480ef8806bc7b01ed', '2025-07-01 17:13:42', NULL, 1, 0, NULL, 0, NULL, NULL, 'actif', 'ACCES_TOTAL', 'GRP_ADMIN_SYS', 'TYPE_ADMIN');
 
 -- --------------------------------------------------------
 

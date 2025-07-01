@@ -8,6 +8,7 @@ interface ServiceUtilisateurInterface
     // --- CRUD Entités & Comptes ---
     public function creerEntite(string $typeEntite, array $donneesProfil): string;
     public function activerComptePourEntite(string $numeroEntite, array $donneesCompte, bool $envoyerEmailValidation = true): bool;
+    public function createAdminUser(string $login, string $email, string $password): string; // <-- Nouvelle méthode ajoutée
     public function listerUtilisateursComplets(array $filtres = []): array;
     public function lireUtilisateurComplet(string $id): ?array;
     public function mettreAJourUtilisateur(string $numeroUtilisateur, array $donneesProfil, array $donneesCompte): bool;
