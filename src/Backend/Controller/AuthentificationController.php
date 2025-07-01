@@ -38,8 +38,7 @@ class AuthentificationController extends BaseController
         }
     }
     /**
-     * Affiche la page d'authentification unifiée avec le formulaire approprié.
-     * Détermine le formulaire initial basé sur l'URL ou les messages flash.
+     * Affiche la page d'authentification appropriée selon la route.
      * @param string|null $token Le token de réinitialisation si présent dans l'URL.
      */
     public function showUnifiedAuthPage(?string $token = null): void
@@ -47,17 +46,16 @@ class AuthentificationController extends BaseController
         $this->requireNoLogin();
 
         $data = [
-            'page_title' => 'Authentification',
-            'current_form' => 'login', // Formulaire par défaut
-            'reset_token' => '',
+            'csrf_token' => $this->generateCsrfToken(),
+            'pageTitle' => 'Authentification',
         ];
 
-        // Déterminer le formulaire à afficher en fonction de la route ou des erreurs précédentes
+        // Déterminer la page à afficher en fonction de la route
         $requestUri = $_SERVER['REQUEST_URI'];
 
         if (strpos($requestUri, '/forgot-password') !== false) {
-            $data['current_form'] = 'forgot-password';
-            $data['page_title'] = 'Mot de passe oublié';
+            $data['pageTitle'] = 'Mot de passe oublié';
+            $this->render('Auth/forgot-password', $data, 'Auth/layout_auth');
         } elseif (strpos($requestUri, '/reset-password') !== false && $token) {
             try {
                 // Vérifier la validité du token avant d'afficher le formulaire de réinitialisation
@@ -68,37 +66,43 @@ class AuthentificationController extends BaseController
                 if (new \DateTime() > new \DateTime($user['date_expiration_token_reset'])) {
                     throw new TokenExpireException("Le lien de réinitialisation a expiré.");
                 }
-                $data['current_form'] = 'reset-password';
-                $data['page_title'] = 'Réinitialiser votre mot de passe';
-                $data['reset_token'] = $token;
+                $data['pageTitle'] = 'Réinitialiser votre mot de passe';
+                $data['token'] = $token;
+                $this->render('Auth/reset-password', $data, 'Auth/layout_auth');
             } catch (TokenExpireException $e) {
                 $this->setFlashMessage('error', $e->getMessage());
-                // Rediriger vers la page unifiée avec le formulaire de base (login) ou forgot-password
-                $this->redirect('/login');
-                return; // Stop execution
+                $this->redirect('/forgot-password');
+                return;
             } catch (TokenInvalideException $e) {
                 $this->setFlashMessage('error', $e->getMessage());
-                $this->redirect('/forgot-password'); // Rediriger pour redemander un lien
-                return; // Stop execution
+                $this->redirect('/forgot-password');
+                return;
             } catch (\Exception $e) {
                 $this->setFlashMessage('error', 'Une erreur est survenue lors de la validation du lien.');
                 error_log("Show reset password form error: " . $e->getMessage());
                 $this->redirect('/login');
-                return; // Stop execution
+                return;
             }
         } elseif (strpos($requestUri, '/2fa') !== false) {
             // L'utilisateur doit être en attente de 2FA pour voir ce formulaire
             if (!isset($_SESSION['2fa_pending']) || !isset($_SESSION['2fa_user_id'])) {
                 $this->setFlashMessage('error', 'Accès non autorisé au formulaire 2FA.');
                 $this->redirect('/login');
-                return; // Stop execution
+                return;
             }
-            $data['current_form'] = '2fa';
-            $data['page_title'] = 'Vérification 2FA';
+            $data['pageTitle'] = 'Vérification 2FA';
+            $data['setup_mode'] = false;
+            $this->render('Auth/verify-2fa', $data, 'Auth/layout_auth');
+        } elseif (strpos($requestUri, '/email-verification') !== false) {
+            $data['pageTitle'] = 'Vérification email';
+            $data['verification_status'] = $_GET['status'] ?? 'pending';
+            $data['user_email'] = $_SESSION['verification_email'] ?? '';
+            $this->render('Auth/email-verification', $data, 'Auth/layout_auth');
+        } else {
+            // Page de connexion par défaut
+            $data['pageTitle'] = 'Connexion';
+            $this->render('Auth/login', $data, 'Auth/layout_auth');
         }
-
-        // Charger et afficher la vue unifiée
-        $this->render('Auth/auth', $data, 'none'); // Pas de layout pour la page d'authentification
     }
 
     /**
@@ -108,8 +112,11 @@ class AuthentificationController extends BaseController
     {
         $this->requireNoLogin(); // Assurer que l'utilisateur n'est pas déjà connecté
 
-        $data = ['page_title' => 'Connexion'];
-        $this->render('Auth/login', $data, 'Auth/layout_auth'); // Pas de layout pour la page de login pour être simple
+        $data = [
+            'pageTitle' => 'Connexion',
+            'csrf_token' => $this->generateCsrfToken()
+        ];
+        $this->render('Auth/login', $data, 'Auth/layout_auth');
     }
 
     /**
