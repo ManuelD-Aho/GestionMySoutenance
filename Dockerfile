@@ -8,7 +8,6 @@ FROM php:8.2-fpm AS base
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Installation des dépendances système requises
-# AJOUT de nodejs et npm pour la compilation des assets frontend
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     unzip \
@@ -41,7 +40,7 @@ RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
 COPY --from=composer:2.7.7 /usr/bin/composer /usr/bin/composer
 
 # Définition du répertoire de travail
-WORKDIR /var/www/html
+WORKDIR /app
 
 # ==============================================================================
 # STAGE 2 : BUILDER - Construction des dépendances applicatives
@@ -71,18 +70,25 @@ COPY . .
 # ==============================================================================
 FROM builder AS dev
 
+WORKDIR /var/www/html
+
 # Installer et activer Xdebug
 RUN pecl install xdebug && docker-php-ext-enable xdebug
 
+# --- SECTION CORRIGÉE ---
 # Créer les répertoires de l'application et définir les bonnes permissions
-RUN mkdir -p /var/www/html/var/cache /var/www/html/var/log /var/lib/php/sessions && \
+RUN mkdir -p /var/www/html/var/cache /var/www/html/var/log /var/lib/php/sessions /var/log && \
+    touch /var/log/xdebug.log && \
     chown -R www-data:www-data /var/www/html && \
     chown -R www-data:www-data /var/lib/php/sessions && \
-    chmod -R 775 /var/www/html/var
+    chown -R www-data:www-data /var/log && \
+    chmod -R 777 /var/www/html/var && \
+    chmod -R 777 /var/log
 
 # La commande par défaut pour démarrer le service
 EXPOSE 9000
 CMD ["php-fpm"]
+
 
 # ==============================================================================
 # STAGE 4 : FINAL (PRODUCTION) - L'image optimisée pour la production

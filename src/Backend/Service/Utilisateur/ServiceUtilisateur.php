@@ -3,8 +3,8 @@
 
 namespace App\Backend\Service\Utilisateur;
 
-use InvalidArgumentException;
 use PDO;
+use InvalidArgumentException;
 use App\Backend\Model\Utilisateur;
 use App\Backend\Model\GenericModel;
 use App\Backend\Model\Delegation;
@@ -23,6 +23,9 @@ class ServiceUtilisateur implements ServiceUtilisateurInterface
     private GenericModel $enseignantModel;
     private GenericModel $personnelAdminModel;
     private Delegation $delegationModel;
+    private GenericModel $rapportModel;
+    private GenericModel $voteModel;
+    private GenericModel $pvModel;
     private ServiceSystemeInterface $systemeService;
     private ServiceSupervisionInterface $supervisionService;
     private ?ServiceCommunicationInterface $communicationService = null;
@@ -34,6 +37,9 @@ class ServiceUtilisateur implements ServiceUtilisateurInterface
         GenericModel $enseignantModel,
         GenericModel $personnelAdminModel,
         Delegation $delegationModel,
+        GenericModel $rapportModel,
+        GenericModel $voteModel,
+        GenericModel $pvModel,
         ServiceSystemeInterface $systemeService,
         ServiceSupervisionInterface $supervisionService
     ) {
@@ -43,6 +49,9 @@ class ServiceUtilisateur implements ServiceUtilisateurInterface
         $this->enseignantModel = $enseignantModel;
         $this->personnelAdminModel = $personnelAdminModel;
         $this->delegationModel = $delegationModel;
+        $this->rapportModel = $rapportModel;
+        $this->voteModel = $voteModel;
+        $this->pvModel = $pvModel;
         $this->systemeService = $systemeService;
         $this->supervisionService = $supervisionService;
     }
@@ -157,6 +166,12 @@ class ServiceUtilisateur implements ServiceUtilisateurInterface
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
+    public function lireUtilisateurComplet(string $id): ?array
+    {
+        $result = $this->listerUtilisateursComplets(['u.numero_utilisateur' => $id]);
+        return $result[0] ?? null;
+    }
+
     // --- UPDATE ---
     public function mettreAJourUtilisateur(string $numeroUtilisateur, array $donneesProfil, array $donneesCompte): bool
     {
@@ -187,8 +202,62 @@ class ServiceUtilisateur implements ServiceUtilisateurInterface
         return $success;
     }
 
-    // --- DELETE (Logique) ---
-    // Pas de méthode de suppression physique. La suppression est gérée par le changement de statut via changerStatutCompte('...','archive').
+    public function supprimerUtilisateurEtEntite(string $id): bool
+    {
+        $this->db->beginTransaction();
+        try {
+            // 1. Vérification des dépendances critiques
+            if ($this->rapportModel->trouverUnParCritere(['numero_carte_etudiant' => $id])) {
+                throw new OperationImpossibleException("Suppression impossible : l'utilisateur est lié à au moins un rapport.");
+            }
+            if ($this->voteModel->trouverUnParCritere(['numero_enseignant' => $id])) {
+                throw new OperationImpossibleException("Suppression impossible : l'utilisateur a émis des votes.");
+            }
+            if ($this->pvModel->trouverUnParCritere(['id_redacteur' => $id])) {
+                throw new OperationImpossibleException("Suppression impossible : l'utilisateur est rédacteur de PV.");
+            }
+
+            // 2. Anonymisation des données non critiques (ex: logs)
+            // Cette étape est optionnelle mais recommandée pour le RGPD
+            $this->db->prepare("UPDATE enregistrer SET numero_utilisateur = 'ANONYMIZED' WHERE numero_utilisateur = :id")->execute([':id' => $id]);
+
+            // 3. Suppression de l'entité métier et du compte utilisateur
+            $user = $this->utilisateurModel->trouverParIdentifiant($id);
+            if (!$user) throw new ElementNonTrouveException("Utilisateur non trouvé.");
+
+            $modelProfil = $this->getModelForType(explode('_', $user['id_type_utilisateur'])[1]);
+            $modelProfil->supprimerParIdentifiant($id); // Supprime le profil (étudiant, enseignant...)
+            $this->utilisateurModel->supprimerParIdentifiant($id); // Supprime le compte
+
+            $this->db->commit();
+            $this->supervisionService->enregistrerAction($_SESSION['user_id'] ?? 'SYSTEM', 'DELETE_USER_HARD', $id, 'Utilisateur');
+            return true;
+        } catch (\Exception $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
+    }
+    public function reinitialiserMotDePasseAdmin(string $id): bool
+    {
+        $user = $this->utilisateurModel->trouverParIdentifiant($id);
+        if (!$user) throw new ElementNonTrouveException("Utilisateur non trouvé.");
+
+        // Génération d'un mot de passe aléatoire sécurisé
+        $nouveauMotDePasseClair = bin2hex(random_bytes(8)); // 16 caractères
+        $nouveauMotDePasseHache = password_hash($nouveauMotDePasseClair, PASSWORD_BCRYPT);
+
+        $success = $this->utilisateurModel->mettreAJourParIdentifiant($id, ['mot_de_passe' => $nouveauMotDePasseHache]);
+
+        if ($success && $this->communicationService) {
+            $this->communicationService->envoyerEmail(
+                $user['email_principal'],
+                'ADMIN_PASSWORD_RESET',
+                ['login' => $user['login_utilisateur'], 'nouveau_mdp' => $nouveauMotDePasseClair]
+            );
+            $this->supervisionService->enregistrerAction($_SESSION['user_id'], 'ADMIN_RESET_PASSWORD', $id, 'Utilisateur');
+        }
+        return $success;
+    }
 
     // --- Gestion des Délégations ---
     public function creerDelegation(string $idDelegant, string $idDelegue, string $idTraitement, string $dateDebut, string $dateFin, ?string $contexteId = null, ?string $contexteType = null): string
@@ -218,6 +287,16 @@ class ServiceUtilisateur implements ServiceUtilisateurInterface
         return $success;
     }
 
+    public function listerDelegations(array $filtres = []): array
+    {
+        return $this->delegationModel->trouverParCritere($filtres, ['*'], 'AND', 'date_debut DESC');
+    }
+
+    public function lireDelegation(string $idDelegation): ?array
+    {
+        return $this->delegationModel->trouverParIdentifiant($idDelegation);
+    }
+
     private function getModelForType(string $type): GenericModel
     {
         return match (strtolower($type)) {
@@ -227,6 +306,44 @@ class ServiceUtilisateur implements ServiceUtilisateurInterface
             default => throw new InvalidArgumentException("Type de profil '{$type}' non géré."),
         };
     }
+
+    // ====================================================================
+    // SECTION 4 : Processus Métier
+    // ====================================================================
+
+    public function gererTransitionsRoles(string $departingUserId, string $newUserId): array
+    {
+        $rapport = ['rapports_reassignes' => 0, 'pv_reassignes' => 0];
+
+        $this->db->beginTransaction();
+        try {
+            // 1. Réassigner les rapports en attente d'évaluation
+            $stmtRapports = $this->db->prepare("UPDATE affecter SET numero_enseignant = :new_user WHERE numero_enseignant = :old_user");
+            $stmtRapports->execute([':new_user' => $newUserId, ':old_user' => $departingUserId]);
+            $rapport['rapports_reassignes'] = $stmtRapports->rowCount();
+
+            // 2. Réassigner les PV dont l'utilisateur partant était rédacteur
+            $stmtPv = $this->db->prepare("UPDATE compte_rendu SET id_redacteur = :new_user WHERE id_redacteur = :old_user AND id_statut_pv IN ('PV_BROUILLON', 'PV_REJETE')");
+            $stmtPv->execute([':new_user' => $newUserId, ':old_user' => $departingUserId]);
+            $rapport['pv_reassignes'] = $stmtPv->rowCount();
+
+            // 3. Réassigner les délégations reçues par l'utilisateur partant
+            $stmtDelegations = $this->db->prepare("UPDATE delegation SET id_delegue = :new_user WHERE id_delegue = :old_user AND statut = 'Active'");
+            $stmtDelegations->execute([':new_user' => $newUserId, ':old_user' => $departingUserId]);
+            $rapport['delegations_recues_reassignees'] = $stmtDelegations->rowCount();
+
+            // 4. Archiver le compte de l'utilisateur partant
+            $this->changerStatutCompte($departingUserId, 'archive');
+
+            $this->db->commit();
+            $this->supervisionService->enregistrerAction($_SESSION['user_id'], 'TRANSITION_ROLE', $departingUserId, 'Utilisateur', ['nouvel_utilisateur' => $newUserId, 'rapport' => $rapport]);
+            return $rapport;
+        } catch (\Exception $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
+    }
+
     // --- NOUVEAU : IMPORTATION EN MASSE ---
     public function importerEtudiantsDepuisFichier(string $filePath, array $mapping): array
     {

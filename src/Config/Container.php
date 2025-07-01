@@ -31,7 +31,7 @@ use App\Backend\Service\Supervision\{ServiceSupervision, ServiceSupervisionInter
 // --- Importation de tous les Contrôleurs ---
 use App\Backend\Controller\Administration\{AdminDashboardController, ConfigurationController, SupervisionController, UtilisateurController};
 use App\Backend\Controller\Commission\{CommissionDashboardController, WorkflowCommissionController};
-use App\Backend\Controller\Etudiant\{EtudiantDashboardController, ProfilEtudiantController, RapportController};
+use App\Backend\Controller\Etudiant\{EtudiantDashboardController, ProfilEtudiantController, RapportController, ReclamationController};
 use App\Backend\Controller\PersonnelAdministratif\{PersonnelDashboardController, ScolariteController};
 use App\Backend\Controller\{AssetController, AuthentificationController, BaseController, DashboardController, HomeController};
 
@@ -40,6 +40,7 @@ class Container
     private array $definitions = [];
     private array $instances = [];
 
+    // Schéma complet de la base de données pour la factory de modèles génériques
     private array $tableSchema = [
         'acquerir' => ['id_grade', 'numero_enseignant'],
         'action' => 'id_action',
@@ -54,6 +55,7 @@ class Container
         'decision_passage_ref' => 'id_decision_passage',
         'decision_validation_pv_ref' => 'id_decision_validation_pv',
         'decision_vote_ref' => 'id_decision_vote',
+        'delegation' => 'id_delegation',
         'document_genere' => 'id_document_genere',
         'ecue' => 'id_ecue',
         'enregistrer' => 'id_enregistrement',
@@ -65,6 +67,7 @@ class Container
         'fonction' => 'id_fonction',
         'grade' => 'id_grade',
         'groupe_utilisateur' => 'id_groupe_utilisateur',
+        'historique_mot_de_passe' => 'id_historique_mdp',
         'inscrire' => ['numero_carte_etudiant', 'id_niveau_etude', 'id_annee_academique'],
         'lecture_message' => ['id_message_chat', 'numero_utilisateur'],
         'matrice_notification_regles' => 'id_regle',
@@ -80,14 +83,17 @@ class Container
         'pister' => 'id_piste',
         'pv_session_rapport' => ['id_compte_rendu', 'id_rapport_etudiant'],
         'queue_jobs' => 'id',
+        'rapport_etudiant' => 'id_rapport_etudiant',
         'rapport_modele' => 'id_modele',
         'rapport_modele_assignation' => ['id_modele', 'id_niveau_etude'],
         'rapport_modele_section' => 'id_section_modele',
         'rattacher' => ['id_groupe_utilisateur', 'id_traitement'],
         'recevoir' => 'id_reception',
+        'reclamation' => 'id_reclamation',
         'rendre' => ['numero_enseignant', 'id_compte_rendu'],
         'section_rapport' => ['id_rapport_etudiant', 'titre_section'],
         'sequences' => ['nom_sequence', 'annee'],
+        'sessions' => 'session_id',
         'session_rapport' => ['id_session', 'id_rapport_etudiant'],
         'session_validation' => 'id_session',
         'specialite' => 'id_specialite',
@@ -102,20 +108,19 @@ class Container
         'type_document_ref' => 'id_type_document',
         'type_utilisateur' => 'id_type_utilisateur',
         'ue' => 'id_ue',
+        'utilisateur' => 'numero_utilisateur',
         'validation_pv' => ['id_compte_rendu', 'numero_enseignant'],
         'vote_commission' => 'id_vote',
-        'delegation' => 'id_delegation',
-        'historique_mot_de_passe' => 'id_historique_mdp',
-        'sessions' => 'session_id',
-        'utilisateur' => 'numero_utilisateur',
     ];
 
     public function __construct()
     {
+        // Définitions de base
         $this->definitions['PDO'] = fn () => Database::getInstance()->getConnection();
         $this->definitions[FormValidator::class] = fn () => new FormValidator();
         $this->definitions[DatabaseSessionHandler::class] = fn () => new DatabaseSessionHandler();
 
+        // Enregistrement des composants
         $this->registerModels();
         $this->registerServices();
         $this->registerControllers();
@@ -123,6 +128,7 @@ class Container
 
     private function registerModels(): void
     {
+        // Modèles avec une logique spécifique
         $specificModels = [
             Utilisateur::class, HistoriqueMotDePasse::class, Sessions::class,
             RapportEtudiant::class, Reclamation::class, Delegation::class
@@ -134,29 +140,43 @@ class Container
 
     private function registerServices(): void
     {
-        // ServiceSupervision (dépend de modèles)
+        // ServiceSupervision
         $this->definitions[ServiceSupervision::class] = fn ($c) => new ServiceSupervision(
             $c->get('PDO'),
             $c->getModelForTable('enregistrer'),
             $c->getModelForTable('pister'),
             $c->getModelForTable('action'),
+            $c->getModelForTable('queue_jobs'),
             $c->get(Utilisateur::class),
             $c->get(RapportEtudiant::class)
         );
         $this->alias(ServiceSupervisionInterface::class, ServiceSupervision::class);
 
-        // ServiceSysteme (dépend de Supervision)
+        // ServiceSysteme
         $this->definitions[ServiceSysteme::class] = fn ($c) => new ServiceSysteme(
             $c->get('PDO'),
             $c->getModelForTable('parametres_systeme'),
             $c->getModelForTable('annee_academique'),
             $c->getModelForTable('sequences'),
             $c->get(ServiceSupervisionInterface::class),
-            $c
+            $c // Injection du conteneur pour la factory de modèles
         );
         $this->alias(ServiceSystemeInterface::class, ServiceSysteme::class);
 
-        // ServiceCommunication (dépend de Systeme & Supervision)
+        // ServiceSecurite
+        $this->definitions[ServiceSecurite::class] = fn ($c) => new ServiceSecurite(
+            $c->get('PDO'),
+            $c->get(Utilisateur::class),
+            $c->get(HistoriqueMotDePasse::class),
+            $c->get(Sessions::class),
+            $c->getModelForTable('rattacher'),
+            $c->getModelForTable('traitement'), // Dépendance pour les menus dynamiques
+            $c->get(Delegation::class),
+            $c->get(ServiceSupervisionInterface::class)
+        );
+        $this->alias(ServiceSecuriteInterface::class, ServiceSecurite::class);
+
+        // ServiceCommunication
         $this->definitions[ServiceCommunication::class] = fn ($c) => new ServiceCommunication(
             $c->get('PDO'),
             $c->getModelForTable('notification'),
@@ -171,20 +191,7 @@ class Container
         );
         $this->alias(ServiceCommunicationInterface::class, ServiceCommunication::class);
 
-        // ServiceSecurite (dépend de Supervision)
-        $this->definitions[ServiceSecurite::class] = fn ($c) => new ServiceSecurite(
-            $c->get('PDO'),
-            $c->get(Utilisateur::class),
-            $c->get(HistoriqueMotDePasse::class),
-            $c->get(Sessions::class),
-            $c->getModelForTable('rattacher'),
-            $c->get(ServiceSupervisionInterface::class),
-            // ** CORRECTION APPLIQUÉE ICI ** : Ajout de la dépendance manquante
-            $c->get(Delegation::class)
-        );
-        $this->alias(ServiceSecuriteInterface::class, ServiceSecurite::class);
-
-        // ServiceUtilisateur (dépend de Systeme, Supervision, Communication)
+        // ServiceUtilisateur
         $this->definitions[ServiceUtilisateur::class] = function ($c) {
             $service = new ServiceUtilisateur(
                 $c->get('PDO'),
@@ -193,6 +200,9 @@ class Container
                 $c->getModelForTable('enseignant'),
                 $c->getModelForTable('personnel_administratif'),
                 $c->get(Delegation::class),
+                $c->getModelForTable('rapport_etudiant'),
+                $c->getModelForTable('vote_commission'),
+                $c->getModelForTable('compte_rendu'),
                 $c->get(ServiceSystemeInterface::class),
                 $c->get(ServiceSupervisionInterface::class)
             );
@@ -201,10 +211,11 @@ class Container
         };
         $this->alias(ServiceUtilisateurInterface::class, ServiceUtilisateur::class);
 
-        // ServiceDocument (dépend de Systeme, Supervision)
+        // ServiceDocument
         $this->definitions[ServiceDocument::class] = fn ($c) => new ServiceDocument(
             $c->get('PDO'),
             $c->getModelForTable('document_genere'),
+            $c->getModelForTable('rapport_modele'),
             $c->getModelForTable('etudiant'),
             $c->getModelForTable('inscrire'),
             $c->getModelForTable('evaluer'),
@@ -217,19 +228,21 @@ class Container
         );
         $this->alias(ServiceDocumentInterface::class, ServiceDocument::class);
 
-        // ServiceParcoursAcademique (dépend de Systeme, Supervision)
+        // ServiceParcoursAcademique
         $this->definitions[ServiceParcoursAcademique::class] = fn ($c) => new ServiceParcoursAcademique(
             $c->get('PDO'),
             $c->getModelForTable('inscrire'),
             $c->getModelForTable('evaluer'),
             $c->getModelForTable('faire_stage'),
             $c->getModelForTable('penalite'),
+            $c->getModelForTable('ue'),
+            $c->getModelForTable('ecue'),
             $c->get(ServiceSystemeInterface::class),
             $c->get(ServiceSupervisionInterface::class)
         );
         $this->alias(ServiceParcoursAcademiqueInterface::class, ServiceParcoursAcademique::class);
 
-        // ServiceWorkflowSoutenance (dépend de plusieurs autres services)
+        // ServiceWorkflowSoutenance
         $this->definitions[ServiceWorkflowSoutenance::class] = fn ($c) => new ServiceWorkflowSoutenance(
             $c->get('PDO'),
             $c->get(RapportEtudiant::class),
@@ -237,12 +250,11 @@ class Container
             $c->getModelForTable('section_rapport'),
             $c->getModelForTable('approuver'),
             $c->getModelForTable('conformite_rapport_details'),
-            $c->getModelForTable('affecter'),
             $c->getModelForTable('vote_commission'),
             $c->getModelForTable('compte_rendu'),
-            $c->getModelForTable('validation_pv'),
             $c->getModelForTable('session_validation'),
             $c->getModelForTable('session_rapport'),
+            $c->getModelForTable('affecter'),
             $c->get(ServiceCommunicationInterface::class),
             $c->get(ServiceDocumentInterface::class),
             $c->get(ServiceSupervisionInterface::class),
@@ -256,7 +268,7 @@ class Container
         $controllers = [
             AdminDashboardController::class, ConfigurationController::class, SupervisionController::class, UtilisateurController::class,
             CommissionDashboardController::class, WorkflowCommissionController::class,
-            EtudiantDashboardController::class, ProfilEtudiantController::class, RapportController::class,
+            EtudiantDashboardController::class, ProfilEtudiantController::class, RapportController::class, ReclamationController::class,
             PersonnelDashboardController::class, ScolariteController::class,
             AssetController::class, AuthentificationController::class, DashboardController::class, HomeController::class
         ];

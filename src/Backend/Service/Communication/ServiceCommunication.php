@@ -142,10 +142,50 @@ class ServiceCommunication implements ServiceCommunicationInterface
         }
     }
 
-    // --- Section 2: Messagerie Instantanée ---
+    // ====================================================================
+    // SECTION 2: Messagerie Instantanée
+    // ====================================================================
 
-    public function demarrerConversationDirecte(string $initiateurId, string $destinataireId): string { /* ... */ }
-    public function envoyerMessageChat(string $idConversation, string $expediteurId, string $contenu): string { /* ... */ }
+    public function demarrerConversation(array $participantsIds, ?string $nomConversation = null): string
+    {
+        if (count($participantsIds) < 2) throw new OperationImpossibleException("Une conversation doit avoir au moins 2 participants.");
+
+        $type = count($participantsIds) > 2 ? 'Groupe' : 'Direct';
+        $idConversation = $this->systemeService->genererIdentifiantUnique('CONV');
+
+        $this->db->beginTransaction();
+        try {
+            $this->conversationModel->creer([
+                'id_conversation' => $idConversation,
+                'nom_conversation' => $nomConversation,
+                'type_conversation' => $type
+            ]);
+            foreach ($participantsIds as $userId) {
+                $this->participantConversationModel->creer(['id_conversation' => $idConversation, 'numero_utilisateur' => $userId]);
+            }
+            $this->db->commit();
+            return $idConversation;
+        } catch (\Exception $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
+    }
+
+    public function envoyerMessageChat(string $idConversation, string $expediteurId, string $contenu, ?array $pieceJointe = null): string
+    {
+        $idMessage = $this->systemeService->genererIdentifiantUnique('MSG');
+        $this->messageChatModel->creer([
+            'id_message_chat' => $idMessage,
+            'id_conversation' => $idConversation,
+            'numero_utilisateur_expediteur' => $expediteurId,
+            'contenu_message' => $contenu,
+            'piece_jointe_path' => $pieceJointe['path'] ?? null,
+            'piece_jointe_nom' => $pieceJointe['name'] ?? null
+        ]);
+        return $idMessage;
+    }
+    public function listerConversationsPourUtilisateur(string $numeroUtilisateur): array { /* ... */ }
+    public function listerMessagesPourConversation(string $idConversation): array { /* ... */ }
 
     // --- Section 3: Consultation ---
 
@@ -165,6 +205,33 @@ class ServiceCommunication implements ServiceCommunicationInterface
     public function marquerNotificationLue(string $idReception): bool
     {
         return $this->recevoirModel->mettreAJourParIdentifiant($idReception, ['lue' => 1, 'date_lecture' => date('Y-m-d H:i:s')]);
+    }
+    public function listerModelesNotification(): array
+    {
+        return $this->notificationModel->trouverTout();
+    }
+
+    public function mettreAJourModeleNotification(string $id, string $libelle, string $contenu): bool
+    {
+        return $this->notificationModel->mettreAJourParIdentifiant($id, ['libelle_notification' => $libelle, 'contenu' => $contenu]);
+    }
+
+    public function listerReglesMatrice(): array
+    {
+        // Requête enrichie pour l'affichage
+        $sql = "SELECT m.*, a.libelle_action, g.libelle_groupe_utilisateur 
+                FROM matrice_notification_regles m
+                JOIN action a ON m.id_action_declencheur = a.id_action
+                JOIN groupe_utilisateur g ON m.id_groupe_destinataire = g.id_groupe_utilisateur";
+        return $this->db->query($sql)->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function mettreAJourRegleMatrice(string $idRegle, string $canal, bool $estActive): bool
+    {
+        return $this->matriceNotificationModel->mettreAJourParIdentifiant($idRegle, [
+            'canal_notification' => $canal,
+            'est_active' => $estActive ? 1 : 0
+        ]);
     }
 
     // --- Méthode privée ---

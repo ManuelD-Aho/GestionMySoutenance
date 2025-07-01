@@ -9,11 +9,18 @@ interface ServiceDocumentInterface
     public function genererAttestationScolarite(string $numeroEtudiant, string $idAnneeAcademique): string;
     public function genererBulletinNotes(string $numeroEtudiant, string $idAnneeAcademique): string;
     public function genererPvValidation(string $idCompteRendu): string;
-    public function genererRecuPaiement(string $idInscription): string; // NOUVEAU
-    public function genererRapportEtudiantPdf(string $idRapport): string; // NOUVEAU
-    public function genererListePdf(string $nomListe, array $donnees, array $colonnes): string; // NOUVEAU
+    public function genererRecuPaiement(string $idInscription): string;
+    public function genererRapportEtudiantPdf(string $idRapport): string;
+    public function genererListePdf(string $nomListe, array $donnees, array $colonnes): string;
 
-    // --- Section 2: Gestion des Fichiers ---
+    // --- Section 2: Gestion des Modèles de Documents (CRUD) ---
+    public function creerModeleDocument(string $nom, string $contenuHtml, string $type = 'pdf'): string;
+    public function lireModeleDocument(string $idModele): ?array;
+    public function mettreAJourModeleDocument(string $idModele, string $nom, string $contenuHtml): bool;
+    public function supprimerModeleDocument(string $idModele): bool;
+    public function listerModelesDocument(string $type = 'pdf'): array;
+
+    // --- Section 3: Gestion des Fichiers ---
     public function uploadFichierSecurise(array $fileData, string $destinationType, array $allowedMimeTypes, int $maxSizeInBytes): string;
     public function supprimerFichier(string $relativePath): bool;
 }

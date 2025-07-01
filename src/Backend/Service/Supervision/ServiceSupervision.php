@@ -3,10 +3,12 @@
 
 namespace App\Backend\Service\Supervision;
 
+use App\Backend\Exception\ElementNonTrouveException;
 use PDO;
 use App\Backend\Model\GenericModel;
 use App\Backend\Model\Utilisateur;
 use App\Backend\Model\RapportEtudiant;
+use App\Backend\Exception\OperationImpossibleException;
 
 class ServiceSupervision implements ServiceSupervisionInterface
 {
@@ -14,6 +16,7 @@ class ServiceSupervision implements ServiceSupervisionInterface
     private GenericModel $enregistrerModel;
     private GenericModel $pisterModel;
     private GenericModel $actionModel;
+    private GenericModel $queueJobsModel;
     private Utilisateur $utilisateurModel;
     private RapportEtudiant $rapportEtudiantModel;
 
@@ -22,6 +25,7 @@ class ServiceSupervision implements ServiceSupervisionInterface
         GenericModel $enregistrerModel,
         GenericModel $pisterModel,
         GenericModel $actionModel,
+        GenericModel $queueJobsModel,
         Utilisateur $utilisateurModel,
         RapportEtudiant $rapportEtudiantModel
     ) {
@@ -29,6 +33,7 @@ class ServiceSupervision implements ServiceSupervisionInterface
         $this->enregistrerModel = $enregistrerModel;
         $this->pisterModel = $pisterModel;
         $this->actionModel = $actionModel;
+        $this->queueJobsModel = $queueJobsModel;
         $this->utilisateurModel = $utilisateurModel;
         $this->rapportEtudiantModel = $rapportEtudiantModel;
     }
@@ -146,6 +151,71 @@ class ServiceSupervision implements ServiceSupervisionInterface
         $stmt->execute();
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
+    public function reconstituerHistoriqueEntite(string $idEntite): array
+    {
+        return $this->enregistrerModel->trouverParCritere(
+            ['id_entite_concernee' => $idEntite],
+            ['*'],
+            'AND',
+            'date_action ASC'
+        );
+    }
+
+    // ====================================================================
+    // SECTION 2 : Maintenance & Supervision Technique
+    // ====================================================================
+
+    public function purgerAnciensJournaux(string $dateLimite): int
+    {
+        $stmt = $this->db->prepare("DELETE FROM enregistrer WHERE date_action < :date_limite");
+        $stmt->execute([':date_limite' => $dateLimite]);
+        $rowCount = $stmt->rowCount();
+        $this->enregistrerAction($_SESSION['user_id'], 'PURGE_LOGS', null, null, ['date_limite' => $dateLimite, 'lignes_supprimees' => $rowCount]);
+        return $rowCount;
+    }
+
+    public function consulterJournauxErreurs(string $logFilePath): string
+    {
+        if (!file_exists($logFilePath) || !is_readable($logFilePath)) {
+            throw new OperationImpossibleException("Le fichier de log est introuvable ou illisible.");
+        }
+        // Retourne les 500 dernières lignes pour éviter de surcharger la mémoire
+        $content = file($logFilePath);
+        return implode("", array_slice($content, -500));
+    }
+
+    public function listerTachesAsynchrones(array $filtres = []): array
+    {
+        return $this->queueJobsModel->trouverParCritere($filtres, ['*'], 'AND', 'created_at DESC');
+    }
+
+    public function gererTacheAsynchrone(string $idTache, string $action): bool
+    {
+        $tache = $this->queueJobsModel->trouverParIdentifiant($idTache);
+        if (!$tache) throw new ElementNonTrouveException("Tâche non trouvée.");
+
+        switch ($action) {
+            case 'relancer':
+                // Meilleure pratique : créer une nouvelle tâche avec le même payload
+                // pour conserver l'historique de l'échec.
+                $nouvelleTache = [
+                    'job_name' => $tache['job_name'],
+                    'payload' => $tache['payload'],
+                    'status' => 'pending',
+                    'attempts' => 0
+                ];
+                $this->queueJobsModel->creer($nouvelleTache);
+                // Marquer l'ancienne comme "échouée et relancée"
+                return $this->queueJobsModel->mettreAJourParIdentifiant($idTache, ['status' => 'failed_retried']);
+
+            case 'supprimer':
+                return $this->queueJobsModel->supprimerParIdentifiant($idTache);
+
+            default:
+                throw new OperationImpossibleException("Action '{$action}' non reconnue.");
+        }
+    }
+
 
     /**
      * Génère un ensemble complet de statistiques pour le tableau de bord de l'administrateur.

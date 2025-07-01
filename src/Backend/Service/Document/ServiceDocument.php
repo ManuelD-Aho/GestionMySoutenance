@@ -15,6 +15,7 @@ class ServiceDocument implements ServiceDocumentInterface
 {
     private PDO $db;
     private GenericModel $documentGenereModel;
+    private GenericModel $modeleDocumentModel;
     private GenericModel $etudiantModel;
     private GenericModel $inscrireModel;
     private GenericModel $evaluerModel;
@@ -28,6 +29,7 @@ class ServiceDocument implements ServiceDocumentInterface
     public function __construct(
         PDO $db,
         GenericModel $documentGenereModel,
+        GenericModel $modeleDocumentModel,
         GenericModel $etudiantModel,
         GenericModel $inscrireModel,
         GenericModel $evaluerModel,
@@ -40,6 +42,7 @@ class ServiceDocument implements ServiceDocumentInterface
     ) {
         $this->db = $db;
         $this->documentGenereModel = $documentGenereModel;
+        $this->modeleDocumentModel = $modeleDocumentModel;
         $this->etudiantModel = $etudiantModel;
         $this->inscrireModel = $inscrireModel;
         $this->evaluerModel = $evaluerModel;
@@ -185,9 +188,62 @@ class ServiceDocument implements ServiceDocumentInterface
 
         $idEntite = 'export_' . str_replace(' ', '_', $nomListe) . '_' . time();
         return $this->genererPdfDepuisHtml($htmlContent, 'ExportListe', $idEntite, 'DOC_EXPORT', $_SESSION['user_id'] ?? 'SYSTEM');
+    } // ====================================================================
+    // SECTION 2: GESTION DES MODÈLES DE DOCUMENTS (CRUD)
+    // ====================================================================
+
+    public function creerModeleDocument(string $nom, string $contenuHtml, string $type = 'pdf'): string
+    {
+        $idModele = $this->systemeService->genererIdentifiantUnique('TPL');
+        $this->modeleDocumentModel->creer([
+            'id_modele' => $idModele,
+            'nom_modele' => $nom,
+            'contenu_html' => $contenuHtml,
+            'type_modele' => $type,
+            'version' => 1
+        ]);
+        $this->supervisionService->enregistrerAction($_SESSION['user_id'], 'CREATE_DOC_TEMPLATE', $idModele, 'ModeleDocument');
+        return $idModele;
     }
 
-    // --- Section 2: Gestion des Fichiers Uploadés ---
+    public function lireModeleDocument(string $idModele): ?array
+    {
+        return $this->modeleDocumentModel->trouverParIdentifiant($idModele);
+    }
+
+    public function mettreAJourModeleDocument(string $idModele, string $nom, string $contenuHtml): bool
+    {
+        $modele = $this->lireModeleDocument($idModele);
+        if (!$modele) throw new ElementNonTrouveException("Modèle non trouvé.");
+
+        $success = $this->modeleDocumentModel->mettreAJourParIdentifiant($idModele, [
+            'nom_modele' => $nom,
+            'contenu_html' => $contenuHtml,
+            'version' => $modele['version'] + 1,
+            'date_derniere_modif' => date('Y-m-d H:i:s')
+        ]);
+        if ($success) {
+            $this->supervisionService->enregistrerAction($_SESSION['user_id'], 'UPDATE_DOC_TEMPLATE', $idModele, 'ModeleDocument');
+        }
+        return $success;
+    }
+
+    public function supprimerModeleDocument(string $idModele): bool
+    {
+        // On pourrait ajouter une vérification pour ne pas supprimer les modèles système
+        $success = $this->modeleDocumentModel->supprimerParIdentifiant($idModele);
+        if ($success) {
+            $this->supervisionService->enregistrerAction($_SESSION['user_id'], 'DELETE_DOC_TEMPLATE', $idModele, 'ModeleDocument');
+        }
+        return $success;
+    }
+
+    public function listerModelesDocument(string $type = 'pdf'): array
+    {
+        return $this->modeleDocumentModel->trouverParCritere(['type_modele' => $type]);
+    }
+
+    // --- Section 3: Gestion des Fichiers Uploadés ---
 
     public function uploadFichierSecurise(array $fileData, string $destinationType, array $allowedMimeTypes, int $maxSizeInBytes): string
     {

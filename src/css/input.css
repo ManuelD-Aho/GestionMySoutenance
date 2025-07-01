@@ -1,36 +1,37 @@
+@import 'bulma/css/bulma.min.css';
+
+/*
+ * Fichier: src/css/input.css
+ * Description: Point d'entrée pour la compilation PostCSS.
+ */
+
+/* 1. Importation des directives de base de Tailwind CSS. */
 @tailwind base;
+
+/* 2. Importation de Bulma. */
+
+/* 3. Importation des composants et utilitaires de Tailwind.
+ * DaisyUI est injecté automatiquement ici car il est configuré comme un plugin.
+ */
 @tailwind components;
 @tailwind utilities;
 
-/*
- * Vous pouvez ajouter ici vos styles personnalisés ou surcharger des classes Tailwind.
- * Par exemple, pour définir des styles de base pour le corps de la page.
-*/
-@layer base {
-    body {
-        @apply bg-slate-100 font-sans text-slate-800;
-    }
-}
-
-/*
- * Création de composants personnalisés avec @apply.
- * C'est utile pour réutiliser des ensembles de classes.
-*/
+/* 4. Styles personnalisés de l'application. */
 @layer components {
-    .auth-card {
-        @apply w-full max-w-md bg-white rounded-2xl shadow-xl p-8 transition-all duration-500;
+    /* Style pour le spinner de chargement dans les boutons */
+    .btn .loading-spinner {
+        display: none;
     }
-    .form-label {
-        @apply block text-sm font-medium text-slate-600 mb-1;
+    .btn.loading .loading-spinner,
+    .btn:disabled .loading-spinner {
+        display: inline-block;
     }
-    .form-input {
-        @apply block w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-lg shadow-sm placeholder-slate-400
-        focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500;
+    .btn.loading > *:not(.loading-spinner),
+    .btn:disabled > *:not(.loading-spinner) {
+        display: none;
     }
-    .btn-primary {
-        @apply w-full inline-flex justify-center items-center px-6 py-3 border border-transparent
-        text-base font-medium rounded-lg shadow-sm text-white bg-blue-600
-        hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500
-        transition-transform transform hover:scale-105;
+    .btn.loading > .loading-spinner + *,
+    .btn:disabled > .loading-spinner + * {
+        display: inline-block;
     }
 }

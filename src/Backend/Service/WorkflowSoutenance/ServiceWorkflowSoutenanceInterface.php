@@ -17,24 +17,33 @@ interface ServiceWorkflowSoutenanceInterface
 
     // --- PHASE 3: GESTION DE LA SESSION DE VALIDATION (PRÉSIDENT) ---
     public function creerSession(string $idPresident, array $donneesSession): string;
-    public function modifierSession(string $idSession, string $idPresident, array $donnees): bool;
-    public function composerSession(string $idSession, string $idPresident, array $idsRapports): bool;
-    public function demarrerSession(string $idSession, string $idPresident): bool;
-    public function cloturerSession(string $idSession, string $idPresident): bool;
-    public function listerSessionsPourCommission(): array;
+    public function modifierSession(string $idSession, array $donnees): bool;
+    public function composerSession(string $idSession, array $idsRapports): bool;
+    public function demarrerSession(string $idSession): bool;
+    public function cloturerSession(string $idSession): bool;
+    public function suspendreSession(string $idSession): bool;
+    public function listerSessionsPourCommission(array $filtres = []): array;
+    public function lireSessionComplete(string $idSession): ?array;
 
     // --- PHASE 4: ÉVALUATION ET VOTE PAR LA COMMISSION ---
-    public function enregistrerVote(string $idRapport, string $numeroEnseignant, string $decision, ?string $commentaire): bool;
-    public function lancerNouveauTourDeVote(string $idRapport, string $idPresident): bool;
+    public function enregistrerVote(string $idRapport, string $idSession, string $numeroEnseignant, string $decision, ?string $commentaire): bool;
+    public function lancerNouveauTourDeVote(string $idRapport, string $idSession): bool;
     public function consulterEtatVotes(string $idSession): array;
 
     // --- PHASE 5: GESTION DES PROCÈS-VERBAUX (PV) ---
     public function initierRedactionPv(string $idSession, string $idRedacteur): string;
-    public function mettreAJourContenuPv(string $idCompteRendu, string $idRedacteur, string $contenu): bool;
-    public function soumettrePvPourValidation(string $idCompteRendu, string $idRedacteur): bool;
-    public function approuverOuRejeterPv(string $idCompteRendu, string $numeroMembre, bool $approbation, ?string $commentaire): bool;
-    public function forcerValidationPv(string $idCompteRendu, string $idPresident, string $methode, string $justification): bool; // 'substitution' ou 'quorum'
+    public function reassignerRedactionPv(string $idCompteRendu, string $idNouveauRedacteur): bool;
+    public function mettreAJourContenuPv(string $idCompteRendu, string $contenu): bool;
+    public function soumettrePvPourApprobation(string $idCompteRendu): bool;
+    public function approuverPv(string $idCompteRendu, string $idPresident): bool;
+    public function forcerValidationPv(string $idCompteRendu, string $idPresident, string $justification): bool;
 
     // --- PHASE 6: FINALISATION POST-VALIDATION (PRÉSIDENT) ---
-    public function designerDirecteurMemoire(string $idRapport, string $idPresident, string $numeroEnseignantDirecteur): bool;
+    public function designerDirecteurMemoire(string $idRapport, string $numeroEnseignantDirecteur): bool;
+
+    // --- PHASE 7: GESTION DES RÉCLAMATIONS ---
+    public function creerReclamation(string $numeroEtudiant, string $categorie, string $sujet, string $description): string;
+    public function listerReclamations(array $filtres = []): array;
+    public function lireReclamation(string $idReclamation): ?array;
+    public function traiterReclamation(string $idReclamation, string $reponse, string $numeroPersonnel): bool;
 }

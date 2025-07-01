@@ -34,4 +34,6 @@ interface ServiceParcoursAcademiqueInterface
 
     // --- Logique Métier ---
     public function estEtudiantEligibleSoumission(string $numeroEtudiant): bool;
+    public function enregistrerDecisionPassage(string $numeroEtudiant, string $idAnnee, string $idDecision): bool;
+    public function calculerMoyennes(string $numeroEtudiant, string $idAnnee): array;
 }

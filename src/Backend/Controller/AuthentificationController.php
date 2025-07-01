@@ -33,6 +33,7 @@ class AuthentificationController extends BaseController
         if ($this->serviceSecurite->estUtilisateurConnecte()) {
             $this->redirect('/dashboard');
         }
+
         $data = [
             'page' => 'login',
             'title' => 'Connexion',
@@ -41,6 +42,7 @@ class AuthentificationController extends BaseController
             'alerts' => [],
             'loginValue' => ''
         ];
+
         if (!empty($_SESSION['error'])) {
             $data['alerts'][] = ['type' => 'error', 'message' => $_SESSION['error']];
             unset($_SESSION['error']);
@@ -53,6 +55,7 @@ class AuthentificationController extends BaseController
             $data['loginValue'] = (string) $_SESSION['old_input']['login'];
         }
         unset($_SESSION['old_input']);
+
         $this->render('Auth/auth.php', $data, 'layout_auth.php');
     }
 
@@ -86,7 +89,7 @@ class AuthentificationController extends BaseController
         if (!isset($_SESSION['2fa_pending']) || $_SESSION['2fa_pending'] !== true) {
             $this->redirect('/login');
         }
-        $this->render('Auth/auth.php', ['page' => '2fa', 'title' => 'Vérification 2FA'], 'layout_auth.php');
+        $this->render('Auth/auth.php', ['page' => '2fa', 'title' => 'Vérification 2FA', 'pageTitle' => 'Vérification Requise', 'pageSubtitle' => 'Saisissez votre code'], 'layout_auth.php');
     }
 
     public function handle2faVerification(): void
@@ -113,7 +116,7 @@ class AuthentificationController extends BaseController
 
     public function showForgotPasswordForm(): void
     {
-        $this->render('Auth/auth.php', ['page' => 'forgot-password', 'title' => 'Mot de passe oublié'], 'layout_auth.php');
+        $this->render('Auth/auth.php', ['page' => 'forgot-password', 'title' => 'Mot de passe oublié', 'pageTitle' => 'Récupération', 'pageSubtitle' => 'Réinitialisez votre mot de passe'], 'layout_auth.php');
     }
 
     public function handleForgotPassword(): void
@@ -129,7 +132,7 @@ class AuthentificationController extends BaseController
 
     public function showResetPasswordForm(string $token): void
     {
-        $this->render('Auth/auth.php', ['page' => 'reset-password', 'title' => 'Réinitialiser le mot de passe', 'token' => $token], 'layout_auth.php');
+        $this->render('Auth/auth.php', ['page' => 'reset-password', 'title' => 'Réinitialiser le mot de passe', 'pageTitle' => 'Nouveau Mot de Passe', 'pageSubtitle' => 'Choisissez un nouveau mot de passe sécurisé', 'token' => $token], 'layout_auth.php');
     }
 
     public function handleResetPassword(): void
@@ -159,4 +162,3 @@ class AuthentificationController extends BaseController
         }
     }
 }
-

@@ -3,25 +3,24 @@
 
 namespace App\Backend\Service\Securite;
 
-use App\Backend\Model\Delegation;
 use PDO;
+use RobThree\Auth\TwoFactorAuth;
+use App\Backend\Model\Delegation;
 use App\Backend\Model\Utilisateur;
 use App\Backend\Model\HistoriqueMotDePasse;
 use App\Backend\Model\Sessions;
 use App\Backend\Model\GenericModel;
 use App\Backend\Service\Supervision\ServiceSupervisionInterface;
 use App\Backend\Service\Communication\ServiceCommunicationInterface;
-use App\Backend\Exception\{
-    IdentifiantsInvalidesException,
+use App\Backend\Exception\{IdentifiantsInvalidesException,
     CompteBloqueException,
     CompteNonValideException,
     MotDePasseInvalideException,
     ElementNonTrouveException,
+    PermissionException,
     TokenInvalideException,
     TokenExpireException,
-    EmailException
-};
-use RobThree\Auth\TwoFactorAuth;
+    OperationImpossibleException};
 
 class ServiceSecurite implements ServiceSecuriteInterface
 {
@@ -30,14 +29,13 @@ class ServiceSecurite implements ServiceSecuriteInterface
     private HistoriqueMotDePasse $historiqueMdpModel;
     private Sessions $sessionsModel;
     private GenericModel $rattacherModel;
+    private Delegation $delegationModel;
     private ServiceSupervisionInterface $supervisionService;
 
-    // Constantes de sécurité (peuvent être externalisées via un service de configuration)
     private const MAX_LOGIN_ATTEMPTS = 5;
     private const LOCKOUT_TIME_MINUTES = 30;
     private const PASSWORD_HISTORY_LIMIT = 3;
     private const PASSWORD_MIN_LENGTH = 8;
-    private Delegation $delegationModel;
 
     public function __construct(
         PDO $db,
@@ -45,21 +43,20 @@ class ServiceSecurite implements ServiceSecuriteInterface
         HistoriqueMotDePasse $historiqueMdpModel,
         Sessions $sessionsModel,
         GenericModel $rattacherModel,
-        ServiceSupervisionInterface $supervisionService,
-        Delegation $delegationModel // <-- 1. AJOUTER le paramètre ici
-)
-    {
+        Delegation $delegationModel,
+        ServiceSupervisionInterface $supervisionService
+    ) {
         $this->db = $db;
         $this->utilisateurModel = $utilisateurModel;
         $this->historiqueMdpModel = $historiqueMdpModel;
         $this->sessionsModel = $sessionsModel;
         $this->rattacherModel = $rattacherModel;
-        $this->supervisionService = $supervisionService;
         $this->delegationModel = $delegationModel;
+        $this->supervisionService = $supervisionService;
     }
 
     //================================================================
-    // SECTION 1 : AUTHENTIFICATION & GESTION DE SESSION (API PUBLIQUE)
+    // SECTION 1 : AUTHENTIFICATION & GESTION DE SESSION
     //================================================================
 
     public function tenterConnexion(string $identifiant, string $motDePasseClair): array
@@ -105,15 +102,17 @@ class ServiceSecurite implements ServiceSecuriteInterface
         $_SESSION['user_id'] = $numeroUtilisateur;
         $_SESSION['last_activity'] = time();
 
-        $user = $this->utilisateurModel->trouverParIdentifiant($numeroUtilisateur, ['id_groupe_utilisateur']);
+        $user = $this->utilisateurModel->trouverParIdentifiant($numeroUtilisateur);
+        if (!$user) {
+            throw new ElementNonTrouveException("Impossible de démarrer la session pour un utilisateur inexistant.");
+        }
+
         $rattachements = $this->rattacherModel->trouverParCritere(['id_groupe_utilisateur' => $user['id_groupe_utilisateur']]);
         $_SESSION['user_group_permissions'] = array_column($rattachements, 'id_traitement');
-
         $_SESSION['user_delegations'] = $this->recupererDelegationsActivesPourUtilisateur($numeroUtilisateur);
 
-        $userData = $this->utilisateurModel->trouverParIdentifiant($numeroUtilisateur);
-        unset($userData['mot_de_passe'], $userData['token_reset_mdp'], $userData['token_validation_email'], $userData['secret_2fa']);
-        $_SESSION['user_data'] = $userData;
+        unset($user['mot_de_passe'], $user['token_reset_mdp'], $user['token_validation_email'], $user['secret_2fa']);
+        $_SESSION['user_data'] = $user;
 
         unset($_SESSION['2fa_pending'], $_SESSION['2fa_user_id']);
         $this->utilisateurModel->mettreAJourParIdentifiant($numeroUtilisateur, ['derniere_connexion' => date('Y-m-d H:i:s')]);
@@ -122,13 +121,14 @@ class ServiceSecurite implements ServiceSecuriteInterface
     public function logout(): void
     {
         $numeroUtilisateur = $_SESSION['user_id'] ?? 'ANONYMOUS';
+        $this->supervisionService->enregistrerAction($numeroUtilisateur, 'LOGOUT');
+
         $_SESSION = [];
         if (ini_get("session.use_cookies")) {
             $params = session_get_cookie_params();
             setcookie(session_name(), '', time() - 42000, $params["path"], $params["domain"], $params["secure"], $params["httponly"]);
         }
         session_destroy();
-        $this->supervisionService->enregistrerAction($numeroUtilisateur, 'LOGOUT');
     }
 
     public function estUtilisateurConnecte(): bool
@@ -142,27 +142,27 @@ class ServiceSecurite implements ServiceSecuriteInterface
     }
 
     //================================================================
-    // SECTION 2 : GESTION DES MOTS DE PASSE (API PUBLIQUE)
+    // SECTION 2 : GESTION DES MOTS DE PASSE
     //================================================================
 
     public function demanderReinitialisationMotDePasse(string $emailPrincipal, ServiceCommunicationInterface $communicationService): void
     {
         $utilisateur = $this->utilisateurModel->trouverUnParCritere(['email_principal' => $emailPrincipal]);
         if (!$utilisateur) {
-            return; // Ne pas révéler l'existence de l'email
+            return; // Ne pas révéler si l'email existe ou non
         }
 
         $tokenClair = bin2hex(random_bytes(32));
         $this->utilisateurModel->mettreAJourParIdentifiant($utilisateur['numero_utilisateur'], [
             'token_reset_mdp' => hash('sha256', $tokenClair),
-            'date_expiration_token_reset' => date('Y-m-d H:i:s', time() + 3600) // Expire dans 1 heure
+            'date_expiration_token_reset' => date('Y-m-d H:i:s', time() + 3600)
         ]);
 
-        $communicationService->envoyerEmail([
-            'destinataire_email' => $emailPrincipal,
-            'sujet' => 'Réinitialisation de votre mot de passe',
-            'corps_html' => "Cliquez sur ce lien pour réinitialiser votre mot de passe : <a href='/reset-password/{$tokenClair}'>Réinitialiser</a>"
-        ]);
+        $communicationService->envoyerEmail(
+            $emailPrincipal,
+            'RESET_PASSWORD', // ID du template de notification
+            ['reset_link' => $_ENV['APP_URL'] . "/reset-password/{$tokenClair}"]
+        );
     }
 
     public function reinitialiserMotDePasseViaToken(string $tokenClair, string $nouveauMotDePasseClair): bool
@@ -170,12 +170,8 @@ class ServiceSecurite implements ServiceSecuriteInterface
         $tokenHache = hash('sha256', $tokenClair);
         $utilisateur = $this->utilisateurModel->trouverParTokenResetMdp($tokenHache);
 
-        if (!$utilisateur) {
-            throw new TokenInvalideException("Token invalide ou déjà utilisé.");
-        }
-        if (new \DateTime() > new \DateTime($utilisateur['date_expiration_token_reset'])) {
-            throw new TokenExpireException("Le token a expiré.");
-        }
+        if (!$utilisateur) throw new TokenInvalideException("Token invalide ou déjà utilisé.");
+        if (new \DateTime() > new \DateTime($utilisateur['date_expiration_token_reset'])) throw new TokenExpireException("Le token a expiré.");
 
         return $this->definirNouveauMotDePasse($utilisateur['numero_utilisateur'], $nouveauMotDePasseClair);
     }
@@ -190,7 +186,7 @@ class ServiceSecurite implements ServiceSecuriteInterface
     }
 
     //================================================================
-    // SECTION 3 : AUTHENTIFICATION À DEUX FACTEURS (2FA) (API PUBLIQUE)
+    // SECTION 3 : AUTHENTIFICATION À DEUX FACTEURS (2FA)
     //================================================================
 
     public function genererEtStockerSecret2FA(string $numeroUtilisateur): array
@@ -199,12 +195,9 @@ class ServiceSecurite implements ServiceSecuriteInterface
         $secret = $tfa->createSecret();
 
         $utilisateur = $this->utilisateurModel->trouverParIdentifiant($numeroUtilisateur, ['email_principal']);
-        if (!$utilisateur) {
-            throw new ElementNonTrouveException("Utilisateur non trouvé.");
-        }
+        if (!$utilisateur) throw new ElementNonTrouveException("Utilisateur non trouvé.");
 
         $qrCodeUrl = $tfa->getQRCodeImageAsDataUri($utilisateur['email_principal'], $secret);
-
         $this->utilisateurModel->mettreAJourParIdentifiant($numeroUtilisateur, ['secret_2fa' => $secret]);
         $this->supervisionService->enregistrerAction($numeroUtilisateur, 'GENERATION_2FA_SECRET');
 
@@ -214,9 +207,7 @@ class ServiceSecurite implements ServiceSecuriteInterface
     public function activerAuthentificationDeuxFacteurs(string $numeroUtilisateur, string $codeTOTP): bool
     {
         $utilisateur = $this->utilisateurModel->trouverParIdentifiant($numeroUtilisateur, ['secret_2fa']);
-        if (!$utilisateur || empty($utilisateur['secret_2fa'])) {
-            throw new OperationImpossibleException("Impossible d'activer la 2FA : aucun secret n'est généré.");
-        }
+        if (!$utilisateur || empty($utilisateur['secret_2fa'])) throw new OperationImpossibleException("Impossible d'activer la 2FA : aucun secret n'est généré.");
 
         if (!$this->verifierCodeAuthentificationDeuxFacteurs($numeroUtilisateur, $codeTOTP, $utilisateur['secret_2fa'])) {
             $this->supervisionService->enregistrerAction($numeroUtilisateur, 'ECHEC_ACTIVATION_2FA', null, null, ['reason' => 'Code invalide']);
@@ -224,23 +215,17 @@ class ServiceSecurite implements ServiceSecuriteInterface
         }
 
         $success = $this->utilisateurModel->mettreAJourParIdentifiant($numeroUtilisateur, ['preferences_2fa_active' => 1]);
-        if ($success) {
-            $this->supervisionService->enregistrerAction($numeroUtilisateur, 'ACTIVATION_2FA');
-        }
+        if ($success) $this->supervisionService->enregistrerAction($numeroUtilisateur, 'ACTIVATION_2FA');
         return $success;
     }
 
     public function desactiverAuthentificationDeuxFacteurs(string $numeroUtilisateur, string $motDePasseClair): bool
     {
         $utilisateur = $this->utilisateurModel->trouverParIdentifiant($numeroUtilisateur, ['mot_de_passe']);
-        if (!$utilisateur || !password_verify($motDePasseClair, $utilisateur['mot_de_passe'])) {
-            throw new MotDePasseInvalideException("Le mot de passe est incorrect.");
-        }
+        if (!$utilisateur || !password_verify($motDePasseClair, $utilisateur['mot_de_passe'])) throw new MotDePasseInvalideException("Le mot de passe est incorrect.");
 
         $success = $this->utilisateurModel->mettreAJourParIdentifiant($numeroUtilisateur, ['preferences_2fa_active' => 0, 'secret_2fa' => null]);
-        if ($success) {
-            $this->supervisionService->enregistrerAction($numeroUtilisateur, 'DESACTIVATION_2FA');
-        }
+        if ($success) $this->supervisionService->enregistrerAction($numeroUtilisateur, 'DESACTIVATION_2FA');
         return $success;
     }
 
@@ -251,37 +236,31 @@ class ServiceSecurite implements ServiceSecuriteInterface
             if (!$user || empty($user['secret_2fa'])) return false;
             $secret = $user['secret_2fa'];
         }
-
         $tfa = new TwoFactorAuth('GestionMySoutenance');
         return $tfa->verifyCode($secret, $codeTOTP);
     }
 
     //================================================================
-    // SECTION 4 : AUTORISATION & PERMISSIONS (API PUBLIQUE)
+    // SECTION 4 : AUTORISATION & PERMISSIONS
     //================================================================
 
     public function utilisateurPossedePermission(string $permissionCode, ?string $contexteId = null, ?string $contexteType = null): bool
     {
-        if (!$this->estUtilisateurConnecte()) {
-            return false;
-        }
+        if (!$this->estUtilisateurConnecte()) return false;
 
-        if (in_array($permissionCode, $_SESSION['user_group_permissions'] ?? [])) {
-            return true;
-        }
-
+        // L'admin en mode impersonation a les droits de l'utilisateur cible, pas les siens.
+        $permissions = $_SESSION['user_group_permissions'] ?? [];
         $delegations = $_SESSION['user_delegations'] ?? [];
+
+        if (in_array($permissionCode, $permissions)) return true;
+
         foreach ($delegations as $delegation) {
             if ($delegation['id_traitement'] === $permissionCode) {
-                if ($delegation['contexte_id'] === null) {
-                    return true;
-                }
-                if ($delegation['contexte_id'] === $contexteId && $delegation['contexte_type'] === $contexteType) {
+                if ($delegation['contexte_id'] === null || ($delegation['contexte_id'] === $contexteId && $delegation['contexte_type'] === $contexteType)) {
                     return true;
                 }
             }
         }
-
         return false;
     }
 
@@ -302,14 +281,132 @@ class ServiceSecurite implements ServiceSecuriteInterface
             $sessionData['user_delegations'] = $newDelegations;
             $this->sessionsModel->mettreAJourParIdentifiant($session['session_id'], ['session_data' => serialize($sessionData)]);
         }
-
         $this->supervisionService->enregistrerAction('SYSTEM', 'SYNCHRONISATION_RBAC', $numeroUtilisateur, 'Utilisateur');
     }
 
     //================================================================
-    // SECTION 5 : LOGIQUE INTERNE & MÉTHODES PRIVÉES
+    // SECTION 5 : IMPERSONATION
     //================================================================
 
+    public function demarrerImpersonation(string $adminId, string $targetUserId): bool
+    {
+        $admin = $this->utilisateurModel->trouverParIdentifiant($adminId);
+        $targetUser = $this->utilisateurModel->trouverParIdentifiant($targetUserId);
+
+        if (!$admin || !$targetUser || $admin['id_groupe_utilisateur'] !== 'GRP_ADMIN_SYS') {
+            throw new PermissionException("Action d'impersonation non autorisée.");
+        }
+        if ($adminId === $targetUserId) {
+            throw new OperationImpossibleException("Vous ne pouvez pas vous impersonnaliser vous-même.");
+        }
+
+        // Stocker les informations de l'admin
+        $_SESSION['impersonator_data'] = $_SESSION['user_data'];
+
+        // Démarrer une nouvelle session pour l'utilisateur cible
+        $this->demarrerSessionUtilisateur($targetUserId);
+
+        // Enregistrer l'action dans l'audit
+        $this->supervisionService->enregistrerAction($adminId, 'IMPERSONATION_START', $targetUserId, 'Utilisateur');
+
+        return true;
+    }
+
+    public function arreterImpersonation(): bool
+    {
+        if (!$this->estEnModeImpersonation()) {
+            return false;
+        }
+
+        $adminData = $this->getImpersonatorData();
+        $targetUserId = $_SESSION['user_id'];
+
+        // Démarrer une nouvelle session pour l'admin
+        $this->demarrerSessionUtilisateur($adminData['numero_utilisateur']);
+
+        // Nettoyer la session
+        unset($_SESSION['impersonator_data']);
+
+        $this->supervisionService->enregistrerAction($adminData['numero_utilisateur'], 'IMPERSONATION_STOP', $targetUserId, 'Utilisateur');
+
+        return true;
+    }
+
+    public function estEnModeImpersonation(): bool
+    {
+        return isset($_SESSION['impersonator_data']);
+    }
+
+    public function getImpersonatorData(): ?array
+    {
+        return $_SESSION['impersonator_data'] ?? null;
+    }
+
+    //================================================================
+    // SECTION 6 : GESTION DYNAMIQUE DE L'INTERFACE
+    //================================================================
+
+    public function construireMenuPourUtilisateurConnecte(): array
+    {
+        if (!$this->estUtilisateurConnecte()) {
+            return [];
+        }
+
+        $permissionsUtilisateur = $_SESSION['user_group_permissions'] ?? [];
+        $delegationsUtilisateur = $_SESSION['user_delegations'] ?? [];
+
+        // Ajouter les permissions déléguées à la liste des permissions de l'utilisateur pour cette requête
+        foreach ($delegationsUtilisateur as $delegation) {
+            $permissionsUtilisateur[] = $delegation['id_traitement'];
+        }
+        $permissionsUtilisateur = array_unique($permissionsUtilisateur);
+
+        if (empty($permissionsUtilisateur)) {
+            return [];
+        }
+
+        // 1. Récupérer tous les éléments de menu auxquels l'utilisateur a droit
+        $placeholders = implode(',', array_fill(0, count($permissionsUtilisateur), '?'));
+        $sql = "SELECT id_traitement, libelle_menu, url_associee, icone_class, id_parent_traitement 
+                FROM traitement 
+                WHERE est_visible_menu = 1 AND id_traitement IN ($placeholders)
+                ORDER BY ordre_affichage ASC";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($permissionsUtilisateur);
+        $itemsMenu = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // 2. Construire l'arborescence
+        $menuHierarchique = [];
+        $itemsParId = [];
+
+        // Indexer tous les items par leur ID
+        foreach ($itemsMenu as $item) {
+            $itemsParId[$item['id_traitement']] = $item;
+            $itemsParId[$item['id_traitement']]['enfants'] = [];
+        }
+
+        // Associer les enfants à leurs parents
+        foreach ($itemsParId as $id => &$item) {
+            if (!empty($item['id_parent_traitement']) && isset($itemsParId[$item['id_parent_traitement']])) {
+                $itemsParId[$item['id_parent_traitement']]['enfants'][] = &$item;
+            }
+        }
+        unset($item); // Rompre la référence
+
+        // Récupérer uniquement les éléments de premier niveau (ceux sans parent ou dont le parent n'est pas dans la liste)
+        foreach ($itemsParId as $id => $item) {
+            if (empty($item['id_parent_traitement']) || !isset($itemsParId[$item['id_parent_traitement']])) {
+                $menuHierarchique[] = $item;
+            }
+        }
+
+        return $menuHierarchique;
+    }
+
+    //================================================================
+    // SECTION 7 : LOGIQUE INTERNE & MÉTHODES PRIVÉES
+    //================================================================
     private function traiterTentativeEchouee(string $numeroUtilisateur): void
     {
         $this->db->exec("UPDATE utilisateur SET tentatives_connexion_echouees = tentatives_connexion_echouees + 1 WHERE numero_utilisateur = '{$numeroUtilisateur}'");

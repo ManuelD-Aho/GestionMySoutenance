@@ -126,7 +126,53 @@ class ServiceSysteme implements ServiceSystemeInterface
     {
         return (bool) $this->getParametre('MAINTENANCE_MODE_ENABLED', false);
     }
+    // ====================================================================
+    // SECTION 3 : Gestion des Années Académiques
+    // ====================================================================
 
+    public function creerAnneeAcademique(string $libelle, string $dateDebut, string $dateFin, bool $estActive = false): string
+    {
+        $idAnnee = "ANNEE-" . str_replace('/', '-', $libelle);
+        $this->anneeAcademiqueModel->creer([
+            'id_annee_academique' => $idAnnee,
+            'libelle_annee_academique' => $libelle,
+            'date_debut' => $dateDebut,
+            'date_fin' => $dateFin,
+            'est_active' => $estActive ? 1 : 0
+        ]);
+        if ($estActive) {
+            $this->setAnneeAcademiqueActive($idAnnee);
+        }
+        $this->supervisionService->enregistrerAction($_SESSION['user_id'], 'CREATE_ANNEE_ACADEMIQUE', $idAnnee, 'AnneeAcademique');
+        return $idAnnee;
+    }
+
+    public function lireAnneeAcademique(string $idAnneeAcademique): ?array
+    {
+        return $this->anneeAcademiqueModel->trouverParIdentifiant($idAnneeAcademique);
+    }
+
+    public function mettreAJourAnneeAcademique(string $idAnneeAcademique, array $donnees): bool
+    {
+        return $this->anneeAcademiqueModel->mettreAJourParIdentifiant($idAnneeAcademique, $donnees);
+    }
+
+    public function supprimerAnneeAcademique(string $idAnneeAcademique): bool
+    {
+        // Vérification des dépendances
+        $inscriptionModel = $this->container->getModelForTable('inscrire');
+        if ($inscriptionModel->trouverUnParCritere(['id_annee_academique' => $idAnneeAcademique])) {
+            throw new OperationImpossibleException("Suppression impossible : des inscriptions sont liées à cette année académique.");
+        }
+        // Ajouter d'autres vérifications si nécessaire (rapports, pénalités...)
+
+        return $this->anneeAcademiqueModel->supprimerParIdentifiant($idAnneeAcademique);
+    }
+
+    public function listerAnneesAcademiques(): array
+    {
+        return $this->anneeAcademiqueModel->trouverParCritere([], ['*'], 'AND', 'date_debut DESC');
+    }
     // --- Gestion des Années Académiques ---
     public function getAnneeAcademiqueActive(): ?array
     {

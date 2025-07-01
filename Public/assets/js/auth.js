@@ -1,26 +1,9 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // Animation d'entrée
-    gsap.from("#auth-container > .card", {
-        duration: 0.5,
-        opacity: 0,
-        y: 50,
-        ease: "power2.out"
-    });
+    gsap.from("#auth-container > .card", { duration: 0.5, opacity: 0, y: 50, ease: "power2.out" });
 
-    const loginForm = document.getElementById('login-form');
-    const twoFaForm = document.getElementById('2fa-form');
-    const forgotPasswordForm = document.getElementById('forgot-password-form');
-    const resetPasswordForm = document.getElementById('reset-password-form');
-
-    /**
-     * Affiche un message de retour dans la zone dédiée.
-     * @param {string} message - Le message à afficher.
-     * @param {'success'|'error'} type - Le type de message.
-     */
     const showFeedback = (message, type = 'error') => {
         const feedbackDiv = document.getElementById('form-feedback');
         if (!feedbackDiv) return;
-
         const alertClass = type === 'success' ? 'alert-success' : 'alert-error';
         feedbackDiv.innerHTML = `
             <div role="alert" class="alert ${alertClass} shadow-lg">
@@ -30,31 +13,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
             </div>`;
         feedbackDiv.classList.remove('hidden');
+        gsap.from(feedbackDiv.firstElementChild, { duration: 0.3, opacity: 0, y: -10 });
     };
 
-    /**
-     * Gère la soumission d'un formulaire via Fetch API.
-     * @param {HTMLFormElement} form - Le formulaire à soumettre.
-     */
     const handleFormSubmit = async (form) => {
         const submitButton = form.querySelector('button[type="submit"]');
-        const spinner = submitButton.querySelector('.loading');
         const feedbackDiv = document.getElementById('form-feedback');
 
-        // Cacher les alertes précédentes
         feedbackDiv.classList.add('hidden');
         document.getElementById('global-alerts')?.classList.add('hidden');
-
-        // Activer le spinner et désactiver le bouton
-        spinner.classList.remove('hidden');
+        submitButton.classList.add('loading');
         submitButton.disabled = true;
 
         try {
-            const response = await fetch(form.action, {
-                method: 'POST',
-                body: new FormData(form)
-            });
-
+            const response = await fetch(form.action, { method: 'POST', body: new FormData(form) });
             const data = await response.json();
 
             if (response.ok && data.success) {
@@ -65,45 +37,24 @@ document.addEventListener('DOMContentLoaded', () => {
                     form.reset();
                 }
             } else {
-                // Gérer les erreurs de validation ou autres erreurs serveur
-                const errorMessage = data.message || 'Une erreur est survenue.';
-                showFeedback(errorMessage, 'error');
+                showFeedback(data.message || 'Une erreur est survenue.', 'error');
             }
         } catch (error) {
             showFeedback('Erreur de connexion au serveur. Veuillez réessayer.', 'error');
-            console.error('Fetch error:', error);
         } finally {
-            // Réactiver le bouton et cacher le spinner
-            spinner.classList.add('hidden');
+            submitButton.classList.remove('loading');
             submitButton.disabled = false;
         }
     };
 
-    if (loginForm) {
-        loginForm.addEventListener('submit', (e) => {
-            e.preventDefault();
-            handleFormSubmit(loginForm);
-        });
-    }
-
-    if (twoFaForm) {
-        twoFaForm.addEventListener('submit', (e) => {
-            e.preventDefault();
-            handleFormSubmit(twoFaForm);
-        });
-    }
-
-    if (forgotPasswordForm) {
-        forgotPasswordForm.addEventListener('submit', (e) => {
-            e.preventDefault();
-            handleFormSubmit(forgotPasswordForm);
-        });
-    }
-
-    if (resetPasswordForm) {
-        resetPasswordForm.addEventListener('submit', (e) => {
-            e.preventDefault();
-            handleFormSubmit(resetPasswordForm);
-        });
-    }
+    const forms = ['login-form', '2fa-form', 'forgot-password-form', 'reset-password-form'];
+    forms.forEach(formId => {
+        const formElement = document.getElementById(formId);
+        if (formElement) {
+            formElement.addEventListener('submit', (e) => {
+                e.preventDefault();
+                handleFormSubmit(formElement);
+            });
+        }
+    });
 });

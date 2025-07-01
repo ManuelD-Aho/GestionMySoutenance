@@ -3,24 +3,389 @@
  * Fichier: src/Backend/Controller\Administration\AdminDashboardController.php
  ***********************************************************************************/
 
+<?php
+// src/Backend/Controller/Administration/AdminDashboardController.php
 
+namespace App\Backend\Controller\Administration;
+
+use App\Backend\Controller\BaseController;
+use App\Backend\Service\Supervision\ServiceSupervisionInterface;
+use App\Backend\Service\Securite\ServiceSecuriteInterface;
+use App\Backend\Util\FormValidator;
+
+class AdminDashboardController extends BaseController
+{
+    public function __construct(
+        ServiceSecuriteInterface $serviceSecurite,
+        ServiceSupervisionInterface $serviceSupervision,
+        FormValidator $formValidator
+    ) {
+        parent::__construct($serviceSecurite, $serviceSupervision, $formValidator);
+    }
+
+    /**
+     * Affiche le tableau de bord principal de l'administrateur.
+     * Récupère et affiche les statistiques clés de la plateforme.
+     */
+    public function index(): void
+    {
+        $this->checkPermission('TRAIT_ADMIN_DASHBOARD_ACCEDER');
+
+        try {
+            $stats = $this->serviceSupervision->genererStatistiquesDashboardAdmin();
+            $this->render('Administration/dashboard_admin.php', [
+                'title' => 'Tableau de Bord Administrateur',
+                'stats' => $stats
+            ]);
+        } catch (\Exception $e) {
+            $this->serviceSupervision->enregistrerAction('SYSTEM', 'DASHBOARD_ADMIN_ERROR', null, null, ['error' => $e->getMessage()]);
+            $this->render('errors/500.php', ['error_message' => "Impossible de charger les statistiques du tableau de bord."]);
+        }
+    }
+}
 
 /***********************************************************************************
  * Fichier: src/Backend/Controller\Administration\ConfigurationController.php
  ***********************************************************************************/
 
+<?php
+// src/Backend/Controller/Administration/ConfigurationController.php
+
+namespace App\Backend\Controller\Administration;
+
+use App\Backend\Controller\BaseController;
+use App\Backend\Service\Systeme\ServiceSystemeInterface;
+use App\Backend\Service\Securite\ServiceSecuriteInterface;
+use App\Backend\Service\Supervision\ServiceSupervisionInterface;
+use App\Backend\Util\FormValidator;
+
+class ConfigurationController extends BaseController
+{
+    private ServiceSystemeInterface $serviceSysteme;
+
+    public function __construct(
+        ServiceSecuriteInterface $serviceSecurite,
+        ServiceSupervisionInterface $serviceSupervision,
+        FormValidator $formValidator,
+        ServiceSystemeInterface $serviceSysteme
+    ) {
+        parent::__construct($serviceSecurite, $serviceSupervision, $formValidator);
+        $this->serviceSysteme = $serviceSysteme;
+    }
+
+    /**
+     * Affiche le formulaire de configuration des paramètres système.
+     */
+    public function showConfigForm(): void
+    {
+        $this->checkPermission('ADMIN_CONFIG_READ');
+
+        try {
+            $parametres = $this->serviceSysteme->getAllParametres();
+            $this->render('Administration/gestion_parametres.php', [
+                'title' => 'Configuration du Système',
+                'parametres' => $parametres
+            ]);
+        } catch (\Exception $e) {
+            $this->serviceSupervision->enregistrerAction('SYSTEM', 'CONFIG_FORM_ERROR', null, null, ['error' => $e->getMessage()]);
+            $this->render('errors/500.php', ['error_message' => "Impossible de charger les paramètres de configuration."]);
+        }
+    }
+
+    /**
+     * Traite la soumission du formulaire de configuration et enregistre les paramètres.
+     */
+    public function saveConfig(): void
+    {
+        $this->checkPermission('ADMIN_CONFIG_UPDATE');
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !$this->verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+            $this->jsonResponse(['success' => false, 'message' => 'Requête invalide ou expirée.'], 403);
+            return;
+        }
+
+        try {
+// Exclure le token CSRF des données à sauvegarder
+            $parametresToSave = $_POST;
+            unset($parametresToSave['csrf_token']);
+
+            $this->serviceSysteme->setParametres($parametresToSave);
+
+            $_SESSION['success'] = 'Les paramètres ont été mis à jour avec succès.';
+            $this->redirect('/admin/config');
+        } catch (\Exception $e) {
+            $this->serviceSupervision->enregistrerAction($_SESSION['user_id'], 'CONFIG_SAVE_ERROR', null, null, ['error' => $e->getMessage()]);
+            $_SESSION['error'] = 'Une erreur est survenue lors de la sauvegarde des paramètres.';
+            $this->redirect('/admin/config');
+        }
+    }
+}
 
 
 /***********************************************************************************
  * Fichier: src/Backend/Controller\Administration\SupervisionController.php
  ***********************************************************************************/
 
+<?php
+// src/Backend/Controller/Administration/SupervisionController.php
+
+namespace App\Backend\Controller\Administration;
+
+use App\Backend\Controller\BaseController;
+use App\Backend\Service\Supervision\ServiceSupervisionInterface;
+use App\Backend\Service\Securite\ServiceSecuriteInterface;
+use App\Backend\Util\FormValidator;
+
+class SupervisionController extends BaseController
+{
+    public function __construct(
+        ServiceSecuriteInterface $serviceSecurite,
+        ServiceSupervisionInterface $serviceSupervision,
+        FormValidator $formValidator
+    ) {
+        parent::__construct($serviceSecurite, $serviceSupervision, $formValidator);
+    }
+
+    /**
+     * Affiche les journaux d'audit avec pagination.
+     */
+    public function showLogs(): void
+    {
+        $this->checkPermission('ADMIN_LOGS_READ');
+
+        $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+        $limit = 25;
+        $offset = ($page - 1) * $limit;
+
+        try {
+            $logs = $this->serviceSupervision->consulterJournaux([], $limit, $offset);
+            $this->render('Administration/supervision.php', [
+                'title' => 'Journaux d\'Audit',
+                'logs' => $logs,
+                'page' => $page,
+                'limit' => $limit
+            ]);
+        } catch (\Exception $e) {
+            $this->serviceSupervision->enregistrerAction('SYSTEM', 'LOGS_VIEW_ERROR', null, null, ['error' => $e->getMessage()]);
+            $this->render('errors/500.php', ['error_message' => "Impossible de charger les journaux d'audit."]);
+        }
+    }
+
+    /**
+     * Affiche l'état de la file d'attente des tâches asynchrones.
+     */
+    public function showQueue(): void
+    {
+        $this->checkPermission('ADMIN_QUEUE_READ');
+
+        try {
+// Cette méthode devrait être implémentée dans le ServiceSupervision
+// Pour l'exemple, nous simulons la récupération depuis la base.
+            $queueModel = new \App\Backend\Model\GenericModel($this->serviceSupervision->getDb(), 'queue_jobs', 'id');
+            $jobs = $queueModel->trouverTout();
+
+            $this->render('Administration/supervision_queue.php', [
+                'title' => 'File d\'attente des Tâches',
+                'jobs' => $jobs
+            ]);
+        } catch (\Exception $e) {
+            $this->serviceSupervision->enregistrerAction('SYSTEM', 'QUEUE_VIEW_ERROR', null, null, ['error' => $e->getMessage()]);
+            $this->render('errors/500.php', ['error_message' => "Impossible de charger l'état de la file d'attente."]);
+        }
+    }
+}
 
 
 /***********************************************************************************
  * Fichier: src/Backend/Controller\Administration\UtilisateurController.php
  ***********************************************************************************/
 
+<?php
+// src/Backend/Controller/Administration/UtilisateurController.php
+
+namespace App\Backend\Controller\Administration;
+
+use App\Backend\Controller\BaseController;
+use App\Backend\Service\Utilisateur\ServiceUtilisateurInterface;
+use App\Backend\Service\Securite\ServiceSecuriteInterface;
+use App\Backend\Service\Supervision\ServiceSupervisionInterface;
+use App\Backend\Util\FormValidator;
+use App\Backend\Exception\ValidationException;
+
+class UtilisateurController extends BaseController
+{
+    private ServiceUtilisateurInterface $serviceUtilisateur;
+
+    public function __construct(
+        ServiceSecuriteInterface $serviceSecurite,
+        ServiceSupervisionInterface $serviceSupervision,
+        FormValidator $formValidator,
+        ServiceUtilisateurInterface $serviceUtilisateur
+    ) {
+        parent::__construct($serviceSecurite, $serviceSupervision, $formValidator);
+        $this->serviceUtilisateur = $serviceUtilisateur;
+    }
+
+    /**
+     * Affiche la liste de tous les utilisateurs.
+     */
+    public function listUsers(): void
+    {
+        $this->checkPermission('ADMIN_USERS_LIST');
+        $users = $this->serviceUtilisateur->listerUtilisateursComplets();
+        $this->render('Administration/gestion_utilisateurs.php', [
+            'title' => 'Gestion des Utilisateurs',
+            'users' => $users
+        ]);
+    }
+
+    /**
+     * Affiche le formulaire de création ou d'édition d'un utilisateur.
+     */
+    public function showUserForm(?string $id = null): void
+    {
+        $this->checkPermission('ADMIN_USERS_EDIT');
+        $user = null;
+        if ($id) {
+            $user = $this->serviceUtilisateur->listerUtilisateursComplets(['numero_utilisateur' => $id])[0] ?? null;
+            if (!$user) {
+                $this->render('errors/404.php');
+                return;
+            }
+        }
+        $this->render('Administration/form_utilisateur.php', [
+            'title' => $id ? 'Modifier l\'Utilisateur' : 'Créer un Utilisateur',
+            'user' => $user
+        ]);
+    }
+
+    /**
+     * Traite la création d'un nouvel utilisateur.
+     */
+    public function createUser(): void
+    {
+        $this->checkPermission('ADMIN_USERS_CREATE');
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !$this->verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+            $this->jsonResponse(['success' => false, 'message' => 'Requête invalide.'], 403);
+            return;
+        }
+
+        $rules = [
+            'type_entite' => 'required|in:etudiant,enseignant,personnel',
+            'nom' => 'required|max:100',
+            'prenom' => 'required|max:100',
+            'login_utilisateur' => 'required|max:100',
+            'email_principal' => 'required|email|max:255',
+            'mot_de_passe' => 'required|min:8',
+            'id_groupe_utilisateur' => 'required'
+        ];
+
+        if (!$this->formValidator->validate($_POST, $rules)) {
+            $this->jsonResponse(['success' => false, 'errors' => $this->formValidator->getErrors()], 422);
+            return;
+        }
+
+        try {
+            $this->db->beginTransaction();
+            $numeroEntite = $this->serviceUtilisateur->creerEntite($_POST['type_entite'], [
+                'nom' => $_POST['nom'],
+                'prenom' => $_POST['prenom']
+            ]);
+
+            $this->serviceUtilisateur->activerComptePourEntite($numeroEntite, [
+                'login_utilisateur' => $_POST['login_utilisateur'],
+                'email_principal' => $_POST['email_principal'],
+                'mot_de_passe' => $_POST['mot_de_passe'],
+                'id_groupe_utilisateur' => $_POST['id_groupe_utilisateur'],
+                'id_niveau_acces_donne' => $_POST['id_niveau_acces_donne'] ?? 'ACCES_PERSONNEL'
+            ], false); // Ne pas envoyer d'email pour une création admin
+
+            $this->serviceUtilisateur->changerStatutCompte($numeroEntite, 'actif');
+            $this->db->commit();
+
+            $this->jsonResponse(['success' => true, 'message' => 'Utilisateur créé avec succès.', 'redirect' => '/admin/users']);
+        } catch (\Exception $e) {
+            $this->db->rollBack();
+            $this->jsonResponse(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Traite la mise à jour d'un utilisateur existant.
+     */
+    public function updateUser(string $id): void
+    {
+        $this->checkPermission('ADMIN_USERS_EDIT');
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !$this->verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+            $this->jsonResponse(['success' => false, 'message' => 'Requête invalide.'], 403);
+            return;
+        }
+
+        $rules = [
+            'nom' => 'required|max:100',
+            'prenom' => 'required|max:100',
+            'login_utilisateur' => 'required|max:100',
+            'email_principal' => 'required|email|max:255',
+            'id_groupe_utilisateur' => 'required',
+            'statut_compte' => 'required|in:actif,inactif,bloque,archive'
+        ];
+
+        if (!$this->formValidator->validate($_POST, $rules)) {
+            $this->jsonResponse(['success' => false, 'errors' => $this->formValidator->getErrors()], 422);
+            return;
+        }
+
+        try {
+            $donneesProfil = ['nom' => $_POST['nom'], 'prenom' => $_POST['prenom']];
+            $donneesCompte = [
+                'login_utilisateur' => $_POST['login_utilisateur'],
+                'email_principal' => $_POST['email_principal'],
+                'id_groupe_utilisateur' => $_POST['id_groupe_utilisateur'],
+                'statut_compte' => $_POST['statut_compte']
+            ];
+
+            $this->serviceUtilisateur->mettreAJourUtilisateur($id, $donneesProfil, $donneesCompte);
+            $this->jsonResponse(['success' => true, 'message' => 'Utilisateur mis à jour avec succès.', 'redirect' => '/admin/users']);
+        } catch (\Exception $e) {
+            $this->jsonResponse(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Traite l'importation en masse d'utilisateurs depuis un fichier.
+     */
+    public function importUsers(): void
+    {
+        $this->checkPermission('ADMIN_USERS_IMPORT');
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !$this->verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+            $_SESSION['error'] = 'Requête invalide ou expirée.';
+            $this->redirect('/admin/users');
+            return;
+        }
+
+        if (empty($_FILES['import_file']) || $_FILES['import_file']['error'] !== UPLOAD_ERR_OK) {
+            $_SESSION['error'] = 'Aucun fichier fourni ou erreur lors du téléversement.';
+            $this->redirect('/admin/users');
+            return;
+        }
+
+        try {
+            $filePath = $_FILES['import_file']['tmp_name'];
+            $mapping = json_decode($_POST['mapping'], true); // Le mapping est envoyé en JSON
+
+            $rapport = $this->serviceUtilisateur->importerEtudiantsDepuisFichier($filePath, $mapping);
+
+            $_SESSION['success'] = "Importation terminée : {$rapport['succes']} succès, {$rapport['echecs']} échecs.";
+            if (!empty($rapport['erreurs'])) {
+                $_SESSION['import_errors'] = $rapport['erreurs'];
+            }
+        } catch (\Exception $e) {
+            $_SESSION['error'] = "Erreur lors de l'importation : " . $e->getMessage();
+        }
+
+        $this->redirect('/admin/users');
+    }
+}
 
 
 /***********************************************************************************
@@ -182,17 +547,12 @@ class AuthentificationController extends BaseController
         $this->serviceCommunication = $serviceCommunication;
     }
 
-    /**
-     * Affiche le formulaire de connexion.
-     * Prépare toutes les données nécessaires pour la vue afin d'éviter la logique dans les templates.
-     */
     public function showLoginForm(): void
     {
         if ($this->serviceSecurite->estUtilisateurConnecte()) {
             $this->redirect('/dashboard');
         }
 
-        // --- Préparation centralisée des données pour la vue ---
         $data = [
             'page' => 'login',
             'title' => 'Connexion',
@@ -202,19 +562,14 @@ class AuthentificationController extends BaseController
             'loginValue' => ''
         ];
 
-        // Récupérer et formater les messages d'erreur de la session
         if (!empty($_SESSION['error'])) {
             $data['alerts'][] = ['type' => 'error', 'message' => $_SESSION['error']];
             unset($_SESSION['error']);
         }
-
-        // Récupérer et formater les messages de succès de la session
         if (!empty($_SESSION['success'])) {
             $data['alerts'][] = ['type' => 'success', 'message' => $_SESSION['success']];
             unset($_SESSION['success']);
         }
-
-        // Pré-remplir le champ de login si une valeur précédente existe et est valide
         if (isset($_SESSION['old_input']['login']) && is_scalar($_SESSION['old_input']['login'])) {
             $data['loginValue'] = (string) $_SESSION['old_input']['login'];
         }
@@ -229,10 +584,8 @@ class AuthentificationController extends BaseController
             $this->jsonResponse(['success' => false, 'message' => 'Requête invalide ou expirée.'], 403);
             return;
         }
-
         $identifiant = $_POST['login'] ?? '';
         $motDePasse = $_POST['password'] ?? '';
-
         try {
             $resultat = $this->serviceSecurite->tenterConnexion($identifiant, $motDePasse);
             if ($resultat['status'] === '2fa_required') {
@@ -255,7 +608,7 @@ class AuthentificationController extends BaseController
         if (!isset($_SESSION['2fa_pending']) || $_SESSION['2fa_pending'] !== true) {
             $this->redirect('/login');
         }
-        $this->render('Auth/auth.php', ['page' => '2fa'], 'layout_auth.php');
+        $this->render('Auth/auth.php', ['page' => '2fa', 'title' => 'Vérification 2FA', 'pageTitle' => 'Vérification Requise', 'pageSubtitle' => 'Saisissez votre code'], 'layout_auth.php');
     }
 
     public function handle2faVerification(): void
@@ -264,10 +617,8 @@ class AuthentificationController extends BaseController
             $this->jsonResponse(['success' => false, 'message' => 'Requête invalide ou expirée.'], 403);
             return;
         }
-
         $codeTOTP = $_POST['2fa_code'] ?? '';
         $userId = $_SESSION['2fa_user_id'];
-
         if ($this->serviceSecurite->verifierCodeAuthentificationDeuxFacteurs($userId, $codeTOTP)) {
             $this->serviceSecurite->demarrerSessionUtilisateur($userId);
             $this->jsonResponse(['success' => true, 'redirect' => '/dashboard']);
@@ -284,7 +635,7 @@ class AuthentificationController extends BaseController
 
     public function showForgotPasswordForm(): void
     {
-        $this->render('Auth/auth.php', ['page' => 'forgot-password'], 'layout_auth.php');
+        $this->render('Auth/auth.php', ['page' => 'forgot-password', 'title' => 'Mot de passe oublié', 'pageTitle' => 'Récupération', 'pageSubtitle' => 'Réinitialisez votre mot de passe'], 'layout_auth.php');
     }
 
     public function handleForgotPassword(): void
@@ -293,14 +644,43 @@ class AuthentificationController extends BaseController
             $this->jsonResponse(['success' => false, 'message' => 'Requête invalide ou expirée.'], 403);
             return;
         }
-
         $email = $_POST['email'] ?? '';
         $this->serviceSecurite->demanderReinitialisationMotDePasse($email, $this->serviceCommunication);
-
         $this->jsonResponse(['success' => true, 'message' => 'Si un compte est associé à cet email, un lien de réinitialisation a été envoyé.']);
     }
-}
 
+    public function showResetPasswordForm(string $token): void
+    {
+        $this->render('Auth/auth.php', ['page' => 'reset-password', 'title' => 'Réinitialiser le mot de passe', 'pageTitle' => 'Nouveau Mot de Passe', 'pageSubtitle' => 'Choisissez un nouveau mot de passe sécurisé', 'token' => $token], 'layout_auth.php');
+    }
+
+    public function handleResetPassword(): void
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !$this->verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+            $this->jsonResponse(['success' => false, 'message' => 'Requête invalide ou expirée.'], 403);
+            return;
+        }
+
+        $token = $_POST['token'] ?? '';
+        $password = $_POST['password'] ?? '';
+        $passwordConfirm = $_POST['password_confirm'] ?? '';
+
+        if ($password !== $passwordConfirm) {
+            $this->jsonResponse(['success' => false, 'message' => 'Les mots de passe ne correspondent pas.'], 422);
+            return;
+        }
+
+        try {
+            $this->serviceSecurite->reinitialiserMotDePasseViaToken($token, $password);
+            $this->jsonResponse(['success' => true, 'message' => 'Votre mot de passe a été réinitialisé avec succès.', 'redirect' => '/login']);
+        } catch (TokenInvalideException | TokenExpireException | MotDePasseInvalideException $e) {
+            $this->jsonResponse(['success' => false, 'message' => $e->getMessage()], 400);
+        } catch (\Exception $e) {
+            $this->serviceSupervision->enregistrerAction('SYSTEM', 'RESET_PASSWORD_EXCEPTION', null, null, ['error' => $e->getMessage()]);
+            $this->jsonResponse(['success' => false, 'message' => 'Une erreur technique est survenue.'], 500);
+        }
+    }
+}
 
 /***********************************************************************************
  * Fichier: src/Backend/Controller\BaseController.php
@@ -334,13 +714,6 @@ abstract class BaseController
         $this->initializeCsrf();
     }
 
-    /**
-     * Affiche une vue en l'intégrant dans un layout principal.
-     *
-     * @param string $viewPath Le chemin vers le fichier de la vue (ex: 'Etudiant/dashboard_etudiant.php').
-     * @param array $data Les données à extraire et à rendre accessibles dans la vue.
-     * @param string $layout Le fichier de layout à utiliser.
-     */
     protected function render(string $viewPath, array $data = [], string $layout = 'app.php'): void
     {
         extract($data);
@@ -353,23 +726,12 @@ abstract class BaseController
         require_once __DIR__ . '/../../Frontend/views/layout/' . $layout;
     }
 
-    /**
-     * Redirige l'utilisateur vers une autre URL.
-     *
-     * @param string $url L'URL de destination.
-     */
     protected function redirect(string $url): void
     {
         header('Location: ' . $url);
         exit();
     }
 
-    /**
-     * Retourne une réponse JSON et termine l'exécution.
-     *
-     * @param mixed $data Les données à encoder en JSON.
-     * @param int $statusCode Le code de statut HTTP.
-     */
     protected function jsonResponse(mixed $data, int $statusCode = 200): void
     {
         http_response_code($statusCode);
@@ -378,13 +740,6 @@ abstract class BaseController
         exit();
     }
 
-    /**
-     * Vérifie si l'utilisateur possède une permission. Si non, lance une exception.
-     * Enregistre également l'accès dans la piste d'audit.
-     *
-     * @param string $permissionCode Le code de la permission à vérifier.
-     * @throws PermissionException si l'utilisateur n'a pas la permission.
-     */
     protected function checkPermission(string $permissionCode): void
     {
         if (!$this->serviceSecurite->utilisateurPossedePermission($permissionCode)) {
@@ -402,9 +757,6 @@ abstract class BaseController
         }
     }
 
-    /**
-     * Initialise le token CSRF s'il n'existe pas ou est expiré.
-     */
     private function initializeCsrf(): void
     {
         if (session_status() === PHP_SESSION_NONE) {
@@ -419,12 +771,6 @@ abstract class BaseController
         }
     }
 
-    /**
-     * Vérifie la validité d'un token CSRF soumis via un formulaire.
-     *
-     * @param string|null $submittedToken Le token provenant du champ de formulaire.
-     * @return bool True si le token est valide, false sinon.
-     */
     protected function verifyCsrfToken(?string $submittedToken): bool
     {
         if (empty($submittedToken) || empty($_SESSION['csrf_token']['value'])) {
@@ -434,16 +780,150 @@ abstract class BaseController
     }
 }
 
+
 /***********************************************************************************
  * Fichier: src/Backend/Controller\Commission\CommissionDashboardController.php
  ***********************************************************************************/
 
+<?php
+// src/Backend/Controller/Commission/CommissionDashboardController.php
+
+namespace App\Backend\Controller\Commission;
+
+use App\Backend\Controller\BaseController;
+use App\Backend\Service\WorkflowSoutenance\ServiceWorkflowSoutenanceInterface;
+use App\Backend\Service\Securite\ServiceSecuriteInterface;
+use App\Backend\Service\Supervision\ServiceSupervisionInterface;
+use App\Backend\Util\FormValidator;
+
+class CommissionDashboardController extends BaseController
+{
+    private ServiceWorkflowSoutenanceInterface $serviceWorkflow;
+
+    public function __construct(
+        ServiceSecuriteInterface $serviceSecurite,
+        ServiceSupervisionInterface $serviceSupervision,
+        FormValidator $formValidator,
+        ServiceWorkflowSoutenanceInterface $serviceWorkflow
+    ) {
+        parent::__construct($serviceSecurite, $serviceSupervision, $formValidator);
+        $this->serviceWorkflow = $serviceWorkflow;
+    }
+
+    /**
+     * Affiche le tableau de bord pour un membre de la commission.
+     */
+    public function index(): void
+    {
+        $this->checkPermission('TRAIT_COMMISSION_DASHBOARD_ACCEDER');
+        $user = $this->serviceSecurite->getUtilisateurConnecte();
+
+        try {
+// Récupérer les rapports en attente de vote pour cet utilisateur
+            $rapportsAVoter = $this->serviceWorkflow->listerRapports(['statut' => 'en_commission', 'votant' => $user['numero_utilisateur']]);
+// Récupérer les PV en attente d'approbation
+            $pvsAApprouver = $this->serviceWorkflow->listerPvAApprouver($user['numero_utilisateur']);
+
+            $this->render('Commission/dashboard_commission.php', [
+                'title' => 'Tableau de Bord Commission',
+                'rapportsAVoter' => $rapportsAVoter,
+                'pvsAApprouver' => $pvsAApprouver
+            ]);
+        } catch (\Exception $e) {
+            $this->serviceSupervision->enregistrerAction($user['numero_utilisateur'], 'DASHBOARD_COMMISSION_ERROR', null, null, ['error' => $e->getMessage()]);
+            $this->render('errors/500.php', ['error_message' => "Impossible de charger les données du tableau de bord."]);
+        }
+    }
+}
 
 
 /***********************************************************************************
  * Fichier: src/Backend/Controller\Commission\WorkflowCommissionController.php
  ***********************************************************************************/
 
+<?php
+// src/Backend/Controller/Commission/WorkflowCommissionController.php
+
+namespace App\Backend\Controller\Commission;
+
+use App\Backend\Controller\BaseController;
+use App\Backend\Service\WorkflowSoutenance\ServiceWorkflowSoutenanceInterface;
+use App\Backend\Service\Securite\ServiceSecuriteInterface;
+use App\Backend\Service\Supervision\ServiceSupervisionInterface;
+use App\Backend\Util\FormValidator;
+
+class WorkflowCommissionController extends BaseController
+{
+    private ServiceWorkflowSoutenanceInterface $serviceWorkflow;
+
+    public function __construct(
+        ServiceSecuriteInterface $serviceSecurite,
+        ServiceSupervisionInterface $serviceSupervision,
+        FormValidator $formValidator,
+        ServiceWorkflowSoutenanceInterface $serviceWorkflow
+    ) {
+        parent::__construct($serviceSecurite, $serviceSupervision, $formValidator);
+        $this->serviceWorkflow = $serviceWorkflow;
+    }
+
+    public function listSessions(): void
+    {
+        $this->checkPermission('COMMISSION_SESSIONS_LIST');
+        $sessions = $this->serviceWorkflow->listerSessionsPourCommission();
+        $this->render('Commission/workflow_commission.php', [
+            'title' => 'Gestion des Sessions de Validation',
+            'sessions' => $sessions
+        ]);
+    }
+
+    public function createSession(): void
+    {
+        $this->checkPermission('COMMISSION_SESSIONS_CREATE');
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !$this->verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+            $this->jsonResponse(['success' => false, 'message' => 'Requête invalide.'], 403);
+            return;
+        }
+
+        $user = $this->serviceSecurite->getUtilisateurConnecte();
+        try {
+            $idSession = $this->serviceWorkflow->creerSession($user['numero_utilisateur'], $_POST);
+            $this->jsonResponse(['success' => true, 'message' => 'Session créée avec succès.', 'id' => $idSession]);
+        } catch (\Exception $e) {
+            $this->jsonResponse(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function viewSession(string $id): void
+    {
+        $this->checkPermission('COMMISSION_SESSIONS_VIEW');
+        $session = $this->serviceWorkflow->lireSessionComplete($id);
+        if (!$session) {
+            $this->render('errors/404.php');
+            return;
+        }
+        $this->render('Commission/view_session.php', [
+            'title' => 'Détails de la Session',
+            'session' => $session
+        ]);
+    }
+
+    public function submitVote(string $idSession, string $idRapport): void
+    {
+        $this->checkPermission('COMMISSION_VOTE');
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !$this->verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+            $this->jsonResponse(['success' => false, 'message' => 'Requête invalide.'], 403);
+            return;
+        }
+
+        $user = $this->serviceSecurite->getUtilisateurConnecte();
+        try {
+            $this->serviceWorkflow->enregistrerVote($idRapport, $user['numero_utilisateur'], $_POST['decision'], $_POST['commentaire'] ?? null);
+            $this->jsonResponse(['success' => true, 'message' => 'Vote enregistré.']);
+        } catch (\Exception $e) {
+            $this->jsonResponse(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+}
 
 
 /***********************************************************************************
@@ -469,10 +949,6 @@ class DashboardController extends BaseController
         parent::__construct($serviceSecurite, $serviceSupervision, $formValidator);
     }
 
-    /**
-     * Aiguille l'utilisateur vers le tableau de bord approprié en fonction de son rôle.
-     * C'est le point d'entrée principal après la connexion.
-     */
     public function index(): void
     {
         if (!$this->serviceSecurite->estUtilisateurConnecte()) {
@@ -499,8 +975,6 @@ class DashboardController extends BaseController
                 $this->redirect('/personnel/dashboard');
                 break;
             case 'GRP_ENSEIGNANT':
-                // Conformément à la règle "Les enseignants sans rôle n'ont pas accès au système",
-                // s'ils n'ont que ce groupe de base, ils ne peuvent pas accéder à un dashboard.
                 $this->serviceSupervision->enregistrerAction($user['numero_utilisateur'], 'ECHEC_LOGIN', null, null, ['reason' => 'Rôle enseignant de base sans permissions de dashboard.']);
                 $this->serviceSecurite->logout();
                 $this->redirect('/login?error=access_denied_role');
@@ -518,19 +992,219 @@ class DashboardController extends BaseController
  * Fichier: src/Backend/Controller\Etudiant\EtudiantDashboardController.php
  ***********************************************************************************/
 
+<?php
+// src/Backend/Controller/Etudiant/EtudiantDashboardController.php
 
+namespace App\Backend\Controller\Etudiant;
+
+use App\Backend\Controller\BaseController;
+use App\Backend\Service\WorkflowSoutenance\ServiceWorkflowSoutenanceInterface;
+use App\Backend\Service\Securite\ServiceSecuriteInterface;
+use App\Backend\Service\Supervision\ServiceSupervisionInterface;
+use App\Backend\Util\FormValidator;
+
+class EtudiantDashboardController extends BaseController
+{
+    private ServiceWorkflowSoutenanceInterface $serviceWorkflow;
+
+    public function __construct(
+        ServiceSecuriteInterface $serviceSecurite,
+        ServiceSupervisionInterface $serviceSupervision,
+        FormValidator $formValidator,
+        ServiceWorkflowSoutenanceInterface $serviceWorkflow
+    ) {
+        parent::__construct($serviceSecurite, $serviceSupervision, $formValidator);
+        $this->serviceWorkflow = $serviceWorkflow;
+    }
+
+    /**
+     * Affiche le tableau de bord de l'étudiant.
+     */
+    public function index(): void
+    {
+        $this->checkPermission('TRAIT_ETUDIANT_DASHBOARD_ACCEDER');
+        $user = $this->serviceSecurite->getUtilisateurConnecte();
+
+        try {
+            $rapports = $this->serviceWorkflow->listerRapports(['numero_carte_etudiant' => $user['numero_utilisateur']]);
+            $rapportActif = !empty($rapports) ? $rapports[0] : null;
+
+            $this->render('Etudiant/dashboard_etudiant.php', [
+                'title' => 'Mon Tableau de Bord',
+                'rapportActif' => $rapportActif
+            ]);
+        } catch (\Exception $e) {
+            $this->serviceSupervision->enregistrerAction($user['numero_utilisateur'], 'DASHBOARD_ETUDIANT_ERROR', null, null, ['error' => $e->getMessage()]);
+            $this->render('errors/500.php', ['error_message' => "Impossible de charger les données de votre tableau de bord."]);
+        }
+    }
+}
 
 /***********************************************************************************
  * Fichier: src/Backend/Controller\Etudiant\ProfilEtudiantController.php
  ***********************************************************************************/
 
+<?php
+// src/Backend/Controller/Etudiant/ProfilEtudiantController.php
 
+namespace App\Backend\Controller\Etudiant;
+
+use App\Backend\Controller\BaseController;
+use App\Backend\Service\Utilisateur\ServiceUtilisateurInterface;
+use App\Backend\Service\Securite\ServiceSecuriteInterface;
+use App\Backend\Service\Supervision\ServiceSupervisionInterface;
+use App\Backend\Util\FormValidator;
+
+class ProfilEtudiantController extends BaseController
+{
+    private ServiceUtilisateurInterface $serviceUtilisateur;
+
+    public function __construct(
+        ServiceSecuriteInterface $serviceSecurite,
+        ServiceSupervisionInterface $serviceSupervision,
+        FormValidator $formValidator,
+        ServiceUtilisateurInterface $serviceUtilisateur
+    ) {
+        parent::__construct($serviceSecurite, $serviceSupervision, $formValidator);
+        $this->serviceUtilisateur = $serviceUtilisateur;
+    }
+
+    /**
+     * Affiche le profil de l'étudiant connecté.
+     */
+    public function showProfile(): void
+    {
+        $this->checkPermission('ETUDIANT_PROFIL_READ');
+        $user = $this->serviceSecurite->getUtilisateurConnecte();
+        $this->render('Etudiant/profil_etudiant.php', [
+            'title' => 'Mon Profil',
+            'user' => $user
+        ]);
+    }
+
+    /**
+     * Traite la mise à jour du profil de l'étudiant.
+     */
+    public function updateProfile(): void
+    {
+        $this->checkPermission('ETUDIANT_PROFIL_UPDATE');
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !$this->verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+            $this->jsonResponse(['success' => false, 'message' => 'Requête invalide.'], 403);
+            return;
+        }
+
+        $user = $this->serviceSecurite->getUtilisateurConnecte();
+        $rules = [
+            'telephone' => 'max:20',
+            'email_contact_secondaire' => 'email|max:255',
+            'adresse_postale' => 'max:500'
+        ];
+
+        if (!$this->formValidator->validate($_POST, $rules)) {
+            $this->jsonResponse(['success' => false, 'errors' => $this->formValidator->getErrors()], 422);
+            return;
+        }
+
+        try {
+            $donneesProfil = [
+                'telephone' => $_POST['telephone'],
+                'email_contact_secondaire' => $_POST['email_contact_secondaire'],
+                'adresse_postale' => $_POST['adresse_postale']
+            ];
+            $this->serviceUtilisateur->mettreAJourUtilisateur($user['numero_utilisateur'], $donneesProfil, []);
+            $this->jsonResponse(['success' => true, 'message' => 'Profil mis à jour avec succès.']);
+        } catch (\Exception $e) {
+            $this->jsonResponse(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+}
 
 /***********************************************************************************
  * Fichier: src/Backend/Controller\Etudiant\RapportController.php
  ***********************************************************************************/
 
+<?php
+// src/Backend/Controller/Etudiant/RapportController.php
 
+namespace App\Backend\Controller\Etudiant;
+
+use App\Backend\Controller\BaseController;
+use App\Backend\Service\WorkflowSoutenance\ServiceWorkflowSoutenanceInterface;
+use App\Backend\Service\Securite\ServiceSecuriteInterface;
+use App\Backend\Service\Supervision\ServiceSupervisionInterface;
+use App\Backend\Util\FormValidator;
+
+class RapportController extends BaseController
+{
+    private ServiceWorkflowSoutenanceInterface $serviceWorkflow;
+
+    public function __construct(
+        ServiceSecuriteInterface $serviceSecurite,
+        ServiceSupervisionInterface $serviceSupervision,
+        FormValidator $formValidator,
+        ServiceWorkflowSoutenanceInterface $serviceWorkflow
+    ) {
+        parent::__construct($serviceSecurite, $serviceSupervision, $formValidator);
+        $this->serviceWorkflow = $serviceWorkflow;
+    }
+
+    /**
+     * Affiche le formulaire de rédaction/édition du rapport.
+     */
+    public function showRapportForm(): void
+    {
+        $this->checkPermission('TRAIT_ETUDIANT_RAPPORT_SUIVRE');
+        $user = $this->serviceSecurite->getUtilisateurConnecte();
+        $rapport = $this->serviceWorkflow->lireRapportCompletParEtudiant($user['numero_utilisateur']);
+        $this->render('Etudiant/redaction_rapport.php', [
+            'title' => 'Mon Rapport',
+            'rapport' => $rapport
+        ]);
+    }
+
+    /**
+     * Sauvegarde le brouillon du rapport.
+     */
+    public function saveRapport(): void
+    {
+        $this->checkPermission('ETUDIANT_RAPPORT_EDIT');
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !$this->verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+            $this->jsonResponse(['success' => false, 'message' => 'Requête invalide.'], 403);
+            return;
+        }
+
+        $user = $this->serviceSecurite->getUtilisateurConnecte();
+        try {
+            $metadonnees = ['libelle_rapport_etudiant' => $_POST['titre'], 'theme' => $_POST['theme']];
+            $sections = $_POST['sections'] ?? []; // Supposant que les sections sont envoyées sous forme de tableau
+            $this->serviceWorkflow->creerOuMettreAJourBrouillon($user['numero_utilisateur'], $metadonnees, $sections);
+            $this->jsonResponse(['success' => true, 'message' => 'Brouillon sauvegardé.']);
+        } catch (\Exception $e) {
+            $this->jsonResponse(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Soumet le rapport pour validation.
+     */
+    public function submitRapport(): void
+    {
+        $this->checkPermission('TRAIT_ETUDIANT_RAPPORT_SOUMETTRE');
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !$this->verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+            $this->jsonResponse(['success' => false, 'message' => 'Requête invalide.'], 403);
+            return;
+        }
+
+        $user = $this->serviceSecurite->getUtilisateurConnecte();
+        $idRapport = $_POST['id_rapport'];
+        try {
+            $this->serviceWorkflow->soumettreRapport($idRapport, $user['numero_utilisateur']);
+            $this->jsonResponse(['success' => true, 'message' => 'Rapport soumis avec succès !', 'redirect' => '/etudiant/dashboard']);
+        } catch (\Exception $e) {
+            $this->jsonResponse(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+}
 
 /***********************************************************************************
  * Fichier: src/Backend/Controller\HomeController.php
@@ -555,11 +1229,6 @@ class HomeController extends BaseController
         parent::__construct($serviceSecurite, $serviceSupervision, $formValidator);
     }
 
-    /**
-     * Gère la racine du site ("/").
-     * Redirige vers le tableau de bord si l'utilisateur est connecté,
-     * sinon, vers la page de connexion.
-     */
     public function index(): void
     {
         if ($this->serviceSecurite->estUtilisateurConnecte()) {
@@ -574,10 +1243,162 @@ class HomeController extends BaseController
  * Fichier: src/Backend/Controller\PersonnelAdministratif\PersonnelDashboardController.php
  ***********************************************************************************/
 
+<?php
+// src/Backend/Controller/PersonnelAdministratif/PersonnelDashboardController.php
+
+namespace App\Backend\Controller\PersonnelAdministratif;
+
+use App\Backend\Controller\BaseController;
+use App\Backend\Service\WorkflowSoutenance\ServiceWorkflowSoutenanceInterface;
+use App\Backend\Service\Utilisateur\ServiceUtilisateurInterface;
+use App\Backend\Service\Securite\ServiceSecuriteInterface;
+use App\Backend\Service\Supervision\ServiceSupervisionInterface;
+use App\Backend\Util\FormValidator;
+
+class PersonnelDashboardController extends BaseController
+{
+    private ServiceWorkflowSoutenanceInterface $serviceWorkflow;
+    private ServiceUtilisateurInterface $serviceUtilisateur;
+
+    public function __construct(
+        ServiceSecuriteInterface $serviceSecurite,
+        ServiceSupervisionInterface $serviceSupervision,
+        FormValidator $formValidator,
+        ServiceWorkflowSoutenanceInterface $serviceWorkflow,
+        ServiceUtilisateurInterface $serviceUtilisateur
+    ) {
+        parent::__construct($serviceSecurite, $serviceSupervision, $formValidator);
+        $this->serviceWorkflow = $serviceWorkflow;
+        $this->serviceUtilisateur = $serviceUtilisateur;
+    }
+
+    /**
+     * Affiche le tableau de bord pour le personnel administratif.
+     * Le contenu est adapté en fonction du rôle (Agent de conformité ou RS).
+     */
+    public function index(): void
+    {
+        $this->checkPermission('TRAIT_PERS_ADMIN_DASHBOARD_ACCEDER');
+        $user = $this->serviceSecurite->getUtilisateurConnecte();
+        $data = ['title' => 'Tableau de Bord Administratif'];
+
+        try {
+            if ($user['id_groupe_utilisateur'] === 'GRP_AGENT_CONFORMITE') {
+                $data['rapportsEnAttente'] = $this->serviceWorkflow->listerRapports(['id_statut_rapport' => 'RAP_SOUMIS']);
+            } elseif ($user['id_groupe_utilisateur'] === 'GRP_RS') {
+                $data['etudiantsAActiver'] = $this->serviceUtilisateur->listerUtilisateursComplets(['statut_compte' => 'en_attente_activation']);
+            }
+            $this->render('PersonnelAdministratif/dashboard_personnel.php', $data);
+        } catch (\Exception $e) {
+            $this->serviceSupervision->enregistrerAction($user['numero_utilisateur'], 'DASHBOARD_PERSONNEL_ERROR', null, null, ['error' => $e->getMessage()]);
+            $this->render('errors/500.php', ['error_message' => "Impossible de charger les données du tableau de bord."]);
+        }
+    }
+}
 
 
 /***********************************************************************************
  * Fichier: src/Backend/Controller\PersonnelAdministratif\ScolariteController.php
  ***********************************************************************************/
 
+<?php
+// src/Backend/Controller/PersonnelAdministratif/ScolariteController.php
 
+namespace App\Backend\Controller\PersonnelAdministratif;
+
+use App\Backend\Controller\BaseController;
+use App\Backend\Service\WorkflowSoutenance\ServiceWorkflowSoutenanceInterface;
+use App\Backend\Service\Utilisateur\ServiceUtilisateurInterface;
+use App\Backend\Service\Securite\ServiceSecuriteInterface;
+use App\Backend\Service\Supervision\ServiceSupervisionInterface;
+use App\Backend\Util\FormValidator;
+
+class ScolariteController extends BaseController
+{
+    private ServiceWorkflowSoutenanceInterface $serviceWorkflow;
+    private ServiceUtilisateurInterface $serviceUtilisateur;
+
+    public function __construct(
+        ServiceSecuriteInterface $serviceSecurite,
+        ServiceSupervisionInterface $serviceSupervision,
+        FormValidator $formValidator,
+        ServiceWorkflowSoutenanceInterface $serviceWorkflow,
+        ServiceUtilisateurInterface $serviceUtilisateur
+    ) {
+        parent::__construct($serviceSecurite, $serviceSupervision, $formValidator);
+        $this->serviceWorkflow = $serviceWorkflow;
+        $this->serviceUtilisateur = $serviceUtilisateur;
+    }
+
+    public function listConformiteQueue(): void
+    {
+        $this->checkPermission('TRAIT_PERS_ADMIN_CONFORMITE_LISTER');
+        $rapports = $this->serviceWorkflow->listerRapports(['id_statut_rapport' => 'RAP_SOUMIS']);
+        $this->render('PersonnelAdministratif/gestion_conformite.php', [
+            'title' => 'File de Vérification de Conformité',
+            'rapports' => $rapports
+        ]);
+    }
+
+    public function showConformiteForm(string $id): void
+    {
+        $this->checkPermission('TRAIT_PERS_ADMIN_CONFORMITE_VERIFIER');
+        $rapport = $this->serviceWorkflow->lireRapportComplet($id);
+        if (!$rapport) {
+            $this->render('errors/404.php');
+            return;
+        }
+        $this->render('PersonnelAdministratif/form_conformite.php', [
+            'title' => 'Vérification du Rapport',
+            'rapport' => $rapport
+        ]);
+    }
+
+    public function processConformite(string $id): void
+    {
+        $this->checkPermission('TRAIT_PERS_ADMIN_CONFORMITE_VERIFIER');
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !$this->verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+            $this->jsonResponse(['success' => false, 'message' => 'Requête invalide.'], 403);
+            return;
+        }
+
+        $user = $this->serviceSecurite->getUtilisateurConnecte();
+        try {
+            $estConforme = ($_POST['decision_conformite'] === 'conforme');
+            $details = $_POST['checklist'] ?? [];
+            $commentaire = $_POST['commentaire_general'] ?? null;
+            $this->serviceWorkflow->traiterVerificationConformite($id, $user['numero_utilisateur'], $estConforme, $details, $commentaire);
+            $this->jsonResponse(['success' => true, 'message' => 'Vérification enregistrée.', 'redirect' => '/personnel/conformite']);
+        } catch (\Exception $e) {
+            $this->jsonResponse(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function listStudentRecords(): void
+    {
+        $this->checkPermission('TRAIT_PERS_ADMIN_SCOLARITE_ACCEDER');
+        $etudiants = $this->serviceUtilisateur->listerUtilisateursComplets(['id_type_utilisateur' => 'TYPE_ETUD']);
+        $this->render('PersonnelAdministratif/gestion_scolarite.php', [
+            'title' => 'Gestion des Dossiers Étudiants',
+            'etudiants' => $etudiants
+        ]);
+    }
+
+    public function activateStudentAccount(): void
+    {
+        $this->checkPermission('PERS_ADMIN_ACTIVATE_ACCOUNT');
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !$this->verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+            $this->jsonResponse(['success' => false, 'message' => 'Requête invalide.'], 403);
+            return;
+        }
+
+        $numeroEtudiant = $_POST['numero_etudiant'];
+        try {
+// Le service doit vérifier les prérequis (paiement, stage) avant d'activer
+            $this->serviceUtilisateur->activerComptePourEntite($numeroEtudiant, $_POST, true);
+            $this->jsonResponse(['success' => true, 'message' => 'Compte étudiant activé avec succès.']);
+        } catch (\Exception $e) {
+            $this->jsonResponse(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+}
