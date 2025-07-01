@@ -1,0 +1,31 @@
+{
+  "name": "gestionsoutenance-frontend",
+  "version": "1.0.0",
+  "description": "Frontend dependencies for GestionMySoutenance authentication interface",
+  "private": true,
+  "scripts": {
+    "install": "npm install",
+    "build": "echo 'No build process needed - using direct links to node_modules'",
+    "dev": "echo 'Development mode ready'"
+  },
+  "dependencies": {
+    "daisyui": "^4.12.10",
+    "bulma": "^1.0.1",
+    "gsap": "^3.12.5",
+    "@fortawesome/fontawesome-free": "^6.6.0"
+  },
+  "devDependencies": {},
+  "browserslist": [
+    "> 1%",
+    "last 2 versions",
+    "not dead"
+  ],
+  "keywords": [
+    "authentication",
+    "ui",
+    "frontend",
+    "soutenance"
+  ],
+  "author": "GestionMySoutenance Team",
+  "license": "proprietary"
+}
