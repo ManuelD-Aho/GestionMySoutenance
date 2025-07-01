@@ -7,7 +7,7 @@ use PDO;
 
 class RapportEtudiant extends BaseModel
 {
-    protected string $table = 'rapport_etudiant';
+    public string $table = 'rapport_etudiant';
     protected string|array $primaryKey = 'id_rapport_etudiant';
     protected array $fields = [
         'id_rapport_etudiant', 'libelle_rapport_etudiant', 'theme', 'resume', 'numero_attestation_stage',

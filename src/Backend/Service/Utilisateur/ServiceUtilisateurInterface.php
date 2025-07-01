@@ -17,6 +17,8 @@ interface ServiceUtilisateurInterface
     // --- Gestion des Comptes ---
     public function changerStatutCompte(string $numeroUtilisateur, string $nouveauStatut): bool;
     public function reinitialiserMotDePasseAdmin(string $id): bool;
+    public function renvoyerEmailValidation(string $numeroUtilisateur): bool;
+    public function telechargerPhotoProfil(string $numeroUtilisateur, array $fileData): string;
 
     // --- Gestion des Délégations ---
     public function creerDelegation(string $idDelegant, string $idDelegue, string $idTraitement, string $dateDebut, string $dateFin, ?string $contexteId = null, ?string $contexteType = null): string;

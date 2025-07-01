@@ -133,8 +133,15 @@ class ServiceSupervision implements ServiceSupervisionInterface
         if (!empty($filtres)) {
             $whereParts = [];
             foreach ($filtres as $key => $value) {
-                $whereParts[] = "enr.`{$key}` = :{$key}";
-                $params[":{$key}"] = $value;
+                // Handle search filter separately for LIKE matching
+                if ($key === 'search') {
+                    $search = '%' . $value . '%';
+                    $whereParts[] = "(enr.id_enregistrement LIKE :search OR enr.numero_utilisateur LIKE :search OR act.libelle_action LIKE :search OR enr.id_entite_concernee LIKE :search OR enr.type_entite_concernee LIKE :search)";
+                    $params[':search'] = $search;
+                } else {
+                    $whereParts[] = "enr.`{$key}` = :{$key}";
+                    $params[":{$key}"] = $value;
+                }
             }
             $sql .= " WHERE " . implode(" AND ", $whereParts);
         }

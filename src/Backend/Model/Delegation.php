@@ -7,7 +7,7 @@ use PDO;
 
 class Delegation extends BaseModel
 {
-    protected string $table = 'delegation';
+    public string $table = 'delegation';
     protected string|array $primaryKey = 'id_delegation';
 
     public function __construct(PDO $db)

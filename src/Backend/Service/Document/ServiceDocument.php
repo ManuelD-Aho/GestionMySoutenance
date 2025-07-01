@@ -10,6 +10,7 @@ use App\Backend\Model\RapportEtudiant;
 use App\Backend\Service\Systeme\ServiceSystemeInterface;
 use App\Backend\Service\Supervision\ServiceSupervisionInterface;
 use App\Backend\Exception\{ElementNonTrouveException, OperationImpossibleException, ValidationException};
+use PhpOffice\PhpWord\IOFactory as WordIOFactory; // For .docx import
 
 class ServiceDocument implements ServiceDocumentInterface
 {
@@ -241,6 +242,35 @@ class ServiceDocument implements ServiceDocumentInterface
     public function listerModelesDocument(string $type = 'pdf'): array
     {
         return $this->modeleDocumentModel->trouverParCritere(['type_modele' => $type]);
+    }
+
+    public function importerModeleDocumentWord(array $fileData): string
+    {
+        if (!isset($fileData['error']) || is_array($fileData['error']) || $fileData['error'] !== UPLOAD_ERR_OK) {
+            throw new ValidationException("Erreur lors de l'upload du fichier Word.");
+        }
+
+        $filePath = $fileData['tmp_name'];
+        $fileExtension = pathinfo($fileData['name'], PATHINFO_EXTENSION);
+
+        if (!in_array($fileExtension, ['docx'])) {
+            throw new ValidationException("Seuls les fichiers .docx sont autorisés pour l'import de modèle.");
+        }
+
+        try {
+            $phpWord = WordIOFactory::load($filePath);
+            $htmlWriter = new \PhpOffice\PhpWord\Writer\HTML($phpWord);
+            $htmlContent = $htmlWriter->getContent();
+
+            // Nettoyage basique du HTML généré (peut nécessiter un nettoyage plus avancé)
+            $htmlContent = preg_replace('/<img[^>]+>/', '', $htmlContent); // Supprime les images
+            $htmlContent = preg_replace('/style="[^"]*"/i', '', $htmlContent); // Supprime les styles inline
+
+            $nomModele = pathinfo($fileData['name'], PATHINFO_FILENAME);
+            return $this->creerModeleDocument($nomModele, $htmlContent, 'pdf'); // Supposons que les modèles Word sont pour les PDF
+        } catch (\Exception $e) {
+            throw new OperationImpossibleException("Échec de l'importation du modèle Word : " . $e->getMessage());
+        }
     }
 
     // --- Section 3: Gestion des Fichiers Uploadés ---

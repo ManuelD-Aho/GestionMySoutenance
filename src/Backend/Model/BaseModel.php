@@ -9,7 +9,7 @@ use App\Backend\Exception\DoublonException;
 
 abstract class BaseModel
 {
-    protected string $table;
+    public string $table; // Changé de protected à public
     protected string|array $primaryKey;
     protected PDO $db;
 
@@ -21,6 +21,16 @@ abstract class BaseModel
     public function getDb(): PDO
     {
         return $this->db;
+    }
+
+    public function getTable(): string // Changé de protected à public
+    {
+        return $this->table;
+    }
+
+    public function getClePrimaire(): array|string
+    {
+        return $this->primaryKey;
     }
 
     public function trouverTout(array $colonnes = ['*']): array

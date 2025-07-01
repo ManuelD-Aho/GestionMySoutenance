@@ -3,56 +3,6 @@
  * Fichier: src/css\input.css
  ***********************************************************************************/
 
-@import 'bulma/css/bulma.min.css';
-/* Importe les dépendances depuis node_modules */
-@import 'tailwindcss/base';
-@import 'tailwindcss/components';
-@import 'tailwindcss/utilities';
-@import 'bulma/css/bulma.css';
-
-/* Vous pouvez ajouter vos propres styles personnalisés ici */
-/*
- * Fichier: src/css/input.css
- * Description: Point d'entrée pour la compilation PostCSS.
- * Ce fichier importe Tailwind, Bulma, et les styles personnalisés.
- */
-
-/* 1. Importation des directives de base de Tailwind CSS. */
 @tailwind base;
-
-/* 2. Importation de Bulma.
- * Nous l'importons ici pour pouvoir utiliser ses composants (.button, .notification)
- * tout en gardant la possibilité de les surcharger avec les utilitaires Tailwind.
- */
-
-/* 3. Importation des composants et utilitaires de Tailwind.
- * DaisyUI est injecté automatiquement ici car il est configuré comme un plugin.
- */
 @tailwind components;
 @tailwind utilities;
-
-/* 4. Styles personnalisés de l'application. */
-@layer components {
-    /* Ajoute une transition douce aux éléments pour une meilleure UX */
-    .btn, .input, .card, .tab {
-        transition: all 0.2s ease-in-out;
-    }
-
-    /* Style pour le spinner de chargement dans les boutons DaisyUI */
-    .btn .loading-spinner {
-        display: none; /* Caché par défaut */
-    }
-    .btn.loading .loading-spinner,
-    .btn:disabled .loading-spinner {
-        display: inline-block; /* Affiché quand le bouton est en chargement/désactivé */
-    }
-    .btn.loading > *:not(.loading-spinner),
-    .btn:disabled > *:not(.loading-spinner) {
-        /* Cache le texte du bouton pendant le chargement, mais garde l'icône si elle existe */
-        visibility: hidden;
-    }
-    .btn.loading > .loading-spinner + *,
-    .btn:disabled > .loading-spinner + * {
-        visibility: visible;
-    }
-}

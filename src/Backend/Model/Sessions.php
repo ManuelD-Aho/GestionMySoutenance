@@ -7,7 +7,7 @@ use PDO;
 
 class Sessions extends BaseModel
 {
-    protected string $table = 'sessions';
+    public string $table = 'sessions';
     protected string|array $primaryKey = 'session_id';
     protected array $fields = [
         'session_id', 'session_data', 'session_last_activity', 'session_lifetime', 'user_id'

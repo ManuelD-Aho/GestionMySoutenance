@@ -141,6 +141,21 @@ class ServiceWorkflowSoutenance implements ServiceWorkflowSoutenanceInterface
         return $this->rapportModel->trouverRapportsAvecDetailsEtudiant($filtres);
     }
 
+    public function forcerChangementStatutRapport(string $idRapport, string $nouveauStatut, string $adminId, string $justification): bool
+    {
+        $rapport = $this->rapportModel->trouverParIdentifiant($idRapport);
+        if (!$rapport) throw new ElementNonTrouveException("Rapport non trouvé.");
+
+        $success = $this->rapportModel->mettreAJourParIdentifiant($idRapport, ['id_statut_rapport' => $nouveauStatut]);
+
+        if ($success) {
+            $this->supervisionService->enregistrerAction($adminId, 'FORCER_CHANGEMENT_STATUT_RAPPORT', $idRapport, 'RapportEtudiant', ['ancien_statut' => $rapport['id_statut_rapport'], 'nouveau_statut' => $nouveauStatut, 'justification' => $justification]);
+            // Notifier l'étudiant du changement de statut forcé
+            $this->communicationService->envoyerNotificationInterne($rapport['numero_carte_etudiant'], 'STATUT_RAPPORT_FORCE', "Le statut de votre rapport a été modifié manuellement par l'administration : {$nouveauStatut}. Justification : {$justification}");
+        }
+        return $success;
+    }
+
     // ====================================================================
     // PHASE 2: VÉRIFICATION DE CONFORMITÉ
     // ====================================================================
@@ -230,6 +245,15 @@ class ServiceWorkflowSoutenance implements ServiceWorkflowSoutenanceInterface
         return $this->sessionValidationModel->mettreAJourParIdentifiant($idSession, ['statut_session' => 'suspendue']);
     }
 
+    public function reprendreSession(string $idSession): bool
+    {
+        $session = $this->sessionValidationModel->trouverParIdentifiant($idSession);
+        if (!$session) throw new ElementNonTrouveException("Session non trouvée.");
+        if ($session['statut_session'] !== 'suspendue') throw new OperationImpossibleException("Seule une session suspendue peut être reprise.");
+
+        return $this->sessionValidationModel->mettreAJourParIdentifiant($idSession, ['statut_session' => 'en_cours']);
+    }
+
     public function cloturerSession(string $idSession): bool
     {
         $rapportsEnCours = $this->sessionRapportModel->trouverParCritere(['id_session' => $idSession, 'statut_rapport' => 'EN_DELIBERATION']);
@@ -250,6 +274,34 @@ class ServiceWorkflowSoutenance implements ServiceWorkflowSoutenanceInterface
         if (!$session) return null;
         $session['rapports'] = $this->listerRapports(['id_session' => $idSession]); // Suppose une jointure
         return $session;
+    }
+
+    public function designerRapporteur(string $idRapport, string $numeroEnseignantRapporteur): bool
+    {
+        // Cette logique dépend de la structure de votre table 'affecter' ou d'une nouvelle table 'rapporteur_rapport'
+        // Pour l'exemple, nous allons supposer que 'affecter' peut être utilisée avec un statut spécifique.
+        return (bool) $this->affecterModel->creer([
+            'numero_enseignant' => $numeroEnseignantRapporteur,
+            'id_rapport_etudiant' => $idRapport,
+            'id_statut_jury' => 'JURY_RAPPORTEUR', // Assurez-vous que ce statut existe dans statut_jury
+            'directeur_memoire' => 0, // Ce n'est pas un directeur de mémoire
+            'date_affectation' => date('Y-m-d H:i:s')
+        ]);
+    }
+
+    public function recuserMembre(string $idSession, string $numeroEnseignant, string $justification): bool
+    {
+        // Logique pour marquer un membre comme récusé pour une session spécifique
+        // Cela pourrait impliquer une table de liaison session_membre_recuse ou une mise à jour dans affecter
+        // Pour l'exemple, nous allons juste enregistrer l'action.
+        $this->supervisionService->enregistrerAction(
+            $_SESSION['user_id'],
+            'RECUSATION_MEMBRE_COMMISSION',
+            $idSession,
+            'SessionValidation',
+            ['membre_recuse' => $numeroEnseignant, 'justification' => $justification]
+        );
+        return true;
     }
 
     // ====================================================================

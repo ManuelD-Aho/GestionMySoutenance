@@ -19,6 +19,7 @@ interface ServiceDocumentInterface
     public function mettreAJourModeleDocument(string $idModele, string $nom, string $contenuHtml): bool;
     public function supprimerModeleDocument(string $idModele): bool;
     public function listerModelesDocument(string $type = 'pdf'): array;
+    public function importerModeleDocumentWord(array $fileData): string;
 
     // --- Section 3: Gestion des Fichiers ---
     public function uploadFichierSecurise(array $fileData, string $destinationType, array $allowedMimeTypes, int $maxSizeInBytes): string;

@@ -260,11 +260,4 @@ class ServiceParcoursAcademique implements ServiceParcoursAcademiqueInterface
             'details_ue' => $moyennesUE
         ];
     }
-
-
-
-
-
-
-
 }

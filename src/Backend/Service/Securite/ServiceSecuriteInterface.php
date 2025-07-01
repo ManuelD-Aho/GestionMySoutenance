@@ -3,8 +3,11 @@
 
 namespace App\Backend\Service\Securite;
 
+use App\Backend\Exception\OperationImpossibleException;
+use App\Backend\Exception\TokenExpireException;
+use App\Backend\Exception\TokenInvalideException;
 use App\Backend\Service\Communication\ServiceCommunicationInterface;
-
+use App\Backend\Model\Utilisateur;
 interface ServiceSecuriteInterface
 {
     //================================================================
@@ -55,4 +58,14 @@ interface ServiceSecuriteInterface
      * @return array La structure du menu prête à être parcourue dans une vue.
      */
     public function construireMenuPourUtilisateurConnecte(): array;
+    /**
+     * Valide l'adresse email d'un utilisateur via un token.
+     *
+     * @param string $tokenClair Le token de validation en clair.
+     * @return array Les données de l'utilisateur validé.
+     * @throws TokenInvalideException Si le token est invalide ou déjà utilisé.
+     * @throws TokenExpireException Si le token a expiré.
+     * @throws OperationImpossibleException Si l'email est déjà validé.
+     */
+    public function validateEmailToken(string $tokenClair): array;
 }

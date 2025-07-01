@@ -7,7 +7,7 @@ use PDO;
 
 class Reclamation extends BaseModel
 {
-    protected string $table = 'reclamation';
+    public string $table = 'reclamation';
     protected string|array $primaryKey = 'id_reclamation';
     protected array $fields = [
         'id_reclamation', 'numero_carte_etudiant', 'sujet_reclamation', 'description_reclamation',

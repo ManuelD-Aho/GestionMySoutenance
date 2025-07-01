@@ -23,4 +23,5 @@ interface ServiceCommunicationInterface
     public function mettreAJourModeleNotification(string $id, string $libelle, string $contenu): bool;
     public function listerReglesMatrice(): array;
     public function mettreAJourRegleMatrice(string $idRegle, string $canal, bool $estActive): bool;
+    public function archiverConversationsInactives(int $jours): int;
 }

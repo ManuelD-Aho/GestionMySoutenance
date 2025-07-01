@@ -29,7 +29,7 @@ class ServiceSecurite implements ServiceSecuriteInterface
     private HistoriqueMotDePasse $historiqueMdpModel;
     private Sessions $sessionsModel;
     private GenericModel $rattacherModel;
-    private GenericModel $traitementModel;
+    private GenericModel $traitementModel; // Assurez-vous que ce modèle est bien injecté et représente la table 'traitement'
     private Delegation $delegationModel;
     private ServiceSupervisionInterface $supervisionService;
 
@@ -44,7 +44,7 @@ class ServiceSecurite implements ServiceSecuriteInterface
         HistoriqueMotDePasse $historiqueMdpModel,
         Sessions $sessionsModel,
         GenericModel $rattacherModel,
-        GenericModel $traitementModel,
+        GenericModel $traitementModel, // Assurez-vous que ce modèle est bien injecté
         Delegation $delegationModel,
         ServiceSupervisionInterface $supervisionService
     ) {
@@ -53,7 +53,7 @@ class ServiceSecurite implements ServiceSecuriteInterface
         $this->historiqueMdpModel = $historiqueMdpModel;
         $this->sessionsModel = $sessionsModel;
         $this->rattacherModel = $rattacherModel;
-        $this->traitementModel = $traitementModel;
+        $this->traitementModel = $traitementModel; // Initialisation
         $this->delegationModel = $delegationModel;
         $this->supervisionService = $supervisionService;
     }
@@ -370,10 +370,10 @@ class ServiceSecurite implements ServiceSecuriteInterface
 
         // 1. Récupérer tous les éléments de menu auxquels l'utilisateur a droit
         $placeholders = implode(',', array_fill(0, count($permissionsUtilisateur), '?'));
-        $sql = "SELECT id_traitement, libelle_menu, url_associee, icone_class, id_parent_traitement 
-                FROM `{$this->traitementModel->getDb()->quote($this->traitementModel->getTable())}`
-                WHERE est_visible_menu = 1 AND id_traitement IN ($placeholders)
-                ORDER BY ordre_affichage ASC";
+        $sql = "SELECT id_traitement, libelle_traitement AS libelle_menu, url_associee, icone_class, id_parent_traitement, ordre_affichage 
+                FROM `{$this->traitementModel->table}`
+                WHERE id_traitement LIKE 'MENU_%' AND id_traitement IN ($placeholders)
+                ORDER BY ordre_affichage ASC, libelle_traitement ASC"; // Utiliser ordre_affichage ici
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute($permissionsUtilisateur);
@@ -404,7 +404,50 @@ class ServiceSecurite implements ServiceSecuriteInterface
             }
         }
 
+        // Trier les éléments de premier niveau et leurs enfants par ordre_affichage
+        usort($menuHierarchique, function($a, $b) {
+            return $a['ordre_affichage'] <=> $b['ordre_affichage'];
+        });
+        foreach ($menuHierarchique as &$item) {
+            if (!empty($item['enfants'])) {
+                usort($item['enfants'], function($a, $b) {
+                    return $a['ordre_affichage'] <=> $b['ordre_affichage'];
+                });
+            }
+        }
+        unset($item); // Rompre la référence
+
         return $menuHierarchique;
+    }
+
+    public function updateMenuStructure(array $menuStructure): bool
+    {
+        $this->db->beginTransaction();
+        try {
+            foreach ($menuStructure as $item) {
+                // Valider les données de l'élément de menu
+                if (!isset($item['id_traitement']) || !isset($item['ordre_affichage'])) {
+                    throw new OperationImpossibleException("Structure de menu invalide: id_traitement ou ordre_affichage manquant.");
+                }
+
+                $dataToUpdate = [
+                    'ordre_affichage' => (int) $item['ordre_affichage'],
+                    'id_parent_traitement' => $item['id_parent_traitement'] ?? null // Peut être null pour les éléments racines
+                ];
+
+                $success = $this->traitementModel->mettreAJourParIdentifiant($item['id_traitement'], $dataToUpdate);
+
+                if (!$success) {
+                    throw new OperationImpossibleException("Échec de la mise à jour de l'élément de menu: " . $item['id_traitement']);
+                }
+            }
+            $this->db->commit();
+            $this->supervisionService->enregistrerAction($_SESSION['user_id'] ?? 'SYSTEM', 'UPDATE_MENU_STRUCTURE', null, 'Menu', ['structure' => $menuStructure]);
+            return true;
+        } catch (\Exception $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
     }
 
     //================================================================
@@ -501,5 +544,65 @@ class ServiceSecurite implements ServiceSecuriteInterface
     {
         // Utilisation de la méthode spécifique du modèle Delegation
         return $this->delegationModel->trouverDelegationActivePourUtilisateur($numeroUtilisateur);
+    }
+    //================================================================
+    // SECTION 8 : VALIDATION D'EMAIL
+    //================================================================
+
+    /**
+     * Valide l'adresse email d'un utilisateur à partir d'un token fourni.
+     *
+     * @param string $tokenClair Le token reçu dans l'URL de validation.
+     * @return array Les données de l'utilisateur dont l'email vient d'être validé.
+     * @throws TokenInvalideException Si le token ne correspond à aucun utilisateur.
+     * @throws OperationImpossibleException Si l'email de l'utilisateur est déjà validé.
+     * @throws TokenExpireException Si le token a dépassé sa date de validité.
+     */
+    public function validateEmailToken(string $tokenClair): array
+    {
+        // 1. Hacher le token reçu pour le comparer à celui stocké en base de données.
+        $tokenHache = hash('sha256', $tokenClair);
+
+        // 2. Chercher l'utilisateur correspondant à ce token de validation.
+        $utilisateur = $this->utilisateurModel->trouverParTokenValidationEmail($tokenHache);
+
+        // 3. Gérer les cas d'erreur.
+        if (!$utilisateur) {
+            // Le token est incorrect ou a déjà été utilisé et effacé.
+            throw new TokenInvalideException("Token de validation d'email invalide ou déjà utilisé.");
+        }
+
+        if ($utilisateur['email_valide']) {
+            // L'email a déjà été validé, l'action n'a plus lieu d'être.
+            throw new OperationImpossibleException("L'email est déjà validé pour cet utilisateur.");
+        }
+
+        // La colonne d'expiration du token de mot de passe est réutilisée pour la validation d'email.
+        if ($utilisateur['date_expiration_token_reset'] && new \DateTime() > new \DateTime($utilisateur['date_expiration_token_reset'])) {
+            throw new TokenExpireException("Le token de validation d'email a expiré. Veuillez demander un nouveau lien.");
+        }
+
+        // 4. Mettre à jour le statut de l'utilisateur.
+        $success = $this->utilisateurModel->mettreAJourParIdentifiant($utilisateur['numero_utilisateur'], [
+            'email_valide' => 1, // Marquer l'email comme validé.
+            'token_validation_email' => null, // Effacer le token pour qu'il ne puisse pas être réutilisé.
+            'date_expiration_token_reset' => null // Effacer la date d'expiration associée.
+        ]);
+
+        if (!$success) {
+            // Si la mise à jour échoue pour une raison inattendue.
+            throw new OperationImpossibleException("Échec de la mise à jour du statut de l'email.");
+        }
+
+        // 5. Enregistrer l'action dans le journal d'audit.
+        $this->supervisionService->enregistrerAction(
+            $utilisateur['numero_utilisateur'],
+            'VALIDATION_EMAIL_SUCCES',
+            $utilisateur['numero_utilisateur'],
+            'Utilisateur'
+        );
+
+        // 6. Retourner les données de l'utilisateur pour confirmation ou redirection.
+        return $utilisateur;
     }
 }

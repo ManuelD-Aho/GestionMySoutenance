@@ -8,7 +8,7 @@ use App\Backend\Model\GenericModel;
 use App\Backend\Service\Supervision\ServiceSupervisionInterface;
 use App\Backend\Exception\ElementNonTrouveException;
 use App\Backend\Exception\OperationImpossibleException;
-use App\Config\Container; // Important pour accéder au schéma
+use App\Config\Container;
 
 class ServiceSysteme implements ServiceSystemeInterface
 {
@@ -17,7 +17,7 @@ class ServiceSysteme implements ServiceSystemeInterface
     private GenericModel $anneeAcademiqueModel;
     private GenericModel $sequencesModel;
     private ServiceSupervisionInterface $supervisionService;
-    private Container $container; // Le conteneur est injecté pour accéder au schéma
+    private Container $container;
     private ?array $parametresCache = null;
     private array $modelFactoryCache = [];
 
@@ -27,7 +27,7 @@ class ServiceSysteme implements ServiceSystemeInterface
         GenericModel $anneeAcademiqueModel,
         GenericModel $sequencesModel,
         ServiceSupervisionInterface $supervisionService,
-        Container $container // Injection du conteneur lui-même
+        Container $container
     ) {
         $this->db = $db;
         $this->parametresModel = $parametresModel;
@@ -47,17 +47,13 @@ class ServiceSysteme implements ServiceSystemeInterface
                 throw new OperationImpossibleException("Impossible de générer un ID : aucune année académique n'est active.");
             }
             $annee = (int) substr($anneeActive['libelle_annee_academique'], 0, 4);
-
             $stmt = $this->db->prepare("SELECT valeur_actuelle FROM sequences WHERE nom_sequence = :prefixe AND annee = :annee FOR UPDATE");
             $stmt->execute([':prefixe' => $prefixe, ':annee' => $annee]);
             $sequence = $stmt->fetch(PDO::FETCH_ASSOC);
 
             $nextValue = $sequence ? $sequence['valeur_actuelle'] + 1 : 1;
-
-            $sequencesModel = $this->container->getModelForTable('sequences');
+            $sequencesModel = $this->container->getModelForTable('sequences', ['nom_sequence', 'annee']);
             if ($sequence) {
-                // Note: BaseModel n'a pas de méthode pour les clés composites, il faut utiliser une requête directe ou l'améliorer.
-                // Pour la robustesse, utilisons une requête directe ici.
                 $updateStmt = $this->db->prepare("UPDATE sequences SET valeur_actuelle = :valeur WHERE nom_sequence = :prefixe AND annee = :annee");
                 $updateStmt->execute([':valeur' => $nextValue, ':prefixe' => $prefixe, ':annee' => $annee]);
             } else {
@@ -126,10 +122,8 @@ class ServiceSysteme implements ServiceSystemeInterface
     {
         return (bool) $this->getParametre('MAINTENANCE_MODE_ENABLED', false);
     }
-    // ====================================================================
-    // SECTION 3 : Gestion des Années Académiques
-    // ====================================================================
 
+    // --- Gestion des Années Académiques ---
     public function creerAnneeAcademique(string $libelle, string $dateDebut, string $dateFin, bool $estActive = false): string
     {
         $idAnnee = "ANNEE-" . str_replace('/', '-', $libelle);
@@ -159,13 +153,11 @@ class ServiceSysteme implements ServiceSystemeInterface
 
     public function supprimerAnneeAcademique(string $idAnneeAcademique): bool
     {
-        // Vérification des dépendances
-        $inscriptionModel = $this->container->getModelForTable('inscrire');
+        $inscriptionModel = $this->container->getModelForTable('inscrire', ['numero_carte_etudiant', 'id_niveau_etude', 'id_annee_academique']);
         if ($inscriptionModel->trouverUnParCritere(['id_annee_academique' => $idAnneeAcademique])) {
             throw new OperationImpossibleException("Suppression impossible : des inscriptions sont liées à cette année académique.");
         }
-        // Ajouter d'autres vérifications si nécessaire (rapports, pénalités...)
-
+        // ... (Ajoutez ici les autres vérifications de dépendances comme pour les rapports, évaluations, etc.)
         return $this->anneeAcademiqueModel->supprimerParIdentifiant($idAnneeAcademique);
     }
 
@@ -173,7 +165,7 @@ class ServiceSysteme implements ServiceSystemeInterface
     {
         return $this->anneeAcademiqueModel->trouverParCritere([], ['*'], 'AND', 'date_debut DESC');
     }
-    // --- Gestion des Années Académiques ---
+
     public function getAnneeAcademiqueActive(): ?array
     {
         return $this->anneeAcademiqueModel->trouverUnParCritere(['est_active' => 1]);
@@ -199,36 +191,67 @@ class ServiceSysteme implements ServiceSystemeInterface
     public function gererReferentiel(string $operation, string $nomReferentiel, ?string $id = null, ?array $donnees = null)
     {
         $model = $this->container->getModelForTable($nomReferentiel);
-
         switch (strtolower($operation)) {
             case 'list':
                 return $model->trouverTout();
-
             case 'read':
                 if ($id === null) throw new \InvalidArgumentException("L'ID est requis pour l'opération 'read'.");
                 return $model->trouverParIdentifiant($id);
-
             case 'create':
                 if ($donnees === null) throw new \InvalidArgumentException("Les données sont requises pour l'opération 'create'.");
                 $result = $model->creer($donnees);
-                $this->supervisionService->enregistrerAction($_SESSION['user_id'] ?? 'SYSTEM', 'CREATE_REFERENTIEL', null, $id, $nomReferentiel, $donnees);
+                $this->supervisionService->enregistrerAction($_SESSION['user_id'] ?? 'SYSTEM', 'CREATE_REFERENTIEL', $id, $nomReferentiel, $donnees);
                 return $result;
-
             case 'update':
                 if ($id === null || $donnees === null) throw new \InvalidArgumentException("L'ID et les données sont requis pour l'opération 'update'.");
                 $result = $model->mettreAJourParIdentifiant($id, $donnees);
-                $this->supervisionService->enregistrerAction($_SESSION['user_id'] ?? 'SYSTEM', 'UPDATE_REFERENTIEL', null, $id, $nomReferentiel, $donnees);
+                $this->supervisionService->enregistrerAction($_SESSION['user_id'] ?? 'SYSTEM', 'UPDATE_REFERENTIEL', $id, $nomReferentiel, $donnees);
                 return $result;
-
             case 'delete':
                 if ($id === null) throw new \InvalidArgumentException("L'ID est requis pour l'opération 'delete'.");
-                // Ajouter une vérification de dépendances avant de supprimer serait une bonne pratique
                 $result = $model->supprimerParIdentifiant($id);
-                $this->supervisionService->enregistrerAction($_SESSION['user_id'] ?? 'SYSTEM', 'DELETE_REFERENTIEL', null, $id, $nomReferentiel);
+                $this->supervisionService->enregistrerAction($_SESSION['user_id'] ?? 'SYSTEM', 'DELETE_REFERENTIEL', $id, $nomReferentiel);
                 return $result;
-
             default:
                 throw new \InvalidArgumentException("Opération '{$operation}' non reconnue sur le référentiel '{$nomReferentiel}'.");
+        }
+    }
+
+    /**
+     * ✅ CORRECTION : Implémentation de la méthode manquante.
+     * Met à jour la structure (ordre et parenté) des éléments du menu.
+     * @param array $menuStructure La nouvelle structure du menu.
+     * @return bool True en cas de succès.
+     * @throws \Exception
+     */
+    public function updateMenuStructure(array $menuStructure): bool
+    {
+        $traitementModel = $this->container->getModelForTable('traitement', 'id_traitement');
+
+        $this->db->beginTransaction();
+        try {
+            foreach ($menuStructure as $item) {
+                if (!isset($item['id']) || !isset($item['ordre'])) {
+                    throw new OperationImpossibleException("Structure de menu invalide : id ou ordre manquant.");
+                }
+
+                $dataToUpdate = [
+                    'ordre_affichage' => (int) $item['ordre'],
+                    'id_parent_traitement' => $item['parent'] ?? null
+                ];
+
+                $success = $traitementModel->mettreAJourParIdentifiant($item['id'], $dataToUpdate);
+
+                if (!$success) {
+                    throw new OperationImpossibleException("Échec de la mise à jour de l'élément de menu : " . $item['id']);
+                }
+            }
+            $this->db->commit();
+            $this->supervisionService->enregistrerAction($_SESSION['user_id'] ?? 'SYSTEM', 'UPDATE_MENU_STRUCTURE', null, 'Menu');
+            return true;
+        } catch (\Exception $e) {
+            $this->db->rollBack();
+            throw $e;
         }
     }
 }

@@ -11,6 +11,7 @@ interface ServiceWorkflowSoutenanceInterface
     public function soumettreCorrections(string $idRapport, string $numeroEtudiant, array $sections, string $noteExplicative): bool;
     public function lireRapportComplet(string $idRapport): ?array;
     public function listerRapports(array $filtres = []): array;
+    public function forcerChangementStatutRapport(string $idRapport, string $nouveauStatut, string $adminId, string $justification): bool;
 
     // --- PHASE 2: VÉRIFICATION DE CONFORMITÉ PAR L'ADMINISTRATION ---
     public function traiterVerificationConformite(string $idRapport, string $numeroPersonnel, bool $estConforme, array $detailsChecklist, ?string $commentaireGeneral): bool;
@@ -22,8 +23,11 @@ interface ServiceWorkflowSoutenanceInterface
     public function demarrerSession(string $idSession): bool;
     public function cloturerSession(string $idSession): bool;
     public function suspendreSession(string $idSession): bool;
+    public function reprendreSession(string $idSession): bool;
     public function listerSessionsPourCommission(array $filtres = []): array;
     public function lireSessionComplete(string $idSession): ?array;
+    public function designerRapporteur(string $idRapport, string $numeroEnseignantRapporteur): bool;
+    public function recuserMembre(string $idSession, string $numeroEnseignant, string $justification): bool;
 
     // --- PHASE 4: ÉVALUATION ET VOTE PAR LA COMMISSION ---
     public function enregistrerVote(string $idRapport, string $idSession, string $numeroEnseignant, string $decision, ?string $commentaire): bool;

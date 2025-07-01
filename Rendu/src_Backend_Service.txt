@@ -239,6 +239,27 @@ class ServiceCommunication implements ServiceCommunicationInterface
         ]);
     }
 
+    public function archiverConversationsInactives(int $jours): int
+    {
+        $dateLimite = (new \DateTime())->modify("-{$jours} days")->format('Y-m-d H:i:s');
+        $sql = "UPDATE conversation c
+                LEFT JOIN (
+                    SELECT id_conversation, MAX(date_envoi) as last_message_date
+                    FROM message_chat
+                    GROUP BY id_conversation
+                ) mc ON c.id_conversation = mc.id_conversation
+                SET c.statut = 'Archivée'
+                WHERE (mc.last_message_date IS NULL AND c.date_creation_conv < :date_limite)
+                   OR (mc.last_message_date < :date_limite AND c.statut != 'Archivée')";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([':date_limite' => $dateLimite]);
+        $rowCount = $stmt->rowCount();
+        if ($rowCount > 0) {
+            $this->supervisionService->enregistrerAction('SYSTEM', 'ARCHIVAGE_CONVERSATIONS', null, 'Conversation', ['count' => $rowCount, 'days_inactive' => $jours]);
+        }
+        return $rowCount;
+    }
+
     // --- Méthode privée ---
     private function personnaliserMessage(string $message, array $variables): string
     {
@@ -278,6 +299,7 @@ interface ServiceCommunicationInterface
     public function mettreAJourModeleNotification(string $id, string $libelle, string $contenu): bool;
     public function listerReglesMatrice(): array;
     public function mettreAJourRegleMatrice(string $idRegle, string $canal, bool $estActive): bool;
+    public function archiverConversationsInactives(int $jours): int;
 }
 
 /***********************************************************************************
@@ -296,6 +318,7 @@ use App\Backend\Model\RapportEtudiant;
 use App\Backend\Service\Systeme\ServiceSystemeInterface;
 use App\Backend\Service\Supervision\ServiceSupervisionInterface;
 use App\Backend\Exception\{ElementNonTrouveException, OperationImpossibleException, ValidationException};
+use PhpOffice\PhpWord\IOFactory as WordIOFactory; // For .docx import
 
 class ServiceDocument implements ServiceDocumentInterface
 {
@@ -529,6 +552,35 @@ class ServiceDocument implements ServiceDocumentInterface
         return $this->modeleDocumentModel->trouverParCritere(['type_modele' => $type]);
     }
 
+    public function importerModeleDocumentWord(array $fileData): string
+    {
+        if (!isset($fileData['error']) || is_array($fileData['error']) || $fileData['error'] !== UPLOAD_ERR_OK) {
+            throw new ValidationException("Erreur lors de l'upload du fichier Word.");
+        }
+
+        $filePath = $fileData['tmp_name'];
+        $fileExtension = pathinfo($fileData['name'], PATHINFO_EXTENSION);
+
+        if (!in_array($fileExtension, ['docx'])) {
+            throw new ValidationException("Seuls les fichiers .docx sont autorisés pour l'import de modèle.");
+        }
+
+        try {
+            $phpWord = WordIOFactory::load($filePath);
+            $htmlWriter = new \PhpOffice\PhpWord\Writer\HTML($phpWord);
+            $htmlContent = $htmlWriter->getContent();
+
+            // Nettoyage basique du HTML généré (peut nécessiter un nettoyage plus avancé)
+            $htmlContent = preg_replace('/<img[^>]+>/', '', $htmlContent); // Supprime les images
+            $htmlContent = preg_replace('/style="[^"]*"/i', '', $htmlContent); // Supprime les styles inline
+
+            $nomModele = pathinfo($fileData['name'], PATHINFO_FILENAME);
+            return $this->creerModeleDocument($nomModele, $htmlContent, 'pdf'); // Supposons que les modèles Word sont pour les PDF
+        } catch (\Exception $e) {
+            throw new OperationImpossibleException("Échec de l'importation du modèle Word : " . $e->getMessage());
+        }
+    }
+
     // --- Section 3: Gestion des Fichiers Uploadés ---
 
     public function uploadFichierSecurise(array $fileData, string $destinationType, array $allowedMimeTypes, int $maxSizeInBytes): string
@@ -663,6 +715,7 @@ interface ServiceDocumentInterface
     public function mettreAJourModeleDocument(string $idModele, string $nom, string $contenuHtml): bool;
     public function supprimerModeleDocument(string $idModele): bool;
     public function listerModelesDocument(string $type = 'pdf'): array;
+    public function importerModeleDocumentWord(array $fileData): string;
 
     // --- Section 3: Gestion des Fichiers ---
     public function uploadFichierSecurise(array $fileData, string $destinationType, array $allowedMimeTypes, int $maxSizeInBytes): string;
@@ -679,7 +732,6 @@ interface ServiceDocumentInterface
 
 
 }
-
 
 /***********************************************************************************
  * Fichier: src/Backend/Service\ParcoursAcademique\ServiceParcoursAcademique.php
@@ -947,13 +999,6 @@ class ServiceParcoursAcademique implements ServiceParcoursAcademiqueInterface
             'details_ue' => $moyennesUE
         ];
     }
-
-
-
-
-
-
-
 }
 
 /***********************************************************************************
@@ -1035,7 +1080,7 @@ class ServiceSecurite implements ServiceSecuriteInterface
     private HistoriqueMotDePasse $historiqueMdpModel;
     private Sessions $sessionsModel;
     private GenericModel $rattacherModel;
-    private GenericModel $traitementModel;
+    private GenericModel $traitementModel; // Assurez-vous que ce modèle est bien injecté et représente la table 'traitement'
     private Delegation $delegationModel;
     private ServiceSupervisionInterface $supervisionService;
 
@@ -1050,7 +1095,7 @@ class ServiceSecurite implements ServiceSecuriteInterface
         HistoriqueMotDePasse $historiqueMdpModel,
         Sessions $sessionsModel,
         GenericModel $rattacherModel,
-        GenericModel $traitementModel,
+        GenericModel $traitementModel, // Assurez-vous que ce modèle est bien injecté
         Delegation $delegationModel,
         ServiceSupervisionInterface $supervisionService
     ) {
@@ -1059,7 +1104,7 @@ class ServiceSecurite implements ServiceSecuriteInterface
         $this->historiqueMdpModel = $historiqueMdpModel;
         $this->sessionsModel = $sessionsModel;
         $this->rattacherModel = $rattacherModel;
-        $this->traitementModel = $traitementModel;
+        $this->traitementModel = $traitementModel; // Initialisation
         $this->delegationModel = $delegationModel;
         $this->supervisionService = $supervisionService;
     }
@@ -1376,10 +1421,10 @@ class ServiceSecurite implements ServiceSecuriteInterface
 
         // 1. Récupérer tous les éléments de menu auxquels l'utilisateur a droit
         $placeholders = implode(',', array_fill(0, count($permissionsUtilisateur), '?'));
-        $sql = "SELECT id_traitement, libelle_menu, url_associee, icone_class, id_parent_traitement 
-                FROM `{$this->traitementModel->getDb()->quote($this->traitementModel->getTable())}`
-                WHERE est_visible_menu = 1 AND id_traitement IN ($placeholders)
-                ORDER BY ordre_affichage ASC";
+        $sql = "SELECT id_traitement, libelle_traitement AS libelle_menu, url_associee, icone_class, id_parent_traitement, ordre_affichage 
+                FROM `{$this->traitementModel->table}`
+                WHERE id_traitement LIKE 'MENU_%' AND id_traitement IN ($placeholders)
+                ORDER BY ordre_affichage ASC, libelle_traitement ASC"; // Utiliser ordre_affichage ici
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute($permissionsUtilisateur);
@@ -1410,7 +1455,50 @@ class ServiceSecurite implements ServiceSecuriteInterface
             }
         }
 
+        // Trier les éléments de premier niveau et leurs enfants par ordre_affichage
+        usort($menuHierarchique, function($a, $b) {
+            return $a['ordre_affichage'] <=> $b['ordre_affichage'];
+        });
+        foreach ($menuHierarchique as &$item) {
+            if (!empty($item['enfants'])) {
+                usort($item['enfants'], function($a, $b) {
+                    return $a['ordre_affichage'] <=> $b['ordre_affichage'];
+                });
+            }
+        }
+        unset($item); // Rompre la référence
+
         return $menuHierarchique;
+    }
+
+    public function updateMenuStructure(array $menuStructure): bool
+    {
+        $this->db->beginTransaction();
+        try {
+            foreach ($menuStructure as $item) {
+                // Valider les données de l'élément de menu
+                if (!isset($item['id_traitement']) || !isset($item['ordre_affichage'])) {
+                    throw new OperationImpossibleException("Structure de menu invalide: id_traitement ou ordre_affichage manquant.");
+                }
+
+                $dataToUpdate = [
+                    'ordre_affichage' => (int) $item['ordre_affichage'],
+                    'id_parent_traitement' => $item['id_parent_traitement'] ?? null // Peut être null pour les éléments racines
+                ];
+
+                $success = $this->traitementModel->mettreAJourParIdentifiant($item['id_traitement'], $dataToUpdate);
+
+                if (!$success) {
+                    throw new OperationImpossibleException("Échec de la mise à jour de l'élément de menu: " . $item['id_traitement']);
+                }
+            }
+            $this->db->commit();
+            $this->supervisionService->enregistrerAction($_SESSION['user_id'] ?? 'SYSTEM', 'UPDATE_MENU_STRUCTURE', null, 'Menu', ['structure' => $menuStructure]);
+            return true;
+        } catch (\Exception $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
     }
 
     //================================================================
@@ -1508,6 +1596,66 @@ class ServiceSecurite implements ServiceSecuriteInterface
         // Utilisation de la méthode spécifique du modèle Delegation
         return $this->delegationModel->trouverDelegationActivePourUtilisateur($numeroUtilisateur);
     }
+    //================================================================
+    // SECTION 8 : VALIDATION D'EMAIL
+    //================================================================
+
+    /**
+     * Valide l'adresse email d'un utilisateur à partir d'un token fourni.
+     *
+     * @param string $tokenClair Le token reçu dans l'URL de validation.
+     * @return array Les données de l'utilisateur dont l'email vient d'être validé.
+     * @throws TokenInvalideException Si le token ne correspond à aucun utilisateur.
+     * @throws OperationImpossibleException Si l'email de l'utilisateur est déjà validé.
+     * @throws TokenExpireException Si le token a dépassé sa date de validité.
+     */
+    public function validateEmailToken(string $tokenClair): array
+    {
+        // 1. Hacher le token reçu pour le comparer à celui stocké en base de données.
+        $tokenHache = hash('sha256', $tokenClair);
+
+        // 2. Chercher l'utilisateur correspondant à ce token de validation.
+        $utilisateur = $this->utilisateurModel->trouverParTokenValidationEmail($tokenHache);
+
+        // 3. Gérer les cas d'erreur.
+        if (!$utilisateur) {
+            // Le token est incorrect ou a déjà été utilisé et effacé.
+            throw new TokenInvalideException("Token de validation d'email invalide ou déjà utilisé.");
+        }
+
+        if ($utilisateur['email_valide']) {
+            // L'email a déjà été validé, l'action n'a plus lieu d'être.
+            throw new OperationImpossibleException("L'email est déjà validé pour cet utilisateur.");
+        }
+
+        // La colonne d'expiration du token de mot de passe est réutilisée pour la validation d'email.
+        if ($utilisateur['date_expiration_token_reset'] && new \DateTime() > new \DateTime($utilisateur['date_expiration_token_reset'])) {
+            throw new TokenExpireException("Le token de validation d'email a expiré. Veuillez demander un nouveau lien.");
+        }
+
+        // 4. Mettre à jour le statut de l'utilisateur.
+        $success = $this->utilisateurModel->mettreAJourParIdentifiant($utilisateur['numero_utilisateur'], [
+            'email_valide' => 1, // Marquer l'email comme validé.
+            'token_validation_email' => null, // Effacer le token pour qu'il ne puisse pas être réutilisé.
+            'date_expiration_token_reset' => null // Effacer la date d'expiration associée.
+        ]);
+
+        if (!$success) {
+            // Si la mise à jour échoue pour une raison inattendue.
+            throw new OperationImpossibleException("Échec de la mise à jour du statut de l'email.");
+        }
+
+        // 5. Enregistrer l'action dans le journal d'audit.
+        $this->supervisionService->enregistrerAction(
+            $utilisateur['numero_utilisateur'],
+            'VALIDATION_EMAIL_SUCCES',
+            $utilisateur['numero_utilisateur'],
+            'Utilisateur'
+        );
+
+        // 6. Retourner les données de l'utilisateur pour confirmation ou redirection.
+        return $utilisateur;
+    }
 }
 
 /***********************************************************************************
@@ -1519,8 +1667,11 @@ class ServiceSecurite implements ServiceSecuriteInterface
 
 namespace App\Backend\Service\Securite;
 
+use App\Backend\Exception\OperationImpossibleException;
+use App\Backend\Exception\TokenExpireException;
+use App\Backend\Exception\TokenInvalideException;
 use App\Backend\Service\Communication\ServiceCommunicationInterface;
-
+use App\Backend\Model\Utilisateur;
 interface ServiceSecuriteInterface
 {
     //================================================================
@@ -1571,6 +1722,16 @@ interface ServiceSecuriteInterface
      * @return array La structure du menu prête à être parcourue dans une vue.
      */
     public function construireMenuPourUtilisateurConnecte(): array;
+    /**
+     * Valide l'adresse email d'un utilisateur via un token.
+     *
+     * @param string $tokenClair Le token de validation en clair.
+     * @return array Les données de l'utilisateur validé.
+     * @throws TokenInvalideException Si le token est invalide ou déjà utilisé.
+     * @throws TokenExpireException Si le token a expiré.
+     * @throws OperationImpossibleException Si l'email est déjà validé.
+     */
+    public function validateEmailToken(string $tokenClair): array;
 }
 
 /***********************************************************************************
@@ -1712,8 +1873,15 @@ class ServiceSupervision implements ServiceSupervisionInterface
         if (!empty($filtres)) {
             $whereParts = [];
             foreach ($filtres as $key => $value) {
-                $whereParts[] = "enr.`{$key}` = :{$key}";
-                $params[":{$key}"] = $value;
+                // Handle search filter separately for LIKE matching
+                if ($key === 'search') {
+                    $search = '%' . $value . '%';
+                    $whereParts[] = "(enr.id_enregistrement LIKE :search OR enr.numero_utilisateur LIKE :search OR act.libelle_action LIKE :search OR enr.id_entite_concernee LIKE :search OR enr.type_entite_concernee LIKE :search)";
+                    $params[':search'] = $search;
+                } else {
+                    $whereParts[] = "enr.`{$key}` = :{$key}";
+                    $params[":{$key}"] = $value;
+                }
             }
             $sql .= " WHERE " . implode(" AND ", $whereParts);
         }
@@ -1887,7 +2055,7 @@ use App\Backend\Model\GenericModel;
 use App\Backend\Service\Supervision\ServiceSupervisionInterface;
 use App\Backend\Exception\ElementNonTrouveException;
 use App\Backend\Exception\OperationImpossibleException;
-use App\Config\Container; // Important pour accéder au schéma
+use App\Config\Container;
 
 class ServiceSysteme implements ServiceSystemeInterface
 {
@@ -1896,7 +2064,7 @@ class ServiceSysteme implements ServiceSystemeInterface
     private GenericModel $anneeAcademiqueModel;
     private GenericModel $sequencesModel;
     private ServiceSupervisionInterface $supervisionService;
-    private Container $container; // Le conteneur est injecté pour accéder au schéma
+    private Container $container;
     private ?array $parametresCache = null;
     private array $modelFactoryCache = [];
 
@@ -1906,7 +2074,7 @@ class ServiceSysteme implements ServiceSystemeInterface
         GenericModel $anneeAcademiqueModel,
         GenericModel $sequencesModel,
         ServiceSupervisionInterface $supervisionService,
-        Container $container // Injection du conteneur lui-même
+        Container $container
     ) {
         $this->db = $db;
         $this->parametresModel = $parametresModel;
@@ -1926,17 +2094,13 @@ class ServiceSysteme implements ServiceSystemeInterface
                 throw new OperationImpossibleException("Impossible de générer un ID : aucune année académique n'est active.");
             }
             $annee = (int) substr($anneeActive['libelle_annee_academique'], 0, 4);
-
             $stmt = $this->db->prepare("SELECT valeur_actuelle FROM sequences WHERE nom_sequence = :prefixe AND annee = :annee FOR UPDATE");
             $stmt->execute([':prefixe' => $prefixe, ':annee' => $annee]);
             $sequence = $stmt->fetch(PDO::FETCH_ASSOC);
 
             $nextValue = $sequence ? $sequence['valeur_actuelle'] + 1 : 1;
-
-            $sequencesModel = $this->container->getModelForTable('sequences');
+            $sequencesModel = $this->container->getModelForTable('sequences', ['nom_sequence', 'annee']);
             if ($sequence) {
-                // Note: BaseModel n'a pas de méthode pour les clés composites, il faut utiliser une requête directe ou l'améliorer.
-                // Pour la robustesse, utilisons une requête directe ici.
                 $updateStmt = $this->db->prepare("UPDATE sequences SET valeur_actuelle = :valeur WHERE nom_sequence = :prefixe AND annee = :annee");
                 $updateStmt->execute([':valeur' => $nextValue, ':prefixe' => $prefixe, ':annee' => $annee]);
             } else {
@@ -2005,10 +2169,8 @@ class ServiceSysteme implements ServiceSystemeInterface
     {
         return (bool) $this->getParametre('MAINTENANCE_MODE_ENABLED', false);
     }
-    // ====================================================================
-    // SECTION 3 : Gestion des Années Académiques
-    // ====================================================================
 
+    // --- Gestion des Années Académiques ---
     public function creerAnneeAcademique(string $libelle, string $dateDebut, string $dateFin, bool $estActive = false): string
     {
         $idAnnee = "ANNEE-" . str_replace('/', '-', $libelle);
@@ -2038,13 +2200,11 @@ class ServiceSysteme implements ServiceSystemeInterface
 
     public function supprimerAnneeAcademique(string $idAnneeAcademique): bool
     {
-        // Vérification des dépendances
-        $inscriptionModel = $this->container->getModelForTable('inscrire');
+        $inscriptionModel = $this->container->getModelForTable('inscrire', ['numero_carte_etudiant', 'id_niveau_etude', 'id_annee_academique']);
         if ($inscriptionModel->trouverUnParCritere(['id_annee_academique' => $idAnneeAcademique])) {
             throw new OperationImpossibleException("Suppression impossible : des inscriptions sont liées à cette année académique.");
         }
-        // Ajouter d'autres vérifications si nécessaire (rapports, pénalités...)
-
+        // ... (Ajoutez ici les autres vérifications de dépendances comme pour les rapports, évaluations, etc.)
         return $this->anneeAcademiqueModel->supprimerParIdentifiant($idAnneeAcademique);
     }
 
@@ -2052,7 +2212,7 @@ class ServiceSysteme implements ServiceSystemeInterface
     {
         return $this->anneeAcademiqueModel->trouverParCritere([], ['*'], 'AND', 'date_debut DESC');
     }
-    // --- Gestion des Années Académiques ---
+
     public function getAnneeAcademiqueActive(): ?array
     {
         return $this->anneeAcademiqueModel->trouverUnParCritere(['est_active' => 1]);
@@ -2078,36 +2238,67 @@ class ServiceSysteme implements ServiceSystemeInterface
     public function gererReferentiel(string $operation, string $nomReferentiel, ?string $id = null, ?array $donnees = null)
     {
         $model = $this->container->getModelForTable($nomReferentiel);
-
         switch (strtolower($operation)) {
             case 'list':
                 return $model->trouverTout();
-
             case 'read':
                 if ($id === null) throw new \InvalidArgumentException("L'ID est requis pour l'opération 'read'.");
                 return $model->trouverParIdentifiant($id);
-
             case 'create':
                 if ($donnees === null) throw new \InvalidArgumentException("Les données sont requises pour l'opération 'create'.");
                 $result = $model->creer($donnees);
-                $this->supervisionService->enregistrerAction($_SESSION['user_id'] ?? 'SYSTEM', 'CREATE_REFERENTIEL', null, $id, $nomReferentiel, $donnees);
+                $this->supervisionService->enregistrerAction($_SESSION['user_id'] ?? 'SYSTEM', 'CREATE_REFERENTIEL', $id, $nomReferentiel, $donnees);
                 return $result;
-
             case 'update':
                 if ($id === null || $donnees === null) throw new \InvalidArgumentException("L'ID et les données sont requis pour l'opération 'update'.");
                 $result = $model->mettreAJourParIdentifiant($id, $donnees);
-                $this->supervisionService->enregistrerAction($_SESSION['user_id'] ?? 'SYSTEM', 'UPDATE_REFERENTIEL', null, $id, $nomReferentiel, $donnees);
+                $this->supervisionService->enregistrerAction($_SESSION['user_id'] ?? 'SYSTEM', 'UPDATE_REFERENTIEL', $id, $nomReferentiel, $donnees);
                 return $result;
-
             case 'delete':
                 if ($id === null) throw new \InvalidArgumentException("L'ID est requis pour l'opération 'delete'.");
-                // Ajouter une vérification de dépendances avant de supprimer serait une bonne pratique
                 $result = $model->supprimerParIdentifiant($id);
-                $this->supervisionService->enregistrerAction($_SESSION['user_id'] ?? 'SYSTEM', 'DELETE_REFERENTIEL', null, $id, $nomReferentiel);
+                $this->supervisionService->enregistrerAction($_SESSION['user_id'] ?? 'SYSTEM', 'DELETE_REFERENTIEL', $id, $nomReferentiel);
                 return $result;
-
             default:
                 throw new \InvalidArgumentException("Opération '{$operation}' non reconnue sur le référentiel '{$nomReferentiel}'.");
+        }
+    }
+
+    /**
+     * ✅ CORRECTION : Implémentation de la méthode manquante.
+     * Met à jour la structure (ordre et parenté) des éléments du menu.
+     * @param array $menuStructure La nouvelle structure du menu.
+     * @return bool True en cas de succès.
+     * @throws \Exception
+     */
+    public function updateMenuStructure(array $menuStructure): bool
+    {
+        $traitementModel = $this->container->getModelForTable('traitement', 'id_traitement');
+
+        $this->db->beginTransaction();
+        try {
+            foreach ($menuStructure as $item) {
+                if (!isset($item['id']) || !isset($item['ordre'])) {
+                    throw new OperationImpossibleException("Structure de menu invalide : id ou ordre manquant.");
+                }
+
+                $dataToUpdate = [
+                    'ordre_affichage' => (int) $item['ordre'],
+                    'id_parent_traitement' => $item['parent'] ?? null
+                ];
+
+                $success = $traitementModel->mettreAJourParIdentifiant($item['id'], $dataToUpdate);
+
+                if (!$success) {
+                    throw new OperationImpossibleException("Échec de la mise à jour de l'élément de menu : " . $item['id']);
+                }
+            }
+            $this->db->commit();
+            $this->supervisionService->enregistrerAction($_SESSION['user_id'] ?? 'SYSTEM', 'UPDATE_MENU_STRUCTURE', null, 'Menu');
+            return true;
+        } catch (\Exception $e) {
+            $this->db->rollBack();
+            throw $e;
         }
     }
 }
@@ -2144,6 +2335,16 @@ interface ServiceSystemeInterface
 
     // --- Gestion des Référentiels ---
     public function gererReferentiel(string $operation, string $nomReferentiel, ?string $id = null, ?array $donnees = null);
+// --- Gestion des Menus ---
+    /**
+     * Met à jour la structure hiérarchique et l'ordre d'affichage des éléments de menu.
+     *
+     * @param array $menuStructure Un tableau représentant la nouvelle hiérarchie et l'ordre.
+     *                             Ex: [['id' => 'MENU_DASHBOARDS', 'order' => 1, 'parent' => null], ['id' => 'TRAIT_ADMIN_DASHBOARD_ACCEDER', 'order' => 1, 'parent' => 'MENU_DASHBOARDS']]
+     * @return bool True si la mise à jour est réussie, false sinon.
+     */
+    public function updateMenuStructure(array $menuStructure): bool;
+
 }
 
 /***********************************************************************************
@@ -2508,6 +2709,49 @@ class ServiceUtilisateur implements ServiceUtilisateurInterface
         return $success;
     }
 
+    public function renvoyerEmailValidation(string $numeroUtilisateur): bool
+    {
+        $user = $this->utilisateurModel->trouverParIdentifiant($numeroUtilisateur);
+        if (!$user) {
+            throw new ElementNonTrouveException("Utilisateur non trouvé.");
+        }
+        if ($user['email_valide']) {
+            throw new OperationImpossibleException("L'email de cet utilisateur est déjà validé.");
+        }
+
+        $tokenClair = bin2hex(random_bytes(32));
+        $this->utilisateurModel->mettreAJourParIdentifiant($numeroUtilisateur, [
+            'token_validation_email' => hash('sha256', $tokenClair),
+            'date_expiration_token_reset' => date('Y-m-d H:i:s', time() + 3600) // Réutiliser la colonne d'expiration du token de reset
+        ]);
+
+        if ($this->communicationService) {
+            $this->communicationService->envoyerEmail(
+                $user['email_principal'],
+                'VALIDATE_EMAIL',
+                ['validation_link' => $_ENV['APP_URL'] . "/validate-email/{$tokenClair}"]
+            );
+            $this->supervisionService->enregistrerAction($_SESSION['user_id'] ?? 'SYSTEM', 'RESEND_VALIDATION_EMAIL', $numeroUtilisateur, 'Utilisateur');
+            return true;
+        }
+        return false;
+    }
+
+    public function telechargerPhotoProfil(string $numeroUtilisateur, array $fileData): string
+    {
+        $allowedMimeTypes = ['image/jpeg', 'image/png', 'image/gif'];
+        $maxSize = 2 * 1024 * 1024; // 2MB
+
+        $relativePath = $this->documentService->uploadFichierSecurise($fileData, 'profile_pictures', $allowedMimeTypes, $maxSize);
+
+        // Mettre à jour le chemin dans la base de données pour l'utilisateur
+        $this->utilisateurModel->mettreAJourParIdentifiant($numeroUtilisateur, ['photo_profil' => $relativePath]);
+
+        $this->supervisionService->enregistrerAction($numeroUtilisateur, 'UPLOAD_PROFILE_PICTURE', $numeroUtilisateur, 'Utilisateur', ['path' => $relativePath]);
+
+        return $relativePath;
+    }
+
     // --- Gestion des Délégations ---
     public function creerDelegation(string $idDelegant, string $idDelegue, string $idTraitement, string $dateDebut, string $dateFin, ?string $contexteId = null, ?string $contexteType = null): string
     {
@@ -2691,6 +2935,8 @@ interface ServiceUtilisateurInterface
     // --- Gestion des Comptes ---
     public function changerStatutCompte(string $numeroUtilisateur, string $nouveauStatut): bool;
     public function reinitialiserMotDePasseAdmin(string $id): bool;
+    public function renvoyerEmailValidation(string $numeroUtilisateur): bool;
+    public function telechargerPhotoProfil(string $numeroUtilisateur, array $fileData): string;
 
     // --- Gestion des Délégations ---
     public function creerDelegation(string $idDelegant, string $idDelegue, string $idTraitement, string $dateDebut, string $dateFin, ?string $contexteId = null, ?string $contexteType = null): string;
@@ -2850,6 +3096,21 @@ class ServiceWorkflowSoutenance implements ServiceWorkflowSoutenanceInterface
         return $this->rapportModel->trouverRapportsAvecDetailsEtudiant($filtres);
     }
 
+    public function forcerChangementStatutRapport(string $idRapport, string $nouveauStatut, string $adminId, string $justification): bool
+    {
+        $rapport = $this->rapportModel->trouverParIdentifiant($idRapport);
+        if (!$rapport) throw new ElementNonTrouveException("Rapport non trouvé.");
+
+        $success = $this->rapportModel->mettreAJourParIdentifiant($idRapport, ['id_statut_rapport' => $nouveauStatut]);
+
+        if ($success) {
+            $this->supervisionService->enregistrerAction($adminId, 'FORCER_CHANGEMENT_STATUT_RAPPORT', $idRapport, 'RapportEtudiant', ['ancien_statut' => $rapport['id_statut_rapport'], 'nouveau_statut' => $nouveauStatut, 'justification' => $justification]);
+            // Notifier l'étudiant du changement de statut forcé
+            $this->communicationService->envoyerNotificationInterne($rapport['numero_carte_etudiant'], 'STATUT_RAPPORT_FORCE', "Le statut de votre rapport a été modifié manuellement par l'administration : {$nouveauStatut}. Justification : {$justification}");
+        }
+        return $success;
+    }
+
     // ====================================================================
     // PHASE 2: VÉRIFICATION DE CONFORMITÉ
     // ====================================================================
@@ -2939,6 +3200,15 @@ class ServiceWorkflowSoutenance implements ServiceWorkflowSoutenanceInterface
         return $this->sessionValidationModel->mettreAJourParIdentifiant($idSession, ['statut_session' => 'suspendue']);
     }
 
+    public function reprendreSession(string $idSession): bool
+    {
+        $session = $this->sessionValidationModel->trouverParIdentifiant($idSession);
+        if (!$session) throw new ElementNonTrouveException("Session non trouvée.");
+        if ($session['statut_session'] !== 'suspendue') throw new OperationImpossibleException("Seule une session suspendue peut être reprise.");
+
+        return $this->sessionValidationModel->mettreAJourParIdentifiant($idSession, ['statut_session' => 'en_cours']);
+    }
+
     public function cloturerSession(string $idSession): bool
     {
         $rapportsEnCours = $this->sessionRapportModel->trouverParCritere(['id_session' => $idSession, 'statut_rapport' => 'EN_DELIBERATION']);
@@ -2959,6 +3229,34 @@ class ServiceWorkflowSoutenance implements ServiceWorkflowSoutenanceInterface
         if (!$session) return null;
         $session['rapports'] = $this->listerRapports(['id_session' => $idSession]); // Suppose une jointure
         return $session;
+    }
+
+    public function designerRapporteur(string $idRapport, string $numeroEnseignantRapporteur): bool
+    {
+        // Cette logique dépend de la structure de votre table 'affecter' ou d'une nouvelle table 'rapporteur_rapport'
+        // Pour l'exemple, nous allons supposer que 'affecter' peut être utilisée avec un statut spécifique.
+        return (bool) $this->affecterModel->creer([
+            'numero_enseignant' => $numeroEnseignantRapporteur,
+            'id_rapport_etudiant' => $idRapport,
+            'id_statut_jury' => 'JURY_RAPPORTEUR', // Assurez-vous que ce statut existe dans statut_jury
+            'directeur_memoire' => 0, // Ce n'est pas un directeur de mémoire
+            'date_affectation' => date('Y-m-d H:i:s')
+        ]);
+    }
+
+    public function recuserMembre(string $idSession, string $numeroEnseignant, string $justification): bool
+    {
+        // Logique pour marquer un membre comme récusé pour une session spécifique
+        // Cela pourrait impliquer une table de liaison session_membre_recuse ou une mise à jour dans affecter
+        // Pour l'exemple, nous allons juste enregistrer l'action.
+        $this->supervisionService->enregistrerAction(
+            $_SESSION['user_id'],
+            'RECUSATION_MEMBRE_COMMISSION',
+            $idSession,
+            'SessionValidation',
+            ['membre_recuse' => $numeroEnseignant, 'justification' => $justification]
+        );
+        return true;
     }
 
     // ====================================================================
@@ -3157,6 +3455,7 @@ interface ServiceWorkflowSoutenanceInterface
     public function soumettreCorrections(string $idRapport, string $numeroEtudiant, array $sections, string $noteExplicative): bool;
     public function lireRapportComplet(string $idRapport): ?array;
     public function listerRapports(array $filtres = []): array;
+    public function forcerChangementStatutRapport(string $idRapport, string $nouveauStatut, string $adminId, string $justification): bool;
 
     // --- PHASE 2: VÉRIFICATION DE CONFORMITÉ PAR L'ADMINISTRATION ---
     public function traiterVerificationConformite(string $idRapport, string $numeroPersonnel, bool $estConforme, array $detailsChecklist, ?string $commentaireGeneral): bool;
@@ -3168,8 +3467,11 @@ interface ServiceWorkflowSoutenanceInterface
     public function demarrerSession(string $idSession): bool;
     public function cloturerSession(string $idSession): bool;
     public function suspendreSession(string $idSession): bool;
+    public function reprendreSession(string $idSession): bool;
     public function listerSessionsPourCommission(array $filtres = []): array;
     public function lireSessionComplete(string $idSession): ?array;
+    public function designerRapporteur(string $idRapport, string $numeroEnseignantRapporteur): bool;
+    public function recuserMembre(string $idSession, string $numeroEnseignant, string $justification): bool;
 
     // --- PHASE 4: ÉVALUATION ET VOTE PAR LA COMMISSION ---
     public function enregistrerVote(string $idRapport, string $idSession, string $numeroEnseignant, string $decision, ?string $commentaire): bool;

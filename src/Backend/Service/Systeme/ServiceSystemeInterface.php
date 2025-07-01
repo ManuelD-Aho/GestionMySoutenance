@@ -26,4 +26,14 @@ interface ServiceSystemeInterface
 
     // --- Gestion des Référentiels ---
     public function gererReferentiel(string $operation, string $nomReferentiel, ?string $id = null, ?array $donnees = null);
+// --- Gestion des Menus ---
+    /**
+     * Met à jour la structure hiérarchique et l'ordre d'affichage des éléments de menu.
+     *
+     * @param array $menuStructure Un tableau représentant la nouvelle hiérarchie et l'ordre.
+     *                             Ex: [['id' => 'MENU_DASHBOARDS', 'order' => 1, 'parent' => null], ['id' => 'TRAIT_ADMIN_DASHBOARD_ACCEDER', 'order' => 1, 'parent' => 'MENU_DASHBOARDS']]
+     * @return bool True si la mise à jour est réussie, false sinon.
+     */
+    public function updateMenuStructure(array $menuStructure): bool;
+
 }

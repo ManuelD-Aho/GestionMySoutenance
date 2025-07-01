@@ -22,56 +22,71 @@
  * Fichier: docker\nginx\conf.d\default.conf
  ***********************************************************************************/
 
+# docker/nginx/conf.d/default.conf
+
 server {
+    # Écoute sur le port 80, le port HTTP standard.
     listen 80;
     server_name localhost;
+
+    # Définit la racine du site web. Tous les chemins de fichiers seront relatifs à ce répertoire.
+    # Il doit pointer vers le dossier qui contient votre index.php.
     root /var/www/html/Public;
 
-    index index.php index.html index.htm;
+    # Fichier à servir par défaut lorsque l'on accède à un répertoire.
+    index index.php;
 
-    charset utf-8;
-   # Configuration pour mobile
-    add_header X-Frame-Options "SAMEORIGIN" always;
-    add_header X-Content-Type-Options "nosniff" always;
-    add_header X-XSS-Protection "1; mode=block" always;
+    # Configuration pour la gestion des logs.
+    access_log /var/log/nginx/access.log;
+    error_log /var/log/nginx/error.log;
 
+    # Bloc principal pour gérer toutes les requêtes entrantes.
     location / {
+        # Tente de servir le fichier correspondant à l'URI demandée.
+        # Si le fichier n'existe pas, il tente de servir le répertoire.
+        # Si ni l'un ni l'autre n'existe, il passe la requête à index.php
+        # en conservant les arguments de la requête. C'est la clé pour que votre routeur PHP fonctionne.
         try_files $uri $uri/ /index.php?$query_string;
     }
 
+    # Bloc spécifique pour traiter les fichiers PHP.
     location ~ \.php$ {
-        fastcgi_pass app:9000;
-        fastcgi_index index.php;
-        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
-        fastcgi_param SERVER_NAME $host;
-        include fastcgi_params;
-        fastcgi_buffers 16 16k;
-        fastcgi_buffer_size 32k;
-        fastcgi_read_timeout 300;
-    }
-
-    location ~ /\.ht {
-        deny all;
-    }
-
-    location ~ /(src|vendor|config|routes|var)/ {
-        deny all;
-        return 404;
-    }
-
-    location ~ /\.env {
-        deny all;
-        return 404;
-    }
-
-    location ~* \.(css|js|jpg|jpeg|gif|png|svg|ico)$ {
-        expires 30d;
-        add_header Cache-Control "public, no-transform";
+        # Vérifie que le script PHP existe avant de le passer à FPM.
         try_files $uri =404;
+
+        # Inclusion des paramètres standard pour FastCGI.
+        include fastcgi_params;
+
+        # Définit l'adresse du service PHP-FPM. 'app' est le nom de votre service
+        # dans docker-compose.yml, et 9000 est le port par défaut de PHP-FPM.
+        fastcgi_pass app:9000;
+
+        # Indique le nom du script à exécuter.
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+
+        # Indique le chemin du script.
+        fastcgi_param PATH_INFO $fastcgi_path_info;
     }
 
-    error_log /var/log/nginx/error.log;
-    access_log /var/log/nginx/access.log;
+    # Bloc pour optimiser le service des fichiers statiques et empêcher leur exécution.
+    location ~* \.(css|js|gif|ico|jpeg|jpg|png)$ {
+        # Ajoute des en-têtes de cache pour améliorer les performances du navigateur.
+        expires 1M;
+        add_header Cache-Control "public";
+
+        # Empêche l'enregistrement des accès pour ces fichiers pour alléger les logs.
+        log_not_found off;
+
+        # Interdit l'exécution de code dans ces fichiers.
+        location ~ \.php$ {
+            return 403;
+        }
+    }
+
+    # Bloc pour interdire l'accès aux fichiers sensibles comme .htaccess.
+    location ~ /\. {
+        deny all;
+    }
 }
 
 /***********************************************************************************

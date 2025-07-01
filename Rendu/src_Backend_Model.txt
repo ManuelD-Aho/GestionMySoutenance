@@ -14,7 +14,7 @@ use App\Backend\Exception\DoublonException;
 
 abstract class BaseModel
 {
-    protected string $table;
+    public string $table; // Changé de protected à public
     protected string|array $primaryKey;
     protected PDO $db;
 
@@ -26,6 +26,16 @@ abstract class BaseModel
     public function getDb(): PDO
     {
         return $this->db;
+    }
+
+    public function getTable(): string // Changé de protected à public
+    {
+        return $this->table;
+    }
+
+    public function getClePrimaire(): array|string
+    {
+        return $this->primaryKey;
     }
 
     public function trouverTout(array $colonnes = ['*']): array
@@ -150,7 +160,7 @@ use PDO;
 
 class Delegation extends BaseModel
 {
-    protected string $table = 'delegation';
+    public string $table = 'delegation';
     protected string|array $primaryKey = 'id_delegation';
 
     public function __construct(PDO $db)
@@ -253,7 +263,7 @@ use PDO;
 
 class HistoriqueMotDePasse extends BaseModel
 {
-    protected string $table = 'historique_mot_de_passe';
+    public string $table = 'historique_mot_de_passe';
     protected string|array $primaryKey = 'id_historique_mdp';
     protected array $fields = [
         'id_historique_mdp', 'numero_utilisateur', 'mot_de_passe_hache', 'date_changement'
@@ -297,7 +307,7 @@ use PDO;
 
 class RapportEtudiant extends BaseModel
 {
-    protected string $table = 'rapport_etudiant';
+    public string $table = 'rapport_etudiant';
     protected string|array $primaryKey = 'id_rapport_etudiant';
     protected array $fields = [
         'id_rapport_etudiant', 'libelle_rapport_etudiant', 'theme', 'resume', 'numero_attestation_stage',
@@ -345,7 +355,7 @@ use PDO;
 
 class Reclamation extends BaseModel
 {
-    protected string $table = 'reclamation';
+    public string $table = 'reclamation';
     protected string|array $primaryKey = 'id_reclamation';
     protected array $fields = [
         'id_reclamation', 'numero_carte_etudiant', 'sujet_reclamation', 'description_reclamation',
@@ -389,7 +399,7 @@ use PDO;
 
 class Sessions extends BaseModel
 {
-    protected string $table = 'sessions';
+    public string $table = 'sessions';
     protected string|array $primaryKey = 'session_id';
     protected array $fields = [
         'session_id', 'session_data', 'session_last_activity', 'session_lifetime', 'user_id'
@@ -419,7 +429,9 @@ use PDO;
 
 class Utilisateur extends BaseModel
 {
-    protected string $table = 'utilisateur';
+    // --- CORRECTION ICI : Changer protected en public ---
+    public string $table = 'utilisateur';
+    // --- FIN DE LA CORRECTION ---
     protected string|array $primaryKey = 'numero_utilisateur';
     protected array $fields = [
         'numero_utilisateur', 'login_utilisateur', 'email_principal', 'mot_de_passe', 'date_creation',

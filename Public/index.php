@@ -1,176 +1,111 @@
 <?php
-// Public/index.php - Contrôleur Frontal de GestionMySoutenance
+// Public/index.php
 
-declare(strict_types=1);
-
-// ==============================================================================
-// 1. BOOTSTRAPPING : Initialisation de l'Application
-// ==============================================================================
-
-// Définir le chemin racine du projet pour des chemins de fichiers fiables
+// Définir le chemin racine du projet
 define('ROOT_PATH', dirname(__DIR__));
 
-// Charger l'autoloader de Composer. C'est une dépendance critique.
-// Si absent, on affiche une erreur claire et on arrête tout.
-if (!file_exists(ROOT_PATH . '/vendor/autoload.php')) {
-    http_response_code(503); // Service Unavailable
-    echo "<h1>Erreur Critique d'Initialisation</h1><p>Dépendances introuvables. Veuillez exécuter 'composer install' à la racine du projet.</p>";
-    exit;
-}
+// Autoload des classes via Composer
 require_once ROOT_PATH . '/vendor/autoload.php';
 
-// ==============================================================================
-// 2. GESTION DE L'ENVIRONNEMENT ET DES ERREURS
-// ==============================================================================
+// Charger les variables d'environnement
+use Dotenv\Dotenv;
+$dotenv = Dotenv::createImmutable(ROOT_PATH);
+$dotenv->load();
 
-try {
-    // Détecter l'environnement (dev, prod) via une variable d'environnement serveur.
-    // Par défaut, on considère être en développement pour plus de verbosité en cas d'erreur.
-    $appEnv = $_ENV['APP_ENV'] ?? 'development';
+// Configuration de l'affichage des erreurs (pour le développement)
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
 
-    if (file_exists(ROOT_PATH . '/.env')) {
-        $dotenv = Dotenv\Dotenv::createImmutable(ROOT_PATH);
-        $dotenv->load();
-    }
-
-} catch (\Throwable $e) {
-    http_response_code(503);
-    echo "<h1>Erreur Critique de Configuration</h1><p>Impossible de charger les variables d'environnement. Assurez-vous que le fichier .env existe et est correct.</p>";
-    // Afficher le message d'erreur réel pour le débogage
-    echo "<p><small>Détail de l'erreur : " . htmlspecialchars($e->getMessage()) . "</small></p>";
-    error_log("Erreur Dotenv: " . $e->getMessage());
-    exit;
-}
-
-
-// Configurer l'affichage des erreurs en fonction de l'environnement.
-// En développement : tout afficher pour déboguer facilement.
-// En production : ne rien afficher à l'utilisateur et tout logger.
-if ($appEnv === 'development') {
-    ini_set('display_errors', '1');
-    ini_set('display_startup_errors', '1');
-    error_reporting(E_ALL);
-} else {
-    ini_set('display_errors', '0');
-    ini_set('display_startup_errors', '0');
-    error_reporting(0);
-    // La journalisation des erreurs est gérée par le ServiceLogger qui sera configuré plus tard.
-}
-
-// ==============================================================================
-// 3. DÉMARRAGE DU CONTENEUR DE SERVICES ET DE LA SESSION
-// ==============================================================================
-
+// Utilisation des classes du projet
 use App\Config\Container;
+use App\Config\Router;
+use App\Backend\Controller\BaseController;
 use App\Backend\Util\DatabaseSessionHandler;
+use App\Backend\Service\Securite\ServiceSecuriteInterface;
 
-// Instancier le conteneur d'injection de dépendances. C'est le chef d'orchestre.
+// Initialisation du conteneur de dépendances
 $container = new Container();
 
-// Configurer PHP pour utiliser notre gestionnaire de session basé sur la base de données.
-// Cela centralise les sessions et permet des fonctionnalités avancées.
-$sessionHandler = $container->get(DatabaseSessionHandler::class);
+// --- CORRECTION ICI : Enregistrer le gestionnaire de session AVANT session_start() ---
+// Assurez-vous que la table 'sessions' existe dans votre base de données
+// et que le modèle 'sessions' est correctement défini dans le conteneur.
+$sessionHandler = new DatabaseSessionHandler($container->get(PDO::class), $container->getModelForTable('sessions', 'session_id'));
 session_set_save_handler($sessionHandler, true);
 
-// Configurer les paramètres de cookie de session pour plus de sécurité.
-session_set_cookie_params([
-    'lifetime' => (int)($_ENV['SESSION_LIFETIME'] ?? 3600), // Durée de vie du cookie
-    'path' => '/',
-    'domain' => $_ENV['SESSION_DOMAIN'] ?? $_SERVER['SERVER_NAME'],
-    'secure' => ($_ENV['APP_ENV'] === 'production'), // 'true' en production (HTTPS)
-    'httponly' => true, // Empêche l'accès au cookie via JavaScript
-    'samesite' => 'Lax' // Protection contre les attaques CSRF
-]);
+// Démarrer la session APRÈS avoir défini le gestionnaire
+if (session_status() == PHP_SESSION_NONE) {
+    session_start();
+}
+// --- FIN DE LA CORRECTION ---
 
-// Démarrer la session.
-session_start();
 
-// ==============================================================================
-// 4. ROUTAGE : Interprétation de la Requête HTTP
-// ==============================================================================
+// --- Gestionnaire d'erreurs global ---
+set_exception_handler(function (\Throwable $exception) use ($container) {
+    // Log l'erreur pour le débogage
+    error_log("Unhandled exception: " . $exception->getMessage() . " in " . $exception->getFile() . " on line " . $exception->getLine());
+    error_log("Stack trace: " . $exception->getTraceAsString()); // Ajout de la trace complète
 
-// Utilisation de FastRoute, une bibliothèque de routage légère et performante.
-// On définit toutes les routes de l'application en une seule fois.
-$dispatcher = FastRoute\simpleDispatcher(function(FastRoute\RouteCollector $r) {
-    $routesFilePath = ROOT_PATH . '/routes/web.php';
-    if (!file_exists($routesFilePath)) {
-        throw new \RuntimeException("Fichier de routes introuvable : " . $routesFilePath);
+    // Récupérer le BaseController pour rendre une page d'erreur stylisée
+    try {
+        /** @var BaseController $baseController */
+        $baseController = $container->get(BaseController::class);
+        if ($exception instanceof \App\Backend\Exception\PermissionException) {
+            $baseController->renderError(403, $exception->getMessage());
+        } elseif ($exception instanceof \App\Backend\Exception\ElementNonTrouveException) {
+            $baseController->renderError(404, $exception->getMessage());
+        } else {
+            // Pour les erreurs 500, on peut donner un message générique en production
+            $errorMessage = ($_ENV['APP_ENV'] ?? 'production') === 'development' ? $exception->getMessage() : "Une erreur interne est survenue. Veuillez réessayer plus tard.";
+            $baseController->renderError(500, $errorMessage);
+        }
+    } catch (\Exception $e) {
+        // Fallback si même le contrôleur d'erreur ne peut pas être rendu
+        http_response_code(500);
+        echo "<h1>500 - Erreur Interne du Serveur</h1><p>Une erreur critique est survenue et n'a pas pu être gérée correctement.</p>";
+        error_log("Failed to render error page: " . $e->getMessage());
     }
-    // Le fichier web.php retourne une fonction qui prend le collecteur de routes en argument.
-    $routeDefinitionCallback = require $routesFilePath;
-    $routeDefinitionCallback($r);
 });
 
-// Récupérer la méthode HTTP (GET, POST, etc.) et l'URI de la requête.
-$httpMethod = $_SERVER['REQUEST_METHOD'];
-$uri = $_SERVER['REQUEST_URI'];
+// Définir le conteneur pour le routeur
+Router::setContainer($container);
 
-// Nettoyer l'URI pour enlever les paramètres GET (ex: ?page=2).
-if (false !== $pos = strpos($uri, '?')) {
-    $uri = substr($uri, 0, $pos);
-}
-$uri = rawurldecode(rtrim($uri, '/')) ?: '/'; // Décoder l'URI et s'assurer qu'elle commence par un /
-
-// Lancer le dispatching : FastRoute compare la requête à la liste des routes définies.
-$routeInfo = $dispatcher->dispatch($httpMethod, $uri);
-
-// ==============================================================================
-// 5. DISPATCHING : Exécution du Contrôleur Approprié
-// ==============================================================================
-
-try {
-    switch ($routeInfo[0]) {
-        // Cas 1 : La route n'a pas été trouvée.
-        case FastRoute\Dispatcher::NOT_FOUND:
-            http_response_code(404);
-            // On inclut une vue d'erreur propre.
-            include ROOT_PATH . '/src/Frontend/views/errors/404.php';
-            break;
-
-        // Cas 2 : La route existe, mais pas pour cette méthode HTTP (ex: POST sur une route GET).
-        case FastRoute\Dispatcher::METHOD_NOT_ALLOWED:
-            $allowedMethods = $routeInfo[1];
-            http_response_code(405);
-            header('Allow: ' . implode(', ', $allowedMethods)); // Indiquer les méthodes autorisées
-            include ROOT_PATH . '/src/Frontend/views/errors/405.php';
-            break;
-
-        // Cas 3 : La route a été trouvée !
-        case FastRoute\Dispatcher::FOUND:
-            $handler = $routeInfo[1]; // Le gestionnaire (ex: [UtilisateurController::class, 'index'])
-            $vars = $routeInfo[2];    // Les variables de l'URI (ex: l'ID dans /users/{id})
-
-            // Vérifier que le gestionnaire est bien un tableau [classe, méthode].
-            if (is_array($handler) && count($handler) === 2 && class_exists($handler[0])) {
-                $controllerClass = $handler[0];
-                $methodName = $handler[1];
-
-                // Utiliser notre conteneur pour obtenir une instance du contrôleur.
-                // Le conteneur s'occupera d'injecter toutes ses dépendances (services, etc.).
-                $controllerInstance = $container->get($controllerClass);
-
-                if (!method_exists($controllerInstance, $methodName)) {
-                    throw new \RuntimeException("La méthode '{$methodName}' n'existe pas sur le contrôleur '{$controllerClass}'.");
-                }
-
-                // Appeler la méthode du contrôleur en lui passant les variables de l'URI.
-                call_user_func_array([$controllerInstance, $methodName], $vars);
-            } else {
-                throw new \RuntimeException("Gestionnaire de route mal configuré pour l'URI : " . htmlspecialchars($uri));
-            }
-            break;
+// --- Définition des middlewares ---
+Router::middleware('auth', function() use ($container) {
+    /** @var ServiceSecuriteInterface $securiteService */
+    $securiteService = $container->get(ServiceSecuriteInterface::class);
+    if (!$securiteService->estUtilisateurConnecte()) {
+        // Rediriger vers la page de connexion si non authentifié
+        header('Location: /login');
+        exit();
     }
-} catch (\Throwable $e) {
-    // Capture de toutes les erreurs non interceptées pour un affichage propre.
-    http_response_code(500);
-    // Logger l'erreur complète pour le débogage.
-    error_log("Erreur non interceptée dans index.php: " . $e->getMessage() . " dans " . $e->getFile() . ":" . $e->getLine() . "\n" . $e->getTraceAsString());
+});
 
-    // Afficher une page d'erreur générique en production, ou les détails en développement.
-    if ($appEnv === 'development') {
-        echo "<h1>Erreur 500 - Erreur Interne du Serveur</h1><p>Détails: " . htmlspecialchars($e->getMessage()) . "</p>";
-        echo "<pre>" . htmlspecialchars($e->getTraceAsString()) . "</pre>";
-    } else {
-        include ROOT_PATH . '/src/Frontend/views/errors/500.php';
+Router::middleware('guest', function() use ($container) {
+    /** @var ServiceSecuriteInterface $securiteService */
+    $securiteService = $container->get(ServiceSecuriteInterface::class);
+    if ($securiteService->estUtilisateurConnecte()) {
+        // Rediriger vers le tableau de bord si déjà authentifié
+        header('Location: /dashboard');
+        exit();
     }
-}
+});
+
+// --- Définition des gestionnaires d'erreurs 404 et 405 ---
+Router::notFound(function() use ($container) {
+    /** @var BaseController $baseController */
+    $baseController = $container->get(BaseController::class);
+    $baseController->renderError(404, "La page que vous recherchez n'existe pas.");
+});
+
+Router::methodNotAllowed(function() use ($container) {
+    /** @var BaseController $baseController */
+    $baseController = $container->get(BaseController::class);
+    $baseController->renderError(405, "La méthode HTTP utilisée n'est pas autorisée pour cette ressource.");
+});
+
+// --- Inclusion des routes ---
+require_once ROOT_PATH . '/routes/web.php';
+
+// Dispatcher la requête
+Router::dispatch();

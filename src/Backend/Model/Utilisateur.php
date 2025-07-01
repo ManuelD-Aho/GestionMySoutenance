@@ -7,7 +7,9 @@ use PDO;
 
 class Utilisateur extends BaseModel
 {
-    protected string $table = 'utilisateur';
+    // --- CORRECTION ICI : Changer protected en public ---
+    public string $table = 'utilisateur';
+    // --- FIN DE LA CORRECTION ---
     protected string|array $primaryKey = 'numero_utilisateur';
     protected array $fields = [
         'numero_utilisateur', 'login_utilisateur', 'email_principal', 'mot_de_passe', 'date_creation',

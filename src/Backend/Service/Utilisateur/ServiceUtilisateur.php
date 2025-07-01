@@ -356,6 +356,49 @@ class ServiceUtilisateur implements ServiceUtilisateurInterface
         return $success;
     }
 
+    public function renvoyerEmailValidation(string $numeroUtilisateur): bool
+    {
+        $user = $this->utilisateurModel->trouverParIdentifiant($numeroUtilisateur);
+        if (!$user) {
+            throw new ElementNonTrouveException("Utilisateur non trouvé.");
+        }
+        if ($user['email_valide']) {
+            throw new OperationImpossibleException("L'email de cet utilisateur est déjà validé.");
+        }
+
+        $tokenClair = bin2hex(random_bytes(32));
+        $this->utilisateurModel->mettreAJourParIdentifiant($numeroUtilisateur, [
+            'token_validation_email' => hash('sha256', $tokenClair),
+            'date_expiration_token_reset' => date('Y-m-d H:i:s', time() + 3600) // Réutiliser la colonne d'expiration du token de reset
+        ]);
+
+        if ($this->communicationService) {
+            $this->communicationService->envoyerEmail(
+                $user['email_principal'],
+                'VALIDATE_EMAIL',
+                ['validation_link' => $_ENV['APP_URL'] . "/validate-email/{$tokenClair}"]
+            );
+            $this->supervisionService->enregistrerAction($_SESSION['user_id'] ?? 'SYSTEM', 'RESEND_VALIDATION_EMAIL', $numeroUtilisateur, 'Utilisateur');
+            return true;
+        }
+        return false;
+    }
+
+    public function telechargerPhotoProfil(string $numeroUtilisateur, array $fileData): string
+    {
+        $allowedMimeTypes = ['image/jpeg', 'image/png', 'image/gif'];
+        $maxSize = 2 * 1024 * 1024; // 2MB
+
+        $relativePath = $this->documentService->uploadFichierSecurise($fileData, 'profile_pictures', $allowedMimeTypes, $maxSize);
+
+        // Mettre à jour le chemin dans la base de données pour l'utilisateur
+        $this->utilisateurModel->mettreAJourParIdentifiant($numeroUtilisateur, ['photo_profil' => $relativePath]);
+
+        $this->supervisionService->enregistrerAction($numeroUtilisateur, 'UPLOAD_PROFILE_PICTURE', $numeroUtilisateur, 'Utilisateur', ['path' => $relativePath]);
+
+        return $relativePath;
+    }
+
     // --- Gestion des Délégations ---
     public function creerDelegation(string $idDelegant, string $idDelegue, string $idTraitement, string $dateDebut, string $dateFin, ?string $contexteId = null, ?string $contexteType = null): string
     {

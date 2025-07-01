@@ -4,323 +4,467 @@
 namespace App\Config;
 
 use PDO;
-use Exception;
-use App\Backend\Util\FormValidator;
-use App\Backend\Util\DatabaseSessionHandler;
-// --- Importation des Modèles Spécifiques ---
-use App\Backend\Model\BaseModel;
-use App\Backend\Model\GenericModel;
-use App\Backend\Model\Utilisateur;
-use App\Backend\Model\HistoriqueMotDePasse;
-use App\Backend\Model\Sessions;
-use App\Backend\Model\RapportEtudiant;
-use App\Backend\Model\Reclamation;
-use App\Backend\Model\Delegation;
-
-// --- Importation des Services et de leurs Interfaces ---
-use App\Backend\Service\Securite\{ServiceSecurite, ServiceSecuriteInterface};
-use App\Backend\Service\Utilisateur\{ServiceUtilisateur, ServiceUtilisateurInterface};
-use App\Backend\Service\ParcoursAcademique\{ServiceParcoursAcademique, ServiceParcoursAcademiqueInterface};
-use App\Backend\Service\WorkflowSoutenance\{ServiceWorkflowSoutenance, ServiceWorkflowSoutenanceInterface};
-use App\Backend\Service\Systeme\{ServiceSysteme, ServiceSystemeInterface};
+use App\Backend\Model\{
+    // Modèles spécifiques
+    Utilisateur, HistoriqueMotDePasse, Sessions, Delegation, RapportEtudiant, Reclamation,
+    // Modèle générique pour les tables sans modèle dédié
+    GenericModel
+};
 use App\Backend\Service\Communication\{ServiceCommunication, ServiceCommunicationInterface};
 use App\Backend\Service\Document\{ServiceDocument, ServiceDocumentInterface};
+use App\Backend\Service\ParcoursAcademique\{ServiceParcoursAcademique, ServiceParcoursAcademiqueInterface};
+use App\Backend\Service\Securite\{ServiceSecurite, ServiceSecuriteInterface};
 use App\Backend\Service\Supervision\{ServiceSupervision, ServiceSupervisionInterface};
-// --- Importation de tous les Contrôleurs ---
-use App\Backend\Controller\Administration\{AdminDashboardController, ConfigurationController, SupervisionController, UtilisateurController};
-use App\Backend\Controller\Commission\{CommissionDashboardController, WorkflowCommissionController};
-use App\Backend\Controller\Etudiant\{EtudiantDashboardController, ProfilEtudiantController, RapportController, ReclamationController};
-use App\Backend\Controller\PersonnelAdministratif\{PersonnelDashboardController, ScolariteController};
-use App\Backend\Controller\{AssetController, AuthentificationController, BaseController, DashboardController, HomeController};
+use App\Backend\Service\Systeme\{ServiceSysteme, ServiceSystemeInterface};
+use App\Backend\Service\Utilisateur\{ServiceUtilisateur, ServiceUtilisateurInterface};
+use App\Backend\Service\WorkflowSoutenance\{ServiceWorkflowSoutenance, ServiceWorkflowSoutenanceInterface};
+use App\Backend\Util\FormValidator; // Ajout de FormValidator
+
+// Contrôleurs (pour les définir dans le conteneur, même si BaseController les récupère)
+use App\Backend\Controller\{
+    HomeController, AuthentificationController, DashboardController, AssetController, BaseController
+};
+use App\Backend\Controller\Administration\{
+    AdminDashboardController, ConfigurationController, SupervisionController, UtilisateurController
+};
+use App\Backend\Controller\Commission\{
+    CommissionDashboardController, WorkflowCommissionController
+};
+use App\Backend\Controller\Etudiant\{
+    EtudiantDashboardController, ProfilEtudiantController, RapportController
+};
+use App\Backend\Controller\PersonnelAdministratif\{
+    PersonnelDashboardController, ScolariteController
+};
 
 class Container
 {
     private array $definitions = [];
     private array $instances = [];
 
-    // Schéma complet de la base de données pour la factory de modèles génériques
-    private array $tableSchema = [
-        'acquerir' => ['id_grade', 'numero_enseignant'],
-        'action' => 'id_action',
-        'affecter' => ['numero_enseignant', 'id_rapport_etudiant', 'id_statut_jury'],
-        'annee_academique' => 'id_annee_academique',
-        'approuver' => ['numero_personnel_administratif', 'id_rapport_etudiant'],
-        'attribuer' => ['numero_enseignant', 'id_specialite'],
-        'compte_rendu' => 'id_compte_rendu',
-        'conformite_rapport_details' => 'id_conformite_detail',
-        'conversation' => 'id_conversation',
-        'critere_conformite_ref' => 'id_critere',
-        'decision_passage_ref' => 'id_decision_passage',
-        'decision_validation_pv_ref' => 'id_decision_validation_pv',
-        'decision_vote_ref' => 'id_decision_vote',
-        'delegation' => 'id_delegation',
-        'document_genere' => 'id_document_genere',
-        'ecue' => 'id_ecue',
-        'enregistrer' => 'id_enregistrement',
-        'enseignant' => 'numero_enseignant',
-        'entreprise' => 'id_entreprise',
-        'etudiant' => 'numero_carte_etudiant',
-        'evaluer' => ['numero_carte_etudiant', 'id_ecue', 'id_annee_academique'],
-        'faire_stage' => ['id_entreprise', 'numero_carte_etudiant'],
-        'fonction' => 'id_fonction',
-        'grade' => 'id_grade',
-        'groupe_utilisateur' => 'id_groupe_utilisateur',
-        'historique_mot_de_passe' => 'id_historique_mdp',
-        'inscrire' => ['numero_carte_etudiant', 'id_niveau_etude', 'id_annee_academique'],
-        'lecture_message' => ['id_message_chat', 'numero_utilisateur'],
-        'matrice_notification_regles' => 'id_regle',
-        'message_chat' => 'id_message_chat',
-        'niveau_acces_donne' => 'id_niveau_acces_donne',
-        'niveau_etude' => 'id_niveau_etude',
-        'notification' => 'id_notification',
-        'occuper' => ['id_fonction', 'numero_enseignant'],
-        'parametres_systeme' => 'cle',
-        'participant_conversation' => ['id_conversation', 'numero_utilisateur'],
-        'penalite' => 'id_penalite',
-        'personnel_administratif' => 'numero_personnel_administratif',
-        'pister' => 'id_piste',
-        'pv_session_rapport' => ['id_compte_rendu', 'id_rapport_etudiant'],
-        'queue_jobs' => 'id',
-        'rapport_etudiant' => 'id_rapport_etudiant',
-        'rapport_modele' => 'id_modele',
-        'rapport_modele_assignation' => ['id_modele', 'id_niveau_etude'],
-        'rapport_modele_section' => 'id_section_modele',
-        'rattacher' => ['id_groupe_utilisateur', 'id_traitement'],
-        'recevoir' => 'id_reception',
-        'reclamation' => 'id_reclamation',
-        'rendre' => ['numero_enseignant', 'id_compte_rendu'],
-        'section_rapport' => ['id_rapport_etudiant', 'titre_section'],
-        'sequences' => ['nom_sequence', 'annee'],
-        'sessions' => 'session_id',
-        'session_rapport' => ['id_session', 'id_rapport_etudiant'],
-        'session_validation' => 'id_session',
-        'specialite' => 'id_specialite',
-        'statut_conformite_ref' => 'id_statut_conformite',
-        'statut_jury' => 'id_statut_jury',
-        'statut_paiement_ref' => 'id_statut_paiement',
-        'statut_penalite_ref' => 'id_statut_penalite',
-        'statut_pv_ref' => 'id_statut_pv',
-        'statut_rapport_ref' => 'id_statut_rapport',
-        'statut_reclamation_ref' => 'id_statut_reclamation',
-        'traitement' => 'id_traitement',
-        'type_document_ref' => 'id_type_document',
-        'type_utilisateur' => 'id_type_utilisateur',
-        'ue' => 'id_ue',
-        'utilisateur' => 'numero_utilisateur',
-        'validation_pv' => ['id_compte_rendu', 'numero_enseignant'],
-        'vote_commission' => 'id_vote',
-    ];
-
     public function __construct()
     {
-        // Définitions de base
-        $this->definitions['PDO'] = fn () => Database::getInstance()->getConnection();
-        $this->definitions[FormValidator::class] = fn () => new FormValidator();
-        $this->definitions[DatabaseSessionHandler::class] = fn () => new DatabaseSessionHandler();
+        // 1. Définir la connexion à la base de données (la plus fondamentale)
+        $this->defineDatabase();
 
-        // Enregistre l'instance actuelle du conteneur pour qu'elle puisse être injectée
-        $this->definitions[self::class] = fn () => $this;
+        // 2. Définir tous les modèles (dépendent de PDO)
+        $this->defineModels();
 
-        // Enregistrement des composants
-        $this->registerModels();
-        $this->registerServices();
-        $this->registerControllers();
+        // 3. Définir les utilitaires
+        $this->defineUtilities();
+
+        // 4. Définir tous les services (dépendent de PDO et des modèles, parfois d'autres services)
+        $this->defineServices();
+
+        // 5. Définir tous les contrôleurs (dépendent du conteneur lui-même pour récupérer les services)
+        $this->defineControllers();
     }
 
-    private function registerModels(): void
+    /**
+     * Enregistre une définition de service ou de modèle.
+     *
+     * @param string $id L'identifiant unique (généralement le FQCN de l'interface ou de la classe).
+     * @param callable $definition La fonction anonyme qui crée l'instance.
+     */
+    public function set(string $id, callable $definition): void
     {
-        // Modèles avec une logique spécifique
-        $specificModels = [
-            Utilisateur::class, HistoriqueMotDePasse::class, Sessions::class,
-            RapportEtudiant::class, Reclamation::class, Delegation::class
-        ];
+        $this->definitions[$id] = $definition;
+    }
 
-        foreach ($specificModels as $modelClass) {
-            $this->definitions[$modelClass] = fn ($c) => new $modelClass($c->get('PDO'));
+    /**
+     * Récupère une instance d'un service ou d'un modèle.
+     * Gère le pattern Singleton pour les instances déjà créées.
+     *
+     * @param string $id L'identifiant du service/modèle à récupérer.
+     * @return mixed L'instance de la classe.
+     * @throws \InvalidArgumentException Si la définition n'existe pas.
+     */
+    public function get(string $id): mixed
+    {
+        if (isset($this->instances[$id])) {
+            return $this->instances[$id];
         }
+
+        if (!isset($this->definitions[$id])) {
+            throw new \InvalidArgumentException("Service ou modèle non défini: {$id}");
+        }
+
+        $definition = $this->definitions[$id];
+        $instance = $definition($this); // Passe le conteneur à la définition
+        $this->instances[$id] = $instance; // Stocke l'instance pour les futures requêtes (singleton)
+
+        return $instance;
     }
 
-    private function registerServices(): void
+    /**
+     * Méthode utilitaire pour obtenir une instance de GenericModel pour une table donnée.
+     * Cela évite de définir chaque GenericModel individuellement.
+     *
+     * @param string $tableName Le nom de la table.
+     * @param string|array $primaryKey La clé primaire de la table (peut être un tableau pour les clés composites).
+     * @return GenericModel L'instance de GenericModel.
+     */
+    public function getModelForTable(string $tableName, string|array $primaryKey = 'id'): GenericModel
     {
-        // ServiceSupervision
-        $this->definitions[ServiceSupervision::class] = fn ($c) => new ServiceSupervision(
-            $c->get('PDO'),
-            $c->getModelForTable('enregistrer'),
-            $c->getModelForTable('pister'),
-            $c->getModelForTable('action'),
-            $c->getModelForTable('queue_jobs'),
-            $c->get(Utilisateur::class),
-            $c->get(RapportEtudiant::class)
-        );
-        $this->alias(ServiceSupervisionInterface::class, ServiceSupervision::class);
+        $id = GenericModel::class . '_' . $tableName;
+        if (!isset($this->definitions[$id])) {
+            $this->set($id, function($c) use ($tableName, $primaryKey) {
+                return new GenericModel($c->get(PDO::class), $tableName, $primaryKey);
+            });
+        }
+        return $this->get($id);
+    }
 
-        // ServiceSysteme
-        $this->definitions[ServiceSysteme::class] = fn ($c) => new ServiceSysteme(
-            $c->get('PDO'),
-            $c->getModelForTable('parametres_systeme'),
-            $c->getModelForTable('annee_academique'),
-            $c->getModelForTable('sequences'),
-            $c->get(ServiceSupervisionInterface::class),
-            $c // Injection du conteneur pour la factory de modèles
-        );
-        $this->alias(ServiceSystemeInterface::class, ServiceSysteme::class);
+    // --- Méthodes de définition des dépendances ---
 
-        // ServiceSecurite
-        $this->definitions[ServiceSecurite::class] = fn ($c) => new ServiceSecurite(
-            $c->get('PDO'),
-            $c->get(Utilisateur::class),
-            $c->get(HistoriqueMotDePasse::class),
-            $c->get(Sessions::class),
-            $c->getModelForTable('rattacher'),
-            $c->getModelForTable('traitement'),
-            $c->get(Delegation::class),
-            $c->get(ServiceSupervisionInterface::class)
-        );
-        $this->alias(ServiceSecuriteInterface::class, ServiceSecurite::class);
+    private function defineDatabase(): void
+    {
+        $this->set(PDO::class, function($c) {
+            // Assurez-vous que ces variables d'environnement sont chargées AVANT l'instanciation du Container
+            $dbHost = $_ENV['DB_HOST'] ?? 'localhost';
+            $dbName = $_ENV['DB_DATABASE'] ?? 'mysoutenance';
+            $dbUser = $_ENV['DB_USER'] ?? 'root';
+            $dbPass = $_ENV['DB_PASSWORD'] ?? '';
+            $dbCharset = $_ENV['DB_CHARSET'] ?? 'utf8mb4'; // Utiliser utf8mb4 par défaut
 
-        // ServiceCommunication
-        $this->definitions[ServiceCommunication::class] = fn ($c) => new ServiceCommunication(
-            $c->get('PDO'),
-            $c->getModelForTable('notification'),
-            $c->getModelForTable('recevoir'),
-            $c->getModelForTable('conversation'),
-            $c->getModelForTable('message_chat'),
-            $c->getModelForTable('participant_conversation'),
-            $c->getModelForTable('matrice_notification_regles'),
-            $c->getModelForTable('utilisateur'),
-            $c->get(ServiceSystemeInterface::class),
-            $c->get(ServiceSupervisionInterface::class)
-        );
-        $this->alias(ServiceCommunicationInterface::class, ServiceCommunication::class);
+            $dsn = "mysql:host={$dbHost};dbname={$dbName};charset={$dbCharset}";
+            return new PDO($dsn, $dbUser, $dbPass, [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                PDO::ATTR_EMULATE_PREPARES => false,
+            ]);
+        });
+    }
 
-        // ServiceUtilisateur
-        $this->definitions[ServiceUtilisateur::class] = function ($c) {
-            $service = new ServiceUtilisateur(
-                $c->get('PDO'),
+    private function defineModels(): void
+    {
+        $pdo = $this->get(PDO::class);
+
+        // Modèles spécifiques (avec leurs propres classes)
+        $this->set(Utilisateur::class, fn($c) => new Utilisateur($pdo));
+        $this->set(HistoriqueMotDePasse::class, fn($c) => new HistoriqueMotDePasse($pdo));
+        $this->set(Sessions::class, fn($c) => new Sessions($pdo));
+        $this->set(Delegation::class, fn($c) => new Delegation($pdo));
+        $this->set(RapportEtudiant::class, fn($c) => new RapportEtudiant($pdo));
+        $this->set(Reclamation::class, fn($c) => new Reclamation($pdo));
+
+        // Modèles génériques (pour les tables sans classe de modèle dédiée)
+        // Ils sont définis ici pour être clairs, mais getModelForTable() peut les créer à la volée si non définis.
+        $this->set(GenericModel::class . '_action', fn($c) => new GenericModel($pdo, 'action', 'id_action'));
+        $this->set(GenericModel::class . '_acquerir', fn($c) => new GenericModel($pdo, 'acquerir', ['id_grade', 'numero_enseignant']));
+        $this->set(GenericModel::class . '_affecter', fn($c) => new GenericModel($pdo, 'affecter', ['numero_enseignant', 'id_rapport_etudiant', 'id_statut_jury']));
+        $this->set(GenericModel::class . '_annee_academique', fn($c) => new GenericModel($pdo, 'annee_academique', 'id_annee_academique'));
+        $this->set(GenericModel::class . '_approuver', fn($c) => new GenericModel($pdo, 'approuver', ['numero_personnel_administratif', 'id_rapport_etudiant']));
+        $this->set(GenericModel::class . '_attribuer', fn($c) => new GenericModel($pdo, 'attribuer', ['numero_enseignant', 'id_specialite']));
+        $this->set(GenericModel::class . '_compte_rendu', fn($c) => new GenericModel($pdo, 'compte_rendu', 'id_compte_rendu'));
+        $this->set(GenericModel::class . '_conformite_rapport_details', fn($c) => new GenericModel($pdo, 'conformite_rapport_details', 'id_conformite_detail'));
+        $this->set(GenericModel::class . '_conversation', fn($c) => new GenericModel($pdo, 'conversation', 'id_conversation'));
+        $this->set(GenericModel::class . '_critere_conformite_ref', fn($c) => new GenericModel($pdo, 'critere_conformite_ref', 'id_critere'));
+        $this->set(GenericModel::class . '_decision_passage_ref', fn($c) => new GenericModel($pdo, 'decision_passage_ref', 'id_decision_passage'));
+        $this->set(GenericModel::class . '_decision_validation_pv_ref', fn($c) => new GenericModel($pdo, 'decision_validation_pv_ref', 'id_decision_validation_pv'));
+        $this->set(GenericModel::class . '_decision_vote_ref', fn($c) => new GenericModel($pdo, 'decision_vote_ref', 'id_decision_vote'));
+        $this->set(GenericModel::class . '_document_genere', fn($c) => new GenericModel($pdo, 'document_genere', 'id_document_genere'));
+        $this->set(GenericModel::class . '_ecue', fn($c) => new GenericModel($pdo, 'ecue', 'id_ecue'));
+        $this->set(GenericModel::class . '_enregistrer', fn($c) => new GenericModel($pdo, 'enregistrer', 'id_enregistrement'));
+        $this->set(GenericModel::class . '_enseignant', fn($c) => new GenericModel($pdo, 'enseignant', 'numero_enseignant'));
+        $this->set(GenericModel::class . '_entreprise', fn($c) => new GenericModel($pdo, 'entreprise', 'id_entreprise'));
+        $this->set(GenericModel::class . '_etudiant', fn($c) => new GenericModel($pdo, 'etudiant', 'numero_carte_etudiant'));
+        $this->set(GenericModel::class . '_evaluer', fn($c) => new GenericModel($pdo, 'evaluer', ['numero_carte_etudiant', 'id_ecue', 'id_annee_academique']));
+        $this->set(GenericModel::class . '_faire_stage', fn($c) => new GenericModel($pdo, 'faire_stage', ['id_entreprise', 'numero_carte_etudiant']));
+        $this->set(GenericModel::class . '_fonction', fn($c) => new GenericModel($pdo, 'fonction', 'id_fonction'));
+        $this->set(GenericModel::class . '_grade', fn($c) => new GenericModel($pdo, 'grade', 'id_grade'));
+        $this->set(GenericModel::class . '_groupe_utilisateur', fn($c) => new GenericModel($pdo, 'groupe_utilisateur', 'id_groupe_utilisateur'));
+        $this->set(GenericModel::class . '_inscrire', fn($c) => new GenericModel($pdo, 'inscrire', ['numero_carte_etudiant', 'id_niveau_etude', 'id_annee_academique']));
+        $this->set(GenericModel::class . '_lecture_message', fn($c) => new GenericModel($pdo, 'lecture_message', ['id_message_chat', 'numero_utilisateur']));
+        $this->set(GenericModel::class . '_matrice_notification_regles', fn($c) => new GenericModel($pdo, 'matrice_notification_regles', 'id_regle'));
+        $this->set(GenericModel::class . '_message_chat', fn($c) => new GenericModel($pdo, 'message_chat', 'id_message_chat'));
+        $this->set(GenericModel::class . '_niveau_acces_donne', fn($c) => new GenericModel($pdo, 'niveau_acces_donne', 'id_niveau_acces_donne'));
+        $this->set(GenericModel::class . '_niveau_etude', fn($c) => new GenericModel($pdo, 'niveau_etude', 'id_niveau_etude'));
+        $this->set(GenericModel::class . '_notification', fn($c) => new GenericModel($pdo, 'notification', 'id_notification'));
+        $this->set(GenericModel::class . '_occuper', fn($c) => new GenericModel($pdo, 'occuper', ['id_fonction', 'numero_enseignant']));
+        $this->set(GenericModel::class . '_parametres_systeme', fn($c) => new GenericModel($pdo, 'parametres_systeme', 'cle'));
+        $this->set(GenericModel::class . '_participant_conversation', fn($c) => new GenericModel($pdo, 'participant_conversation', ['id_conversation', 'numero_utilisateur']));
+        $this->set(GenericModel::class . '_penalite', fn($c) => new GenericModel($pdo, 'penalite', 'id_penalite'));
+        $this->set(GenericModel::class . '_personnel_administratif', fn($c) => new GenericModel($pdo, 'personnel_administratif', 'numero_personnel_administratif'));
+        $this->set(GenericModel::class . '_pister', fn($c) => new GenericModel($pdo, 'pister', 'id_piste'));
+        $this->set(GenericModel::class . '_pv_session_rapport', fn($c) => new GenericModel($pdo, 'pv_session_rapport', ['id_compte_rendu', 'id_rapport_etudiant']));
+        $this->set(GenericModel::class . '_queue_jobs', fn($c) => new GenericModel($pdo, 'queue_jobs', 'id'));
+        $this->set(GenericModel::class . '_rapport_etudiant', fn($c) => new GenericModel($pdo, 'rapport_etudiant', 'id_rapport_etudiant')); // Ajouté pour éviter la confusion avec RapportEtudiant::class
+        $this->set(GenericModel::class . '_rapport_modele', fn($c) => new GenericModel($pdo, 'rapport_modele', 'id_modele'));
+        $this->set(GenericModel::class . '_rapport_modele_assignation', fn($c) => new GenericModel($pdo, 'rapport_modele_assignation', ['id_modele', 'id_niveau_etude']));
+        $this->set(GenericModel::class . '_rapport_modele_section', fn($c) => new GenericModel($pdo, 'rapport_modele_section', 'id_section_modele'));
+        $this->set(GenericModel::class . '_rattacher', fn($c) => new GenericModel($pdo, 'rattacher', ['id_groupe_utilisateur', 'id_traitement']));
+        $this->set(GenericModel::class . '_recevoir', fn($c) => new GenericModel($pdo, 'recevoir', 'id_reception'));
+        $this->set(GenericModel::class . '_reclamation', fn($c) => new GenericModel($pdo, 'reclamation', 'id_reclamation')); // Ajouté pour éviter la confusion avec Reclamation::class
+        $this->set(GenericModel::class . '_rendre', fn($c) => new GenericModel($pdo, 'rendre', ['numero_enseignant', 'id_compte_rendu']));
+        $this->set(GenericModel::class . '_section_rapport', fn($c) => new GenericModel($pdo, 'section_rapport', ['id_rapport_etudiant', 'titre_section']));
+        $this->set(GenericModel::class . '_sequences', fn($c) => new GenericModel($pdo, 'sequences', ['nom_sequence', 'annee']));
+        $this->set(GenericModel::class . '_sessions', fn($c) => new GenericModel($pdo, 'sessions', 'session_id')); // Ajouté pour éviter la confusion avec Sessions::class
+        $this->set(GenericModel::class . '_session_rapport', fn($c) => new GenericModel($pdo, 'session_rapport', ['id_session', 'id_rapport_etudiant']));
+        $this->set(GenericModel::class . '_session_validation', fn($c) => new GenericModel($pdo, 'session_validation', 'id_session'));
+        $this->set(GenericModel::class . '_specialite', fn($c) => new GenericModel($pdo, 'specialite', 'id_specialite'));
+        $this->set(GenericModel::class . '_statut_conformite_ref', fn($c) => new GenericModel($pdo, 'statut_conformite_ref', 'id_statut_conformite'));
+        $this->set(GenericModel::class . '_statut_jury', fn($c) => new GenericModel($pdo, 'statut_jury', 'id_statut_jury'));
+        $this->set(GenericModel::class . '_statut_paiement_ref', fn($c) => new GenericModel($pdo, 'statut_paiement_ref', 'id_statut_paiement'));
+        $this->set(GenericModel::class . '_statut_penalite_ref', fn($c) => new GenericModel($pdo, 'statut_penalite_ref', 'id_statut_penalite'));
+        $this->set(GenericModel::class . '_statut_pv_ref', fn($c) => new GenericModel($pdo, 'statut_pv_ref', 'id_statut_pv'));
+        $this->set(GenericModel::class . '_statut_rapport_ref', fn($c) => new GenericModel($pdo, 'statut_rapport_ref', 'id_statut_rapport'));
+        $this->set(GenericModel::class . '_statut_reclamation_ref', fn($c) => new GenericModel($pdo, 'statut_reclamation_ref', 'id_statut_reclamation'));
+        $this->set(GenericModel::class . '_traitement', fn($c) => new GenericModel($pdo, 'traitement', 'id_traitement'));
+        $this->set(GenericModel::class . '_type_document_ref', fn($c) => new GenericModel($pdo, 'type_document_ref', 'id_type_document'));
+        $this->set(GenericModel::class . '_type_utilisateur', fn($c) => new GenericModel($pdo, 'type_utilisateur', 'id_type_utilisateur'));
+        $this->set(GenericModel::class . '_ue', fn($c) => new GenericModel($pdo, 'ue', 'id_ue'));
+        $this->set(GenericModel::class . '_validation_pv', fn($c) => new GenericModel($pdo, 'validation_pv', ['id_compte_rendu', 'numero_enseignant']));
+        $this->set(GenericModel::class . '_vote_commission', fn($c) => new GenericModel($pdo, 'vote_commission', 'id_vote'));
+    }
+
+    private function defineUtilities(): void
+    {
+        $this->set(FormValidator::class, fn($c) => new FormValidator());
+    }
+
+    private function defineServices(): void
+    {
+        // ServiceSysteme (dépend de PDO, GenericModels, ServiceSupervision)
+        $this->set(ServiceSystemeInterface::class, function($c) {
+            return new ServiceSysteme(
+                $c->get(PDO::class),
+                $c->getModelForTable('parametres_systeme', 'cle'),
+                $c->getModelForTable('annee_academique', 'id_annee_academique'),
+                $c->getModelForTable('sequences', ['nom_sequence', 'annee']),
+                $c->get(ServiceSupervisionInterface::class),
+                $c // Injecte le conteneur lui-même pour getModelForTable interne
+            );
+        });
+
+        // ServiceSupervision (dépend de PDO, GenericModels, Utilisateur, RapportEtudiant)
+        $this->set(ServiceSupervisionInterface::class, function($c) {
+            return new ServiceSupervision(
+                $c->get(PDO::class),
+                $c->getModelForTable('enregistrer', 'id_enregistrement'),
+                $c->getModelForTable('pister', 'id_piste'),
+                $c->getModelForTable('action', 'id_action'),
+                $c->getModelForTable('queue_jobs', 'id'),
                 $c->get(Utilisateur::class),
-                $c->getModelForTable('etudiant'),
-                $c->getModelForTable('enseignant'),
-                $c->getModelForTable('personnel_administratif'),
+                $c->get(RapportEtudiant::class)
+            );
+        });
+
+        // ServiceSecurite (dépend de PDO, Utilisateur, HistoriqueMotDePasse, Sessions, GenericModels, Delegation, ServiceSupervision)
+        $this->set(ServiceSecuriteInterface::class, function($c) {
+            return new ServiceSecurite(
+                $c->get(PDO::class),
+                $c->get(Utilisateur::class),
+                $c->get(HistoriqueMotDePasse::class),
+                $c->get(Sessions::class),
+                $c->getModelForTable('rattacher', ['id_groupe_utilisateur', 'id_traitement']),
+                $c->getModelForTable('traitement', 'id_traitement'),
                 $c->get(Delegation::class),
-                $c->getModelForTable('rapport_etudiant'),
-                $c->getModelForTable('vote_commission'),
-                $c->getModelForTable('compte_rendu'),
+                $c->get(ServiceSupervisionInterface::class)
+            );
+        });
+
+        // ServiceCommunication (dépend de PDO, GenericModels, Utilisateur, ServiceSysteme, ServiceSupervision)
+        $this->set(ServiceCommunicationInterface::class, function($c) {
+            return new ServiceCommunication(
+                $c->get(PDO::class),
+                $c->getModelForTable('notification', 'id_notification'),
+                $c->getModelForTable('recevoir', 'id_reception'),
+                $c->getModelForTable('conversation', 'id_conversation'),
+                $c->getModelForTable('message_chat', 'id_message_chat'),
+                $c->getModelForTable('participant_conversation', ['id_conversation', 'numero_utilisateur']),
+                $c->getModelForTable('matrice_notification_regles', 'id_regle'),
+                $c->get(Utilisateur::class),
                 $c->get(ServiceSystemeInterface::class),
                 $c->get(ServiceSupervisionInterface::class)
             );
+        });
+
+        // ServiceDocument (dépend de PDO, GenericModels, RapportEtudiant, ServiceSysteme, ServiceSupervision)
+        $this->set(ServiceDocumentInterface::class, function($c) {
+            return new ServiceDocument(
+                $c->get(PDO::class),
+                $c->getModelForTable('document_genere', 'id_document_genere'),
+                $c->getModelForTable('rapport_modele', 'id_modele'),
+                $c->getModelForTable('etudiant', 'numero_carte_etudiant'),
+                $c->getModelForTable('inscrire', ['numero_carte_etudiant', 'id_niveau_etude', 'id_annee_academique']),
+                $c->getModelForTable('evaluer', ['numero_carte_etudiant', 'id_ecue', 'id_annee_academique']),
+                $c->getModelForTable('compte_rendu', 'id_compte_rendu'),
+                $c->getModelForTable('annee_academique', 'id_annee_academique'),
+                $c->get(RapportEtudiant::class),
+                $c->getModelForTable('section_rapport', ['id_rapport_etudiant', 'titre_section']),
+                $c->get(ServiceSystemeInterface::class),
+                $c->get(ServiceSupervisionInterface::class)
+            );
+        });
+
+        // ServiceParcoursAcademique (dépend de PDO, GenericModels, ServiceSysteme, ServiceSupervision)
+        $this->set(ServiceParcoursAcademiqueInterface::class, function($c) {
+            return new ServiceParcoursAcademique(
+                $c->get(PDO::class),
+                $c->getModelForTable('inscrire', ['numero_carte_etudiant', 'id_niveau_etude', 'id_annee_academique']),
+                $c->getModelForTable('evaluer', ['numero_carte_etudiant', 'id_ecue', 'id_annee_academique']),
+                $c->getModelForTable('faire_stage', ['id_entreprise', 'numero_carte_etudiant']),
+                $c->getModelForTable('penalite', 'id_penalite'),
+                $c->getModelForTable('ue', 'id_ue'),
+                $c->getModelForTable('ecue', 'id_ecue'),
+                $c->get(ServiceSystemeInterface::class),
+                $c->get(ServiceSupervisionInterface::class)
+            );
+        });
+
+        // ServiceUtilisateur (dépend de PDO, Modèles, Services)
+        $this->set(ServiceUtilisateurInterface::class, function($c) {
+            $service = new ServiceUtilisateur(
+                $c->get(PDO::class),
+                $c->get(Utilisateur::class),
+                $c->getModelForTable('etudiant', 'numero_carte_etudiant'),
+                $c->getModelForTable('enseignant', 'numero_enseignant'),
+                $c->getModelForTable('personnel_administratif', 'numero_personnel_administratif'),
+                $c->get(Delegation::class),
+                $c->get(RapportEtudiant::class), // Pour les vérifications de suppression
+                $c->getModelForTable('vote_commission', 'id_vote'), // Pour les vérifications de suppression
+                $c->getModelForTable('compte_rendu', 'id_compte_rendu'), // Pour les vérifications de suppression
+                $c->get(ServiceSystemeInterface::class),
+                $c->get(ServiceSupervisionInterface::class)
+            );
+            // Injection du ServiceCommunication et ServiceDocument après leurs propres définitions pour éviter les boucles
             $service->setCommunicationService($c->get(ServiceCommunicationInterface::class));
+            $service->setDocumentService($c->get(ServiceDocumentInterface::class)); // Pour telechargerPhotoProfil
             return $service;
-        };
-        $this->alias(ServiceUtilisateurInterface::class, ServiceUtilisateur::class);
+        });
 
-        // ServiceDocument
-        $this->definitions[ServiceDocument::class] = fn ($c) => new ServiceDocument(
-            $c->get('PDO'),
-            $c->getModelForTable('document_genere'),
-            $c->getModelForTable('rapport_modele'),
-            $c->getModelForTable('etudiant'),
-            $c->getModelForTable('inscrire'),
-            $c->getModelForTable('evaluer'),
-            $c->getModelForTable('compte_rendu'),
-            $c->getModelForTable('annee_academique'),
-            $c->get(RapportEtudiant::class),
-            $c->getModelForTable('section_rapport'),
-            $c->get(ServiceSystemeInterface::class),
-            $c->get(ServiceSupervisionInterface::class)
-        );
-        $this->alias(ServiceDocumentInterface::class, ServiceDocument::class);
-
-        // ServiceParcoursAcademique
-        $this->definitions[ServiceParcoursAcademique::class] = fn ($c) => new ServiceParcoursAcademique(
-            $c->get('PDO'),
-            $c->getModelForTable('inscrire'),
-            $c->getModelForTable('evaluer'),
-            $c->getModelForTable('faire_stage'),
-            $c->getModelForTable('penalite'),
-            $c->getModelForTable('ue'),
-            $c->getModelForTable('ecue'),
-            $c->get(ServiceSystemeInterface::class),
-            $c->get(ServiceSupervisionInterface::class)
-        );
-        $this->alias(ServiceParcoursAcademiqueInterface::class, ServiceParcoursAcademique::class);
-
-        // ServiceWorkflowSoutenance
-        $this->definitions[ServiceWorkflowSoutenance::class] = fn ($c) => new ServiceWorkflowSoutenance(
-            $c->get('PDO'),
-            $c->get(RapportEtudiant::class),
-            $c->get(Reclamation::class),
-            $c->getModelForTable('section_rapport'),
-            $c->getModelForTable('approuver'),
-            $c->getModelForTable('conformite_rapport_details'),
-            $c->getModelForTable('vote_commission'),
-            $c->getModelForTable('compte_rendu'),
-            $c->getModelForTable('session_validation'),
-            $c->getModelForTable('session_rapport'),
-            $c->getModelForTable('affecter'),
-            $c->get(ServiceCommunicationInterface::class),
-            $c->get(ServiceDocumentInterface::class),
-            $c->get(ServiceSupervisionInterface::class),
-            $c->get(ServiceSystemeInterface::class)
-        );
-        $this->alias(ServiceWorkflowSoutenanceInterface::class, ServiceWorkflowSoutenance::class);
+        // ServiceWorkflowSoutenance (dépend de PDO, Modèles, Services)
+        $this->set(ServiceWorkflowSoutenanceInterface::class, function($c) {
+            return new ServiceWorkflowSoutenance(
+                $c->get(PDO::class),
+                $c->get(RapportEtudiant::class),
+                $c->get(Reclamation::class),
+                $c->getModelForTable('section_rapport', ['id_rapport_etudiant', 'titre_section']),
+                $c->getModelForTable('approuver', ['numero_personnel_administratif', 'id_rapport_etudiant']),
+                $c->getModelForTable('conformite_rapport_details', 'id_conformite_detail'),
+                $c->getModelForTable('vote_commission', 'id_vote'),
+                $c->getModelForTable('compte_rendu', 'id_compte_rendu'),
+                $c->getModelForTable('session_validation', 'id_session'),
+                $c->getModelForTable('session_rapport', ['id_session', 'id_rapport_etudiant']),
+                $c->getModelForTable('affecter', ['numero_enseignant', 'id_rapport_etudiant', 'id_statut_jury']),
+                $c->get(ServiceCommunicationInterface::class),
+                $c->get(ServiceDocumentInterface::class),
+                $c->get(ServiceSupervisionInterface::class),
+                $c->get(ServiceSystemeInterface::class)
+            );
+        });
     }
 
-    private function registerControllers(): void
+    private function defineControllers(): void
     {
-        $controllers = [
-            AdminDashboardController::class, ConfigurationController::class, SupervisionController::class, UtilisateurController::class,
-            CommissionDashboardController::class, WorkflowCommissionController::class,
-            EtudiantDashboardController::class, ProfilEtudiantController::class, RapportController::class, ReclamationController::class,
-            PersonnelDashboardController::class, ScolariteController::class,
-            AssetController::class, AuthentificationController::class, DashboardController::class, HomeController::class
-        ];
+        // Contrôleurs de base
+        // BaseController est abstrait, mais on le définit pour pouvoir le récupérer pour les erreurs 404/405
+        // L'instanciation anonyme est une astuce pour instancier une classe abstraite pour un usage spécifique
+        $this->set(BaseController::class, fn($c) => new class($c) extends BaseController {});
+        $this->set(HomeController::class, fn($c) => new HomeController($c));
+        $this->set(AuthentificationController::class, fn($c) => new AuthentificationController($c));
+        $this->set(DashboardController::class, fn($c) => new DashboardController($c));
+        $this->set(AssetController::class, fn($c) => new AssetController($c));
 
-        foreach ($controllers as $controller) {
-            $this->definitions[$controller] = function ($c) use ($controller) {
-                $reflection = new \ReflectionClass($controller);
-                $constructor = $reflection->getConstructor();
-                if (!$constructor) return new $controller();
+        // Contrôleurs d'Administration
+        $this->set(AdminDashboardController::class, fn($c) => new AdminDashboardController($c));
+        $this->set(ConfigurationController::class, fn($c) => new ConfigurationController($c));
+        // SupervisionController a des dépendances spécifiques en plus du container
+        $this->set(SupervisionController::class, function($c) {
+            return new SupervisionController(
+                $c, // Le container
+                $c->get(ServiceSecuriteInterface::class),
+                $c->get(ServiceSupervisionInterface::class),
+                $c->get(ServiceSystemeInterface::class)
+            );
+        });
+        // UtilisateurController a des dépendances spécifiques en plus du container
+        $this->set(UtilisateurController::class, function($c) {
+            return new UtilisateurController(
+                $c, // Le container
+                $c->get(ServiceSecuriteInterface::class),
+                $c->get(ServiceUtilisateurInterface::class),
+                $c->get(FormValidator::class)
+            );
+        });
 
-                $dependencies = [];
-                foreach ($constructor->getParameters() as $param) {
-                    $type = $param->getType();
-                    if ($type instanceof \ReflectionNamedType && !$type->isBuiltin()) {
-                        $dependencies[] = $c->get($type->getName());
-                    } else {
-                        throw new Exception("Paramètre non injectable '{$param->getName()}' dans le constructeur de " . $controller);
-                    }
-                }
-                return new $controller(...$dependencies);
-            };
-        }
-    }
+        // Contrôleurs de Commission
+        // CommissionDashboardController a des dépendances spécifiques en plus du container
+        $this->set(CommissionDashboardController::class, function($c) {
+            return new CommissionDashboardController(
+                $c, // Le container
+                $c->get(ServiceSecuriteInterface::class),
+                $c->get(ServiceSupervisionInterface::class),
+                $c->get(FormValidator::class),
+                $c->get(ServiceWorkflowSoutenanceInterface::class)
+            );
+        });
+        // WorkflowCommissionController a des dépendances spécifiques en plus du container
+        $this->set(WorkflowCommissionController::class, function($c) {
+            return new WorkflowCommissionController(
+                $c, // Le container
+                $c->get(ServiceSecuriteInterface::class),
+                $c->get(ServiceSupervisionInterface::class),
+                $c->get(FormValidator::class),
+                $c->get(ServiceWorkflowSoutenanceInterface::class)
+            );
+        });
 
-    public function get(string $id)
-    {
-        if (!isset($this->instances[$id])) {
-            if (!isset($this->definitions[$id])) {
-                throw new Exception("Service ou classe '{$id}' non défini dans le conteneur.");
-            }
-            $this->instances[$id] = $this->definitions[$id]($this);
-        }
-        return $this->instances[$id];
-    }
+        // Contrôleurs Étudiant
+        // EtudiantDashboardController a des dépendances spécifiques en plus du container
+        $this->set(EtudiantDashboardController::class, function($c) {
+            return new EtudiantDashboardController(
+                $c, // Le container
+                $c->get(ServiceSecuriteInterface::class),
+                $c->get(ServiceSupervisionInterface::class),
+                $c->get(FormValidator::class),
+                $c->get(ServiceWorkflowSoutenanceInterface::class)
+            );
+        });
+        // ProfilEtudiantController a des dépendances spécifiques en plus du container
+        $this->set(ProfilEtudiantController::class, function($c) {
+            return new ProfilEtudiantController(
+                $c, // Le container
+                $c->get(ServiceSecuriteInterface::class),
+                $c->get(ServiceSupervisionInterface::class),
+                $c->get(FormValidator::class),
+                $c->get(ServiceUtilisateurInterface::class)
+            );
+        });
+        // RapportController a des dépendances spécifiques en plus du container
+        $this->set(RapportController::class, function($c) {
+            return new RapportController(
+                $c, // Le container
+                $c->get(ServiceSecuriteInterface::class),
+                $c->get(ServiceSupervisionInterface::class),
+                $c->get(FormValidator::class),
+                $c->get(ServiceWorkflowSoutenanceInterface::class)
+            );
+        });
 
-    public function getModelForTable(string $tableName): GenericModel
-    {
-        $instanceKey = 'model.' . $tableName;
-        if (!isset($this->instances[$instanceKey])) {
-            if (!isset($this->tableSchema[$tableName])) {
-                throw new Exception("Schéma non défini pour la table '{$tableName}' dans le Container.");
-            }
-            $primaryKey = $this->tableSchema[$tableName];
-            $this->instances[$instanceKey] = new GenericModel($this->get('PDO'), $tableName, $primaryKey);
-        }
-        return $this->instances[$instanceKey];
-    }
-
-    private function alias(string $alias, string $concrete): void
-    {
-        $this->definitions[$alias] = fn ($c) => $c->get($concrete);
+        // Contrôleurs Personnel Administratif
+        // PersonnelDashboardController a des dépendances spécifiques en plus du container
+        $this->set(PersonnelDashboardController::class, function($c) {
+            return new PersonnelDashboardController(
+                $c, // Le container
+                $c->get(ServiceSecuriteInterface::class),
+                $c->get(ServiceSupervisionInterface::class),
+                $c->get(FormValidator::class),
+                $c->get(ServiceWorkflowSoutenanceInterface::class),
+                $c->get(ServiceUtilisateurInterface::class)
+            );
+        });
+        // ScolariteController a des dépendances spécifiques en plus du container
+        $this->set(ScolariteController::class, function($c) {
+            return new ScolariteController(
+                $c, // Le container
+                $c->get(ServiceSecuriteInterface::class),
+                $c->get(ServiceSupervisionInterface::class),
+                $c->get(FormValidator::class),
+                $c->get(ServiceWorkflowSoutenanceInterface::class),
+                $c->get(ServiceUtilisateurInterface::class)
+            );
+        });
     }
 }

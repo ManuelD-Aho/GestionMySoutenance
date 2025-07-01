@@ -234,6 +234,27 @@ class ServiceCommunication implements ServiceCommunicationInterface
         ]);
     }
 
+    public function archiverConversationsInactives(int $jours): int
+    {
+        $dateLimite = (new \DateTime())->modify("-{$jours} days")->format('Y-m-d H:i:s');
+        $sql = "UPDATE conversation c
+                LEFT JOIN (
+                    SELECT id_conversation, MAX(date_envoi) as last_message_date
+                    FROM message_chat
+                    GROUP BY id_conversation
+                ) mc ON c.id_conversation = mc.id_conversation
+                SET c.statut = 'Archivée'
+                WHERE (mc.last_message_date IS NULL AND c.date_creation_conv < :date_limite)
+                   OR (mc.last_message_date < :date_limite AND c.statut != 'Archivée')";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([':date_limite' => $dateLimite]);
+        $rowCount = $stmt->rowCount();
+        if ($rowCount > 0) {
+            $this->supervisionService->enregistrerAction('SYSTEM', 'ARCHIVAGE_CONVERSATIONS', null, 'Conversation', ['count' => $rowCount, 'days_inactive' => $jours]);
+        }
+        return $rowCount;
+    }
+
     // --- Méthode privée ---
     private function personnaliserMessage(string $message, array $variables): string
     {

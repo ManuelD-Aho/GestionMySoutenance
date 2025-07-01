@@ -7,7 +7,7 @@ use PDO;
 
 class HistoriqueMotDePasse extends BaseModel
 {
-    protected string $table = 'historique_mot_de_passe';
+    public string $table = 'historique_mot_de_passe';
     protected string|array $primaryKey = 'id_historique_mdp';
     protected array $fields = [
         'id_historique_mdp', 'numero_utilisateur', 'mot_de_passe_hache', 'date_changement'
