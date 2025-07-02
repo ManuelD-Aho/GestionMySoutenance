@@ -6,9 +6,9 @@ namespace App\Backend\Controller\Administration;
 use App\Backend\Controller\BaseController;
 use App\Backend\Service\Utilisateur\ServiceUtilisateurInterface;
 use App\Backend\Service\Systeme\ServiceSystemeInterface;
-use App\Backend\Service\Securite\ServiceSecuriteInterface; // Ajout de la dépendance
-use App\Backend\Service\Supervision\ServiceSupervisionInterface; // Ajout de la dépendance
-use App\Backend\Util\FormValidator;
+use App\Backend\Service\Securite\ServiceSecuriteInterface;
+use App\Backend\Service\Supervision\ServiceSupervisionInterface;
+use App\Backend\Util\FormValidator; // Garder l'import pour le constructeur
 use App\Backend\Exception\ElementNonTrouveException;
 use App\Backend\Exception\OperationImpossibleException;
 use App\Backend\Exception\DoublonException;
@@ -23,25 +23,26 @@ class UtilisateurController extends BaseController
 {
     private ServiceUtilisateurInterface $serviceUtilisateur;
     private ServiceSystemeInterface $serviceSysteme;
-    private FormValidator $validator;
+    // Suppression de la déclaration de propriété $validator
+    // car elle est déjà disponible via BaseController::$validator (si BaseController l'injecte)
 
     public function __construct(
         ServiceUtilisateurInterface $serviceUtilisateur,
         ServiceSystemeInterface $serviceSysteme,
-        FormValidator $validator,
-        ServiceSecuriteInterface $securiteService, // Injecté pour BaseController
-        ServiceSupervisionInterface $supervisionService // Injecté pour BaseController
+        FormValidator $validator, // Injecté pour BaseController
+        ServiceSecuriteInterface $securiteService,
+        ServiceSupervisionInterface $supervisionService
     ) {
         parent::__construct($securiteService, $supervisionService);
         $this->serviceUtilisateur = $serviceUtilisateur;
         $this->serviceSysteme = $serviceSysteme;
-        $this->validator = $validator;
+        // Pas besoin de réassigner $this->validator ici si BaseController le fait
     }
 
     /**
      * Affiche la liste paginée et filtrable de tous les utilisateurs.
      */
-    public function list(): void // Renommée de listUsers pour coller aux routes
+    public function list(): void
     {
         $this->requirePermission('TRAIT_ADMIN_GERER_UTILISATEURS_LISTER');
 
@@ -49,7 +50,6 @@ class UtilisateurController extends BaseController
             $filters = $this->getGetData();
             $users = $this->serviceUtilisateur->listerUtilisateursComplets($filters);
 
-            // Données pour les filtres de la vue
             $groupes = $this->serviceSysteme->gererReferentiel('list', 'groupe_utilisateur');
             $statuts = ['actif', 'inactif', 'bloque', 'en_attente_validation', 'archive'];
             $types = $this->serviceSysteme->gererReferentiel('list', 'type_utilisateur');
@@ -66,6 +66,7 @@ class UtilisateurController extends BaseController
         } catch (Exception $e) {
             $this->addFlashMessage('error', "Une erreur est survenue lors du chargement des utilisateurs : " . $e->getMessage());
             $this->redirect('/admin/dashboard');
+            return; // Suppression de l'instruction inaccessible
         }
     }
 
@@ -91,19 +92,20 @@ class UtilisateurController extends BaseController
         } catch (Exception $e) {
             $this->addFlashMessage('error', 'Impossible de charger le formulaire de création : ' . $e->getMessage());
             $this->redirect('/admin/utilisateurs');
+            return; // Suppression de l'instruction inaccessible
         }
     }
 
     /**
      * Traite la soumission du formulaire de création d'utilisateur.
      */
-    public function create(): void // Renommée de handleCreateUser pour coller aux routes
+    public function create(): void
     {
         $this->requirePermission('TRAIT_ADMIN_GERER_UTILISATEURS_CREER');
 
         if (!$this->isPostRequest() || !$this->validateCsrfToken('user_form', $_POST['csrf_token'] ?? '')) {
             $this->redirect('/admin/utilisateurs');
-            return;
+            return; // Suppression de l'instruction inaccessible
         }
 
         $data = $this->getPostData();
@@ -121,19 +123,16 @@ class UtilisateurController extends BaseController
         if (!$this->validator->validate($data, $rules)) {
             $_SESSION['form_errors'] = $this->validator->getErrors();
             $_SESSION['form_data'] = $data;
-            $this->redirect('/admin/utilisateurs/creer'); // Redirection vers le formulaire de création
-            return;
+            $this->redirect('/admin/utilisateurs/creer');
+            return; // Suppression de l'instruction inaccessible
         }
 
         try {
             $typeEntite = strtolower(str_replace('TYPE_', '', $data['id_type_utilisateur']));
             $donneesProfil = ['nom' => $data['nom'], 'prenom' => $data['prenom']];
-            // Ajouter d'autres champs spécifiques au profil si nécessaire (date_naissance, etc.)
-            // Ces champs devraient être dans $data et validés par $rules si obligatoires
             if (isset($data['date_naissance'])) $donneesProfil['date_naissance'] = $data['date_naissance'];
             if (isset($data['telephone'])) $donneesProfil['telephone'] = $data['telephone'];
             if (isset($data['email_professionnel'])) $donneesProfil['email_professionnel'] = $data['email_professionnel'];
-
 
             $numeroEntite = $this->serviceUtilisateur->creerEntite($typeEntite, $donneesProfil);
 
@@ -150,8 +149,8 @@ class UtilisateurController extends BaseController
         } catch (DoublonException | OperationImpossibleException | ValidationException $e) {
             $this->addFlashMessage('error', 'Erreur de création : ' . $e->getMessage());
             $_SESSION['form_data'] = $data;
-            $this->redirect('/admin/utilisateurs/creer'); // Redirection vers le formulaire de création
-            return;
+            $this->redirect('/admin/utilisateurs/creer');
+            return; // Suppression de l'instruction inaccessible
         } catch (Exception $e) {
             $this->addFlashMessage('error', 'Une erreur inattendue est survenue lors de la création.');
             error_log("Erreur UtilisateurController::create: " . $e->getMessage());
@@ -163,7 +162,7 @@ class UtilisateurController extends BaseController
     /**
      * Affiche le formulaire de modification pour un utilisateur existant.
      */
-    public function show(string $id): void // Renommée de showEditUserForm pour coller aux routes
+    public function show(string $id): void
     {
         $this->requirePermission('TRAIT_ADMIN_GERER_UTILISATEURS_MODIFIER');
         try {
@@ -179,47 +178,46 @@ class UtilisateurController extends BaseController
                 'action_url' => "/admin/utilisateurs/{$id}/modifier",
                 'csrf_token' => $this->generateCsrfToken('user_form'),
                 'form_errors' => $_SESSION['form_errors'] ?? [],
-                'form_data' => $_SESSION['form_data'] ?? $user // Pré-remplir avec les données de l'utilisateur
+                'form_data' => $_SESSION['form_data'] ?? $user
             ]);
             unset($_SESSION['form_errors'], $_SESSION['form_data']);
         } catch (Exception $e) {
             $this->addFlashMessage('error', 'Impossible de charger le formulaire de modification : ' . $e->getMessage());
             $this->redirect('/admin/utilisateurs');
+            return; // Suppression de l'instruction inaccessible
         }
     }
 
     /**
      * Traite la soumission du formulaire de modification d'utilisateur.
      */
-    public function update(string $id): void // Renommée de handleEditUser pour coller aux routes
+    public function update(string $id): void
     {
         $this->requirePermission('TRAIT_ADMIN_GERER_UTILISATEURS_MODIFIER');
 
         if (!$this->isPostRequest() || !$this->validateCsrfToken('user_form', $_POST['csrf_token'] ?? '')) {
             $this->redirect('/admin/utilisateurs');
-            return;
+            return; // Suppression de l'instruction inaccessible
         }
 
         $data = $this->getPostData();
-        // Le mot de passe n'est pas requis à la modification
         $rules = [
             'nom' => 'required|max:100',
             'prenom' => 'required|max:100',
             'login_utilisateur' => 'required|max:100',
             'email_principal' => 'required|email|max:255',
-            'mot_de_passe' => 'min:8' // Seulement si non vide
+            'mot_de_passe' => 'min:8'
         ];
 
         if (!$this->validator->validate($data, $rules)) {
             $_SESSION['form_errors'] = $this->validator->getErrors();
             $_SESSION['form_data'] = $data;
-            $this->redirect("/admin/utilisateurs/{$id}"); // Redirection vers le formulaire de modification
-            return;
+            $this->redirect("/admin/utilisateurs/{$id}");
+            return; // Suppression de l'instruction inaccessible
         }
 
         try {
             $donneesProfil = ['nom' => $data['nom'], 'prenom' => $data['prenom']];
-            // Ajouter d'autres champs spécifiques au profil si présents dans le formulaire
             if (isset($data['date_naissance'])) $donneesProfil['date_naissance'] = $data['date_naissance'];
             if (isset($data['telephone'])) $donneesProfil['telephone'] = $data['telephone'];
             if (isset($data['email_professionnel'])) $donneesProfil['email_professionnel'] = $data['email_professionnel'];
@@ -229,9 +227,8 @@ class UtilisateurController extends BaseController
                 'email_principal' => $data['email_principal'],
                 'id_groupe_utilisateur' => $data['id_groupe_utilisateur'],
                 'id_niveau_acces_donne' => $data['id_niveau_acces_donne'],
-                'statut_compte' => $data['statut_compte'] ?? 'actif' // Permettre de changer le statut
+                'statut_compte' => $data['statut_compte'] ?? 'actif'
             ];
-            // N'inclure le mot de passe que s'il a été changé
             if (!empty($data['mot_de_passe'])) {
                 $donneesCompte['mot_de_passe'] = $data['mot_de_passe'];
             }
@@ -241,8 +238,8 @@ class UtilisateurController extends BaseController
         } catch (Exception $e) {
             $this->addFlashMessage('error', "Échec de la mise à jour : " . $e->getMessage());
             $_SESSION['form_data'] = $data;
-            $this->redirect("/admin/utilisateurs/{$id}"); // Redirection vers le formulaire de modification
-            return;
+            $this->redirect("/admin/utilisateurs/{$id}");
+            return; // Suppression de l'instruction inaccessible
         }
 
         $this->redirect('/admin/utilisateurs');
@@ -255,7 +252,7 @@ class UtilisateurController extends BaseController
     {
         if (!$this->isPostRequest() || !$this->validateCsrfToken('user_actions_form', $_POST['csrf_token'] ?? '')) {
             $this->redirect('/admin/utilisateurs');
-            return;
+            return; // Suppression de l'instruction inaccessible
         }
 
         $action = $_POST['action'] ?? '';
@@ -274,12 +271,12 @@ class UtilisateurController extends BaseController
                     break;
 
                 case 'impersonate':
-                    $this->requirePermission('TRAIT_ADMIN_IMPERSONATE_USER'); // Permission spécifique pour l'impersonation
+                    $this->requirePermission('TRAIT_ADMIN_IMPERSONATE_USER');
                     $adminId = $this->securiteService->getUtilisateurConnecte()['numero_utilisateur'];
                     $this->securiteService->demarrerImpersonation($adminId, $id);
                     $this->addFlashMessage('info', "Vous impersonnalisez maintenant l'utilisateur {$id}.");
                     $this->redirect('/dashboard');
-                    return; // Arrêter l'exécution ici
+                    return; // Suppression de l'instruction inaccessible
 
                 case 'delete':
                     $this->requirePermission('TRAIT_ADMIN_GERER_UTILISATEURS_DELETE');
@@ -302,13 +299,13 @@ class UtilisateurController extends BaseController
     /**
      * Gère la suppression d'un utilisateur.
      */
-    public function delete(string $id): void // Renommée de handleUserAction pour coller aux routes
+    public function delete(string $id): void
     {
         $this->requirePermission('TRAIT_ADMIN_GERER_UTILISATEURS_DELETE');
 
         if (!$this->isPostRequest() || !$this->validateCsrfToken('user_actions_form', $_POST['csrf_token'] ?? '')) {
             $this->redirect('/admin/utilisateurs');
-            return;
+            return; // Suppression de l'instruction inaccessible
         }
 
         try {

@@ -24,6 +24,7 @@ interface ServiceParcoursAcademiqueInterface
     public function mettreAJourStage(string $numeroEtudiant, string $idEntreprise, array $donnees): bool;
     public function supprimerStage(string $numeroEtudiant, string $idEntreprise): bool;
     public function validerStage(string $numeroEtudiant, string $idEntreprise): bool;
+    public function listerStages(array $filtres = []): array; // Ajout de cette méthode
 
     // --- CRUD Pénalités ---
     public function creerPenalite(array $donnees): string;

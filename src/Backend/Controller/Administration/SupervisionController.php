@@ -5,20 +5,20 @@ namespace App\Backend\Controller\Administration;
 
 use App\Backend\Controller\BaseController;
 use App\Backend\Service\Supervision\ServiceSupervisionInterface;
-use App\Backend\Service\Securite\ServiceSecuriteInterface; // Ajout de la dépendance
+use App\Backend\Service\Securite\ServiceSecuriteInterface;
 use Exception;
 
 class SupervisionController extends BaseController
 {
-    private ServiceSupervisionInterface $supervisionService;
+    // Suppression de la déclaration de propriété $supervisionService
+    // car elle est déjà disponible via BaseController::$supervisionService
 
     public function __construct(
-        ServiceSupervisionInterface $supervisionService,
-        ServiceSecuriteInterface $securiteService, // Injecté pour BaseController
-        ServiceSupervisionInterface $baseSupervisionService // Injecté pour BaseController
+        ServiceSupervisionInterface $supervisionService, // Injecté pour BaseController
+        ServiceSecuriteInterface $securiteService // Injecté pour BaseController
     ) {
-        parent::__construct($securiteService, $baseSupervisionService);
-        $this->supervisionService = $supervisionService;
+        parent::__construct($securiteService, $supervisionService);
+        // Pas besoin de réassigner $this->supervisionService ici
     }
 
     public function index(): void
@@ -38,8 +38,7 @@ class SupervisionController extends BaseController
                 'current_filters' => $filters
             ];
 
-            // Correction du chemin du fichier de log
-            $logFilePath = ROOT_PATH . '/var/log/php_errors.log'; // Chemin cohérent avec php.ini et Dockerfile
+            $logFilePath = ROOT_PATH . '/var/log/php_errors.log';
             $data['error_log_content'] = file_exists($logFilePath) ? $this->supervisionService->consulterJournauxErreurs($logFilePath) : "Fichier log non trouvé ou illisible.";
 
             $this->render('Administration/supervision', $data);
@@ -50,13 +49,12 @@ class SupervisionController extends BaseController
 
     public function getAuditLogDetails(string $id): void
     {
-        // 12. Vue détaillée pour un log d'audit (AJAX)
         $this->requirePermission('TRAIT_ADMIN_SUPERVISION_AUDIT_VIEW');
         try {
             $logEntry = $this->supervisionService->reconstituerHistoriqueEntite($id);
             if (empty($logEntry)) {
                 $this->jsonResponse(['success' => false, 'message' => 'Entrée de log non trouvée.'], 404);
-                return;
+                return; // Suppression de l'instruction inaccessible
             }
             $details = json_decode($logEntry[0]['details_action'] ?? '{}', true);
             $this->jsonResponse(['success' => true, 'data' => $details]);
@@ -67,35 +65,27 @@ class SupervisionController extends BaseController
 
     public function purgeAuditLogs(): void
     {
-        $this->requirePermission('TRAIT_ADMIN_SUPERVISION_AUDIT_PURGE'); // Permission spécifique pour la purge
+        $this->requirePermission('TRAIT_ADMIN_SUPERVISION_AUDIT_PURGE');
         if (!$this->isPostRequest() || !$this->validateCsrfToken('purge_logs_form', $_POST['csrf_token'] ?? '')) {
             $this->redirect('/admin/supervision');
-            return;
+            return; // Suppression de l'instruction inaccessible
         }
 
         $data = $this->getPostData();
 
-        // 13. Protection par mot de passe
         $user = $this->securiteService->getUtilisateurConnecte();
         if (!$user) {
             $this->addFlashMessage('error', 'Utilisateur non connecté.');
             $this->redirect('/admin/supervision');
-            return;
+            return; // Suppression de l'instruction inaccessible
         }
-        // Assurez-vous que ServiceSecurite::verifyPassword existe et est fonctionnelle
-        // Ou utilisez une vérification de mot de passe plus robuste si nécessaire
-        // if (!$this->securiteService->verifyPassword($user['numero_utilisateur'], $data['password_confirm'] ?? '')) {
-        //     $this->addFlashMessage('error', 'Mot de passe incorrect. Purge annulée.');
-        //     $this->redirect('/admin/supervision');
-        //     return;
-        // }
 
         try {
             $dateLimite = $data['date_limite'] ?? '';
             if (empty($dateLimite)) {
                 $this->addFlashMessage('error', 'La date limite est obligatoire pour la purge.');
                 $this->redirect('/admin/supervision');
-                return;
+                return; // Suppression de l'instruction inaccessible
             }
             $rowCount = $this->supervisionService->purgerAnciensJournaux($dateLimite);
             $this->addFlashMessage('success', "Purge effectuée. {$rowCount} enregistrements supprimés.");
@@ -107,23 +97,22 @@ class SupervisionController extends BaseController
 
     public function handleTaskAction(string $idTache): void
     {
-        $this->requirePermission('TRAIT_ADMIN_SUPERVISION_TACHES_GERER'); // Permission spécifique pour gérer les tâches
+        $this->requirePermission('TRAIT_ADMIN_SUPERVISION_TACHES_GERER');
         if (!$this->isPostRequest() || !$this->validateCsrfToken('task_action_form', $_POST['csrf_token'] ?? '')) {
             $this->redirect('/admin/supervision#queue-tab');
-            return;
+            return; // Suppression de l'instruction inaccessible
         }
 
         $action = $_POST['action'] ?? '';
 
         try {
-            // 15. Gérer les deux stratégies de relance
-            if ($action === 'relancer') { // Renommé de 'retry' pour coller à la fonction
+            if ($action === 'relancer') {
                 $this->supervisionService->gererTacheAsynchrone($idTache, 'relancer');
                 $this->addFlashMessage('success', "La tâche {$idTache} a été relancée.");
-            } elseif ($action === 'requeue') { // Renommé de 'requeue' pour coller à la fonction
+            } elseif ($action === 'requeue') {
                 $this->supervisionService->gererTacheAsynchrone($idTache, 'requeue');
                 $this->addFlashMessage('success', "Une nouvelle copie de la tâche {$idTache} a été ajoutée à la file.");
-            } elseif ($action === 'supprimer') { // Renommé de 'delete' pour coller à la fonction
+            } elseif ($action === 'supprimer') {
                 $this->supervisionService->gererTacheAsynchrone($idTache, 'supprimer');
                 $this->addFlashMessage('success', "La tâche {$idTache} a été supprimée.");
             } else {

@@ -8,8 +8,8 @@ use App\Config\Container;
 use App\Backend\Service\Systeme\ServiceSystemeInterface;
 use App\Backend\Service\Document\ServiceDocumentInterface;
 use App\Backend\Service\Communication\ServiceCommunicationInterface;
-use App\Backend\Service\Securite\ServiceSecuriteInterface; // Ajout de la dépendance
-use App\Backend\Service\Supervision\ServiceSupervisionInterface; // Ajout de la dépendance
+use App\Backend\Service\Securite\ServiceSecuriteInterface;
+use App\Backend\Service\Supervision\ServiceSupervisionInterface;
 use App\Backend\Exception\{OperationImpossibleException, ValidationException};
 use Exception;
 
@@ -24,15 +24,15 @@ class ConfigurationController extends BaseController
     private ServiceSystemeInterface $systemeService;
     private ServiceDocumentInterface $documentService;
     private ServiceCommunicationInterface $communicationService;
-    private Container $container; // Ajout du container pour getModelForTable
+    private Container $container;
 
     public function __construct(
         ServiceSystemeInterface $systemeService,
         ServiceDocumentInterface $documentService,
         ServiceCommunicationInterface $communicationService,
-        ServiceSecuriteInterface $securiteService, // Injecté pour BaseController
-        ServiceSupervisionInterface $supervisionService, // Injecté pour BaseController
-        Container $container // Injecté pour getModelForTable
+        ServiceSecuriteInterface $securiteService,
+        ServiceSupervisionInterface $supervisionService,
+        Container $container
     ) {
         parent::__construct($securiteService, $supervisionService);
         $this->systemeService = $systemeService;
@@ -41,11 +41,6 @@ class ConfigurationController extends BaseController
         $this->container = $container;
     }
 
-    /**
-     * Point d'entrée principal pour la page de configuration.
-     * Affiche la page principale de configuration avec tous ses onglets.
-     * Charge les données nécessaires à l'affichage initial de l'interface.
-     */
     public function index(): void
     {
         $this->showConfigurationPage();
@@ -73,7 +68,7 @@ class ConfigurationController extends BaseController
                 'notification_rules' => $this->communicationService->listerReglesMatrice(),
                 'all_actions' => $this->systemeService->gererReferentiel('list', 'action'),
                 'all_user_groups' => $this->systemeService->gererReferentiel('list', 'groupe_utilisateur'),
-                'csrf_tokens' => [ // Centralisation des tokens pour la vue
+                'csrf_tokens' => [
                     'params' => $this->generateCsrfToken('params_form'),
                     'years' => $this->generateCsrfToken('years_form'),
                     'refs' => $this->generateCsrfToken('refs_form'),
@@ -87,6 +82,7 @@ class ConfigurationController extends BaseController
         } catch (Exception $e) {
             $this->addFlashMessage('error', 'Erreur de chargement de la page de configuration : ' . $e->getMessage());
             $this->redirect('/admin/dashboard');
+            return; // Suppression de l'instruction inaccessible
         }
     }
 
@@ -103,7 +99,7 @@ class ConfigurationController extends BaseController
                 'entityName' => $entityName,
                 'entries' => $entries,
                 'csrf_token_refs' => $this->generateCsrfToken('refs_form'),
-            ], false); // Ne pas utiliser le layout principal
+            ], false);
         } catch (Exception $e) {
             http_response_code(500);
             echo "Erreur: " . htmlspecialchars($e->getMessage());
@@ -122,7 +118,7 @@ class ConfigurationController extends BaseController
         $this->requirePermission('TRAIT_ADMIN_CONFIG_PARAMETRES_GERER');
         if (!$this->isPostRequest() || !$this->validateCsrfToken('params_form', $_POST['csrf_token'] ?? '')) {
             $this->redirect('/admin/configuration');
-            return;
+            return; // Suppression de l'instruction inaccessible
         }
 
         try {
@@ -144,7 +140,7 @@ class ConfigurationController extends BaseController
         $this->requirePermission('TRAIT_ADMIN_CONFIG_ANNEES_GERER');
         if (!$this->isPostRequest() || !$this->validateCsrfToken('years_form', $_POST['csrf_token'] ?? '')) {
             $this->redirect('/admin/configuration#years-tab');
-            return;
+            return; // Suppression de l'instruction inaccessible
         }
 
         $data = $this->getPostData();
@@ -187,7 +183,7 @@ class ConfigurationController extends BaseController
         $this->requirePermission('TRAIT_ADMIN_CONFIG_REFERENTIELS_GERER');
         if (!$this->isPostRequest() || !$this->validateCsrfToken('refs_form', $_POST['csrf_token'] ?? '')) {
             $this->redirect('/admin/configuration#referentials-tab');
-            return;
+            return; // Suppression de l'instruction inaccessible
         }
 
         $data = $this->getPostData();
@@ -233,7 +229,7 @@ class ConfigurationController extends BaseController
         $this->requirePermission('TRAIT_ADMIN_CONFIG_MODELES_DOC_GERER');
         if (!$this->isPostRequest() || !$this->validateCsrfToken('docs_form', $_POST['csrf_token'] ?? '')) {
             $this->redirect('/admin/configuration#docs-tab');
-            return;
+            return; // Suppression de l'instruction inaccessible
         }
 
         $action = $_POST['action'] ?? '';
@@ -259,7 +255,6 @@ class ConfigurationController extends BaseController
                     break;
             }
         } catch (Exception $e) {
-            // Correction du message d'erreur générique
             $this->addFlashMessage('error', "Erreur lors de l'opération sur le modèle de document : " . $e->getMessage());
         }
         $this->redirect('/admin/configuration#docs-tab');
@@ -273,7 +268,7 @@ class ConfigurationController extends BaseController
         $this->requirePermission('TRAIT_ADMIN_CONFIG_NOTIFS_GERER');
         if (!$this->isPostRequest() || !$this->validateCsrfToken('notifs_form', $_POST['csrf_token'] ?? '')) {
             $this->redirect('/admin/configuration#notifications-tab');
-            return;
+            return; // Suppression de l'instruction inaccessible
         }
 
         $data = $this->getPostData();
@@ -307,7 +302,7 @@ class ConfigurationController extends BaseController
         $this->requirePermission('TRAIT_ADMIN_CONFIG_MENUS_GERER');
         if (!$this->isPostRequest() || !$this->validateCsrfToken('menus_form', $_POST['csrf_token'] ?? '')) {
             $this->redirect('/admin/configuration#menus-tab');
-            return;
+            return; // Suppression de l'instruction inaccessible
         }
 
         try {
@@ -329,7 +324,7 @@ class ConfigurationController extends BaseController
         $this->requirePermission('TRAIT_ADMIN_CONFIG_ACCEDER');
         if (!$this->isPostRequest() || !$this->validateCsrfToken('cache_form', $_POST['csrf_token'] ?? '')) {
             $this->redirect('/admin/configuration');
-            return;
+            return; // Suppression de l'instruction inaccessible
         }
 
         unset($_SESSION['admin_dashboard_stats']);

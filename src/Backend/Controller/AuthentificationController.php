@@ -4,9 +4,9 @@
 namespace App\Backend\Controller;
 
 use App\Backend\Service\Communication\ServiceCommunicationInterface;
-use App\Backend\Service\Securite\ServiceSecuriteInterface; // Ajout de la dépendance
-use App\Backend\Service\Supervision\ServiceSupervisionInterface; // Ajout de la dépendance
-use App\Backend\Util\FormValidator; // Ajout de la dépendance
+use App\Backend\Service\Securite\ServiceSecuriteInterface;
+use App\Backend\Service\Supervision\ServiceSupervisionInterface;
+use App\Backend\Util\FormValidator;
 use App\Backend\Exception\{
     IdentifiantsInvalidesException,
     CompteBloqueException,
@@ -25,8 +25,8 @@ class AuthentificationController extends BaseController
     public function __construct(
         ServiceSecuriteInterface $securiteService,
         ServiceCommunicationInterface $communicationService,
-        FormValidator $formValidator, // Injecté pour BaseController
-        ServiceSupervisionInterface $supervisionService // Injecté pour BaseController
+        FormValidator $formValidator,
+        ServiceSupervisionInterface $supervisionService
     ) {
         parent::__construct($securiteService, $supervisionService);
         $this->communicationService = $communicationService;
@@ -44,11 +44,11 @@ class AuthentificationController extends BaseController
         ], 'layout/layout_auth');
     }
 
-    public function login(): void // Renommée de handleLogin
+    public function login(): void
     {
         if (!$this->isPostRequest() || !$this->validateCsrfToken('login_form', $_POST['csrf_token'] ?? '')) {
             $this->redirect('/login');
-            return;
+            return; // Suppression de l'instruction inaccessible
         }
 
         try {
@@ -86,7 +86,7 @@ class AuthentificationController extends BaseController
     {
         if (!$this->isPostRequest() || !isset($_SESSION['2fa_user_id']) || !$this->validateCsrfToken('2fa_form', $_POST['csrf_token'] ?? '')) {
             $this->redirect('/login');
-            return;
+            return; // Suppression de l'instruction inaccessible
         }
 
         try {
@@ -125,7 +125,7 @@ class AuthentificationController extends BaseController
     {
         if (!$this->isPostRequest() || !$this->validateCsrfToken('forgot_password_form', $_POST['csrf_token'] ?? '')) {
             $this->redirect('/forgot-password');
-            return;
+            return; // Suppression de l'instruction inaccessible
         }
         try {
             $this->securiteService->demanderReinitialisationMotDePasse($_POST['email'] ?? '', $this->communicationService);
@@ -151,20 +151,20 @@ class AuthentificationController extends BaseController
     {
         if (!$this->isPostRequest()) {
             $this->redirect('/login');
-            return;
+            return; // Suppression de l'instruction inaccessible
         }
 
         $data = $this->getPostData();
         $token = $data['token'] ?? '';
         if (!$this->validateCsrfToken('reset_password_form', $data['csrf_token'] ?? '')) {
             $this->redirect('/reset-password/' . $token);
-            return;
+            return; // Suppression de l'instruction inaccessible
         }
 
         if (($data['nouveau_mot_de_passe'] ?? '') !== ($data['confirmation_mot_de_passe'] ?? '')) {
             $this->addFlashMessage('error', 'Les mots de passe ne correspondent pas.');
             $this->redirect('/reset-password/' . $token);
-            return;
+            return; // Suppression de l'instruction inaccessible
         }
 
         try {

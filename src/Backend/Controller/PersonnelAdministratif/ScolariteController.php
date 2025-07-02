@@ -9,9 +9,9 @@ use App\Backend\Service\Utilisateur\ServiceUtilisateurInterface;
 use App\Backend\Service\ParcoursAcademique\ServiceParcoursAcademiqueInterface;
 use App\Backend\Service\Systeme\ServiceSystemeInterface;
 use App\Backend\Service\Document\ServiceDocumentInterface;
-use App\Backend\Service\Securite\ServiceSecuriteInterface; // Ajout de la dépendance
-use App\Backend\Service\Supervision\ServiceSupervisionInterface; // Ajout de la dépendance
-use App\Backend\Util\FormValidator;
+use App\Backend\Service\Securite\ServiceSecuriteInterface;
+use App\Backend\Service\Supervision\ServiceSupervisionInterface;
+use App\Backend\Util\FormValidator; // Garder l'import pour le constructeur
 use Exception;
 
 class ScolariteController extends BaseController
@@ -21,7 +21,8 @@ class ScolariteController extends BaseController
     private ServiceParcoursAcademiqueInterface $parcoursService;
     private ServiceSystemeInterface $systemeService;
     private ServiceDocumentInterface $documentService;
-    private FormValidator $validator;
+    // Suppression de la déclaration de propriété $validator
+    // car elle est déjà disponible via BaseController::$validator (si BaseController l'injecte)
 
     public function __construct(
         ServiceWorkflowSoutenanceInterface $serviceWorkflow,
@@ -29,7 +30,7 @@ class ScolariteController extends BaseController
         ServiceParcoursAcademiqueInterface $parcoursService,
         ServiceSystemeInterface $systemeService,
         ServiceDocumentInterface $documentService,
-        FormValidator $validator,
+        FormValidator $validator, // Injecté pour BaseController
         ServiceSecuriteInterface $securiteService, // Injecté pour BaseController
         ServiceSupervisionInterface $supervisionService // Injecté pour BaseController
     ) {
@@ -39,12 +40,12 @@ class ScolariteController extends BaseController
         $this->parcoursService = $parcoursService;
         $this->systemeService = $systemeService;
         $this->documentService = $documentService;
-        $this->validator = $validator;
+        // Pas besoin de réassigner $this->validator ici si BaseController le fait
     }
 
     // ========== PARTIE AGENT DE CONFORMITÉ ==========
 
-    public function conformiteQueue(): void // Renommée de listConformiteQueue
+    public function conformiteQueue(): void
     {
         $this->requirePermission('TRAIT_PERS_ADMIN_CONFORMITE_LISTER');
         try {
@@ -56,10 +57,11 @@ class ScolariteController extends BaseController
         } catch (Exception $e) {
             $this->addFlashMessage('error', 'Erreur lors du chargement de la file de conformité : ' . $e->getMessage());
             $this->redirect('/personnel/dashboard');
+            return; // Suppression de l'instruction inaccessible
         }
     }
 
-    public function showConformite(string $idRapport): void // Renommée de showConformiteForm
+    public function showConformite(string $idRapport): void
     {
         $this->requirePermission('TRAIT_PERS_ADMIN_CONFORMITE_VERIFIER');
         try {
@@ -78,6 +80,7 @@ class ScolariteController extends BaseController
         } catch (Exception $e) {
             $this->addFlashMessage('error', 'Erreur lors du chargement du formulaire de conformité : ' . $e->getMessage());
             $this->redirect('/personnel/conformite/queue');
+            return; // Suppression de l'instruction inaccessible
         }
     }
 
@@ -86,14 +89,14 @@ class ScolariteController extends BaseController
         $this->requirePermission('TRAIT_PERS_ADMIN_CONFORMITE_VERIFIER');
         if (!$this->isPostRequest() || !$this->validateCsrfToken('conformite_form', $_POST['csrf_token'] ?? '')) {
             $this->redirect('/personnel/conformite/queue');
-            return;
+            return; // Suppression de l'instruction inaccessible
         }
 
         $data = $this->getPostData();
         if (empty($data['commentaire_general'])) {
             $this->addFlashMessage('error', 'Un commentaire général est obligatoire pour toute décision.');
             $this->redirect("/personnel/conformite/verifier/{$idRapport}");
-            return;
+            return; // Suppression de l'instruction inaccessible
         }
 
         try {
@@ -108,7 +111,7 @@ class ScolariteController extends BaseController
 
     // ========== PARTIE RESPONSABLE SCOLARITÉ (RS) ==========
 
-    public function index(): void // Renommée de listStudentRecords
+    public function index(): void
     {
         $this->requirePermission('TRAIT_PERS_ADMIN_SCOLARITE_ACCEDER');
         try {
@@ -128,10 +131,11 @@ class ScolariteController extends BaseController
         } catch (Exception $e) {
             $this->addFlashMessage('error', 'Erreur lors du chargement des dossiers étudiants : ' . $e->getMessage());
             $this->redirect('/personnel/dashboard');
+            return; // Suppression de l'instruction inaccessible
         }
     }
 
-    public function showStudent(string $idEtudiant): void // Renommée de showStudentDetails
+    public function showStudent(string $idEtudiant): void
     {
         $this->requirePermission('TRAIT_PERS_ADMIN_SCOLARITE_ACCEDER');
         try {
@@ -139,11 +143,10 @@ class ScolariteController extends BaseController
                 'profil' => $this->serviceUtilisateur->lireUtilisateurComplet($idEtudiant),
                 'inscriptions' => $this->parcoursService->listerInscriptions(['numero_carte_etudiant' => $idEtudiant]),
                 'notes' => $this->parcoursService->listerNotes(['numero_carte_etudiant' => $idEtudiant]),
-                'stages' => $this->parcoursService->listerStages(['numero_carte_etudiant' => $idEtudiant]),
+                'stages' => $this->parcoursService->listerStages(['numero_carte_etudiant' => $idEtudiant]), // Cette méthode est maintenant dans l'interface
                 'penalites' => $this->parcoursService->listerPenalites(['numero_carte_etudiant' => $idEtudiant]),
                 'reclamations' => $this->serviceWorkflow->listerReclamations(['numero_carte_etudiant' => $idEtudiant])
             ];
-            // Pour une vue master-detail, on rendrait un "partial" ici, sans le layout complet.
             $this->render('PersonnelAdministratif/_student_details_panel', $data, false);
         } catch (Exception $e) {
             http_response_code(500);
@@ -151,12 +154,12 @@ class ScolariteController extends BaseController
         }
     }
 
-    public function activateAccount(): void // Renommée de handleInscriptionUpdate
+    public function activateAccount(): void
     {
         $this->requirePermission('TRAIT_PERS_ADMIN_SCOLARITE_ETUDIANT_GERER');
         if (!$this->isPostRequest() || !$this->validateCsrfToken('activate_account_form', $_POST['csrf_token'] ?? '')) {
             $this->redirect('/personnel/scolarite');
-            return;
+            return; // Suppression de l'instruction inaccessible
         }
 
         $data = $this->getPostData();
@@ -168,7 +171,7 @@ class ScolariteController extends BaseController
         if (empty($numeroEtudiant) || empty($login) || empty($email) || empty($password)) {
             $this->addFlashMessage('error', 'Tous les champs sont requis pour activer le compte.');
             $this->redirect('/personnel/scolarite');
-            return;
+            return; // Suppression de l'instruction inaccessible
         }
 
         try {
@@ -176,8 +179,8 @@ class ScolariteController extends BaseController
                 'login_utilisateur' => $login,
                 'email_principal' => $email,
                 'mot_de_passe' => $password,
-                'id_groupe_utilisateur' => 'GRP_ETUDIANT', // Assigner le groupe étudiant par défaut
-                'id_niveau_acces_donne' => 'ACCES_PERSONNEL' // Assigner le niveau d'accès personnel
+                'id_groupe_utilisateur' => 'GRP_ETUDIANT',
+                'id_niveau_acces_donne' => 'ACCES_PERSONNEL'
             ];
             $this->serviceUtilisateur->activerComptePourEntite($numeroEtudiant, $donneesCompte);
             $this->addFlashMessage('success', "Compte de l'étudiant {$numeroEtudiant} activé avec succès.");
@@ -192,12 +195,11 @@ class ScolariteController extends BaseController
         $this->requirePermission('TRAIT_PERS_ADMIN_SCOLARITE_ETUDIANT_GERER');
         if (!$this->isPostRequest() || !$this->validateCsrfToken('inscription_form', $_POST['csrf_token'] ?? '')) {
             $this->redirect('/personnel/scolarite');
-            return;
+            return; // Suppression de l'instruction inaccessible
         }
 
         $data = $this->getPostData();
         try {
-            // Logique simple de changement de statut.
             $this->parcoursService->mettreAJourInscription($data['numero_etudiant'], $data['id_niveau'], $data['id_annee'], ['id_statut_paiement' => $data['statut']]);
             $this->addFlashMessage('success', 'Statut de paiement mis à jour.');
         } catch (Exception $e) {
@@ -211,11 +213,10 @@ class ScolariteController extends BaseController
         $this->requirePermission('TRAIT_PERS_ADMIN_SCOLARITE_ETUDIANT_GERER');
         if (!$this->isPostRequest() || !$this->validateCsrfToken('note_form', $_POST['csrf_token'] ?? '')) {
             $this->redirect('/personnel/scolarite');
-            return;
+            return; // Suppression de l'instruction inaccessible
         }
 
         try {
-            // Saisie manuelle matière par matière
             $this->parcoursService->creerOuMettreAJourNote($this->getPostData());
             $this->addFlashMessage('success', 'Note enregistrée avec succès.');
         } catch (Exception $e) {
@@ -229,11 +230,10 @@ class ScolariteController extends BaseController
         $this->requirePermission('TRAIT_PERS_ADMIN_SCOLARITE_ETUDIANT_GERER');
         if (!$this->isPostRequest() || !$this->validateCsrfToken('stage_form', $_POST['csrf_token'] ?? '')) {
             $this->redirect('/personnel/scolarite');
-            return;
+            return; // Suppression de l'instruction inaccessible
         }
 
         try {
-            // Action simple
             $this->parcoursService->validerStage($numeroEtudiant, $idEntreprise);
             $this->addFlashMessage('success', 'Stage validé.');
         } catch (Exception $e) {
@@ -247,11 +247,10 @@ class ScolariteController extends BaseController
         $this->requirePermission('TRAIT_PERS_ADMIN_SCOLARITE_PENALITE_GERER');
         if (!$this->isPostRequest() || !$this->validateCsrfToken('penalite_form', $_POST['csrf_token'] ?? '')) {
             $this->redirect('/personnel/scolarite');
-            return;
+            return; // Suppression de l'instruction inaccessible
         }
 
         try {
-            // Action simple
             $user = $this->securiteService->getUtilisateurConnecte();
             $this->parcoursService->regulariserPenalite($idPenalite, $user['numero_utilisateur']);
             $this->addFlashMessage('success', 'Pénalité régularisée.');
@@ -266,13 +265,12 @@ class ScolariteController extends BaseController
         $this->requirePermission('TRAIT_PERS_ADMIN_RECLAMATIONS_GERER');
         if (!$this->isPostRequest() || !$this->validateCsrfToken('reclamation_form', $_POST['csrf_token'] ?? '')) {
             $this->redirect('/personnel/scolarite');
-            return;
+            return; // Suppression de l'instruction inaccessible
         }
 
         $data = $this->getPostData();
         try {
             $user = $this->securiteService->getUtilisateurConnecte();
-            // Action distincte pour répondre sans forcément résoudre
             $this->serviceWorkflow->repondreAReclamation($idReclamation, $data['reponse'], $user['numero_utilisateur']);
             $this->addFlashMessage('success', 'Réponse envoyée.');
         } catch (Exception $e) {
@@ -286,11 +284,10 @@ class ScolariteController extends BaseController
         $this->requirePermission('TRAIT_PERS_ADMIN_RECLAMATIONS_GERER');
         if (!$this->isPostRequest() || !$this->validateCsrfToken('reclamation_form', $_POST['csrf_token'] ?? '')) {
             $this->redirect('/personnel/scolarite');
-            return;
+            return; // Suppression de l'instruction inaccessible
         }
 
         try {
-            // Action distincte pour clôturer
             $this->serviceWorkflow->traiterReclamation($idReclamation, "Réclamation résolue et clôturée.", $_SESSION['user_id']);
             $this->addFlashMessage('success', 'Réclamation clôturée.');
         } catch (Exception $e) {
@@ -311,8 +308,6 @@ class ScolariteController extends BaseController
                 $this->documentService->genererListePdf('Liste des Etudiants', $etudiants, $colonnes);
                 $this->addFlashMessage('success', 'Liste des étudiants exportée en PDF.');
             } elseif ($format === 'csv') {
-                // Assurez-vous que ServiceDocumentInterface a une méthode genererListeCsv
-                // Ou implémentez la logique CSV ici directement
                 $this->genererListeCsv('etudiants', $etudiants, $colonnes);
                 $this->addFlashMessage('success', 'Liste des étudiants exportée en CSV.');
             } else {
@@ -323,12 +318,6 @@ class ScolariteController extends BaseController
         }
     }
 
-    /**
-     * Méthode d'aide pour générer un CSV (si non présente dans ServiceDocument).
-     * @param string $filename
-     * @param array $data
-     * @param array $columns
-     */
     private function genererListeCsv(string $filename, array $data, array $columns): void
     {
         header('Content-Type: text/csv');
@@ -337,7 +326,7 @@ class ScolariteController extends BaseController
         header('Expires: 0');
 
         $output = fopen('php://output', 'w');
-        fputcsv($output, array_values($columns)); // En-têtes
+        fputcsv($output, array_values($columns));
 
         foreach ($data as $row) {
             $csvRow = [];

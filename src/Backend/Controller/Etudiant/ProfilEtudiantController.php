@@ -5,9 +5,9 @@ namespace App\Backend\Controller\Etudiant;
 
 use App\Backend\Controller\BaseController;
 use App\Backend\Service\Utilisateur\ServiceUtilisateurInterface;
-use App\Backend\Service\Securite\ServiceSecuriteInterface; // Ajout de la dépendance
-use App\Backend\Service\Supervision\ServiceSupervisionInterface; // Ajout de la dépendance
-use App\Backend\Util\FormValidator;
+use App\Backend\Service\Securite\ServiceSecuriteInterface;
+use App\Backend\Service\Supervision\ServiceSupervisionInterface;
+use App\Backend\Util\FormValidator; // Garder l'import pour le constructeur
 use Exception;
 
 /**
@@ -16,31 +16,31 @@ use Exception;
 class ProfilEtudiantController extends BaseController
 {
     private ServiceUtilisateurInterface $serviceUtilisateur;
-    private FormValidator $validator;
+    // Suppression de la déclaration de propriété $validator
+    // car elle est déjà disponible via BaseController::$validator (si BaseController l'injecte)
 
     public function __construct(
         ServiceUtilisateurInterface $serviceUtilisateur,
-        FormValidator $validator,
+        FormValidator $validator, // Injecté pour BaseController
         ServiceSecuriteInterface $securiteService, // Injecté pour BaseController
         ServiceSupervisionInterface $supervisionService // Injecté pour BaseController
     ) {
         parent::__construct($securiteService, $supervisionService);
         $this->serviceUtilisateur = $serviceUtilisateur;
-        $this->validator = $validator;
+        // Pas besoin de réassigner $this->validator ici si BaseController le fait
     }
 
     /**
      * Affiche la page de profil de l'étudiant connecté.
      */
-    public function show(): void // Renommée de showProfile
+    public function show(): void
     {
-        // 6. Accessible si authentifié comme étudiant (géré par le routeur/BaseController)
         $this->requirePermission('TRAIT_ETUDIANT_PROFIL_GERER');
 
         $user = $this->securiteService->getUtilisateurConnecte();
         if (!$user) {
-            $this->redirect('/login'); // Redirection déjà gérée par requirePermission, mais sécurité supplémentaire
-            return;
+            $this->redirect('/login');
+            return; // Suppression de l'instruction inaccessible
         }
 
         try {
@@ -64,16 +64,15 @@ class ProfilEtudiantController extends BaseController
     /**
      * Traite la mise à jour des informations personnelles de l'étudiant.
      */
-    public function update(): void // Renommée de updateProfile
+    public function update(): void
     {
         $this->requirePermission('TRAIT_ETUDIANT_PROFIL_GERER');
 
         if (!$this->isPostRequest() || !$this->validateCsrfToken('profile_form', $_POST['csrf_token'] ?? '')) {
             $this->redirect('/etudiant/profil');
-            return;
+            return; // Suppression de l'instruction inaccessible
         }
 
-        // 7 & 8. Validation simple
         $rules = [
             'telephone' => 'max:20',
             'email_contact_secondaire' => 'email|max:255',
@@ -116,12 +115,11 @@ class ProfilEtudiantController extends BaseController
      */
     public function handlePhotoUpload(): void
     {
-        // 9. Méthode dédiée pour la photo
         $this->requirePermission('TRAIT_ETUDIANT_PROFIL_GERER');
 
         if (!$this->isPostRequest() || !$this->validateCsrfToken('photo_form', $_POST['csrf_token'] ?? '')) {
             $this->redirect('/etudiant/profil');
-            return;
+            return; // Suppression de l'instruction inaccessible
         }
 
         $fileData = $this->getFileData('photo_profil_file');

@@ -3,8 +3,8 @@
 
 namespace App\Backend\Controller;
 
-use App\Backend\Service\Securite\ServiceSecuriteInterface; // Ajout de la dépendance
-use App\Backend\Service\Supervision\ServiceSupervisionInterface; // Ajout de la dépendance
+use App\Backend\Service\Securite\ServiceSecuriteInterface;
+use App\Backend\Service\Supervision\ServiceSupervisionInterface;
 
 class DashboardController extends BaseController
 {
@@ -21,17 +21,14 @@ class DashboardController extends BaseController
      */
     public function index(): void
     {
-        // 1. Vérifier si l'utilisateur est connecté.
         if (!$this->securiteService->estUtilisateurConnecte()) {
             $this->redirect('/login');
-            return;
+            return; // Suppression de l'instruction inaccessible
         }
 
-        // 2. Récupérer l'utilisateur et son groupe.
         $user = $this->securiteService->getUtilisateurConnecte();
         $dashboardUrl = null;
 
-        // 3. Déterminer l'URL du tableau de bord.
         switch ($user['id_groupe_utilisateur']) {
             case 'GRP_ADMIN_SYS':
                 $dashboardUrl = '/admin/dashboard';
@@ -49,7 +46,6 @@ class DashboardController extends BaseController
                 $dashboardUrl = '/personnel/dashboard';
                 break;
             default:
-                // 6. Gérer les rôles non reconnus.
                 $this->addFlashMessage('error', 'Votre rôle ne vous donne pas accès à un tableau de bord spécifique.');
                 $this->supervisionService->enregistrerAction(
                     $user['numero_utilisateur'],
@@ -59,10 +55,9 @@ class DashboardController extends BaseController
                     ['reason' => 'Groupe utilisateur non géré', 'group' => $user['id_groupe_utilisateur']]
                 );
                 $this->renderError(403, 'Accès non autorisé à un tableau de bord.');
-                return; // renderError contient un exit()
+                return; // Suppression de l'instruction inaccessible
         }
 
-        // 4. & 5. Enregistrer l'accès et rediriger.
         if ($dashboardUrl) {
             $this->supervisionService->enregistrerAction(
                 $user['numero_utilisateur'],

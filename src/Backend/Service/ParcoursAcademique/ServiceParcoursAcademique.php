@@ -88,10 +88,12 @@ class ServiceParcoursAcademique implements ServiceParcoursAcademiqueInterface
     public function supprimerStage(string $numeroEtudiant, string $idEntreprise): bool { return $this->faireStageModel->supprimerParCles(['numero_carte_etudiant' => $numeroEtudiant, 'id_entreprise' => $idEntreprise]); }
 
     public function validerStage(string $numeroEtudiant, string $idEntreprise): bool {
-        // La logique reste simple : la présence de l'enregistrement vaut validation.
-        // On se contente de tracer l'action.
         $this->supervisionService->enregistrerAction($_SESSION['user_id'] ?? 'SYSTEM', 'VALIDATION_STAGE', $numeroEtudiant, 'Etudiant', ['entreprise' => $idEntreprise]);
         return true;
+    }
+
+    public function listerStages(array $filtres = []): array {
+        return $this->faireStageModel->trouverParCritere($filtres);
     }
 
     // --- CRUD Pénalités ---
@@ -120,31 +122,22 @@ class ServiceParcoursAcademique implements ServiceParcoursAcademiqueInterface
         $anneeActive = $this->systemeService->getAnneeAcademiqueActive();
         if (!$anneeActive) return false;
 
-        // 1. Vérifier si l'étudiant est bien inscrit et a payé pour l'année active
         $derniereInscription = $this->inscrireModel->trouverUnParCritere(
-            ['numero_carte_etudiant' => $numeroEtudiant],
+            ['numero_carte_etudiant' => $numeroEtudiant, 'id_annee_academique' => $anneeActive['id_annee_academique']],
             ['*'],
             'AND',
-            'id_annee_academique DESC'
+            'date_inscription DESC'
         );
 
-        // Si pas d'inscription du tout, il n'est pas éligible.
-        if (!$derniereInscription) return false;
-
-        // **Logique améliorée :** On vérifie si la dernière inscription est de niveau Master 2
-        // et si le paiement est en règle.
-        // Note : 'M2' est un exemple, il faudrait utiliser l'ID réel du niveau Master 2.
-        if ($derniereInscription['id_niveau_etude'] !== 'ID_MASTER_2' || $derniereInscription['id_statut_paiement'] !== 'PAIE_OK') {
+        if (!$derniereInscription || $derniereInscription['id_statut_paiement'] !== 'PAIE_OK') {
             return false;
         }
 
-        // 2. Vérifier si un stage a été validé (la simple existence suffit selon notre règle)
         $stage = $this->faireStageModel->trouverUnParCritere(['numero_carte_etudiant' => $numeroEtudiant]);
         if (!$stage) {
             return false;
         }
 
-        // 3. Vérifier s'il n'y a pas de pénalités non réglées
         $penalitesNonReglees = $this->penaliteModel->trouverUnParCritere(['numero_carte_etudiant' => $numeroEtudiant, 'id_statut_penalite' => 'PEN_DUE']);
         if ($penalitesNonReglees) {
             return false;
@@ -162,25 +155,21 @@ class ServiceParcoursAcademique implements ServiceParcoursAcademiqueInterface
 
         $this->db->beginTransaction();
         try {
-            // Mettre à jour la décision sur l'inscription actuelle
             $this->inscrireModel->mettreAJourParCles(
                 ['numero_carte_etudiant' => $numeroEtudiant, 'id_niveau_etude' => $inscription['id_niveau_etude'], 'id_annee_academique' => $idAnnee],
                 ['id_decision_passage' => $idDecision]
             );
 
-            // Si la décision est "Redoublant", créer une nouvelle inscription pour l'année suivante
             if ($idDecision === 'DEC_REDOUBLANT') {
                 $anneeActuelle = (int) substr($idAnnee, 6, 4);
                 $anneeSuivante = $anneeActuelle + 1;
                 $idAnneeSuivante = "ANNEE-{$anneeActuelle}-{$anneeSuivante}";
 
-                // Vérifier si l'année suivante existe, sinon la créer serait une bonne pratique (via ServiceSysteme)
-
                 $this->creerInscription([
                     'numero_carte_etudiant' => $numeroEtudiant,
                     'id_niveau_etude' => $inscription['id_niveau_etude'],
                     'id_annee_academique' => $idAnneeSuivante,
-                    'montant_inscription' => $inscription['montant_inscription'], // ou un montant par défaut
+                    'montant_inscription' => $inscription['montant_inscription'],
                     'id_statut_paiement' => 'PAIE_ATTENTE',
                     'id_decision_passage' => null
                 ]);
@@ -197,9 +186,9 @@ class ServiceParcoursAcademique implements ServiceParcoursAcademiqueInterface
 
     public function calculerMoyennes(string $numeroEtudiant, string $idAnnee): array
     {
-        $sql = "SELECT 
-                    e.note, 
-                    ec.credits_ecue, 
+        $sql = "SELECT
+                    e.note,
+                    ec.credits_ecue,
                     ec.id_ue,
                     u.libelle_ue,
                     u.credits_ue
@@ -221,7 +210,6 @@ class ServiceParcoursAcademique implements ServiceParcoursAcademiqueInterface
         $totalCredits = 0;
         $totalCreditsValides = 0;
 
-        // Agréger les notes par UE
         foreach ($notes as $note) {
             if (!isset($moyennesUE[$note['id_ue']])) {
                 $moyennesUE[$note['id_ue']] = [
@@ -236,7 +224,6 @@ class ServiceParcoursAcademique implements ServiceParcoursAcademiqueInterface
             $moyennesUE[$note['id_ue']]['total_credits_ecue'] += (float) $note['credits_ecue'];
         }
 
-        // Calculer la moyenne de chaque UE et la moyenne générale
         foreach ($moyennesUE as $id_ue => &$ue) {
             if ($ue['total_credits_ecue'] > 0) {
                 $ue['moyenne'] = $ue['total_notes'] / $ue['total_credits_ecue'];
@@ -245,12 +232,11 @@ class ServiceParcoursAcademique implements ServiceParcoursAcademiqueInterface
             $totalPondere += $ue['moyenne'] * $ue['credits_ue'];
             $totalCredits += $ue['credits_ue'];
 
-            // Condition de validation des crédits (ex: moyenne >= 10)
             if ($ue['moyenne'] >= 10.0) {
                 $totalCreditsValides += $ue['credits_ue'];
             }
         }
-        unset($ue); // Rompre la référence
+        unset($ue);
 
         $moyenneGenerale = ($totalCredits > 0) ? $totalPondere / $totalCredits : 0;
 

@@ -6,7 +6,7 @@ namespace App\Backend\Controller\Administration;
 use App\Backend\Controller\BaseController;
 use App\Backend\Service\Supervision\ServiceSupervisionInterface;
 use App\Backend\Service\Systeme\ServiceSystemeInterface;
-use App\Backend\Service\Securite\ServiceSecuriteInterface; // Ajout de la dépendance
+use App\Backend\Service\Securite\ServiceSecuriteInterface;
 use Exception;
 
 /**
@@ -15,29 +15,24 @@ use Exception;
  */
 class AdminDashboardController extends BaseController
 {
-    private ServiceSupervisionInterface $supervisionService;
+    // Suppression de la déclaration de propriété $supervisionService
+    // car elle est déjà disponible via BaseController::$supervisionService
     private ServiceSystemeInterface $systemeService;
 
     public function __construct(
-        ServiceSupervisionInterface $supervisionService,
+        ServiceSupervisionInterface $supervisionService, // Injecté pour BaseController
         ServiceSystemeInterface $systemeService,
-        ServiceSecuriteInterface $securiteService, // Injecté pour BaseController
-        ServiceSupervisionInterface $baseSupervisionService // Injecté pour BaseController
+        ServiceSecuriteInterface $securiteService // Injecté pour BaseController
     ) {
-        parent::__construct($securiteService, $baseSupervisionService);
-        $this->supervisionService = $supervisionService;
+        parent::__construct($securiteService, $supervisionService);
         $this->systemeService = $systemeService;
     }
 
     public function index(): void
     {
-        // 1. Permission et rôle requis
         $this->requirePermission('TRAIT_ADMIN_DASHBOARD_ACCEDER');
 
         try {
-            // 2. Logique de cache pour les statistiques
-            // Une bonne pratique serait d'utiliser un vrai système de cache (Redis, Memcached, Fichiers).
-            // Ici, nous simulons un cache simple basé sur la session avec une expiration de 5 minutes.
             $stats = null;
             $cacheKey = 'admin_dashboard_stats';
             $cacheDuration = 300; // 5 minutes
@@ -49,14 +44,11 @@ class AdminDashboardController extends BaseController
                 $_SESSION[$cacheKey] = ['timestamp' => time(), 'data' => $stats];
             }
 
-            // 3. Logique pour les alertes dynamiques
             $failedJobsThreshold = (int) $this->systemeService->getParametre('ALERT_THRESHOLD_FAILED_JOBS', 5);
             $alerts = [];
             if (isset($stats['queue']['failed']) && $stats['queue']['failed'] > $failedJobsThreshold) {
                 $alerts[] = ['type' => 'error', 'message' => "Attention : {$stats['queue']['failed']} tâches asynchrones ont échoué, ce qui dépasse le seuil de {$failedJobsThreshold}."];
             }
-
-            // 4. Les liens rapides sont codés en dur dans la vue selon votre réponse.
 
             $data = [
                 'title' => 'Tableau de Bord Administrateur',

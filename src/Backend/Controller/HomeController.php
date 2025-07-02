@@ -4,8 +4,8 @@
 namespace App\Backend\Controller;
 
 use App\Backend\Service\Systeme\ServiceSystemeInterface;
-use App\Backend\Service\Securite\ServiceSecuriteInterface; // Ajout de la dépendance
-use App\Backend\Service\Supervision\ServiceSupervisionInterface; // Ajout de la dépendance
+use App\Backend\Service\Securite\ServiceSecuriteInterface;
+use App\Backend\Service\Supervision\ServiceSupervisionInterface;
 use Exception;
 
 class HomeController extends BaseController
@@ -14,8 +14,8 @@ class HomeController extends BaseController
 
     public function __construct(
         ServiceSystemeInterface $systemeService,
-        ServiceSecuriteInterface $securiteService, // Injecté pour BaseController
-        ServiceSupervisionInterface $supervisionService // Injecté pour BaseController
+        ServiceSecuriteInterface $securiteService,
+        ServiceSupervisionInterface $supervisionService
     ) {
         parent::__construct($securiteService, $supervisionService);
         $this->systemeService = $systemeService;
@@ -27,12 +27,12 @@ class HomeController extends BaseController
             if ($this->systemeService->estEnMaintenance()) {
                 $message = $this->systemeService->getParametre('MAINTENANCE_MODE_MESSAGE', "Le site est actuellement en maintenance. Veuillez réessayer plus tard.");
                 $this->renderError(503, $message);
-                return;
+                return; // Suppression de l'instruction inaccessible
             }
 
             if ($this->securiteService->estUtilisateurConnecte()) {
                 $this->redirect('/dashboard');
-                return;
+                return; // Suppression de l'instruction inaccessible
             }
 
             $this->render('home/index', ['title' => 'Bienvenue sur GestionMySoutenance'], 'layout/layout_auth');
