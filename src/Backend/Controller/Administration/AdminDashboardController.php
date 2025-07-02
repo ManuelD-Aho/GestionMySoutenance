@@ -7,6 +7,7 @@ use App\Backend\Controller\BaseController;
 use App\Backend\Service\Supervision\ServiceSupervisionInterface;
 use App\Backend\Service\Systeme\ServiceSystemeInterface;
 use App\Backend\Service\Securite\ServiceSecuriteInterface;
+use App\Backend\Util\FormValidator;
 use Exception;
 
 /**
@@ -24,7 +25,7 @@ class AdminDashboardController extends BaseController
         ServiceSystemeInterface $systemeService,
         ServiceSecuriteInterface $securiteService // Injecté pour BaseController
     ) {
-        parent::__construct($securiteService, $supervisionService);
+        parent::__construct($securiteService, $supervisionService,);
         $this->systemeService = $systemeService;
     }
 

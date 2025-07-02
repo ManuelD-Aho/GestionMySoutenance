@@ -28,7 +28,7 @@ class AuthentificationController extends BaseController
         FormValidator $formValidator,
         ServiceSupervisionInterface $supervisionService
     ) {
-        parent::__construct($securiteService, $supervisionService);
+        parent::__construct($securiteService, $supervisionService, $formValidator);
         $this->communicationService = $communicationService;
     }
 

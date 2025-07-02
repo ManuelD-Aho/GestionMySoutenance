@@ -5,6 +5,7 @@ namespace App\Backend\Controller;
 
 use App\Backend\Service\Securite\ServiceSecuriteInterface;
 use App\Backend\Service\Supervision\ServiceSupervisionInterface;
+use App\Backend\Util\FormValidator; // Ajouter cette importation
 use App\Backend\Exception\ElementNonTrouveException;
 use JetBrains\PhpStorm\NoReturn;
 use Random\RandomException;
@@ -14,13 +15,16 @@ abstract class BaseController
 {
     protected ServiceSecuriteInterface $securiteService;
     protected ServiceSupervisionInterface $supervisionService;
+    protected FormValidator $validator; // Ajouter cette propriété
 
     public function __construct(
         ServiceSecuriteInterface $securiteService,
-        ServiceSupervisionInterface $supervisionService
+        ServiceSupervisionInterface $supervisionService,
+        FormValidator $validator // Ajouter ce paramètre
     ) {
         $this->securiteService = $securiteService;
         $this->supervisionService = $supervisionService;
+        $this->validator = $validator; // Définir la propriété validator
 
         if (session_status() == PHP_SESSION_NONE) {
             session_start();

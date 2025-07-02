@@ -19,7 +19,7 @@ class AssetController extends BaseController
         ServiceSecuriteInterface $securiteService,
         ServiceSupervisionInterface $supervisionService
     ) {
-        parent::__construct($securiteService, $supervisionService);
+        parent::__construct($securiteService, $supervisionService, );
         $this->documentService = $documentService;
     }
 
