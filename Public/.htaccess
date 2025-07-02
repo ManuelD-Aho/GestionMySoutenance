@@ -31,7 +31,7 @@ ServerSignature Off
     # Header set X-XSS-Protection "1; mode=block"
     
     # Exemple de Content-Security-Policy (À ADAPTER PRÉCISÉMENT À VOS BESOINS ET ASSETS)
-    # Header set Content-Security-Policy "default-src 'self'; img-src 'self' data: https://placehold.co; script-src 'self' https://cdn.tailwindcss.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com;"
+    # Header set Content-Security-Policy "default-src 'self'; image-src 'self' data: https://placehold.co; script-src 'self' https://cdn.tailwindcss.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com;"
 
     # Optionnel: Pour forcer HTTPS en production (si votre reverse proxy ne le fait pas déjà)
     # RewriteCond %{HTTPS} !=on

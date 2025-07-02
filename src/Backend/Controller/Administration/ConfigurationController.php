@@ -8,14 +8,13 @@ use App\Config\Container;
 use App\Backend\Service\Systeme\ServiceSystemeInterface;
 use App\Backend\Service\Document\ServiceDocumentInterface;
 use App\Backend\Service\Communication\ServiceCommunicationInterface;
-
 use App\Backend\Exception\{ElementNonTrouveException, OperationImpossibleException, ValidationException, DoublonException};
 
 class ConfigurationController extends BaseController
 {
     private ServiceSystemeInterface $systemeService;
     private ServiceDocumentInterface $documentService;
-    private ServiceCommunicationInterface $communicationService;// Injecter ServiceSecurite
+    private ServiceCommunicationInterface $communicationService;
 
     public function __construct(Container $container)
     {

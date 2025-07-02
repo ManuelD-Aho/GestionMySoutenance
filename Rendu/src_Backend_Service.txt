@@ -571,7 +571,7 @@ class ServiceDocument implements ServiceDocumentInterface
             $htmlContent = $htmlWriter->getContent();
 
             // Nettoyage basique du HTML généré (peut nécessiter un nettoyage plus avancé)
-            $htmlContent = preg_replace('/<img[^>]+>/', '', $htmlContent); // Supprime les images
+            $htmlContent = preg_replace('/<image[^>]+>/', '', $htmlContent); // Supprime les images
             $htmlContent = preg_replace('/style="[^"]*"/i', '', $htmlContent); // Supprime les styles inline
 
             $nomModele = pathinfo($fileData['name'], PATHINFO_FILENAME);
