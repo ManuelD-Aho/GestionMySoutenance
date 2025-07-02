@@ -1,9 +1,7 @@
 module.exports = {
   plugins: {
-    'postcss-import': {}, // Doit être le premier plugin
-    tailwindcss: {
-      config: './tailwind.config.js' // S'assurer que le chemin de config est correct
-    },
+    'postcss-import': {}, // Doit être le premier plugin pour gérer les @import dans input.css
+    tailwindcss: {},
     autoprefixer: {},
     // Ajouter cssnano pour la minification en production
     ...(process.env.NODE_ENV === 'production' ? { cssnano: {} } : {})

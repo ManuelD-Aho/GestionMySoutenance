@@ -7,6 +7,7 @@ use PDO;
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception as PHPMailerException;
 use App\Backend\Model\GenericModel;
+use App\Backend\Model\Utilisateur;
 use App\Backend\Service\Systeme\ServiceSystemeInterface;
 use App\Backend\Service\Supervision\ServiceSupervisionInterface;
 use App\Backend\Exception\{ElementNonTrouveException, OperationImpossibleException, EmailException};
@@ -20,7 +21,7 @@ class ServiceCommunication implements ServiceCommunicationInterface
     private GenericModel $messageChatModel;
     private GenericModel $participantConversationModel;
     private GenericModel $matriceNotificationModel;
-    private GenericModel $utilisateurModel;
+    private Utilisateur $utilisateurModel;
     private ServiceSystemeInterface $systemeService;
     private ServiceSupervisionInterface $supervisionService;
 
@@ -32,7 +33,7 @@ class ServiceCommunication implements ServiceCommunicationInterface
         GenericModel $messageChatModel,
         GenericModel $participantConversationModel,
         GenericModel $matriceNotificationModel,
-        GenericModel $utilisateurModel,
+        Utilisateur $utilisateurModel,
         ServiceSystemeInterface $systemeService,
         ServiceSupervisionInterface $supervisionService
     ) {
@@ -84,13 +85,11 @@ class ServiceCommunication implements ServiceCommunicationInterface
 
     public function envoyerEmail(string $destinataireEmail, string $idNotificationTemplate, array $variables = [], array $piecesJointes = []): bool
     {
-        // Option A : Vérifier les préférences utilisateur ici
         $utilisateur = $this->utilisateurModel->trouverUnParCritere(['email_principal' => $destinataireEmail]);
         if ($utilisateur) {
             $preferences = json_decode($utilisateur['preferences_notifications'] ?? '[]', true);
-            // Si l'utilisateur a spécifiquement désactivé ce type de notification par email, on arrête.
             if (isset($preferences[$idNotificationTemplate]['email']) && $preferences[$idNotificationTemplate]['email'] === false) {
-                return true; // On considère que c'est un "succès" pour ne pas bloquer le workflow.
+                return true;
             }
         }
 
@@ -99,19 +98,20 @@ class ServiceCommunication implements ServiceCommunicationInterface
 
         $sujet = $this->personnaliserMessage($template['libelle_notification'], $variables);
 
-        // Assemblage du corps de l'email avec le layout
         $corpsMessage = $this->personnaliserMessage($template['contenu'], $variables);
         $layoutPath = __DIR__ . '/../../../templates/email/layout_email_generique.html';
         if (file_exists($layoutPath)) {
             $corpsFinal = file_get_contents($layoutPath);
             $corpsFinal = str_replace('{{contenu_principal}}', $corpsMessage, $corpsFinal);
+            $corpsFinal = str_replace('{{sujet_email}}', $sujet, $corpsFinal);
+            $corpsFinal = str_replace('{{annee_courante}}', date('Y'), $corpsFinal);
+            $corpsFinal = str_replace('{{app_url}}', $_ENV['APP_URL'], $corpsFinal);
         } else {
-            $corpsFinal = $corpsMessage; // Fallback si le layout n'existe pas
+            $corpsFinal = $corpsMessage;
         }
 
         $mailer = new PHPMailer(true);
         try {
-            // Configuration SMTP
             $mailer->isSMTP();
             $mailer->Host = $this->systemeService->getParametre('SMTP_HOST');
             $mailer->SMTPAuth = (bool) $this->systemeService->getParametre('SMTP_AUTH', true);
@@ -128,19 +128,35 @@ class ServiceCommunication implements ServiceCommunicationInterface
             $mailer->Body = $corpsFinal;
             $mailer->AltBody = strip_tags($corpsFinal);
 
-            // Ajout des pièces jointes
             foreach ($piecesJointes as $pj) {
                 $mailer->addAttachment($pj['path'], $pj['name']);
             }
 
             $mailer->send();
-            $this->supervisionService->enregistrerAction('SYSTEM', 'ENVOI_EMAIL_SUCCES', null, $destinataireEmail, 'Email', ['template' => $idNotificationTemplate]);
+            // Correction: Ordre des arguments et type de $detailsJson
+            $this->supervisionService->enregistrerAction(
+                'SYSTEM', // numeroUtilisateur
+                'ENVOI_EMAIL_SUCCES', // idAction
+                null, // idEntiteConcernee
+                'Email', // typeEntiteConcernee (type de l'entité, pas l'email lui-même)
+                ['destinataire' => $destinataireEmail, 'template' => $idNotificationTemplate] // detailsJson (doit être un tableau)
+            );
             return true;
         } catch (PHPMailerException $e) {
-            $this->supervisionService->enregistrerAction('SYSTEM', 'ENVOI_EMAIL_ECHEC', null, $destinataireEmail, 'Email', ['error' => $e->errorMessage()]);
+            // Correction: Ordre des arguments et type de $detailsJson
+            $this->supervisionService->enregistrerAction(
+                'SYSTEM', // numeroUtilisateur
+                'ENVOI_EMAIL_ECHEC', // idAction
+                null, // idEntiteConcernee
+                'Email', // typeEntiteConcernee
+                ['destinataire' => $destinataireEmail, 'error' => $e->errorMessage(), 'template' => $idNotificationTemplate] // detailsJson
+            );
             throw new EmailException("Erreur PHPMailer : " . $e->errorMessage());
+            // Correction: Retourner false pour respecter la signature de la méthode
+            return false;
         }
     }
+
 
     // ====================================================================
     // SECTION 2: Messagerie Instantanée

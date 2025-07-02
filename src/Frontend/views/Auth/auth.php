@@ -1,13 +1,9 @@
 <?php
 // src/Frontend/views/Auth/auth.php
 
-// Assurer que la variable $form est définie pour éviter les erreurs
 $form = $form ?? 'login';
-// Assurer que $csrf_token est défini
 $csrf_token = $csrf_token ?? '';
-// Assurer que $flash_messages est défini (vient de BaseController->render)
 $flash_messages = $flash_messages ?? [];
-// Assurer que $token est défini pour le formulaire de réinitialisation
 $token = $token ?? '';
 ?>
 <div class="card w-full max-w-md bg-base-100 shadow-2xl rounded-xl p-6 lg:p-8 transform transition-all duration-300 ease-in-out hover:scale-[1.01]">
@@ -101,7 +97,7 @@ $token = $token ?? '';
 
             <?php // =================== FORMULAIRE DE RÉINITIALISATION DE MOT DE PASSE =================== ?>
         <?php elseif ($form === 'reset_password'): ?>
-            <form id="reset-password-form" action="/reset-password" method="POST" class="space-y-5">
+            <form id="reset-password-form" action="/reset-password/<?= htmlspecialchars($token) ?>" method="POST" class="space-y-5">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf_token) ?>">
                 <input type="hidden" name="token" value="<?= htmlspecialchars($token) ?>">
                 <div class="form-control">
@@ -131,62 +127,3 @@ $token = $token ?? '';
         <?php endif; ?>
     </div>
 </div>
-
-<script>
-    // Script pour afficher/masquer le mot de passe
-    document.querySelectorAll('[data-toggle-password]').forEach(button => {
-        button.addEventListener('click', () => {
-            const targetId = button.dataset.togglePassword;
-            const targetInput = document.getElementById(targetId);
-            const icon = button.querySelector('.password-toggle-icon');
-
-            if (targetInput.type === 'password') {
-                targetInput.type = 'text';
-                icon.classList.remove('fa-eye-slash');
-                icon.classList.add('fa-eye');
-            } else {
-                targetInput.type = 'password';
-                icon.classList.remove('fa-eye');
-                icon.classList.add('fa-eye-slash');
-            }
-        });
-    });
-
-    // Script pour afficher le spinner sur les boutons de soumission
-    document.querySelectorAll('form').forEach(form => {
-        form.addEventListener('submit', () => {
-            const submitButton = form.querySelector('button[type="submit"]');
-            if (submitButton) {
-                const spinner = submitButton.querySelector('.loading-spinner');
-                const buttonText = submitButton.querySelector('.button-text');
-                if (spinner) spinner.classList.remove('hidden');
-                if (buttonText) buttonText.classList.add('hidden');
-                submitButton.setAttribute('disabled', 'disabled'); // Désactive le bouton pour éviter les soumissions multiples
-            }
-        });
-    });
-
-    // Animation des messages flash
-    document.addEventListener('DOMContentLoaded', () => {
-        const alerts = document.querySelectorAll('.alert');
-        alerts.forEach(alert => {
-            gsap.from(alert, {
-                opacity: 0,
-                y: -20,
-                duration: 0.5,
-                ease: "power2.out",
-                onComplete: () => {
-                    // Optionnel: faire disparaître les messages après un certain temps
-                    gsap.to(alert, {
-                        opacity: 0,
-                        y: -20,
-                        delay: 5, // Disparaît après 5 secondes
-                        duration: 0.5,
-                        ease: "power2.in",
-                        onComplete: () => alert.remove()
-                    });
-                }
-            });
-        });
-    });
-</script>

@@ -7,9 +7,7 @@ use PDO;
 
 class Utilisateur extends BaseModel
 {
-    // --- CORRECTION ICI : Changer protected en public ---
     public string $table = 'utilisateur';
-    // --- FIN DE LA CORRECTION ---
     protected string|array $primaryKey = 'numero_utilisateur';
     protected array $fields = [
         'numero_utilisateur', 'login_utilisateur', 'email_principal', 'mot_de_passe', 'date_creation',
@@ -32,9 +30,11 @@ class Utilisateur extends BaseModel
      */
     public function trouverParLoginOuEmailPrincipal(string $identifiant): ?array
     {
-        $sql = "SELECT * FROM `{$this->table}` WHERE `login_utilisateur` = :identifiant OR `email_principal` = :identifiant LIMIT 1";
+        $sql = "SELECT * FROM `{$this->table}` WHERE `login_utilisateur` = :identifiant1 OR `email_principal` = :identifiant2 LIMIT 1";
         $stmt = $this->db->prepare($sql);
-        $stmt->bindParam(':identifiant', $identifiant);
+        // Lier chaque placeholder distinctement
+        $stmt->bindParam(':identifiant1', $identifiant);
+        $stmt->bindParam(':identifiant2', $identifiant);
         $stmt->execute();
         $result = $stmt->fetch(PDO::FETCH_ASSOC);
         return $result ?: null;
