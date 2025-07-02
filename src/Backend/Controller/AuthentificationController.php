@@ -3,19 +3,33 @@
 
 namespace App\Backend\Controller;
 
-use App\Config\Container;
-use App\Backend\Service\Securite\ServiceSecuriteInterface;
 use App\Backend\Service\Communication\ServiceCommunicationInterface;
-use App\Backend\Exception\{IdentifiantsInvalidesException, CompteBloqueException, CompteNonValideException, MotDePasseInvalideException, TokenInvalideException, TokenExpireException, OperationImpossibleException};
+use App\Backend\Service\Securite\ServiceSecuriteInterface; // Ajout de la dépendance
+use App\Backend\Service\Supervision\ServiceSupervisionInterface; // Ajout de la dépendance
+use App\Backend\Util\FormValidator; // Ajout de la dépendance
+use App\Backend\Exception\{
+    IdentifiantsInvalidesException,
+    CompteBloqueException,
+    CompteNonValideException,
+    MotDePasseInvalideException,
+    TokenInvalideException,
+    TokenExpireException,
+    OperationImpossibleException
+};
+use Exception;
 
 class AuthentificationController extends BaseController
 {
     private ServiceCommunicationInterface $communicationService;
 
-    public function __construct(Container $container)
-    {
-        parent::__construct($container);
-        $this->communicationService = $container->get(ServiceCommunicationInterface::class);
+    public function __construct(
+        ServiceSecuriteInterface $securiteService,
+        ServiceCommunicationInterface $communicationService,
+        FormValidator $formValidator, // Injecté pour BaseController
+        ServiceSupervisionInterface $supervisionService // Injecté pour BaseController
+    ) {
+        parent::__construct($securiteService, $supervisionService);
+        $this->communicationService = $communicationService;
     }
 
     public function showLoginForm(): void
@@ -23,28 +37,24 @@ class AuthentificationController extends BaseController
         if ($this->securiteService->estUtilisateurConnecte()) {
             $this->redirect('/dashboard');
         }
-        // ✅ CORRECTION : Ajout de la variable 'form' => 'login'
-        $data = [
+        $this->render('Auth/auth', [
             'title' => 'Connexion',
             'form' => 'login',
             'csrf_token' => $this->generateCsrfToken('login_form')
-        ];
-        $this->render('Auth/auth', $data, 'layout/layout_auth');
+        ], 'layout/layout_auth');
     }
 
-    public function handleLogin(): void
+    public function login(): void // Renommée de handleLogin
     {
-        if (!$this->isPostRequest()) $this->redirect('/login');
-        $data = $this->getPostData();
-        if (!$this->validateCsrfToken('login_form', $data['csrf_token'] ?? '')) $this->redirect('/login');
-
-        $identifiant = $data['identifiant'] ?? '';
-        $motDePasse = $data['mot_de_passe'] ?? '';
+        if (!$this->isPostRequest() || !$this->validateCsrfToken('login_form', $_POST['csrf_token'] ?? '')) {
+            $this->redirect('/login');
+            return;
+        }
 
         try {
-            $result = $this->securiteService->tenterConnexion($identifiant, $motDePasse);
+            $result = $this->securiteService->tenterConnexion($_POST['identifiant'] ?? '', $_POST['mot_de_passe'] ?? '');
+
             if ($result['status'] === '2fa_required') {
-                $_SESSION['2fa_pending'] = true;
                 $this->redirect('/2fa');
             } elseif ($result['status'] === 'success') {
                 $this->addFlashMessage('success', 'Connexion réussie !');
@@ -53,7 +63,7 @@ class AuthentificationController extends BaseController
         } catch (IdentifiantsInvalidesException | CompteBloqueException | CompteNonValideException $e) {
             $this->addFlashMessage($e instanceof CompteNonValideException ? 'warning' : 'error', $e->getMessage());
             $this->redirect('/login');
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             $this->addFlashMessage('error', 'Une erreur inattendue est survenue.');
             error_log("Erreur de connexion: " . $e->getMessage());
             $this->redirect('/login');
@@ -65,34 +75,30 @@ class AuthentificationController extends BaseController
         if (!isset($_SESSION['2fa_pending']) || !$_SESSION['2fa_pending'] || !isset($_SESSION['2fa_user_id'])) {
             $this->redirect('/login');
         }
-        // ✅ CORRECTION : Ajout de la variable 'form' => '2fa'
-        $data = [
+        $this->render('Auth/auth', [
             'title' => 'Vérification 2FA',
             'form' => '2fa',
             'csrf_token' => $this->generateCsrfToken('2fa_form')
-        ];
-        $this->render('Auth/auth', $data, 'layout/layout_auth');
+        ], 'layout/layout_auth');
     }
 
     public function handle2faVerification(): void
     {
-        if (!$this->isPostRequest() || !isset($_SESSION['2fa_user_id'])) $this->redirect('/login');
-        $data = $this->getPostData();
-        if (!$this->validateCsrfToken('2fa_form', $data['csrf_token'] ?? '')) $this->redirect('/2fa');
-
-        $codeTOTP = $data['code_totp'] ?? '';
-        $userId = $_SESSION['2fa_user_id'];
+        if (!$this->isPostRequest() || !isset($_SESSION['2fa_user_id']) || !$this->validateCsrfToken('2fa_form', $_POST['csrf_token'] ?? '')) {
+            $this->redirect('/login');
+            return;
+        }
 
         try {
-            if ($this->securiteService->verifierCodeAuthentificationDeuxFacteurs($userId, $codeTOTP)) {
-                $this->securiteService->demarrerSessionUtilisateur($userId);
+            if ($this->securiteService->verifierCodeAuthentificationDeuxFacteurs($_SESSION['2fa_user_id'], $_POST['code_totp'] ?? '')) {
+                $this->securiteService->demarrerSessionUtilisateur($_SESSION['2fa_user_id']);
                 $this->addFlashMessage('success', 'Vérification 2FA réussie !');
                 $this->redirect('/dashboard');
             } else {
                 $this->addFlashMessage('error', 'Code 2FA incorrect. Veuillez réessayer.');
                 $this->redirect('/2fa');
             }
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             $this->addFlashMessage('error', 'Erreur lors de la vérification 2FA.');
             error_log("Erreur 2FA: " . $e->getMessage());
             $this->redirect('/2fa');
@@ -108,62 +114,61 @@ class AuthentificationController extends BaseController
 
     public function showForgotPasswordForm(): void
     {
-        // ✅ CORRECTION : Ajout de la variable 'form' => 'forgot_password'
-        $data = [
+        $this->render('Auth/auth', [
             'title' => 'Mot de passe oublié',
             'form' => 'forgot_password',
             'csrf_token' => $this->generateCsrfToken('forgot_password_form')
-        ];
-        $this->render('Auth/auth', $data, 'layout/layout_auth');
+        ], 'layout/layout_auth');
     }
 
     public function handleForgotPassword(): void
     {
-        if (!$this->isPostRequest()) $this->redirect('/forgot-password');
-        $data = $this->getPostData();
-        if (!$this->validateCsrfToken('forgot_password_form', $data['csrf_token'] ?? '')) $this->redirect('/forgot-password');
-
-        $email = $data['email'] ?? '';
-        try {
-            $this->securiteService->demanderReinitialisationMotDePasse($email, $this->communicationService);
-            $this->addFlashMessage('success', 'Si votre email est enregistré, un lien de réinitialisation a été envoyé.');
-            $this->redirect('/login');
-        } catch (\Exception $e) {
-            $this->addFlashMessage('error', 'Une erreur est survenue.');
-            error_log("Erreur demande MDP oublié: " . $e->getMessage());
+        if (!$this->isPostRequest() || !$this->validateCsrfToken('forgot_password_form', $_POST['csrf_token'] ?? '')) {
             $this->redirect('/forgot-password');
+            return;
         }
+        try {
+            $this->securiteService->demanderReinitialisationMotDePasse($_POST['email'] ?? '', $this->communicationService);
+            $this->addFlashMessage('success', 'Si votre email est enregistré, un lien de réinitialisation a été envoyé.');
+        } catch (Exception $e) {
+            $this->addFlashMessage('error', 'Une erreur est survenue lors de la demande.');
+            error_log("Erreur demande MDP oublié: " . $e->getMessage());
+        }
+        $this->redirect('/login');
     }
 
     public function showResetPasswordForm(string $token): void
     {
-        // ✅ CORRECTION : Ajout de la variable 'form' => 'reset_password'
-        $data = [
+        $this->render('Auth/auth', [
             'title' => 'Réinitialiser le mot de passe',
             'form' => 'reset_password',
             'token' => $token,
             'csrf_token' => $this->generateCsrfToken('reset_password_form')
-        ];
-        $this->render('Auth/auth', $data, 'layout/layout_auth');
+        ], 'layout/layout_auth');
     }
 
     public function handleResetPassword(): void
     {
-        if (!$this->isPostRequest()) $this->redirect('/login');
+        if (!$this->isPostRequest()) {
+            $this->redirect('/login');
+            return;
+        }
+
         $data = $this->getPostData();
         $token = $data['token'] ?? '';
-        if (!$this->validateCsrfToken('reset_password_form', $data['csrf_token'] ?? '')) $this->redirect('/reset-password/' . $token);
+        if (!$this->validateCsrfToken('reset_password_form', $data['csrf_token'] ?? '')) {
+            $this->redirect('/reset-password/' . $token);
+            return;
+        }
 
-        $nouveauMotDePasse = $data['nouveau_mot_de_passe'] ?? '';
-        $confirmationMotDePasse = $data['confirmation_mot_de_passe'] ?? '';
-
-        if ($nouveauMotDePasse !== $confirmationMotDePasse) {
+        if (($data['nouveau_mot_de_passe'] ?? '') !== ($data['confirmation_mot_de_passe'] ?? '')) {
             $this->addFlashMessage('error', 'Les mots de passe ne correspondent pas.');
             $this->redirect('/reset-password/' . $token);
+            return;
         }
 
         try {
-            $this->securiteService->reinitialiserMotDePasseViaToken($token, $nouveauMotDePasse);
+            $this->securiteService->reinitialiserMotDePasseViaToken($token, $data['nouveau_mot_de_passe']);
             $this->addFlashMessage('success', 'Votre mot de passe a été réinitialisé. Vous pouvez vous connecter.');
             $this->redirect('/login');
         } catch (TokenExpireException | TokenInvalideException $e) {
@@ -172,7 +177,7 @@ class AuthentificationController extends BaseController
         } catch (MotDePasseInvalideException $e) {
             $this->addFlashMessage('error', $e->getMessage());
             $this->redirect('/reset-password/' . $token);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             $this->addFlashMessage('error', 'Une erreur inattendue est survenue.');
             error_log("Erreur réinitialisation MDP: " . $e->getMessage());
             $this->redirect('/reset-password/' . $token);
@@ -184,14 +189,12 @@ class AuthentificationController extends BaseController
         try {
             $this->securiteService->validateEmailToken($token);
             $this->addFlashMessage('success', 'Votre adresse email a été validée ! Vous pouvez vous connecter.');
-            $this->redirect('/login');
         } catch (TokenExpireException | TokenInvalideException | OperationImpossibleException $e) {
             $this->addFlashMessage($e instanceof OperationImpossibleException ? 'warning' : 'error', $e->getMessage());
-            $this->redirect('/login');
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             $this->addFlashMessage('error', 'Une erreur est survenue lors de la validation.');
             error_log("Erreur validation email: " . $e->getMessage());
-            $this->redirect('/login');
         }
+        $this->redirect('/login');
     }
 }

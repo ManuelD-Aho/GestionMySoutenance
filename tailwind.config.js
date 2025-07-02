@@ -1,8 +1,9 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   content: [
-    "./src/Frontend/views/**/*.php", // Scanne tous vos fichiers de vue
+    "./src/Frontend/views/**/*.php", // Scanne tous vos fichiers de vue PHP
     "./Public/**/*.js", // Si vous avez du JS qui manipule des classes Tailwind
+    // Ajoutez d'autres chemins si vous utilisez Tailwind dans d'autres types de fichiers
   ],
   theme: {
     extend: {

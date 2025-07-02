@@ -6,96 +6,347 @@ namespace App\Backend\Controller\PersonnelAdministratif;
 use App\Backend\Controller\BaseController;
 use App\Backend\Service\WorkflowSoutenance\ServiceWorkflowSoutenanceInterface;
 use App\Backend\Service\Utilisateur\ServiceUtilisateurInterface;
-use App\Backend\Service\Securite\ServiceSecuriteInterface;
-use App\Backend\Service\Supervision\ServiceSupervisionInterface;
+use App\Backend\Service\ParcoursAcademique\ServiceParcoursAcademiqueInterface;
+use App\Backend\Service\Systeme\ServiceSystemeInterface;
+use App\Backend\Service\Document\ServiceDocumentInterface;
+use App\Backend\Service\Securite\ServiceSecuriteInterface; // Ajout de la dépendance
+use App\Backend\Service\Supervision\ServiceSupervisionInterface; // Ajout de la dépendance
 use App\Backend\Util\FormValidator;
+use Exception;
 
 class ScolariteController extends BaseController
 {
     private ServiceWorkflowSoutenanceInterface $serviceWorkflow;
     private ServiceUtilisateurInterface $serviceUtilisateur;
+    private ServiceParcoursAcademiqueInterface $parcoursService;
+    private ServiceSystemeInterface $systemeService;
+    private ServiceDocumentInterface $documentService;
+    private FormValidator $validator;
 
     public function __construct(
-        ServiceSecuriteInterface $serviceSecurite,
-        ServiceSupervisionInterface $serviceSupervision,
-        FormValidator $formValidator,
         ServiceWorkflowSoutenanceInterface $serviceWorkflow,
-        ServiceUtilisateurInterface $serviceUtilisateur
+        ServiceUtilisateurInterface $serviceUtilisateur,
+        ServiceParcoursAcademiqueInterface $parcoursService,
+        ServiceSystemeInterface $systemeService,
+        ServiceDocumentInterface $documentService,
+        FormValidator $validator,
+        ServiceSecuriteInterface $securiteService, // Injecté pour BaseController
+        ServiceSupervisionInterface $supervisionService // Injecté pour BaseController
     ) {
-        parent::__construct($serviceSecurite, $serviceSupervision, $formValidator);
+        parent::__construct($securiteService, $supervisionService);
         $this->serviceWorkflow = $serviceWorkflow;
         $this->serviceUtilisateur = $serviceUtilisateur;
+        $this->parcoursService = $parcoursService;
+        $this->systemeService = $systemeService;
+        $this->documentService = $documentService;
+        $this->validator = $validator;
     }
 
-    public function listConformiteQueue(): void
-    {
-        $this->checkPermission('TRAIT_PERS_ADMIN_CONFORMITE_LISTER');
-        $rapports = $this->serviceWorkflow->listerRapports(['id_statut_rapport' => 'RAP_SOUMIS']);
-        $this->render('PersonnelAdministratif/gestion_conformite.php', [
-            'title' => 'File de Vérification de Conformité',
-            'rapports' => $rapports
-        ]);
-    }
+    // ========== PARTIE AGENT DE CONFORMITÉ ==========
 
-    public function showConformiteForm(string $id): void
+    public function conformiteQueue(): void // Renommée de listConformiteQueue
     {
-        $this->checkPermission('TRAIT_PERS_ADMIN_CONFORMITE_VERIFIER');
-        $rapport = $this->serviceWorkflow->lireRapportComplet($id);
-        if (!$rapport) {
-            $this->render('errors/404.php');
-            return;
-        }
-        $this->render('PersonnelAdministratif/form_conformite.php', [
-            'title' => 'Vérification du Rapport',
-            'rapport' => $rapport
-        ]);
-    }
-
-    public function processConformite(string $id): void
-    {
-        $this->checkPermission('TRAIT_PERS_ADMIN_CONFORMITE_VERIFIER');
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !$this->verifyCsrfToken($_POST['csrf_token'] ?? '')) {
-            $this->jsonResponse(['success' => false, 'message' => 'Requête invalide.'], 403);
-            return;
-        }
-
-        $user = $this->serviceSecurite->getUtilisateurConnecte();
+        $this->requirePermission('TRAIT_PERS_ADMIN_CONFORMITE_LISTER');
         try {
-            $estConforme = ($_POST['decision_conformite'] === 'conforme');
-            $details = $_POST['checklist'] ?? [];
-            $commentaire = $_POST['commentaire_general'] ?? null;
-            $this->serviceWorkflow->traiterVerificationConformite($id, $user['numero_utilisateur'], $estConforme, $details, $commentaire);
-            $this->jsonResponse(['success' => true, 'message' => 'Vérification enregistrée.', 'redirect' => '/personnel/conformite']);
-        } catch (\Exception $e) {
-            $this->jsonResponse(['success' => false, 'message' => $e->getMessage()], 500);
+            $rapports = $this->serviceWorkflow->listerRapports(['id_statut_rapport' => 'RAP_SOUMIS']);
+            $this->render('PersonnelAdministratif/gestion_conformite', [
+                'title' => 'File de Vérification de Conformité',
+                'rapports' => $rapports
+            ]);
+        } catch (Exception $e) {
+            $this->addFlashMessage('error', 'Erreur lors du chargement de la file de conformité : ' . $e->getMessage());
+            $this->redirect('/personnel/dashboard');
         }
     }
 
-    public function listStudentRecords(): void
+    public function showConformite(string $idRapport): void // Renommée de showConformiteForm
     {
-        $this->checkPermission('TRAIT_PERS_ADMIN_SCOLARITE_ACCEDER');
-        $etudiants = $this->serviceUtilisateur->listerUtilisateursComplets(['id_type_utilisateur' => 'TYPE_ETUD']);
-        $this->render('PersonnelAdministratif/gestion_scolarite.php', [
-            'title' => 'Gestion des Dossiers Étudiants',
-            'etudiants' => $etudiants
-        ]);
+        $this->requirePermission('TRAIT_PERS_ADMIN_CONFORMITE_VERIFIER');
+        try {
+            $rapport = $this->serviceWorkflow->lireRapportComplet($idRapport);
+            if (!$rapport) {
+                throw new Exception("Rapport non trouvé.");
+            }
+            $checklist = $this->systemeService->gererReferentiel('list', 'critere_conformite_ref');
+
+            $this->render('PersonnelAdministratif/form_conformite', [
+                'title' => 'Vérification du Rapport ' . $idRapport,
+                'rapport' => $rapport,
+                'checklist' => $checklist,
+                'csrf_token' => $this->generateCsrfToken('conformite_form')
+            ]);
+        } catch (Exception $e) {
+            $this->addFlashMessage('error', 'Erreur lors du chargement du formulaire de conformité : ' . $e->getMessage());
+            $this->redirect('/personnel/conformite/queue');
+        }
     }
 
-    public function activateStudentAccount(): void
+    public function processConformite(string $idRapport): void
     {
-        $this->checkPermission('PERS_ADMIN_ACTIVATE_ACCOUNT');
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !$this->verifyCsrfToken($_POST['csrf_token'] ?? '')) {
-            $this->jsonResponse(['success' => false, 'message' => 'Requête invalide.'], 403);
+        $this->requirePermission('TRAIT_PERS_ADMIN_CONFORMITE_VERIFIER');
+        if (!$this->isPostRequest() || !$this->validateCsrfToken('conformite_form', $_POST['csrf_token'] ?? '')) {
+            $this->redirect('/personnel/conformite/queue');
             return;
         }
 
-        $numeroEtudiant = $_POST['numero_etudiant'];
-        try {
-// Le service doit vérifier les prérequis (paiement, stage) avant d'activer
-            $this->serviceUtilisateur->activerComptePourEntite($numeroEtudiant, $_POST, true);
-            $this->jsonResponse(['success' => true, 'message' => 'Compte étudiant activé avec succès.']);
-        } catch (\Exception $e) {
-            $this->jsonResponse(['success' => false, 'message' => $e->getMessage()], 500);
+        $data = $this->getPostData();
+        if (empty($data['commentaire_general'])) {
+            $this->addFlashMessage('error', 'Un commentaire général est obligatoire pour toute décision.');
+            $this->redirect("/personnel/conformite/verifier/{$idRapport}");
+            return;
         }
+
+        try {
+            $user = $this->securiteService->getUtilisateurConnecte();
+            $this->serviceWorkflow->traiterVerificationConformite($idRapport, $user['numero_utilisateur'], ($data['decision_conformite'] === 'conforme'), $data['checklist'] ?? [], $data['commentaire_general']);
+            $this->addFlashMessage('success', 'La vérification de conformité a été enregistrée.');
+        } catch (Exception $e) {
+            $this->addFlashMessage('error', 'Erreur lors du traitement de la conformité: ' . $e->getMessage());
+        }
+        $this->redirect('/personnel/conformite/queue');
+    }
+
+    // ========== PARTIE RESPONSABLE SCOLARITÉ (RS) ==========
+
+    public function index(): void // Renommée de listStudentRecords
+    {
+        $this->requirePermission('TRAIT_PERS_ADMIN_SCOLARITE_ACCEDER');
+        try {
+            $etudiants = $this->serviceUtilisateur->listerUtilisateursComplets(['id_type_utilisateur' => 'TYPE_ETUD']);
+
+            $this->render('PersonnelAdministratif/gestion_scolarite', [
+                'title' => 'Gestion des Dossiers Étudiants',
+                'etudiants' => $etudiants,
+                'csrf_token_activate' => $this->generateCsrfToken('activate_account_form'),
+                'csrf_token_inscription' => $this->generateCsrfToken('inscription_form'),
+                'csrf_token_note' => $this->generateCsrfToken('note_form'),
+                'csrf_token_stage' => $this->generateCsrfToken('stage_form'),
+                'csrf_token_penalite' => $this->generateCsrfToken('penalite_form'),
+                'csrf_token_reclamation' => $this->generateCsrfToken('reclamation_form'),
+                'csrf_token_export' => $this->generateCsrfToken('export_form')
+            ]);
+        } catch (Exception $e) {
+            $this->addFlashMessage('error', 'Erreur lors du chargement des dossiers étudiants : ' . $e->getMessage());
+            $this->redirect('/personnel/dashboard');
+        }
+    }
+
+    public function showStudent(string $idEtudiant): void // Renommée de showStudentDetails
+    {
+        $this->requirePermission('TRAIT_PERS_ADMIN_SCOLARITE_ACCEDER');
+        try {
+            $data = [
+                'profil' => $this->serviceUtilisateur->lireUtilisateurComplet($idEtudiant),
+                'inscriptions' => $this->parcoursService->listerInscriptions(['numero_carte_etudiant' => $idEtudiant]),
+                'notes' => $this->parcoursService->listerNotes(['numero_carte_etudiant' => $idEtudiant]),
+                'stages' => $this->parcoursService->listerStages(['numero_carte_etudiant' => $idEtudiant]),
+                'penalites' => $this->parcoursService->listerPenalites(['numero_carte_etudiant' => $idEtudiant]),
+                'reclamations' => $this->serviceWorkflow->listerReclamations(['numero_carte_etudiant' => $idEtudiant])
+            ];
+            // Pour une vue master-detail, on rendrait un "partial" ici, sans le layout complet.
+            $this->render('PersonnelAdministratif/_student_details_panel', $data, false);
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo "Erreur lors du chargement des détails de l'étudiant : " . htmlspecialchars($e->getMessage());
+        }
+    }
+
+    public function activateAccount(): void // Renommée de handleInscriptionUpdate
+    {
+        $this->requirePermission('TRAIT_PERS_ADMIN_SCOLARITE_ETUDIANT_GERER');
+        if (!$this->isPostRequest() || !$this->validateCsrfToken('activate_account_form', $_POST['csrf_token'] ?? '')) {
+            $this->redirect('/personnel/scolarite');
+            return;
+        }
+
+        $data = $this->getPostData();
+        $numeroEtudiant = $data['numero_etudiant'] ?? null;
+        $login = $data['login_utilisateur'] ?? null;
+        $email = $data['email_principal'] ?? null;
+        $password = $data['mot_de_passe'] ?? null;
+
+        if (empty($numeroEtudiant) || empty($login) || empty($email) || empty($password)) {
+            $this->addFlashMessage('error', 'Tous les champs sont requis pour activer le compte.');
+            $this->redirect('/personnel/scolarite');
+            return;
+        }
+
+        try {
+            $donneesCompte = [
+                'login_utilisateur' => $login,
+                'email_principal' => $email,
+                'mot_de_passe' => $password,
+                'id_groupe_utilisateur' => 'GRP_ETUDIANT', // Assigner le groupe étudiant par défaut
+                'id_niveau_acces_donne' => 'ACCES_PERSONNEL' // Assigner le niveau d'accès personnel
+            ];
+            $this->serviceUtilisateur->activerComptePourEntite($numeroEtudiant, $donneesCompte);
+            $this->addFlashMessage('success', "Compte de l'étudiant {$numeroEtudiant} activé avec succès.");
+        } catch (Exception $e) {
+            $this->addFlashMessage('error', 'Erreur lors de l\'activation du compte : ' . $e->getMessage());
+        }
+        $this->redirect('/personnel/scolarite');
+    }
+
+    public function handleInscriptionUpdate(): void
+    {
+        $this->requirePermission('TRAIT_PERS_ADMIN_SCOLARITE_ETUDIANT_GERER');
+        if (!$this->isPostRequest() || !$this->validateCsrfToken('inscription_form', $_POST['csrf_token'] ?? '')) {
+            $this->redirect('/personnel/scolarite');
+            return;
+        }
+
+        $data = $this->getPostData();
+        try {
+            // Logique simple de changement de statut.
+            $this->parcoursService->mettreAJourInscription($data['numero_etudiant'], $data['id_niveau'], $data['id_annee'], ['id_statut_paiement' => $data['statut']]);
+            $this->addFlashMessage('success', 'Statut de paiement mis à jour.');
+        } catch (Exception $e) {
+            $this->addFlashMessage('error', 'Erreur: ' . $e->getMessage());
+        }
+        $this->redirect('/personnel/scolarite');
+    }
+
+    public function handleNoteEntry(): void
+    {
+        $this->requirePermission('TRAIT_PERS_ADMIN_SCOLARITE_ETUDIANT_GERER');
+        if (!$this->isPostRequest() || !$this->validateCsrfToken('note_form', $_POST['csrf_token'] ?? '')) {
+            $this->redirect('/personnel/scolarite');
+            return;
+        }
+
+        try {
+            // Saisie manuelle matière par matière
+            $this->parcoursService->creerOuMettreAJourNote($this->getPostData());
+            $this->addFlashMessage('success', 'Note enregistrée avec succès.');
+        } catch (Exception $e) {
+            $this->addFlashMessage('error', 'Erreur: ' . $e->getMessage());
+        }
+        $this->redirect('/personnel/scolarite');
+    }
+
+    public function validerStage(string $numeroEtudiant, string $idEntreprise): void
+    {
+        $this->requirePermission('TRAIT_PERS_ADMIN_SCOLARITE_ETUDIANT_GERER');
+        if (!$this->isPostRequest() || !$this->validateCsrfToken('stage_form', $_POST['csrf_token'] ?? '')) {
+            $this->redirect('/personnel/scolarite');
+            return;
+        }
+
+        try {
+            // Action simple
+            $this->parcoursService->validerStage($numeroEtudiant, $idEntreprise);
+            $this->addFlashMessage('success', 'Stage validé.');
+        } catch (Exception $e) {
+            $this->addFlashMessage('error', 'Erreur: ' . $e->getMessage());
+        }
+        $this->redirect('/personnel/scolarite');
+    }
+
+    public function regulariserPenalite(string $idPenalite): void
+    {
+        $this->requirePermission('TRAIT_PERS_ADMIN_SCOLARITE_PENALITE_GERER');
+        if (!$this->isPostRequest() || !$this->validateCsrfToken('penalite_form', $_POST['csrf_token'] ?? '')) {
+            $this->redirect('/personnel/scolarite');
+            return;
+        }
+
+        try {
+            // Action simple
+            $user = $this->securiteService->getUtilisateurConnecte();
+            $this->parcoursService->regulariserPenalite($idPenalite, $user['numero_utilisateur']);
+            $this->addFlashMessage('success', 'Pénalité régularisée.');
+        } catch (Exception $e) {
+            $this->addFlashMessage('error', 'Erreur: ' . $e->getMessage());
+        }
+        $this->redirect('/personnel/scolarite');
+    }
+
+    public function handleReponseReclamation(string $idReclamation): void
+    {
+        $this->requirePermission('TRAIT_PERS_ADMIN_RECLAMATIONS_GERER');
+        if (!$this->isPostRequest() || !$this->validateCsrfToken('reclamation_form', $_POST['csrf_token'] ?? '')) {
+            $this->redirect('/personnel/scolarite');
+            return;
+        }
+
+        $data = $this->getPostData();
+        try {
+            $user = $this->securiteService->getUtilisateurConnecte();
+            // Action distincte pour répondre sans forcément résoudre
+            $this->serviceWorkflow->repondreAReclamation($idReclamation, $data['reponse'], $user['numero_utilisateur']);
+            $this->addFlashMessage('success', 'Réponse envoyée.');
+        } catch (Exception $e) {
+            $this->addFlashMessage('error', 'Erreur: ' . $e->getMessage());
+        }
+        $this->redirect('/personnel/scolarite');
+    }
+
+    public function cloturerReclamation(string $idReclamation): void
+    {
+        $this->requirePermission('TRAIT_PERS_ADMIN_RECLAMATIONS_GERER');
+        if (!$this->isPostRequest() || !$this->validateCsrfToken('reclamation_form', $_POST['csrf_token'] ?? '')) {
+            $this->redirect('/personnel/scolarite');
+            return;
+        }
+
+        try {
+            // Action distincte pour clôturer
+            $this->serviceWorkflow->traiterReclamation($idReclamation, "Réclamation résolue et clôturée.", $_SESSION['user_id']);
+            $this->addFlashMessage('success', 'Réclamation clôturée.');
+        } catch (Exception $e) {
+            $this->addFlashMessage('error', 'Erreur: ' . $e->getMessage());
+        }
+        $this->redirect('/personnel/scolarite');
+    }
+
+    public function exportStudents(string $format): void
+    {
+        $this->requirePermission('TRAIT_PERS_ADMIN_SCOLARITE_ACCEDER');
+
+        try {
+            $etudiants = $this->serviceUtilisateur->listerUtilisateursComplets(['id_type_utilisateur' => 'TYPE_ETUD']);
+            $colonnes = ['numero_utilisateur' => 'Matricule', 'nom' => 'Nom', 'prenom' => 'Prénom', 'email_principal' => 'Email', 'statut_compte' => 'Statut'];
+
+            if ($format === 'pdf') {
+                $this->documentService->genererListePdf('Liste des Etudiants', $etudiants, $colonnes);
+                $this->addFlashMessage('success', 'Liste des étudiants exportée en PDF.');
+            } elseif ($format === 'csv') {
+                // Assurez-vous que ServiceDocumentInterface a une méthode genererListeCsv
+                // Ou implémentez la logique CSV ici directement
+                $this->genererListeCsv('etudiants', $etudiants, $colonnes);
+                $this->addFlashMessage('success', 'Liste des étudiants exportée en CSV.');
+            } else {
+                $this->renderError(400, 'Format d\'export non supporté.');
+            }
+        } catch (Exception $e) {
+            $this->renderError(500, "Erreur lors de l'export : " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Méthode d'aide pour générer un CSV (si non présente dans ServiceDocument).
+     * @param string $filename
+     * @param array $data
+     * @param array $columns
+     */
+    private function genererListeCsv(string $filename, array $data, array $columns): void
+    {
+        header('Content-Type: text/csv');
+        header('Content-Disposition: attachment; filename="' . $filename . '_' . date('Ymd_His') . '.csv"');
+        header('Pragma: no-cache');
+        header('Expires: 0');
+
+        $output = fopen('php://output', 'w');
+        fputcsv($output, array_values($columns)); // En-têtes
+
+        foreach ($data as $row) {
+            $csvRow = [];
+            foreach (array_keys($columns) as $key) {
+                $csvRow[] = $row[$key] ?? '';
+            }
+            fputcsv($output, $csvRow);
+        }
+        fclose($output);
+        exit();
     }
 }

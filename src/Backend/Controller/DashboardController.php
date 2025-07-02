@@ -3,27 +3,35 @@
 
 namespace App\Backend\Controller;
 
-use App\Config\Container;
+use App\Backend\Service\Securite\ServiceSecuriteInterface; // Ajout de la dépendance
+use App\Backend\Service\Supervision\ServiceSupervisionInterface; // Ajout de la dépendance
 
 class DashboardController extends BaseController
 {
-    public function __construct(Container $container)
-    {
-        parent::__construct($container);
+    public function __construct(
+        ServiceSecuriteInterface $securiteService,
+        ServiceSupervisionInterface $supervisionService
+    ) {
+        parent::__construct($securiteService, $supervisionService);
     }
 
+    /**
+     * Point d'entrée après la connexion.
+     * Redirige l'utilisateur vers son tableau de bord spécifique en fonction de son groupe.
+     */
     public function index(): void
     {
-        // 1. Vérifier si l'utilisateur est connecté. Si non, rediriger vers la page de connexion.
+        // 1. Vérifier si l'utilisateur est connecté.
         if (!$this->securiteService->estUtilisateurConnecte()) {
             $this->redirect('/login');
+            return;
         }
 
-        // 2. Récupérer les données de l'utilisateur connecté pour déterminer son groupe.
+        // 2. Récupérer l'utilisateur et son groupe.
         $user = $this->securiteService->getUtilisateurConnecte();
-        $dashboardUrl = null; // Initialiser à null pour détecter si une URL est trouvée
+        $dashboardUrl = null;
 
-        // 3. Déterminer l'URL du tableau de bord en fonction du groupe de l'utilisateur.
+        // 3. Déterminer l'URL du tableau de bord.
         switch ($user['id_groupe_utilisateur']) {
             case 'GRP_ADMIN_SYS':
                 $dashboardUrl = '/admin/dashboard';
@@ -31,33 +39,30 @@ class DashboardController extends BaseController
             case 'GRP_ETUDIANT':
                 $dashboardUrl = '/etudiant/dashboard';
                 break;
-            case 'GRP_ENSEIGNANT': // Rôle de base enseignant, peut être un dashboard générique
-            case 'GRP_COMMISSION': // Membre de commission
+            case 'GRP_ENSEIGNANT':
+            case 'GRP_COMMISSION':
                 $dashboardUrl = '/commission/dashboard';
                 break;
-            case 'GRP_PERS_ADMIN': // Personnel administratif de base
-            case 'GRP_RS': // Responsable Scolarité
-            case 'GRP_AGENT_CONFORMITE': // Agent de Conformité
+            case 'GRP_PERS_ADMIN':
+            case 'GRP_RS':
+            case 'GRP_AGENT_CONFORMITE':
                 $dashboardUrl = '/personnel/dashboard';
                 break;
             default:
-                // Si le groupe de l'utilisateur n'est pas reconnu ou n'a pas de dashboard spécifique.
-                // L'utilisateur est connecté mais n'a pas de destination claire.
+                // 6. Gérer les rôles non reconnus.
                 $this->addFlashMessage('error', 'Votre rôle ne vous donne pas accès à un tableau de bord spécifique.');
-                // Enregistrer l'action d'accès refusé pour audit
                 $this->supervisionService->enregistrerAction(
                     $user['numero_utilisateur'],
                     'ACCES_DASHBOARD_REFUSE',
                     null,
                     null,
-                    ['reason' => 'Groupe utilisateur non géré pour le dashboard', 'group' => $user['id_groupe_utilisateur']]
+                    ['reason' => 'Groupe utilisateur non géré', 'group' => $user['id_groupe_utilisateur']]
                 );
-                // Rendre une page d'erreur 403 (Accès Interdit)
                 $this->renderError(403, 'Accès non autorisé à un tableau de bord.');
-                break; // Le `exit()` dans `renderError` termine l'exécution ici.
+                return; // renderError contient un exit()
         }
 
-        // 4. Si une URL de tableau de bord a été déterminée, rediriger l'utilisateur.
+        // 4. & 5. Enregistrer l'accès et rediriger.
         if ($dashboardUrl) {
             $this->supervisionService->enregistrerAction(
                 $user['numero_utilisateur'],

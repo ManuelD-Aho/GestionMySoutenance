@@ -5,70 +5,137 @@ namespace App\Backend\Controller\Etudiant;
 
 use App\Backend\Controller\BaseController;
 use App\Backend\Service\Utilisateur\ServiceUtilisateurInterface;
-use App\Backend\Service\Securite\ServiceSecuriteInterface;
-use App\Backend\Service\Supervision\ServiceSupervisionInterface;
+use App\Backend\Service\Securite\ServiceSecuriteInterface; // Ajout de la dépendance
+use App\Backend\Service\Supervision\ServiceSupervisionInterface; // Ajout de la dépendance
 use App\Backend\Util\FormValidator;
+use Exception;
 
+/**
+ * Gère le profil de l'étudiant : consultation, mise à jour, et photo.
+ */
 class ProfilEtudiantController extends BaseController
 {
     private ServiceUtilisateurInterface $serviceUtilisateur;
+    private FormValidator $validator;
 
     public function __construct(
-        ServiceSecuriteInterface $serviceSecurite,
-        ServiceSupervisionInterface $serviceSupervision,
-        FormValidator $formValidator,
-        ServiceUtilisateurInterface $serviceUtilisateur
+        ServiceUtilisateurInterface $serviceUtilisateur,
+        FormValidator $validator,
+        ServiceSecuriteInterface $securiteService, // Injecté pour BaseController
+        ServiceSupervisionInterface $supervisionService // Injecté pour BaseController
     ) {
-        parent::__construct($serviceSecurite, $serviceSupervision, $formValidator);
+        parent::__construct($securiteService, $supervisionService);
         $this->serviceUtilisateur = $serviceUtilisateur;
+        $this->validator = $validator;
     }
 
     /**
-     * Affiche le profil de l'étudiant connecté.
+     * Affiche la page de profil de l'étudiant connecté.
      */
-    public function showProfile(): void
+    public function show(): void // Renommée de showProfile
     {
-        $this->checkPermission('ETUDIANT_PROFIL_READ');
-        $user = $this->serviceSecurite->getUtilisateurConnecte();
-        $this->render('Etudiant/profil_etudiant.php', [
-            'title' => 'Mon Profil',
-            'user' => $user
-        ]);
-    }
+        // 6. Accessible si authentifié comme étudiant (géré par le routeur/BaseController)
+        $this->requirePermission('TRAIT_ETUDIANT_PROFIL_GERER');
 
-    /**
-     * Traite la mise à jour du profil de l'étudiant.
-     */
-    public function updateProfile(): void
-    {
-        $this->checkPermission('ETUDIANT_PROFIL_UPDATE');
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !$this->verifyCsrfToken($_POST['csrf_token'] ?? '')) {
-            $this->jsonResponse(['success' => false, 'message' => 'Requête invalide.'], 403);
-            return;
-        }
-
-        $user = $this->serviceSecurite->getUtilisateurConnecte();
-        $rules = [
-            'telephone' => 'max:20',
-            'email_contact_secondaire' => 'email|max:255',
-            'adresse_postale' => 'max:500'
-        ];
-
-        if (!$this->formValidator->validate($_POST, $rules)) {
-            $this->jsonResponse(['success' => false, 'errors' => $this->formValidator->getErrors()], 422);
+        $user = $this->securiteService->getUtilisateurConnecte();
+        if (!$user) {
+            $this->redirect('/login'); // Redirection déjà gérée par requirePermission, mais sécurité supplémentaire
             return;
         }
 
         try {
-            $donneesProfil = [
-                'telephone' => $_POST['telephone'],
-                'email_contact_secondaire' => $_POST['email_contact_secondaire'],
-                'adresse_postale' => $_POST['adresse_postale']
-            ];
-            $this->serviceUtilisateur->mettreAJourUtilisateur($user['numero_utilisateur'], $donneesProfil, []);
-            $this->jsonResponse(['success' => true, 'message' => 'Profil mis à jour avec succès.']);
-        } catch (\Exception $e) {
-            $this->jsonResponse(['success' => false, 'message' => $e->getMessage()], 500);
+            $fullUserData = $this->serviceUtilisateur->lireUtilisateurComplet($user['numero_utilisateur']);
+            if (!$fullUserData) {
+                throw new Exception("Données de profil introuvables.");
+            }
+
+            $this->render('Etudiant/profil_etudiant', [
+                'title' => 'Mon Profil',
+                'user' => $fullUserData,
+                'csrf_token_profile' => $this->generateCsrfToken('profile_form'),
+                'csrf_token_photo' => $this->generateCsrfToken('photo_form')
+            ]);
+        } catch (Exception $e) {
+            $this->addFlashMessage('error', 'Erreur lors du chargement du profil : ' . $e->getMessage());
+            $this->redirect('/etudiant/dashboard');
         }
+    }
+
+    /**
+     * Traite la mise à jour des informations personnelles de l'étudiant.
+     */
+    public function update(): void // Renommée de updateProfile
+    {
+        $this->requirePermission('TRAIT_ETUDIANT_PROFIL_GERER');
+
+        if (!$this->isPostRequest() || !$this->validateCsrfToken('profile_form', $_POST['csrf_token'] ?? '')) {
+            $this->redirect('/etudiant/profil');
+            return;
+        }
+
+        // 7 & 8. Validation simple
+        $rules = [
+            'telephone' => 'max:20',
+            'email_contact_secondaire' => 'email|max:255',
+            'adresse_postale' => 'max:500',
+            'ville' => 'max:100',
+            'code_postal' => 'max:20',
+            'contact_urgence_nom' => 'max:100',
+            'contact_urgence_telephone' => 'max:20',
+            'contact_urgence_relation' => 'max:50'
+        ];
+
+        $data = $this->getPostData();
+
+        if (!$this->validator->validate($data, $rules)) {
+            $this->addFlashMessage('error', 'Erreur de validation : ' . implode(', ', $this->validator->getErrors()));
+        } else {
+            try {
+                $user = $this->securiteService->getUtilisateurConnecte();
+                $donneesProfil = [
+                    'telephone' => $data['telephone'],
+                    'email_contact_secondaire' => $data['email_contact_secondaire'],
+                    'adresse_postale' => $data['adresse_postale'],
+                    'ville' => $data['ville'],
+                    'code_postal' => $data['code_postal'],
+                    'contact_urgence_nom' => $data['contact_urgence_nom'],
+                    'contact_urgence_telephone' => $data['contact_urgence_telephone'],
+                    'contact_urgence_relation' => $data['contact_urgence_relation']
+                ];
+                $this->serviceUtilisateur->mettreAJourUtilisateur($user['numero_utilisateur'], $donneesProfil, []);
+                $this->addFlashMessage('success', 'Profil mis à jour avec succès.');
+            } catch (Exception $e) {
+                $this->addFlashMessage('error', 'Erreur lors de la mise à jour : ' . $e->getMessage());
+            }
+        }
+        $this->redirect('/etudiant/profil');
+    }
+
+    /**
+     * Traite le téléversement de la photo de profil.
+     */
+    public function handlePhotoUpload(): void
+    {
+        // 9. Méthode dédiée pour la photo
+        $this->requirePermission('TRAIT_ETUDIANT_PROFIL_GERER');
+
+        if (!$this->isPostRequest() || !$this->validateCsrfToken('photo_form', $_POST['csrf_token'] ?? '')) {
+            $this->redirect('/etudiant/profil');
+            return;
+        }
+
+        $fileData = $this->getFileData('photo_profil_file');
+        if ($fileData && $fileData['error'] === UPLOAD_ERR_OK) {
+            try {
+                $user = $this->securiteService->getUtilisateurConnecte();
+                $this->serviceUtilisateur->telechargerPhotoProfil($user['numero_utilisateur'], $fileData);
+                $this->addFlashMessage('success', 'Photo de profil mise à jour.');
+            } catch (Exception $e) {
+                $this->addFlashMessage('error', $e->getMessage());
+            }
+        } else {
+            $this->addFlashMessage('error', 'Aucun fichier sélectionné ou une erreur est survenue lors du téléversement.');
+        }
+        $this->redirect('/etudiant/profil');
     }
 }

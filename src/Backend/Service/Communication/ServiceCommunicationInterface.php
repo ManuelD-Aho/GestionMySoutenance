@@ -8,7 +8,7 @@ interface ServiceCommunicationInterface
     // --- Section 1: Envoi de Messages ---
     public function envoyerNotificationInterne(string $numeroUtilisateur, string $idNotificationTemplate, array $variables = []): bool;
     public function envoyerNotificationGroupe(string $idGroupeUtilisateur, string $idNotificationTemplate, array $variables = []): bool;
-    public function envoyerEmail(string $destinataireEmail, string $idNotificationTemplate, array $variables = []): bool;
+    public function envoyerEmail(string $destinataireEmail, string $idNotificationTemplate, array $variables = [], array $piecesJointes = []): bool;
 
     // --- Section 2: Messagerie Instantanée ---
     public function demarrerConversation(array $participantsIds, ?string $nomConversation = null): string;

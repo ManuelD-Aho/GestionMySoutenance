@@ -10,34 +10,58 @@ namespace App\Backend\Controller\Administration;
 
 use App\Backend\Controller\BaseController;
 use App\Config\Container;
-use App\Backend\Service\Supervision\ServiceSupervisionInterface;
-use App\Backend\Exception\PermissionException;
 
+/**
+ * Gère l'affichage du tableau de bord principal de l'administrateur.
+ * Fournit une vue d'ensemble de l'état du système avec des statistiques et des alertes.
+ */
 class AdminDashboardController extends BaseController
 {
-    // La propriété est déjà dans BaseController, pas besoin de la redéclarer ici.
-
     public function __construct(Container $container)
     {
         parent::__construct($container);
-        // Le service de supervision est déjà initialisé dans le parent.
     }
 
     public function index(): void
     {
+        // 1. Permission et rôle requis
         $this->requirePermission('TRAIT_ADMIN_DASHBOARD_ACCEDER');
 
         try {
-            $stats = $this->supervisionService->genererStatistiquesDashboardAdmin();
+            // 2. Logique de cache pour les statistiques
+            // Une bonne pratique serait d'utiliser un vrai système de cache (Redis, Memcached, Fichiers).
+            // Ici, nous simulons un cache simple basé sur la session avec une expiration de 5 minutes.
+            $stats = null;
+            $cacheKey = 'admin_dashboard_stats';
+            $cacheDuration = 300; // 5 minutes
+
+            if (isset($_SESSION[$cacheKey]) && (time() - $_SESSION[$cacheKey]['timestamp']) < $cacheDuration) {
+                $stats = $_SESSION[$cacheKey]['data'];
+            } else {
+                $stats = $this->supervisionService->genererStatistiquesDashboardAdmin();
+                $_SESSION[$cacheKey] = ['timestamp' => time(), 'data' => $stats];
+            }
+
+            // 3. Logique pour les alertes dynamiques
+            $systemeService = $this->container->get(\App\Backend\Service\Systeme\ServiceSystemeInterface::class);
+            $failedJobsThreshold = (int) $systemeService->getParametre('ALERT_THRESHOLD_FAILED_JOBS', 5);
+            $alerts = [];
+            if (isset($stats['queue']['failed']) && $stats['queue']['failed'] > $failedJobsThreshold) {
+                $alerts[] = ['type' => 'error', 'message' => "Attention : {$stats['queue']['failed']} tâches asynchrones ont échoué, ce qui dépasse le seuil de {$failedJobsThreshold}."];
+            }
+
+            // 4. Les liens rapides sont codés en dur dans la vue selon votre réponse.
+
             $data = [
                 'title' => 'Tableau de Bord Administrateur',
                 'stats' => $stats,
+                'alerts' => $alerts,
             ];
             $this->render('Administration/dashboard_admin', $data);
+
         } catch (\Exception $e) {
-            $this->addFlashMessage('error', 'Une erreur est survenue lors du chargement du tableau de bord : ' . $e->getMessage());
             error_log("Erreur inattendue dans AdminDashboardController::index: " . $e->getMessage());
-            $this->renderError(500, 'Impossible de charger le tableau de bord.');
+            $this->renderError(500, 'Impossible de charger le tableau de bord administrateur.');
         }
     }
 }
@@ -56,8 +80,14 @@ use App\Config\Container;
 use App\Backend\Service\Systeme\ServiceSystemeInterface;
 use App\Backend\Service\Document\ServiceDocumentInterface;
 use App\Backend\Service\Communication\ServiceCommunicationInterface;
-use App\Backend\Exception\{ElementNonTrouveException, OperationImpossibleException, ValidationException, DoublonException};
+use App\Backend\Exception\{OperationImpossibleException, ValidationException};
 
+/**
+ * Gère l'ensemble des configurations de l'application.
+ * Ce contrôleur centralise toutes les actions de l'administrateur liées aux paramètres,
+ * aux années académiques, aux référentiels, aux modèles de documents, aux notifications et aux menus.
+ * Il est structuré avec des méthodes spécifiques pour chaque action pour une clarté maximale.
+ */
 class ConfigurationController extends BaseController
 {
     private ServiceSystemeInterface $systemeService;
@@ -72,422 +102,283 @@ class ConfigurationController extends BaseController
         $this->communicationService = $container->get(ServiceCommunicationInterface::class);
     }
 
+    // ===================================================================
+    // PARTIE 1 : AFFICHAGE & DONNÉES DYNAMIQUES (AJAX)
+    // ===================================================================
 
+    /**
+     * Affiche la page principale de configuration avec tous ses onglets.
+     * Charge les données nécessaires à l'affichage initial de l'interface.
+     */
     public function showConfigurationPage(): void
     {
         $this->requirePermission('TRAIT_ADMIN_CONFIG_ACCEDER');
-
         try {
-            $systemParameters = $this->systemeService->getAllParametres();
-            $academicYears = $this->systemeService->listerAnneesAcademiques();
-            $activeYear = $this->systemeService->getAnneeAcademiqueActive();
-
-            $referentials = [
-                'action' => $this->systemeService->gererReferentiel('list', 'action'),
-                'critere_conformite_ref' => $this->systemeService->gererReferentiel('list', 'critere_conformite_ref'),
-                'decision_passage_ref' => $this->systemeService->gererReferentiel('list', 'decision_passage_ref'),
-                'decision_validation_pv_ref' => $this->systemeService->gererReferentiel('list', 'decision_validation_pv_ref'),
-                'decision_vote_ref' => $this->systemeService->gererReferentiel('list', 'decision_vote_ref'),
-                'ecue' => $this->systemeService->gererReferentiel('list', 'ecue'),
-                'entreprise' => $this->systemeService->gererReferentiel('list', 'entreprise'),
-                'fonction' => $this->systemeService->gererReferentiel('list', 'fonction'),
-                'grade' => $this->systemeService->gererReferentiel('list', 'grade'),
-                'groupe_utilisateur' => $this->systemeService->gererReferentiel('list', 'groupe_utilisateur'),
-                'niveau_acces_donne' => $this->systemeService->gererReferentiel('list', 'niveau_acces_donne'),
-                'niveau_etude' => $this->systemeService->gererReferentiel('list', 'niveau_etude'),
-                'specialite' => $this->systemeService->gererReferentiel('list', 'specialite'),
-                'statut_conformite_ref' => $this->systemeService->gererReferentiel('list', 'statut_conformite_ref'),
-                'statut_jury' => $this->systemeService->gererReferentiel('list', 'statut_jury'),
-                'statut_paiement_ref' => $this->systemeService->gererReferentiel('list', 'statut_paiement_ref'),
-                'statut_penalite_ref' => $this->systemeService->gererReferentiel('list', 'statut_penalite_ref'),
-                'statut_pv_ref' => $this->systemeService->gererReferentiel('list', 'statut_pv_ref'),
-                'statut_rapport_ref' => $this->systemeService->gererReferentiel('list', 'statut_rapport_ref'),
-                'statut_reclamation_ref' => $this->systemeService->gererReferentiel('list', 'statut_reclamation_ref'),
-                'traitement' => $this->systemeService->gererReferentiel('list', 'traitement'),
-                'type_document_ref' => $this->systemeService->gererReferentiel('list', 'type_document_ref'),
-                'type_utilisateur' => $this->systemeService->gererReferentiel('list', 'type_utilisateur'),
-                'ue' => $this->systemeService->gererReferentiel('list', 'ue'),
-                // Tables de liaison pour les référentiels
-                'acquerir' => $this->systemeService->gererReferentiel('list', 'acquerir'),
-                'attribuer' => $this->systemeService->gererReferentiel('list', 'attribuer'),
-                'occuper' => $this->systemeService->gererReferentiel('list', 'occuper'),
-                'rapport_modele_assignation' => $this->systemeService->gererReferentiel('list', 'rapport_modele_assignation'),
-                'rattacher' => $this->systemeService->gererReferentiel('list', 'rattacher'),
-                'pv_session_rapport' => $this->systemeService->gererReferentiel('list', 'pv_session_rapport'),
-                'session_rapport' => $this->systemeService->gererReferentiel('list', 'session_rapport'),
-                'validation_pv' => $this->systemeService->gererReferentiel('list', 'validation_pv'),
-                'vote_commission' => $this->systemeService->gererReferentiel('list', 'vote_commission'),
-            ];
-
-            $documentModels = $this->documentService->listerModelesDocument();
-            $notificationTemplates = $this->communicationService->listerModelesNotification();
-            $notificationRules = $this->communicationService->listerReglesMatrice();
-
             $data = [
-                'title' => 'Configuration Système',
-                'system_parameters' => $systemParameters,
-                'academic_years' => $academicYears,
-                'active_year' => $activeYear,
-                'referentials' => $referentials,
-                'document_models' => $documentModels,
-                'notification_templates' => $notificationTemplates,
-                'notification_rules' => $notificationRules,
-                'csrf_token_params' => $this->generateCsrfToken('system_params_form'),
-                'csrf_token_academic_years' => $this->generateCsrfToken('academic_years_form'),
-                'csrf_token_referentials' => $this->generateCsrfToken('referentials_form'),
-                'csrf_token_document_models' => $this->generateCsrfToken('document_models_form'),
-                'csrf_token_notifications' => $this->generateCsrfToken('notifications_form'),
-                'csrf_token_menu_order' => $this->generateCsrfToken('menu_order_form'),
+                'title' => 'Configuration du Système',
+                'system_parameters' => $this->systemeService->getAllParametres(),
+                'academic_years' => $this->systemeService->listerAnneesAcademiques(),
+                'referentials' => $this->getReferentialList(),
+                'document_models' => $this->documentService->listerModelesDocument(),
+                'notification_templates' => $this->communicationService->listerModelesNotification(),
+                'notification_rules' => $this->communicationService->listerReglesMatrice(),
+                'all_actions' => $this->systemeService->gererReferentiel('list', 'action'),
+                'all_user_groups' => $this->systemeService->gererReferentiel('list', 'groupe_utilisateur'),
+                'csrf_tokens' => [ // Centralisation des tokens pour la vue
+                    'params' => $this->generateCsrfToken('params_form'),
+                    'years' => $this->generateCsrfToken('years_form'),
+                    'refs' => $this->generateCsrfToken('refs_form'),
+                    'docs' => $this->generateCsrfToken('docs_form'),
+                    'notifs' => $this->generateCsrfToken('notifs_form'),
+                    'menus' => $this->generateCsrfToken('menus_form'),
+                    'cache' => $this->generateCsrfToken('cache_form'),
+                ]
             ];
-
-            $this->render('Administration/gestion_referentiels', $data);
-
-        } catch (ElementNonTrouveException $e) {
-            $this->addFlashMessage('error', 'Erreur: ' . $e->getMessage());
-            $this->renderError(404, 'Ressource non trouvée.');
-        } catch (OperationImpossibleException $e) {
-            $this->addFlashMessage('error', 'Opération impossible: ' . $e->getMessage());
-            $this->renderError(500, 'Erreur interne du serveur.');
+            $this->render('Administration/gestion_configuration', $data);
         } catch (\Exception $e) {
-            $this->addFlashMessage('error', 'Une erreur inattendue est survenue: ' . $e->getMessage());
-            $this->renderError(500, 'Erreur interne du serveur.');
+            $this->addFlashMessage('error', 'Erreur de chargement de la page de configuration : ' . $e->getMessage());
+            $this->redirect('/admin/dashboard');
         }
     }
 
+    /**
+     * Récupère le panneau de détails pour un référentiel (appel AJAX).
+     * Permet une interface master-detail réactive.
+     */
+    public function getReferentialDetails(string $entityName): void
+    {
+        $this->requirePermission('TRAIT_ADMIN_CONFIG_REFERENTIELS_GERER');
+        try {
+            $entries = $this->systemeService->gererReferentiel('list', $entityName);
+            $this->render('Administration/_referential_details_panel', [
+                'entityName' => $entityName,
+                'entries' => $entries,
+                'csrf_token_refs' => $this->generateCsrfToken('refs_form'),
+            ], false); // Ne pas utiliser le layout principal
+        } catch (\Exception $e) {
+            http_response_code(500);
+            echo "Erreur: " . htmlspecialchars($e->getMessage());
+        }
+    }
+
+    // ===================================================================
+    // PARTIE 2 : GESTIONNAIRES D'ACTIONS (POST)
+    // ===================================================================
+
+    /**
+     * Traite la mise à jour des paramètres système.
+     */
     public function handleSystemParameters(): void
     {
         $this->requirePermission('TRAIT_ADMIN_CONFIG_PARAMETRES_GERER');
-
-        if (!$this->isPostRequest()) {
-            $this->redirect('/admin/configuration');
-        }
-
-        $data = $this->getPostData();
-
-        if (!$this->validateCsrfToken('system_params_form', $data['csrf_token_params'] ?? '')) {
-            $this->redirect('/admin/configuration');
-        }
+        if (!$this->isPostRequest() || !$this->validateCsrfToken('params_form', $_POST['csrf_token'] ?? '')) $this->redirect('/admin/configuration');
 
         try {
-            $paramsToUpdate = [];
-            foreach ($data as $key => $value) {
-                if (str_starts_with($key, 'param_')) {
-                    $paramName = substr($key, 6);
-                    $paramsToUpdate[$paramName] = $value;
-                }
-            }
-            $this->systemeService->setParametres($paramsToUpdate);
+            $data = $this->getPostData();
+            unset($data['csrf_token']);
+            $this->systemeService->setParametres($data);
             $this->addFlashMessage('success', 'Paramètres système mis à jour avec succès.');
-        } catch (ValidationException $e) {
-            $this->addFlashMessage('error', 'Erreur de validation: ' . implode(', ', $e->getErrors()));
-        } catch (OperationImpossibleException $e) {
-            $this->addFlashMessage('error', 'Opération impossible: ' . $e->getMessage());
         } catch (\Exception $e) {
-            $this->addFlashMessage('error', 'Une erreur inattendue est survenue: ' . $e->getMessage());
+            $this->addFlashMessage('error', 'Erreur lors de la mise à jour des paramètres : ' . $e->getMessage());
         }
         $this->redirect('/admin/configuration');
     }
 
-    public function addAcademicYear(): void
+    /**
+     * Traite les actions CRUD sur les années académiques.
+     */
+    public function handleAcademicYearAction(): void
     {
         $this->requirePermission('TRAIT_ADMIN_CONFIG_ANNEES_GERER');
-
-        if (!$this->isPostRequest()) {
-            $this->redirect('/admin/configuration');
-        }
+        if (!$this->isPostRequest() || !$this->validateCsrfToken('years_form', $_POST['csrf_token'] ?? '')) $this->redirect('/admin/configuration#years-tab');
 
         $data = $this->getPostData();
-
-        if (!$this->validateCsrfToken('academic_years_form', $data['csrf_token_academic_years'] ?? '')) {
-            $this->redirect('/admin/configuration');
-        }
-
-        try {
-            $libelle = $data['libelle_annee_academique'] ?? '';
-            $dateDebut = $data['date_debut'] ?? '';
-            $dateFin = $data['date_fin'] ?? '';
-            $estActive = isset($data['est_active']);
-
-            $this->systemeService->creerAnneeAcademique($libelle, $dateDebut, $dateFin, $estActive);
-            $this->addFlashMessage('success', 'Année académique ajoutée avec succès.');
-        } catch (DoublonException $e) {
-            $this->addFlashMessage('error', 'Erreur: ' . $e->getMessage());
-        } catch (ValidationException $e) {
-            $this->addFlashMessage('error', 'Erreur de validation: ' . implode(', ', $e->getErrors()));
-        } catch (OperationImpossibleException $e) {
-            $this->addFlashMessage('error', 'Opération impossible: ' . $e->getMessage());
-        } catch (\Exception $e) {
-            $this->addFlashMessage('error', 'Une erreur inattendue est survenue: ' . $e->getMessage());
-        }
-        $this->redirect('/admin/configuration');
-    }
-
-    public function updateAcademicYear(string $id): void
-    {
-        $this->requirePermission('TRAIT_ADMIN_CONFIG_ANNEES_GERER');
-
-        if (!$this->isPostRequest()) {
-            $this->redirect('/admin/configuration');
-        }
-
-        $data = $this->getPostData();
-
-        if (!$this->validateCsrfToken('academic_years_form', $data['csrf_token_academic_years'] ?? '')) {
-            $this->redirect('/admin/configuration');
-        }
-
-        try {
-            $donnees = [
-                'libelle_annee_academique' => $data['libelle_annee_academique'] ?? '',
-                'date_debut' => $data['date_debut'] ?? '',
-                'date_fin' => $data['date_fin'] ?? '',
-                'est_active' => isset($data['est_active']) ? 1 : 0,
-            ];
-            $this->systemeService->mettreAJourAnneeAcademique($id, $donnees);
-            $this->addFlashMessage('success', 'Année académique mise à jour avec succès.');
-        } catch (ElementNonTrouveException $e) {
-            $this->addFlashMessage('error', 'Erreur: ' . $e->getMessage());
-        } catch (ValidationException $e) {
-            $this->addFlashMessage('error', 'Erreur de validation: ' . implode(', ', $e->getErrors()));
-        } catch (OperationImpossibleException $e) {
-            $this->addFlashMessage('error', 'Opération impossible: ' . $e->getMessage());
-        } catch (\Exception $e) {
-            $this->addFlashMessage('error', 'Une erreur inattendue est survenue: ' . $e->getMessage());
-        }
-        $this->redirect('/admin/configuration');
-    }
-
-    public function deleteAcademicYear(string $id): void
-    {
-        $this->requirePermission('TRAIT_ADMIN_CONFIG_ANNEES_GERER');
-
-        if (!$this->isPostRequest()) {
-            $this->redirect('/admin/configuration');
-        }
-
-        $data = $this->getPostData(); // Pour récupérer le CSRF token
-
-        if (!$this->validateCsrfToken('academic_years_form', $data['csrf_token_academic_years'] ?? '')) {
-            $this->redirect('/admin/configuration');
-        }
-
-        try {
-            $this->systemeService->supprimerAnneeAcademique($id);
-            $this->addFlashMessage('success', 'Année académique supprimée avec succès.');
-        } catch (OperationImpossibleException $e) {
-            $this->addFlashMessage('error', 'Suppression impossible: ' . $e->getMessage());
-        } catch (\Exception $e) {
-            $this->addFlashMessage('error', 'Une erreur inattendue est survenue: ' . $e->getMessage());
-        }
-        $this->redirect('/admin/configuration');
-    }
-
-    public function setActiveAcademicYear(string $id): void
-    {
-        $this->requirePermission('TRAIT_ADMIN_CONFIG_ANNEES_GERER');
-
-        if (!$this->isPostRequest()) {
-            $this->redirect('/admin/configuration');
-        }
-
-        $data = $this->getPostData(); // Pour récupérer le CSRF token
-
-        if (!$this->validateCsrfToken('academic_years_form', $data['csrf_token_academic_years'] ?? '')) {
-            $this->redirect('/admin/configuration');
-        }
-
-        try {
-            $this->systemeService->setAnneeAcademiqueActive($id);
-            $this->addFlashMessage('success', 'Année académique active définie avec succès.');
-        } catch (ElementNonTrouveException $e) {
-            $this->addFlashMessage('error', 'Erreur: ' . $e->getMessage());
-        } catch (OperationImpossibleException $e) {
-            $this->addFlashMessage('error', 'Opération impossible: ' . $e->getMessage());
-        } catch (\Exception $e) {
-            $this->addFlashMessage('error', 'Une erreur inattendue est survenue: ' . $e->getMessage());
-        }
-        $this->redirect('/admin/configuration');
-    }
-
-    public function handleReferential(string $entityName, ?string $id = null): void
-    {
-        $this->requirePermission('TRAIT_ADMIN_CONFIG_REFERENTIELS_GERER');
-
-        if (!$this->isPostRequest()) {
-            $this->redirect('/admin/configuration');
-        }
-
-        $data = $this->getPostData();
-
-        if (!$this->validateCsrfToken('referentials_form', $data['csrf_token_referentials'] ?? '')) {
-            $this->redirect('/admin/configuration');
-        }
-
         $action = $data['action'] ?? '';
-        unset($data['action'], $data['csrf_token_referentials']); // Nettoyer les données pour le service
+        $id = $data['id'] ?? null;
 
         try {
             switch ($action) {
                 case 'create':
-                    $this->systemeService->gererReferentiel('create', $entityName, null, $data);
-                    $this->addFlashMessage('success', 'Entrée de référentiel ajoutée avec succès.');
+                    $this->systemeService->creerAnneeAcademique($data['libelle_annee_academique'], $data['date_debut'], $data['date_fin'], isset($data['est_active']));
+                    $this->addFlashMessage('success', "L'année académique '{$data['libelle_annee_academique']}' a été créée.");
                     break;
                 case 'update':
-                    if (!$id) throw new ValidationException("ID manquant pour la mise à jour.");
-                    $this->systemeService->gererReferentiel('update', $entityName, $id, $data);
-                    $this->addFlashMessage('success', 'Entrée de référentiel mise à jour avec succès.');
+                    $this->systemeService->mettreAJourAnneeAcademique($id, $data);
+                    $this->addFlashMessage('success', "L'année académique '{$id}' a été mise à jour.");
                     break;
                 case 'delete':
-                    if (!$id) throw new ValidationException("ID manquant pour la suppression.");
-                    $this->systemeService->gererReferentiel('delete', $entityName, $id);
-                    $this->addFlashMessage('success', 'Entrée de référentiel supprimée avec succès.');
+                    $this->systemeService->supprimerAnneeAcademique($id);
+                    $this->addFlashMessage('success', "L'année académique '{$id}' a été supprimée.");
                     break;
-                default:
-                    throw new ValidationException("Action non reconnue pour le référentiel.");
+                case 'set_active':
+                    $this->systemeService->setAnneeAcademiqueActive($id);
+                    $this->addFlashMessage('success', "L'année académique '{$id}' est maintenant active.");
+                    break;
             }
-        } catch (DoublonException $e) {
-            $this->addFlashMessage('error', 'Erreur: ' . $e->getMessage());
-        } catch (ValidationException $e) {
-            $this->addFlashMessage('error', 'Erreur de validation: ' . $e->getMessage());
-        } catch (ElementNonTrouveException $e) {
-            $this->addFlashMessage('error', 'Erreur: ' . $e->getMessage());
-        } catch (OperationImpossibleException $e) {
-            $this->addFlashMessage('error', 'Opération impossible: ' . $e->getMessage());
         } catch (\Exception $e) {
-            $this->addFlashMessage('error', 'Une erreur inattendue est survenue: ' . $e->getMessage());
+            $this->addFlashMessage('error', 'Erreur sur les années académiques : ' . $e->getMessage());
+        }
+        $this->redirect('/admin/configuration#years-tab');
+    }
+
+    /**
+     * Traite les actions CRUD sur un référentiel.
+     */
+    public function handleReferentialAction(): void
+    {
+        $this->requirePermission('TRAIT_ADMIN_CONFIG_REFERENTIELS_GERER');
+        if (!$this->isPostRequest() || !$this->validateCsrfToken('refs_form', $_POST['csrf_token'] ?? '')) $this->redirect('/admin/configuration#referentials-tab');
+
+        $data = $this->getPostData();
+        $action = $data['action'] ?? '';
+        $entityName = $data['entity_name'] ?? '';
+        $id = $data['id'] ?? null;
+        $libelle = $data['libelle'] ?? 'N/A';
+
+        try {
+            switch ($action) {
+                case 'create':
+                    $idKey = $this->container->getModelForTable($entityName)->getClePrimaire();
+                    $data[$idKey] = $this->_generateIdFromLabel($entityName, $libelle);
+                    $this->systemeService->gererReferentiel('create', $entityName, null, $data);
+                    $this->addFlashMessage('success', "L'entrée '{$libelle}' a été ajoutée au référentiel '{$entityName}'.");
+                    break;
+                case 'update':
+                    $this->systemeService->gererReferentiel('update', $entityName, $id, $data);
+                    $this->addFlashMessage('success', "L'entrée '{$id}' a été mise à jour dans le référentiel '{$entityName}'.");
+                    break;
+                case 'delete':
+                    $this->systemeService->gererReferentiel('delete', $entityName, $id);
+                    $this->addFlashMessage('success', "L'entrée '{$id}' a été supprimée du référentiel '{$entityName}'.");
+                    break;
+            }
+        } catch (OperationImpossibleException $e) {
+            $this->addFlashMessage('error', $e->getMessage());
+        } catch (\Exception $e) {
+            $this->addFlashMessage('error', "Erreur sur le référentiel '{$entityName}' : " . $e->getMessage());
         }
         $this->redirect('/admin/configuration#referentials-tab');
     }
 
-    public function handleDocumentModel(?string $id = null): void
+    /**
+     * Gère les actions CRUD sur les modèles de documents.
+     */
+    public function handleDocumentModelAction(): void
     {
         $this->requirePermission('TRAIT_ADMIN_CONFIG_MODELES_DOC_GERER');
+        if (!$this->isPostRequest() || !$this->validateCsrfToken('docs_form', $_POST['csrf_token'] ?? '')) $this->redirect('/admin/configuration#docs-tab');
 
-        if (!$this->isPostRequest()) {
-            $this->redirect('/admin/configuration');
+        $action = $_POST['action'] ?? '';
+        $id = $_POST['id_modele'] ?? null;
+        try {
+            switch ($action) {
+                case 'import':
+                    $file = $this->getFileData('word_file');
+                    if (!$file || $file['error'] !== UPLOAD_ERR_OK) throw new ValidationException("Erreur de téléversement du fichier.");
+                    $this->documentService->importerModeleDocumentWord($file);
+                    $this->addFlashMessage('success', 'Modèle importé avec succès.');
+                    break;
+                case 'update':
+                    $this->documentService->mettreAJourModeleDocument($id, $_POST['nom_modele'], $_POST['contenu_html']);
+                    $this->addFlashMessage('success', "Le modèle '{$_POST['nom_modele']}' a été mis à jour.");
+                    break;
+                case 'delete':
+                    $this->documentService->supprimerModeleDocument($id);
+                    $this->addFlashMessage('success', "Le modèle '{$id}' a été supprimé.");
+                    break;
+            }
+        } catch (\Exception $e) {
+            $this->addFlashMessage('error', "ça ne marche pas : " . $e->getMessage());
         }
+        $this->redirect('/admin/configuration#docs-tab');
+    }
+
+    /**
+     * Gère les actions sur les règles et modèles de notification.
+     */
+    public function handleNotificationAction(): void
+    {
+        $this->requirePermission('TRAIT_ADMIN_CONFIG_NOTIFS_GERER');
+        if (!$this->isPostRequest() || !$this->validateCsrfToken('notifs_form', $_POST['csrf_token'] ?? '')) $this->redirect('/admin/configuration#notifications-tab');
 
         $data = $this->getPostData();
-        $fileData = $this->getFileData('word_file');
-
-        if (!$this->validateCsrfToken('document_models_form', $data['csrf_token_document_models'] ?? '')) {
-            $this->redirect('/admin/configuration');
-        }
-
         $action = $data['action'] ?? '';
-        unset($data['action'], $data['csrf_token_document_models']);
 
         try {
             switch ($action) {
-                case 'create':
-                    if ($fileData && $fileData['error'] === UPLOAD_ERR_OK) {
-                        $this->documentService->importerModeleDocumentWord($fileData);
-                        $this->addFlashMessage('success', 'Modèle de document Word importé et créé avec succès.');
-                    } else {
-                        $this->documentService->creerModeleDocument($data['nom_modele'] ?? '', $data['contenu_html'] ?? '');
-                        $this->addFlashMessage('success', 'Modèle de document créé avec succès.');
-                    }
+                case 'update_rule':
+                    $this->communicationService->mettreAJourRegleMatrice($data['id_regle'], $data['canal'], isset($data['est_active']));
+                    $this->addFlashMessage('success', "La règle de notification '{$data['id_regle']}' a été mise à jour.");
                     break;
-                case 'update':
-                    if (!$id) throw new ValidationException("ID manquant pour la mise à jour.");
-                    $this->documentService->mettreAJourModeleDocument($id, $data['nom_modele'] ?? '', $data['contenu_html'] ?? '');
-                    $this->addFlashMessage('success', 'Modèle de document mis à jour avec succès.');
+                case 'update_template':
+                    $this->communicationService->mettreAJourModeleNotification($data['id'], $data['libelle'], $data['contenu']);
+                    $this->addFlashMessage('success', "Le modèle de notification '{$data['id']}' a été mis à jour.");
                     break;
-                case 'delete':
-                    if (!$id) throw new ValidationException("ID manquant pour la suppression.");
-                    $this->documentService->supprimerModeleDocument($id);
-                    $this->addFlashMessage('success', 'Modèle de document supprimé avec succès.');
-                    break;
-                default:
-                    throw new ValidationException("Action non reconnue pour le modèle de document.");
             }
-        } catch (ValidationException $e) {
-            $this->addFlashMessage('error', 'Erreur de validation: ' . $e->getMessage());
-        } catch (ElementNonTrouveException $e) {
-            $this->addFlashMessage('error', 'Erreur: ' . $e->getMessage());
-        } catch (OperationImpossibleException $e) {
-            $this->addFlashMessage('error', 'Opération impossible: ' . $e->getMessage());
         } catch (\Exception $e) {
-            $this->addFlashMessage('error', 'Une erreur inattendue est survenue: ' . $e->getMessage());
-        }
-        $this->redirect('/admin/configuration#document-models-tab');
-    }
-
-    public function handleNotificationSettings(): void
-    {
-        $this->requirePermission('TRAIT_ADMIN_CONFIG_NOTIFS_GERER');
-
-        if (!$this->isPostRequest()) {
-            $this->redirect('/admin/configuration');
-        }
-
-        $data = $this->getPostData();
-
-        if (!$this->validateCsrfToken('notifications_form', $data['csrf_token_notifications'] ?? '')) {
-            $this->redirect('/admin/configuration');
-        }
-
-        $type = $data['type'] ?? '';
-        unset($data['type'], $data['csrf_token_notifications']);
-
-        try {
-            switch ($type) {
-                case 'template_update':
-                    $this->communicationService->mettreAJourModeleNotification($data['id'] ?? '', $data['libelle'] ?? '', $data['contenu'] ?? '');
-                    $this->addFlashMessage('success', 'Modèle de notification mis à jour avec succès.');
-                    break;
-                case 'rule_update':
-                    $this->communicationService->mettreAJourRegleMatrice($data['id'] ?? '', $data['canal'] ?? '', isset($data['est_active']));
-                    $this->addFlashMessage('success', 'Règle de matrice de notification mise à jour avec succès.');
-                    break;
-                default:
-                    throw new ValidationException("Type d'action non reconnu pour les notifications.");
-            }
-        } catch (ValidationException $e) {
-            $this->addFlashMessage('error', 'Erreur de validation: ' . $e->getMessage());
-        } catch (ElementNonTrouveException $e) {
-            $this->addFlashMessage('error', 'Erreur: ' . $e->getMessage());
-        } catch (OperationImpossibleException $e) {
-            $this->addFlashMessage('error', 'Opération impossible: ' . $e->getMessage());
-        } catch (\Exception $e) {
-            $this->addFlashMessage('error', 'Une erreur inattendue est survenue: ' . $e->getMessage());
+            $this->addFlashMessage('error', "Erreur sur les notifications : " . $e->getMessage());
         }
         $this->redirect('/admin/configuration#notifications-tab');
     }
 
+    /**
+     * Traite la mise à jour de la structure des menus.
+     */
     public function handleMenuOrder(): void
     {
         $this->requirePermission('TRAIT_ADMIN_CONFIG_MENUS_GERER');
-
-        if (!$this->isPostRequest()) {
-            $this->redirect('/admin/configuration');
-        }
-
-        $data = $this->getPostData();
-
-        if (!$this->validateCsrfToken('menu_order_form', $data['csrf_token_menu_order'] ?? '')) {
-            $this->redirect('/admin/configuration');
-        }
+        if (!$this->isPostRequest() || !$this->validateCsrfToken('menus_form', $_POST['csrf_token'] ?? '')) $this->redirect('/admin/configuration#menus-tab');
 
         try {
-            // Récupère la chaîne JSON et la décode en tableau PHP
-            $menuStructure = json_decode($data['menu_structure'] ?? '[]', true);
-
-            if (!is_array($menuStructure) || empty($menuStructure)) {
-                throw new ValidationException("Structure de menu invalide ou vide.");
-            }
-
-            // Appel au service pour mettre à jour la base de données
-            $this->securiteService->updateMenuStructure($menuStructure);
-            $this->addFlashMessage('success', 'Ordre des menus mis à jour avec succès.');
-        } catch (ValidationException $e) {
-            $this->addFlashMessage('error', 'Erreur de validation: ' . $e->getMessage());
-        } catch (OperationImpossibleException $e) {
-            $this->addFlashMessage('error', 'Opération impossible: ' . $e->getMessage());
+            $menuStructure = json_decode($_POST['menu_structure'] ?? '[]', true);
+            if (!is_array($menuStructure)) throw new ValidationException("Structure de menu invalide.");
+            $this->systemeService->updateMenuStructure($menuStructure);
+            $this->addFlashMessage('success', "La structure du menu a été sauvegardée.");
         } catch (\Exception $e) {
-            $this->addFlashMessage('error', 'Une erreur inattendue est survenue: ' . $e->getMessage());
+            $this->addFlashMessage('error', 'Erreur lors de la sauvegarde du menu : ' . $e->getMessage());
         }
         $this->redirect('/admin/configuration#menus-tab');
+    }
+
+    /**
+     * Vide les caches de l'application.
+     */
+    public function clearCache(): void
+    {
+        $this->requirePermission('TRAIT_ADMIN_CONFIG_ACCEDER');
+        if (!$this->isPostRequest() || !$this->validateCsrfToken('cache_form', $_POST['csrf_token'] ?? '')) $this->redirect('/admin/configuration');
+
+        unset($_SESSION['admin_dashboard_stats']);
+        $this->addFlashMessage('success', 'Les caches de l\'application ont été vidés.');
+        $this->redirect('/admin/configuration');
+    }
+
+    // ===================================================================
+    // PARTIE 3 : MÉTHODES PRIVÉES UTILITAIRES
+    // ===================================================================
+
+    private function _generateIdFromLabel(string $entityName, string $label): string
+    {
+        $prefix = strtoupper(substr($entityName, 0, 4));
+        $cleanLabel = iconv('UTF-8', 'ASCII//TRANSLIT', $label);
+        $cleanLabel = strtoupper(trim($cleanLabel));
+        $slug = preg_replace('/[^A-Z0-9]+/', '_', $cleanLabel);
+        return rtrim($prefix, '_') . '_' . trim($slug, '_');
+    }
+
+    private function getReferentialList(): array
+    {
+        $referentialKeys = [
+            'grade', 'fonction', 'specialite', 'niveau_etude', 'statut_rapport_ref',
+            'statut_pv_ref', 'statut_paiement_ref', 'decision_vote_ref', 'statut_conformite_ref',
+            'statut_reclamation_ref', 'type_document_ref', 'statut_jury', 'action', 'groupe_utilisateur'
+        ];
+        $list = [];
+        foreach ($referentialKeys as $key) {
+            $list[$key] = ucwords(str_replace(['_', ' ref'], [' ', ''], $key));
+        }
+        asort($list);
+        return $list;
     }
 }
 
@@ -502,29 +393,96 @@ namespace App\Backend\Controller\Administration;
 
 use App\Backend\Controller\BaseController;
 use App\Config\Container;
-use App\Backend\Service\Systeme\ServiceSystemeInterface;
 
 class SupervisionController extends BaseController
 {
-    private ServiceSystemeInterface $serviceSysteme;
-
     public function __construct(Container $container)
     {
         parent::__construct($container);
-        $this->serviceSysteme = $container->get(ServiceSystemeInterface::class);
     }
 
     public function showAuditLogs(): void
     {
         $this->requirePermission('TRAIT_ADMIN_SUPERVISION_AUDIT_VIEW');
-        $logs = $this->supervisionService->consulterJournaux($_GET);
-        $this->render('Administration/supervision_audit.php', [
-            'title' => 'Journaux d\'Audit',
-            'logs' => $logs
-        ]);
+        try {
+            $filters = $this->getGetData();
+            $data = [
+                'title' => 'Supervision du Système',
+                'audit_logs' => $this->supervisionService->consulterJournaux($filters),
+                'async_tasks' => $this->supervisionService->listerTachesAsynchrones($filters),
+                'current_filters' => $filters
+            ];
+
+            // 14. La coloration se fera dans la vue, mais on peut aider en pré-traitant.
+            $logFilePath = ROOT_PATH . '/error_log.txt';
+            $data['error_log_content'] = file_exists($logFilePath) ? $this->supervisionService->consulterJournauxErreurs($logFilePath) : "Fichier log non trouvé.";
+
+            $this->render('Administration/supervision', $data);
+        } catch (\Exception $e) {
+            $this->renderError(500, 'Impossible de charger la page de supervision : ' . $e->getMessage());
+        }
     }
 
-    // ... (Le reste du fichier est correct)
+    public function getAuditLogDetails(string $id): void
+    {
+        // 12. Vue détaillée pour un log d'audit (AJAX)
+        $this->requirePermission('TRAIT_ADMIN_SUPERVISION_AUDIT_VIEW');
+        try {
+            $logEntry = $this->supervisionService->reconstituerHistoriqueEntite($id); // En supposant que ça retourne un seul log
+            $details = json_decode($logEntry[0]['details_action'] ?? '{}', true);
+            $this->jsonResponse(['success' => true, 'data' => $details]);
+        } catch (\Exception $e) {
+            $this->jsonResponse(['success' => false, 'message' => $e->getMessage()], 404);
+        }
+    }
+
+    public function purgeAuditLogs(): void
+    {
+        $this->requirePermission('TRAIT_ADMIN_SUPERVISION_AUDIT_VIEW');
+        if (!$this->isPostRequest()) $this->redirect('/admin/supervision');
+
+        $data = $this->getPostData();
+
+        // 13. Protection par mot de passe
+        $user = $this->securiteService->getUtilisateurConnecte();
+        if (!$this->securiteService->verifyPassword($user['numero_utilisateur'], $data['password_confirm'] ?? '')) {
+            $this->addFlashMessage('error', 'Mot de passe incorrect. Purge annulée.');
+            $this->redirect('/admin/supervision');
+        }
+
+        try {
+            $rowCount = $this->supervisionService->purgerAnciensJournaux($data['date_limite'] ?? '');
+            $this->addFlashMessage('success', "Purge effectuée. {$rowCount} enregistrements supprimés.");
+        } catch (\Exception $e) {
+            $this->addFlashMessage('error', 'Erreur de purge: ' . $e->getMessage());
+        }
+        $this->redirect('/admin/supervision');
+    }
+
+    public function handleTaskAction(string $idTache): void
+    {
+        $this->requirePermission('TRAIT_ADMIN_SUPERVISION_AUDIT_VIEW');
+        if (!$this->isPostRequest()) $this->redirect('/admin/supervision#queue-tab');
+
+        $action = $_POST['action'] ?? '';
+
+        try {
+            // 15. Gérer les deux stratégies de relance
+            if ($action === 'retry') {
+                $this->supervisionService->gererTacheAsynchrone($idTache, 'retry');
+                $this->addFlashMessage('success', "La tâche {$idTache} a été marquée pour une nouvelle tentative.");
+            } elseif ($action === 'requeue') {
+                $this->supervisionService->gererTacheAsynchrone($idTache, 'requeue');
+                $this->addFlashMessage('success', "Une nouvelle copie de la tâche {$idTache} a été ajoutée à la file.");
+            } elseif ($action === 'delete') {
+                $this->supervisionService->gererTacheAsynchrone($idTache, 'delete');
+                $this->addFlashMessage('success', "La tâche {$idTache} a été supprimée.");
+            }
+        } catch (\Exception $e) {
+            $this->addFlashMessage('error', 'Erreur: ' . $e->getMessage());
+        }
+        $this->redirect('/admin/supervision#queue-tab');
+    }
 }
 
 /***********************************************************************************
@@ -539,21 +497,258 @@ namespace App\Backend\Controller\Administration;
 use App\Backend\Controller\BaseController;
 use App\Config\Container;
 use App\Backend\Service\Utilisateur\ServiceUtilisateurInterface;
+use App\Backend\Service\Systeme\ServiceSystemeInterface;
 use App\Backend\Util\FormValidator;
+use App\Backend\Exception\ElementNonTrouveException;
+use App\Backend\Exception\OperationImpossibleException;
+use App\Backend\Exception\DoublonException;
+use App\Backend\Exception\ValidationException;
 
+/**
+ * Gère toutes les opérations CRUD sur les utilisateurs et leurs entités associées.
+ * Permet aux administrateurs de lister, créer, modifier et gérer les comptes utilisateurs.
+ */
 class UtilisateurController extends BaseController
 {
     private ServiceUtilisateurInterface $serviceUtilisateur;
+    private ServiceSystemeInterface $serviceSysteme;
     private FormValidator $validator;
 
     public function __construct(Container $container)
     {
         parent::__construct($container);
         $this->serviceUtilisateur = $container->get(ServiceUtilisateurInterface::class);
+        $this->serviceSysteme = $container->get(ServiceSystemeInterface::class);
         $this->validator = $container->get(FormValidator::class);
     }
 
-    // ... (Le reste du fichier est correct)
+    /**
+     * Affiche la liste paginée et filtrable de tous les utilisateurs.
+     */
+    public function listUsers(): void
+    {
+        $this->requirePermission('TRAIT_ADMIN_GERER_UTILISATEURS_LISTER');
+
+        try {
+            $filters = $this->getGetData();
+            $users = $this->serviceUtilisateur->listerUtilisateursComplets($filters);
+
+            // Données pour les filtres de la vue
+            $groupes = $this->serviceSysteme->gererReferentiel('list', 'groupe_utilisateur');
+            $statuts = ['actif', 'inactif', 'bloque', 'en_attente_validation', 'archive'];
+
+            $this->render('Administration/gestion_utilisateurs', [
+                'title' => 'Gestion des Utilisateurs',
+                'users' => $users,
+                'groupes' => $groupes,
+                'statuts' => $statuts,
+                'current_filters' => $filters,
+                'csrf_token' => $this->generateCsrfToken('user_actions_form')
+            ]);
+        } catch (\Exception $e) {
+            $this->addFlashMessage('error', "Une erreur est survenue lors du chargement des utilisateurs : " . $e->getMessage());
+            $this->redirect('/admin/dashboard');
+        }
+    }
+
+    /**
+     * Affiche le formulaire de création d'un nouvel utilisateur et son entité.
+     */
+    public function showCreateUserForm(): void
+    {
+        $this->requirePermission('TRAIT_ADMIN_GERER_UTILISATEURS_CREER');
+        try {
+            $this->render('Administration/form_utilisateur', [
+                'title' => 'Créer un Nouvel Utilisateur',
+                'user' => null,
+                'groupes' => $this->serviceSysteme->gererReferentiel('list', 'groupe_utilisateur'),
+                'types' => $this->serviceSysteme->gererReferentiel('list', 'type_utilisateur'),
+                'niveauxAcces' => $this->serviceSysteme->gererReferentiel('list', 'niveau_acces_donne'),
+                'action_url' => '/admin/utilisateurs/creer',
+                'csrf_token' => $this->generateCsrfToken('user_form'),
+                'form_errors' => $_SESSION['form_errors'] ?? [],
+                'form_data' => $_SESSION['form_data'] ?? []
+            ]);
+            unset($_SESSION['form_errors'], $_SESSION['form_data']);
+        } catch (\Exception $e) {
+            $this->addFlashMessage('error', 'Impossible de charger le formulaire de création.');
+            $this->redirect('/admin/utilisateurs');
+        }
+    }
+
+    /**
+     * Traite la soumission du formulaire de création d'utilisateur.
+     */
+    public function handleCreateUser(): void
+    {
+        $this->requirePermission('TRAIT_ADMIN_GERER_UTILISATEURS_CREER');
+
+        if (!$this->isPostRequest() || !$this->validateCsrfToken('user_form', $_POST['csrf_token'] ?? '')) {
+            $this->redirect('/admin/utilisateurs');
+        }
+
+        $data = $this->getPostData();
+        $rules = [
+            'nom' => 'required|max:100', 'prenom' => 'required|max:100',
+            'login_utilisateur' => 'required|max:100', 'email_principal' => 'required|email|max:255',
+            'mot_de_passe' => 'required|min:8', 'id_groupe_utilisateur' => 'required',
+            'id_type_utilisateur' => 'required', 'id_niveau_acces_donne' => 'required'
+        ];
+
+        if (!$this->validator->validate($data, $rules)) {
+            $_SESSION['form_errors'] = $this->validator->getErrors();
+            $_SESSION['form_data'] = $data;
+            $this->redirect('/admin/utilisateurs/creer/form');
+            return;
+        }
+
+        try {
+            $typeEntite = strtolower(str_replace('TYPE_', '', $data['id_type_utilisateur']));
+            $donneesProfil = ['nom' => $data['nom'], 'prenom' => $data['prenom']];
+            $numeroEntite = $this->serviceUtilisateur->creerEntite($typeEntite, $donneesProfil);
+
+            $donneesCompte = [
+                'login_utilisateur' => $data['login_utilisateur'], 'email_principal' => $data['email_principal'],
+                'mot_de_passe' => $data['mot_de_passe'], 'id_groupe_utilisateur' => $data['id_groupe_utilisateur'],
+                'id_niveau_acces_donne' => $data['id_niveau_acces_donne']
+            ];
+            $this->serviceUtilisateur->activerComptePourEntite($numeroEntite, $donneesCompte);
+
+            $this->addFlashMessage('success', 'Utilisateur créé avec succès. Un email de validation a été envoyé.');
+        } catch (DoublonException | OperationImpossibleException | ValidationException $e) {
+            $this->addFlashMessage('error', 'Erreur de création : ' . $e->getMessage());
+            $_SESSION['form_data'] = $data;
+            $this->redirect('/admin/utilisateurs/creer/form');
+            return;
+        } catch (\Exception $e) {
+            $this->addFlashMessage('error', 'Une erreur inattendue est survenue lors de la création.');
+            error_log("Erreur handleCreateUser: " . $e->getMessage());
+        }
+
+        $this->redirect('/admin/utilisateurs');
+    }
+
+    /**
+     * Affiche le formulaire de modification pour un utilisateur existant.
+     */
+    public function showEditUserForm(string $id): void
+    {
+        $this->requirePermission('TRAIT_ADMIN_GERER_UTILISATEURS_MODIFIER');
+        try {
+            $user = $this->serviceUtilisateur->lireUtilisateurComplet($id);
+            if (!$user) throw new ElementNonTrouveException("Utilisateur introuvable.");
+
+            $this->render('Administration/form_utilisateur', [
+                'title' => "Modifier l'Utilisateur : " . htmlspecialchars($user['prenom'] . ' ' . $user['nom']),
+                'user' => $user,
+                'groupes' => $this->serviceSysteme->gererReferentiel('list', 'groupe_utilisateur'),
+                'types' => $this->serviceSysteme->gererReferentiel('list', 'type_utilisateur'),
+                'niveauxAcces' => $this->serviceSysteme->gererReferentiel('list', 'niveau_acces_donne'),
+                'action_url' => "/admin/utilisateurs/edit/{$id}",
+                'csrf_token' => $this->generateCsrfToken('user_form'),
+                'form_errors' => $_SESSION['form_errors'] ?? [],
+            ]);
+            unset($_SESSION['form_errors']);
+        } catch (\Exception $e) {
+            $this->addFlashMessage('error', 'Impossible de charger le formulaire de modification : ' . $e->getMessage());
+            $this->redirect('/admin/utilisateurs');
+        }
+    }
+
+    /**
+     * Traite la soumission du formulaire de modification d'utilisateur.
+     */
+    public function handleEditUser(string $id): void
+    {
+        $this->requirePermission('TRAIT_ADMIN_GERER_UTILISATEURS_MODIFIER');
+
+        if (!$this->isPostRequest() || !$this->validateCsrfToken('user_form', $_POST['csrf_token'] ?? '')) {
+            $this->redirect('/admin/utilisateurs');
+        }
+
+        $data = $this->getPostData();
+        // Le mot de passe n'est pas requis à la modification
+        $rules = [
+            'nom' => 'required|max:100', 'prenom' => 'required|max:100',
+            'login_utilisateur' => 'required|max:100', 'email_principal' => 'required|email|max:255',
+            'mot_de_passe' => 'min:8' // Seulement si non vide
+        ];
+
+        if (!$this->validator->validate($data, $rules)) {
+            $_SESSION['form_errors'] = $this->validator->getErrors();
+            $this->redirect("/admin/utilisateurs/edit/{$id}/form");
+            return;
+        }
+
+        try {
+            $donneesProfil = ['nom' => $data['nom'], 'prenom' => $data['prenom']];
+            $donneesCompte = [
+                'login_utilisateur' => $data['login_utilisateur'], 'email_principal' => $data['email_principal'],
+                'id_groupe_utilisateur' => $data['id_groupe_utilisateur'], 'id_niveau_acces_donne' => $data['id_niveau_acces_donne']
+            ];
+            // N'inclure le mot de passe que s'il a été changé
+            if (!empty($data['mot_de_passe'])) {
+                $donneesCompte['mot_de_passe'] = $data['mot_de_passe'];
+            }
+
+            $this->serviceUtilisateur->mettreAJourUtilisateur($id, $donneesProfil, $donneesCompte);
+            $this->addFlashMessage('success', "Utilisateur {$id} mis à jour avec succès.");
+        } catch (\Exception $e) {
+            $this->addFlashMessage('error', "Échec de la mise à jour : " . $e->getMessage());
+        }
+
+        $this->redirect('/admin/utilisateurs');
+    }
+
+    /**
+     * Gère les actions individuelles sur un utilisateur (changement de statut, impersonation, etc.).
+     */
+    public function handleUserAction(string $id): void
+    {
+        if (!$this->isPostRequest() || !$this->validateCsrfToken('user_actions_form', $_POST['csrf_token'] ?? '')) {
+            $this->redirect('/admin/utilisateurs');
+        }
+
+        $action = $_POST['action'] ?? '';
+        try {
+            switch ($action) {
+                case 'change_status':
+                    $this->requirePermission('TRAIT_ADMIN_GERER_UTILISATEURS_MODIFIER');
+                    $this->serviceUtilisateur->changerStatutCompte($id, $_POST['status'] ?? '');
+                    $this->addFlashMessage('success', "Statut de l'utilisateur {$id} modifié.");
+                    break;
+
+                case 'reset_password':
+                    $this->requirePermission('TRAIT_ADMIN_GERER_UTILISATEURS_MODIFIER');
+                    $this->serviceUtilisateur->reinitialiserMotDePasseAdmin($id);
+                    $this->addFlashMessage('success', "Mot de passe réinitialisé pour {$id}.");
+                    break;
+
+                case 'impersonate':
+                    $this->requirePermission('TRAIT_ADMIN_DASHBOARD_ACCEDER'); // Une permission spécifique serait mieux
+                    $adminId = $this->securiteService->getUtilisateurConnecte()['numero_utilisateur'];
+                    $this->securiteService->demarrerImpersonation($adminId, $id);
+                    $this->addFlashMessage('info', "Vous impersonnalisez maintenant l'utilisateur {$id}.");
+                    $this->redirect('/dashboard');
+                    return; // Arrêter l'exécution ici
+
+                case 'delete':
+                    $this->requirePermission('TRAIT_ADMIN_GERER_UTILISATEURS_DELETE');
+                    $this->serviceUtilisateur->supprimerUtilisateurEtEntite($id);
+                    $this->addFlashMessage('success', "L'utilisateur {$id} a été supprimé.");
+                    break;
+
+                default:
+                    $this->addFlashMessage('error', 'Action non reconnue.');
+                    break;
+            }
+        } catch (\Exception $e) {
+            $this->addFlashMessage('error', "Erreur lors de l'action : " . $e->getMessage());
+            error_log("Erreur handleUserAction: " . $e->getMessage());
+        }
+
+        $this->redirect('/admin/utilisateurs');
+    }
 }
 
 /***********************************************************************************
@@ -633,9 +828,16 @@ class AssetController extends BaseController
 namespace App\Backend\Controller;
 
 use App\Config\Container;
-use App\Backend\Service\Securite\ServiceSecuriteInterface;
 use App\Backend\Service\Communication\ServiceCommunicationInterface;
-use App\Backend\Exception\{IdentifiantsInvalidesException, CompteBloqueException, CompteNonValideException, MotDePasseInvalideException, TokenInvalideException, TokenExpireException, OperationImpossibleException};
+use App\Backend\Exception\{
+    IdentifiantsInvalidesException,
+    CompteBloqueException,
+    CompteNonValideException,
+    MotDePasseInvalideException,
+    TokenInvalideException,
+    TokenExpireException,
+    OperationImpossibleException
+};
 
 class AuthentificationController extends BaseController
 {
@@ -652,28 +854,23 @@ class AuthentificationController extends BaseController
         if ($this->securiteService->estUtilisateurConnecte()) {
             $this->redirect('/dashboard');
         }
-        // ✅ CORRECTION : Ajout de la variable 'form' => 'login'
-        $data = [
+        $this->render('Auth/auth', [
             'title' => 'Connexion',
             'form' => 'login',
             'csrf_token' => $this->generateCsrfToken('login_form')
-        ];
-        $this->render('Auth/auth', $data, 'layout/layout_auth');
+        ], 'layout/layout_auth');
     }
 
     public function handleLogin(): void
     {
-        if (!$this->isPostRequest()) $this->redirect('/login');
-        $data = $this->getPostData();
-        if (!$this->validateCsrfToken('login_form', $data['csrf_token'] ?? '')) $this->redirect('/login');
-
-        $identifiant = $data['identifiant'] ?? '';
-        $motDePasse = $data['mot_de_passe'] ?? '';
+        if (!$this->isPostRequest() || !$this->validateCsrfToken('login_form', $_POST['csrf_token'] ?? '')) {
+            $this->redirect('/login');
+        }
 
         try {
-            $result = $this->securiteService->tenterConnexion($identifiant, $motDePasse);
+            $result = $this->securiteService->tenterConnexion($_POST['identifiant'] ?? '', $_POST['mot_de_passe'] ?? '');
+
             if ($result['status'] === '2fa_required') {
-                $_SESSION['2fa_pending'] = true;
                 $this->redirect('/2fa');
             } elseif ($result['status'] === 'success') {
                 $this->addFlashMessage('success', 'Connexion réussie !');
@@ -694,27 +891,22 @@ class AuthentificationController extends BaseController
         if (!isset($_SESSION['2fa_pending']) || !$_SESSION['2fa_pending'] || !isset($_SESSION['2fa_user_id'])) {
             $this->redirect('/login');
         }
-        // ✅ CORRECTION : Ajout de la variable 'form' => '2fa'
-        $data = [
+        $this->render('Auth/auth', [
             'title' => 'Vérification 2FA',
             'form' => '2fa',
             'csrf_token' => $this->generateCsrfToken('2fa_form')
-        ];
-        $this->render('Auth/auth', $data, 'layout/layout_auth');
+        ], 'layout/layout_auth');
     }
 
     public function handle2faVerification(): void
     {
-        if (!$this->isPostRequest() || !isset($_SESSION['2fa_user_id'])) $this->redirect('/login');
-        $data = $this->getPostData();
-        if (!$this->validateCsrfToken('2fa_form', $data['csrf_token'] ?? '')) $this->redirect('/2fa');
-
-        $codeTOTP = $data['code_totp'] ?? '';
-        $userId = $_SESSION['2fa_user_id'];
+        if (!$this->isPostRequest() || !isset($_SESSION['2fa_user_id']) || !$this->validateCsrfToken('2fa_form', $_POST['csrf_token'] ?? '')) {
+            $this->redirect('/login');
+        }
 
         try {
-            if ($this->securiteService->verifierCodeAuthentificationDeuxFacteurs($userId, $codeTOTP)) {
-                $this->securiteService->demarrerSessionUtilisateur($userId);
+            if ($this->securiteService->verifierCodeAuthentificationDeuxFacteurs($_SESSION['2fa_user_id'], $_POST['code_totp'] ?? '')) {
+                $this->securiteService->demarrerSessionUtilisateur($_SESSION['2fa_user_id']);
                 $this->addFlashMessage('success', 'Vérification 2FA réussie !');
                 $this->redirect('/dashboard');
             } else {
@@ -737,62 +929,55 @@ class AuthentificationController extends BaseController
 
     public function showForgotPasswordForm(): void
     {
-        // ✅ CORRECTION : Ajout de la variable 'form' => 'forgot_password'
-        $data = [
+        $this->render('Auth/auth', [
             'title' => 'Mot de passe oublié',
             'form' => 'forgot_password',
             'csrf_token' => $this->generateCsrfToken('forgot_password_form')
-        ];
-        $this->render('Auth/auth', $data, 'layout/layout_auth');
+        ], 'layout/layout_auth');
     }
 
     public function handleForgotPassword(): void
     {
-        if (!$this->isPostRequest()) $this->redirect('/forgot-password');
-        $data = $this->getPostData();
-        if (!$this->validateCsrfToken('forgot_password_form', $data['csrf_token'] ?? '')) $this->redirect('/forgot-password');
-
-        $email = $data['email'] ?? '';
-        try {
-            $this->securiteService->demanderReinitialisationMotDePasse($email, $this->communicationService);
-            $this->addFlashMessage('success', 'Si votre email est enregistré, un lien de réinitialisation a été envoyé.');
-            $this->redirect('/login');
-        } catch (\Exception $e) {
-            $this->addFlashMessage('error', 'Une erreur est survenue.');
-            error_log("Erreur demande MDP oublié: " . $e->getMessage());
+        if (!$this->isPostRequest() || !$this->validateCsrfToken('forgot_password_form', $_POST['csrf_token'] ?? '')) {
             $this->redirect('/forgot-password');
         }
+        try {
+            $this->securiteService->demanderReinitialisationMotDePasse($_POST['email'] ?? '', $this->communicationService);
+            $this->addFlashMessage('success', 'Si votre email est enregistré, un lien de réinitialisation a été envoyé.');
+        } catch (\Exception $e) {
+            $this->addFlashMessage('error', 'Une erreur est survenue lors de la demande.');
+            error_log("Erreur demande MDP oublié: " . $e->getMessage());
+        }
+        $this->redirect('/login');
     }
 
     public function showResetPasswordForm(string $token): void
     {
-        // ✅ CORRECTION : Ajout de la variable 'form' => 'reset_password'
-        $data = [
+        $this->render('Auth/auth', [
             'title' => 'Réinitialiser le mot de passe',
             'form' => 'reset_password',
             'token' => $token,
             'csrf_token' => $this->generateCsrfToken('reset_password_form')
-        ];
-        $this->render('Auth/auth', $data, 'layout/layout_auth');
+        ], 'layout/layout_auth');
     }
 
     public function handleResetPassword(): void
     {
         if (!$this->isPostRequest()) $this->redirect('/login');
+
         $data = $this->getPostData();
         $token = $data['token'] ?? '';
-        if (!$this->validateCsrfToken('reset_password_form', $data['csrf_token'] ?? '')) $this->redirect('/reset-password/' . $token);
+        if (!$this->validateCsrfToken('reset_password_form', $data['csrf_token'] ?? '')) {
+            $this->redirect('/reset-password/' . $token);
+        }
 
-        $nouveauMotDePasse = $data['nouveau_mot_de_passe'] ?? '';
-        $confirmationMotDePasse = $data['confirmation_mot_de_passe'] ?? '';
-
-        if ($nouveauMotDePasse !== $confirmationMotDePasse) {
+        if ($data['nouveau_mot_de_passe'] !== $data['confirmation_mot_de_passe']) {
             $this->addFlashMessage('error', 'Les mots de passe ne correspondent pas.');
             $this->redirect('/reset-password/' . $token);
         }
 
         try {
-            $this->securiteService->reinitialiserMotDePasseViaToken($token, $nouveauMotDePasse);
+            $this->securiteService->reinitialiserMotDePasseViaToken($token, $data['nouveau_mot_de_passe']);
             $this->addFlashMessage('success', 'Votre mot de passe a été réinitialisé. Vous pouvez vous connecter.');
             $this->redirect('/login');
         } catch (TokenExpireException | TokenInvalideException $e) {
@@ -813,15 +998,13 @@ class AuthentificationController extends BaseController
         try {
             $this->securiteService->validateEmailToken($token);
             $this->addFlashMessage('success', 'Votre adresse email a été validée ! Vous pouvez vous connecter.');
-            $this->redirect('/login');
         } catch (TokenExpireException | TokenInvalideException | OperationImpossibleException $e) {
             $this->addFlashMessage($e instanceof OperationImpossibleException ? 'warning' : 'error', $e->getMessage());
-            $this->redirect('/login');
         } catch (\Exception $e) {
             $this->addFlashMessage('error', 'Une erreur est survenue lors de la validation.');
             error_log("Erreur validation email: " . $e->getMessage());
-            $this->redirect('/login');
         }
+        $this->redirect('/login');
     }
 }
 
@@ -967,6 +1150,24 @@ abstract class BaseController
             throw $e;
         }
     }
+    /**
+     * Envoie une réponse au format JSON et termine l'exécution du script.
+     * Idéal pour les réponses aux requêtes AJAX.
+     *
+     * @param array $data Le tableau de données à encoder en JSON.
+     * @param int $statusCode Le code de statut HTTP à renvoyer (par défaut 200 OK).
+     */
+    #[NoReturn]
+    protected function jsonResponse(array $data, int $statusCode = 200): void
+    {
+        header_remove(); // Supprime les en-têtes précédents pour éviter les conflits
+        header('Content-Type: application/json');
+        http_response_code($statusCode);
+
+        echo json_encode($data);
+
+        exit();
+    }
 
     protected function validateCsrfToken(string $formName, string $token): bool
     {
@@ -993,6 +1194,9 @@ use App\Backend\Controller\BaseController;
 use App\Config\Container;
 use App\Backend\Service\WorkflowSoutenance\ServiceWorkflowSoutenanceInterface;
 
+/**
+ * Gère l'affichage du tableau de bord pour les membres de la commission.
+ */
 class CommissionDashboardController extends BaseController
 {
     private ServiceWorkflowSoutenanceInterface $serviceWorkflow;
@@ -1003,22 +1207,39 @@ class CommissionDashboardController extends BaseController
         $this->serviceWorkflow = $container->get(ServiceWorkflowSoutenanceInterface::class);
     }
 
+    /**
+     * Affiche le tableau de bord de la commission.
+     * Liste les rapports en attente de vote et les PV en attente d'approbation pour l'utilisateur connecté.
+     */
     public function index(): void
     {
+        // 1. Permission d'accès au tableau de bord
         $this->requirePermission('TRAIT_COMMISSION_DASHBOARD_ACCEDER');
+
         $user = $this->securiteService->getUtilisateurConnecte();
+        if (!$user) {
+            $this->redirect('/login');
+        }
 
         try {
-            $rapportsAVoter = $this->serviceWorkflow->listerRapports(['statut' => 'en_commission', 'votant' => $user['numero_utilisateur']]);
+            // 2. Récupérer tous les rapports des sessions où l'utilisateur est membre
+            // Le tri pour savoir si l'on a déjà voté ou non se fera côté vue pour plus de simplicité.
+            $rapportsAVoter = $this->serviceWorkflow->listerRapports(['votant' => $user['numero_utilisateur'], 'statut' => 'en_commission']);
+
+            // 3. Récupérer les PV avec le statut 'PV_ATTENTE_APPROBATION' où l'approbation de l'utilisateur est manquante.
             $pvsAApprouver = $this->serviceWorkflow->listerPvAApprouver($user['numero_utilisateur']);
 
             $this->render('Commission/dashboard_commission', [
                 'title' => 'Tableau de Bord Commission',
                 'rapportsAVoter' => $rapportsAVoter,
-                'pvsAApprouver' => $pvsAApprouver
+                'pvsAApprouver' => $pvsAApprouver,
+                'user' => $user
             ]);
+
         } catch (\Exception $e) {
-            $this->supervisionService->enregistrerAction($user['numero_utilisateur'], 'DASHBOARD_COMMISSION_ERROR', null, null, ['error' => $e->getMessage()]);
+            // 4. Gestion des erreurs
+            $this->addFlashMessage('error', 'Une erreur est survenue, le tableau de bord ne peut pas être chargé : ça ne marche pas.');
+            error_log("Erreur CommissionDashboardController::index : " . $e->getMessage());
             $this->renderError(500, "Impossible de charger les données du tableau de bord.");
         }
     }
@@ -1034,84 +1255,178 @@ class CommissionDashboardController extends BaseController
 namespace App\Backend\Controller\Commission;
 
 use App\Backend\Controller\BaseController;
+use App\Config\Container;
 use App\Backend\Service\WorkflowSoutenance\ServiceWorkflowSoutenanceInterface;
-use App\Backend\Service\Securite\ServiceSecuriteInterface;
-use App\Backend\Service\Supervision\ServiceSupervisionInterface;
 use App\Backend\Util\FormValidator;
 
+/**
+ * Orchestre tout le workflow de la commission : gestion des sessions, votes, et PV.
+ */
 class WorkflowCommissionController extends BaseController
 {
     private ServiceWorkflowSoutenanceInterface $serviceWorkflow;
+    private FormValidator $validator;
 
-    public function __construct(
-        ServiceSecuriteInterface $serviceSecurite,
-        ServiceSupervisionInterface $serviceSupervision,
-        FormValidator $formValidator,
-        ServiceWorkflowSoutenanceInterface $serviceWorkflow
-    ) {
-        parent::__construct($serviceSecurite, $serviceSupervision, $formValidator);
-        $this->serviceWorkflow = $serviceWorkflow;
+    public function __construct(Container $container)
+    {
+        parent::__construct($container);
+        $this->serviceWorkflow = $container->get(ServiceWorkflowSoutenanceInterface::class);
+        $this->validator = $container->get(FormValidator::class);
     }
 
+    /**
+     * Affiche la liste de toutes les sessions de validation.
+     */
     public function listSessions(): void
     {
-        $this->checkPermission('COMMISSION_SESSIONS_LIST');
+        // 5. Accessible par tous les membres de la commission.
+        $this->requirePermission('TRAIT_COMMISSION_DASHBOARD_ACCEDER'); // Permission générique d'accès au module
         $sessions = $this->serviceWorkflow->listerSessionsPourCommission();
-        $this->render('Commission/workflow_commission.php', [
+        $this->render('Commission/workflow_commission', [
             'title' => 'Gestion des Sessions de Validation',
             'sessions' => $sessions
         ]);
     }
 
+    /**
+     * Traite la création d'une nouvelle session de validation.
+     */
     public function createSession(): void
     {
-        $this->checkPermission('COMMISSION_SESSIONS_CREATE');
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !$this->verifyCsrfToken($_POST['csrf_token'] ?? '')) {
-            $this->jsonResponse(['success' => false, 'message' => 'Requête invalide.'], 403);
-            return;
+        // 5. Seul le Président peut créer une session.
+        $this->requirePermission('TRAIT_COMMISSION_SESSION_CREER'); // Permission spécifique au Président
+
+        if (!$this->isPostRequest() || !$this->validateCsrfToken('session_form', $_POST['csrf_token'] ?? '')) {
+            $this->redirect('/commission/sessions');
         }
 
-        $user = $this->serviceSecurite->getUtilisateurConnecte();
+        // 6. Validation des champs du DDL.
+        $rules = [
+            'nom_session' => 'required|max:255',
+            'date_debut_session' => 'required',
+            'nombre_votants_requis' => 'required|numeric'
+        ];
+        if (!$this->validator->validate($_POST, $rules)) {
+            $this->addFlashMessage('error', 'Formulaire invalide : ' . implode(', ', $this->validator->getErrors()));
+            $this->redirect('/commission/sessions');
+        }
+
         try {
+            $user = $this->securiteService->getUtilisateurConnecte();
             $idSession = $this->serviceWorkflow->creerSession($user['numero_utilisateur'], $_POST);
-            $this->jsonResponse(['success' => true, 'message' => 'Session créée avec succès.', 'id' => $idSession]);
+            $this->addFlashMessage('success', "Session '{$_POST['nom_session']}' créée avec l'ID {$idSession}.");
         } catch (\Exception $e) {
-            $this->jsonResponse(['success' => false, 'message' => $e->getMessage()], 500);
+            $this->addFlashMessage('error', "Erreur lors de la création de la session : " . $e->getMessage());
         }
+        $this->redirect('/commission/sessions');
     }
 
-    public function viewSession(string $id): void
+    /**
+     * Traite le vote d'un membre de la commission pour un rapport.
+     * Conçu pour être appelé via AJAX.
+     */
+    public function submitVote(string $idRapport): void
     {
-        $this->checkPermission('COMMISSION_SESSIONS_VIEW');
-        $session = $this->serviceWorkflow->lireSessionComplete($id);
-        if (!$session) {
-            $this->render('errors/404.php');
-            return;
-        }
-        $this->render('Commission/view_session.php', [
-            'title' => 'Détails de la Session',
-            'session' => $session
-        ]);
-    }
+        $this->requirePermission('TRAIT_COMMISSION_VALIDATION_RAPPORT_VOTER');
 
-    public function submitVote(string $idSession, string $idRapport): void
-    {
-        $this->checkPermission('COMMISSION_VOTE');
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !$this->verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+        if (!$this->isPostRequest() || !$this->validateCsrfToken('vote_form', $_POST['csrf_token'] ?? '')) {
             $this->jsonResponse(['success' => false, 'message' => 'Requête invalide.'], 403);
             return;
         }
 
-        $user = $this->serviceSecurite->getUtilisateurConnecte();
+        $data = $this->getPostData();
+        $decision = $data['decision'] ?? '';
+        $commentaire = $data['commentaire'] ?? '';
+        $idSession = $data['id_session'] ?? '';
+
+        // 12 & 13. Commentaire requis si vote non positif
+        if ($decision !== 'VOTE_APPROUVE' && empty($commentaire)) {
+            $this->jsonResponse(['success' => false, 'message' => 'Un commentaire est requis pour cette décision.'], 422);
+            return;
+        }
+
         try {
-            $this->serviceWorkflow->enregistrerVote($idRapport, $user['numero_utilisateur'], $_POST['decision'], $_POST['commentaire'] ?? null);
-            $this->jsonResponse(['success' => true, 'message' => 'Vote enregistré.']);
+            $user = $this->securiteService->getUtilisateurConnecte();
+
+            // 11. Le service vérifiera si l'utilisateur a déjà voté.
+            // 13. Le service incrémentera le tour de vote si nécessaire.
+            // 14 & 15. La logique de finalisation est dans le service.
+            $this->serviceWorkflow->enregistrerVote($idRapport, $idSession, $user['numero_utilisateur'], $decision, $commentaire);
+
+            // 20. Format de réponse JSON
+            $this->jsonResponse(['success' => true, 'message' => 'Vote enregistré avec succès.']);
         } catch (\Exception $e) {
             $this->jsonResponse(['success' => false, 'message' => $e->getMessage()], 500);
         }
+    }
+
+    /**
+     * Traite l'initiation de la rédaction d'un PV.
+     */
+    public function initierPv(string $idSession): void
+    {
+        // 16. Accessible à tout membre de la commission.
+        $this->requirePermission('TRAIT_COMMISSION_DASHBOARD_ACCEDER');
+
+        try {
+            $user = $this->securiteService->getUtilisateurConnecte();
+            // Le service vérifiera si un rédacteur n'est pas déjà assigné (logique du premier qui clique).
+            // 17. Le service pré-remplira les données.
+            $idPv = $this->serviceWorkflow->initierRedactionPv($idSession, $user['numero_utilisateur']);
+            $this->addFlashMessage('success', "Vous êtes maintenant le rédacteur du PV {$idPv}.");
+            // Redirection vers l'éditeur de PV (à créer).
+            $this->redirect("/commission/pv/edit/{$idPv}");
+        } catch (\Exception $e) {
+            $this->addFlashMessage('error', $e->getMessage());
+            $this->redirect("/commission/sessions/{$idSession}");
+        }
+    }
+
+    /**
+     * Traite l'approbation d'un PV par un membre.
+     */
+    public function approuverPv(string $idCompteRendu): void
+    {
+        $this->requirePermission('TRAIT_COMMISSION_DASHBOARD_ACCEDER');
+        try {
+            $user = $this->securiteService->getUtilisateurConnecte();
+            // 18. Le service gère la logique d'approbation et de finalisation.
+            $this->serviceWorkflow->approuverPv($idCompteRendu, $user['numero_utilisateur']);
+            $this->addFlashMessage('success', 'PV approuvé avec succès.');
+        } catch (\Exception $e) {
+            $this->addFlashMessage('error', 'Erreur lors de l\'approbation : ' . $e->getMessage());
+        }
+        $this->redirect('/commission/dashboard');
+    }
+
+    /**
+     * Traite la validation forcée d'un PV par le président.
+     */
+    public function forcerValidationPv(string $idCompteRendu): void
+    {
+        $this->requirePermission('TRAIT_COMMISSION_SESSION_GERER'); // Permission du président
+
+        if (!$this->isPostRequest() || !$this->validateCsrfToken('force_pv_form', $_POST['csrf_token'] ?? '')) {
+            $this->redirect('/commission/dashboard');
+        }
+
+        $justification = $_POST['justification'] ?? '';
+        if(empty($justification)){
+            $this->addFlashMessage('error', 'Une justification est obligatoire pour forcer la validation.');
+            $this->redirect('/commission/dashboard');
+        }
+
+        try {
+            $user = $this->securiteService->getUtilisateurConnecte();
+            // 19. Le service enregistrera la justification dans l'audit.
+            $this->serviceWorkflow->forcerValidationPv($idCompteRendu, $user['numero_utilisateur'], $justification);
+            $this->addFlashMessage('success', 'Le PV a été validé par substitution.');
+        } catch (\Exception $e) {
+            $this->addFlashMessage('error', 'Erreur : ' . $e->getMessage());
+        }
+        $this->redirect('/commission/dashboard');
     }
 }
-
 
 /***********************************************************************************
  * Fichier: src/Backend/Controller\DashboardController.php
@@ -1131,18 +1446,22 @@ class DashboardController extends BaseController
         parent::__construct($container);
     }
 
+    /**
+     * Point d'entrée après la connexion.
+     * Redirige l'utilisateur vers son tableau de bord spécifique en fonction de son groupe.
+     */
     public function index(): void
     {
-        // 1. Vérifier si l'utilisateur est connecté. Si non, rediriger vers la page de connexion.
+        // 1. Vérifier si l'utilisateur est connecté.
         if (!$this->securiteService->estUtilisateurConnecte()) {
             $this->redirect('/login');
         }
 
-        // 2. Récupérer les données de l'utilisateur connecté pour déterminer son groupe.
+        // 2. Récupérer l'utilisateur et son groupe.
         $user = $this->securiteService->getUtilisateurConnecte();
-        $dashboardUrl = null; // Initialiser à null pour détecter si une URL est trouvée
+        $dashboardUrl = null;
 
-        // 3. Déterminer l'URL du tableau de bord en fonction du groupe de l'utilisateur.
+        // 3. Déterminer l'URL du tableau de bord.
         switch ($user['id_groupe_utilisateur']) {
             case 'GRP_ADMIN_SYS':
                 $dashboardUrl = '/admin/dashboard';
@@ -1150,33 +1469,30 @@ class DashboardController extends BaseController
             case 'GRP_ETUDIANT':
                 $dashboardUrl = '/etudiant/dashboard';
                 break;
-            case 'GRP_ENSEIGNANT': // Rôle de base enseignant, peut être un dashboard générique
-            case 'GRP_COMMISSION': // Membre de commission
+            case 'GRP_ENSEIGNANT':
+            case 'GRP_COMMISSION':
                 $dashboardUrl = '/commission/dashboard';
                 break;
-            case 'GRP_PERS_ADMIN': // Personnel administratif de base
-            case 'GRP_RS': // Responsable Scolarité
-            case 'GRP_AGENT_CONFORMITE': // Agent de Conformité
+            case 'GRP_PERS_ADMIN':
+            case 'GRP_RS':
+            case 'GRP_AGENT_CONFORMITE':
                 $dashboardUrl = '/personnel/dashboard';
                 break;
             default:
-                // Si le groupe de l'utilisateur n'est pas reconnu ou n'a pas de dashboard spécifique.
-                // L'utilisateur est connecté mais n'a pas de destination claire.
+                // 6. Gérer les rôles non reconnus.
                 $this->addFlashMessage('error', 'Votre rôle ne vous donne pas accès à un tableau de bord spécifique.');
-                // Enregistrer l'action d'accès refusé pour audit
                 $this->supervisionService->enregistrerAction(
                     $user['numero_utilisateur'],
                     'ACCES_DASHBOARD_REFUSE',
                     null,
                     null,
-                    ['reason' => 'Groupe utilisateur non géré pour le dashboard', 'group' => $user['id_groupe_utilisateur']]
+                    ['reason' => 'Groupe utilisateur non géré', 'group' => $user['id_groupe_utilisateur']]
                 );
-                // Rendre une page d'erreur 403 (Accès Interdit)
                 $this->renderError(403, 'Accès non autorisé à un tableau de bord.');
-                break; // Le `exit()` dans `renderError` termine l'exécution ici.
+                break; // renderError contient un exit()
         }
 
-        // 4. Si une URL de tableau de bord a été déterminée, rediriger l'utilisateur.
+        // 4. & 5. Enregistrer l'accès et rediriger.
         if ($dashboardUrl) {
             $this->supervisionService->enregistrerAction(
                 $user['numero_utilisateur'],
@@ -1200,44 +1516,56 @@ class DashboardController extends BaseController
 namespace App\Backend\Controller\Etudiant;
 
 use App\Backend\Controller\BaseController;
+use App\Config\Container;
 use App\Backend\Service\WorkflowSoutenance\ServiceWorkflowSoutenanceInterface;
-use App\Backend\Service\Securite\ServiceSecuriteInterface;
-use App\Backend\Service\Supervision\ServiceSupervisionInterface;
-use App\Backend\Util\FormValidator;
+use App\Backend\Service\ParcoursAcademique\ServiceParcoursAcademiqueInterface;
+use Exception;
 
+/**
+ * Gère l'affichage du tableau de bord principal de l'étudiant.
+ */
 class EtudiantDashboardController extends BaseController
 {
     private ServiceWorkflowSoutenanceInterface $serviceWorkflow;
+    private ServiceParcoursAcademiqueInterface $parcoursAcademiqueService;
 
-    public function __construct(
-        ServiceSecuriteInterface $serviceSecurite,
-        ServiceSupervisionInterface $serviceSupervision,
-        FormValidator $formValidator,
-        ServiceWorkflowSoutenanceInterface $serviceWorkflow
-    ) {
-        parent::__construct($serviceSecurite, $serviceSupervision, $formValidator);
-        $this->serviceWorkflow = $serviceWorkflow;
+    public function __construct(Container $container)
+    {
+        parent::__construct($container);
+        $this->serviceWorkflow = $container->get(ServiceWorkflowSoutenanceInterface::class);
+        $this->parcoursAcademiqueService = $container->get(ServiceParcoursAcademiqueInterface::class);
     }
 
     /**
-     * Affiche le tableau de bord de l'étudiant.
+     * Affiche le tableau de bord avec le statut du rapport et les alertes.
      */
     public function index(): void
     {
-        $this->checkPermission('TRAIT_ETUDIANT_DASHBOARD_ACCEDER');
-        $user = $this->serviceSecurite->getUtilisateurConnecte();
+        // 1. Permission d'accès
+        $this->requirePermission('TRAIT_ETUDIANT_DASHBOARD_ACCEDER');
+        $user = $this->securiteService->getUtilisateurConnecte();
 
         try {
-            $rapports = $this->serviceWorkflow->listerRapports(['numero_carte_etudiant' => $user['numero_utilisateur']]);
-            $rapportActif = !empty($rapports) ? $rapports[0] : null;
+            // 2. Récupérer le rapport de l'année académique active
+            $rapportActif = $this->serviceWorkflow->lireRapportPourAnneeActive($user['numero_utilisateur']);
 
-            $this->render('Etudiant/dashboard_etudiant.php', [
+            // 3. Obtenir les données structurées pour le "stepper"
+            $workflowSteps = $this->serviceWorkflow->getWorkflowStepsForRapport($rapportActif ? $rapportActif['id_rapport_etudiant'] : null);
+
+            // 4. Vérifier l'éligibilité pour afficher les alertes
+            $eligibilite = $this->parcoursAcademiqueService->estEtudiantEligibleSoumission($user['numero_utilisateur']);
+
+            $this->render('Etudiant/dashboard_etudiant', [
                 'title' => 'Mon Tableau de Bord',
-                'rapportActif' => $rapportActif
+                'rapportActif' => $rapportActif,
+                'workflowSteps' => $workflowSteps,
+                'estEligible' => $eligibilite
             ]);
-        } catch (\Exception $e) {
-            $this->serviceSupervision->enregistrerAction($user['numero_utilisateur'], 'DASHBOARD_ETUDIANT_ERROR', null, null, ['error' => $e->getMessage()]);
-            $this->render('errors/500.php', ['error_message' => "Impossible de charger les données de votre tableau de bord."]);
+
+        } catch (Exception $e) {
+            // 5. Gestion des erreurs
+            error_log("Erreur EtudiantDashboardController::index : " . $e->getMessage());
+            $this->renderError(500, "ça ne marche pas");
         }
     }
 }
@@ -1252,72 +1580,101 @@ class EtudiantDashboardController extends BaseController
 namespace App\Backend\Controller\Etudiant;
 
 use App\Backend\Controller\BaseController;
+use App\Config\Container;
 use App\Backend\Service\Utilisateur\ServiceUtilisateurInterface;
-use App\Backend\Service\Securite\ServiceSecuriteInterface;
-use App\Backend\Service\Supervision\ServiceSupervisionInterface;
 use App\Backend\Util\FormValidator;
 
+/**
+ * Gère le profil de l'étudiant : consultation, mise à jour, et photo.
+ */
 class ProfilEtudiantController extends BaseController
 {
     private ServiceUtilisateurInterface $serviceUtilisateur;
+    private FormValidator $validator;
 
-    public function __construct(
-        ServiceSecuriteInterface $serviceSecurite,
-        ServiceSupervisionInterface $serviceSupervision,
-        FormValidator $formValidator,
-        ServiceUtilisateurInterface $serviceUtilisateur
-    ) {
-        parent::__construct($serviceSecurite, $serviceSupervision, $formValidator);
-        $this->serviceUtilisateur = $serviceUtilisateur;
+    public function __construct(Container $container)
+    {
+        parent::__construct($container);
+        $this->serviceUtilisateur = $container->get(ServiceUtilisateurInterface::class);
+        $this->validator = $container->get(FormValidator::class);
     }
 
     /**
-     * Affiche le profil de l'étudiant connecté.
+     * Affiche la page de profil de l'étudiant connecté.
      */
     public function showProfile(): void
     {
-        $this->checkPermission('ETUDIANT_PROFIL_READ');
-        $user = $this->serviceSecurite->getUtilisateurConnecte();
-        $this->render('Etudiant/profil_etudiant.php', [
+        // 6. Accessible si authentifié comme étudiant (géré par le routeur/BaseController)
+        $this->requirePermission('TRAIT_ETUDIANT_PROFIL_GERER');
+
+        $this->render('Etudiant/profil_etudiant', [
             'title' => 'Mon Profil',
-            'user' => $user
+            'user' => $this->securiteService->getUtilisateurConnecte()
         ]);
     }
 
     /**
-     * Traite la mise à jour du profil de l'étudiant.
+     * Traite la mise à jour des informations personnelles de l'étudiant.
      */
     public function updateProfile(): void
     {
-        $this->checkPermission('ETUDIANT_PROFIL_UPDATE');
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !$this->verifyCsrfToken($_POST['csrf_token'] ?? '')) {
-            $this->jsonResponse(['success' => false, 'message' => 'Requête invalide.'], 403);
-            return;
+        $this->requirePermission('TRAIT_ETUDIANT_PROFIL_GERER');
+
+        if (!$this->isPostRequest() || !$this->validateCsrfToken('profile_form', $_POST['csrf_token'] ?? '')) {
+            $this->redirect('/etudiant/profil');
         }
 
-        $user = $this->serviceSecurite->getUtilisateurConnecte();
+        // 7 & 8. Validation simple
         $rules = [
             'telephone' => 'max:20',
             'email_contact_secondaire' => 'email|max:255',
             'adresse_postale' => 'max:500'
         ];
 
-        if (!$this->formValidator->validate($_POST, $rules)) {
-            $this->jsonResponse(['success' => false, 'errors' => $this->formValidator->getErrors()], 422);
-            return;
+        if (!$this->validator->validate($_POST, $rules)) {
+            $this->addFlashMessage('error', 'Erreur de validation : ' . implode(', ', $this->validator->getErrors()));
+        } else {
+            try {
+                $user = $this->securiteService->getUtilisateurConnecte();
+                $donneesProfil = [
+                    'telephone' => $_POST['telephone'],
+                    'email_contact_secondaire' => $_POST['email_contact_secondaire'],
+                    'adresse_postale' => $_POST['adresse_postale']
+                ];
+                $this->serviceUtilisateur->mettreAJourUtilisateur($user['numero_utilisateur'], $donneesProfil, []);
+                $this->addFlashMessage('success', 'Profil mis à jour avec succès.');
+            } catch (\Exception $e) {
+                $this->addFlashMessage('error', 'Erreur lors de la mise à jour : ' . $e->getMessage());
+            }
+        }
+        $this->redirect('/etudiant/profil');
+    }
+
+    /**
+     * Traite le téléversement de la photo de profil.
+     */
+    public function handlePhotoUpload(): void
+    {
+        // 9. Méthode dédiée pour la photo
+        $this->requirePermission('TRAIT_ETUDIANT_PROFIL_GERER');
+
+        if (!$this->isPostRequest() || !$this->validateCsrfToken('photo_form', $_POST['csrf_token'] ?? '')) {
+            $this->redirect('/etudiant/profil');
         }
 
-        try {
-            $donneesProfil = [
-                'telephone' => $_POST['telephone'],
-                'email_contact_secondaire' => $_POST['email_contact_secondaire'],
-                'adresse_postale' => $_POST['adresse_postale']
-            ];
-            $this->serviceUtilisateur->mettreAJourUtilisateur($user['numero_utilisateur'], $donneesProfil, []);
-            $this->jsonResponse(['success' => true, 'message' => 'Profil mis à jour avec succès.']);
-        } catch (\Exception $e) {
-            $this->jsonResponse(['success' => false, 'message' => $e->getMessage()], 500);
+        $fileData = $this->getFileData('photo_profil_file');
+        if ($fileData && $fileData['error'] === UPLOAD_ERR_OK) {
+            try {
+                $user = $this->securiteService->getUtilisateurConnecte();
+                $this->serviceUtilisateur->telechargerPhotoProfil($user['numero_utilisateur'], $fileData);
+                $this->addFlashMessage('success', 'Photo de profil mise à jour.');
+            } catch (\Exception $e) {
+                $this->addFlashMessage('error', $e->getMessage());
+            }
+        } else {
+            $this->addFlashMessage('error', 'Aucun fichier sélectionné ou une erreur est survenue.');
         }
+        $this->redirect('/etudiant/profil');
     }
 }
 
@@ -1331,55 +1688,113 @@ class ProfilEtudiantController extends BaseController
 namespace App\Backend\Controller\Etudiant;
 
 use App\Backend\Controller\BaseController;
+use App\Config\Container;
 use App\Backend\Service\WorkflowSoutenance\ServiceWorkflowSoutenanceInterface;
-use App\Backend\Service\Securite\ServiceSecuriteInterface;
-use App\Backend\Service\Supervision\ServiceSupervisionInterface;
 use App\Backend\Util\FormValidator;
 
+/**
+ * Gère la création, la rédaction, la sauvegarde et la soumission du rapport de l'étudiant.
+ */
 class RapportController extends BaseController
 {
     private ServiceWorkflowSoutenanceInterface $serviceWorkflow;
+    private FormValidator $validator;
 
-    public function __construct(
-        ServiceSecuriteInterface $serviceSecurite,
-        ServiceSupervisionInterface $serviceSupervision,
-        FormValidator $formValidator,
-        ServiceWorkflowSoutenanceInterface $serviceWorkflow
-    ) {
-        parent::__construct($serviceSecurite, $serviceSupervision, $formValidator);
-        $this->serviceWorkflow = $serviceWorkflow;
+    public function __construct(Container $container)
+    {
+        parent::__construct($container);
+        $this->serviceWorkflow = $container->get(ServiceWorkflowSoutenanceInterface::class);
+        $this->validator = $container->get(FormValidator::class);
     }
 
     /**
-     * Affiche le formulaire de rédaction/édition du rapport.
+     * Point d'entrée pour la gestion du rapport.
+     * Redirige vers le choix du modèle si aucun rapport n'existe, sinon vers l'éditeur.
      */
-    public function showRapportForm(): void
+    public function showChoiceOrRedirect(): void
     {
-        $this->checkPermission('TRAIT_ETUDIANT_RAPPORT_SUIVRE');
-        $user = $this->serviceSecurite->getUtilisateurConnecte();
-        $rapport = $this->serviceWorkflow->lireRapportCompletParEtudiant($user['numero_utilisateur']);
-        $this->render('Etudiant/redaction_rapport.php', [
+        $this->requirePermission('TRAIT_ETUDIANT_RAPPORT_SUIVRE');
+        $user = $this->securiteService->getUtilisateurConnecte();
+        $rapport = $this->serviceWorkflow->lireRapportPourAnneeActive($user['numero_utilisateur']);
+
+        if ($rapport) {
+            $this->redirect('/etudiant/rapport/redaction/' . $rapport['id_rapport_etudiant']);
+        } else {
+            // 12. Affiche la page de choix du modèle
+            $modeles = $this->serviceWorkflow->listerModelesRapportDisponibles();
+            $this->render('Etudiant/choix_modele', [
+                'title' => 'Choisir un Modèle de Rapport',
+                'modeles' => $modeles,
+                'csrf_token' => $this->generateCsrfToken('choix_modele_form')
+            ]);
+        }
+    }
+
+    /**
+     * Crée un rapport à partir d'un modèle choisi et redirige vers l'éditeur.
+     */
+    public function handleCreateFromTemplate(): void
+    {
+        $this->requirePermission('TRAIT_ETUDIANT_RAPPORT_SOUMETTRE');
+        if (!$this->isPostRequest() || !$this->validateCsrfToken('choix_modele_form', $_POST['csrf_token'] ?? '')) {
+            $this->redirect('/etudiant/rapport/init');
+        }
+
+        try {
+            $user = $this->securiteService->getUtilisateurConnecte();
+            $idModele = $_POST['id_modele'] ?? null;
+            $idRapport = $this->serviceWorkflow->creerRapportDepuisModele($user['numero_utilisateur'], $idModele);
+            $this->redirect('/etudiant/rapport/redaction/' . $idRapport);
+        } catch (\Exception $e) {
+            $this->addFlashMessage('error', "Impossible d'initialiser le rapport : " . $e->getMessage());
+            $this->redirect('/etudiant/rapport/init');
+        }
+    }
+
+    /**
+     * Affiche le formulaire de rédaction/visualisation du rapport.
+     */
+    public function showRapportForm(string $idRapport): void
+    {
+        // 11. Permission d'accès
+        $this->requirePermission('TRAIT_ETUDIANT_RAPPORT_SUIVRE');
+        $user = $this->securiteService->getUtilisateurConnecte();
+        $rapport = $this->serviceWorkflow->lireRapportComplet($idRapport);
+
+        if (!$rapport || $rapport['numero_carte_etudiant'] !== $user['numero_utilisateur']) {
+            $this->renderError(403, "Vous n'êtes pas autorisé à accéder à ce rapport.");
+        }
+
+        // 16. Verrouillage du rapport si son statut n'est pas Brouillon ou En Correction.
+        $isLocked = !in_array($rapport['id_statut_rapport'], ['RAP_BROUILLON', 'RAP_CORRECT']);
+
+        $this->render('Etudiant/redaction_rapport', [
             'title' => 'Mon Rapport',
-            'rapport' => $rapport
+            'rapport' => $rapport,
+            'isLocked' => $isLocked,
+            'csrf_token_save' => $this->generateCsrfToken('save_rapport_form'),
+            'csrf_token_submit' => $this->generateCsrfToken('submit_rapport_form'),
         ]);
     }
 
     /**
-     * Sauvegarde le brouillon du rapport.
+     * Sauvegarde le brouillon du rapport (appel AJAX).
      */
-    public function saveRapport(): void
+    public function saveRapport(string $idRapport): void
     {
-        $this->checkPermission('ETUDIANT_RAPPORT_EDIT');
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !$this->verifyCsrfToken($_POST['csrf_token'] ?? '')) {
-            $this->jsonResponse(['success' => false, 'message' => 'Requête invalide.'], 403);
-            return;
+        $this->requirePermission('TRAIT_ETUDIANT_RAPPORT_SUIVRE');
+        if (!$this->isPostRequest()) {
+            $this->jsonResponse(['success' => false, 'message' => 'Méthode non autorisée.'], 405); return;
         }
 
-        $user = $this->serviceSecurite->getUtilisateurConnecte();
         try {
-            $metadonnees = ['libelle_rapport_etudiant' => $_POST['titre'], 'theme' => $_POST['theme']];
-            $sections = $_POST['sections'] ?? []; // Supposant que les sections sont envoyées sous forme de tableau
-            $this->serviceWorkflow->creerOuMettreAJourBrouillon($user['numero_utilisateur'], $metadonnees, $sections);
+            $user = $this->securiteService->getUtilisateurConnecte();
+            $data = json_decode(file_get_contents('php://input'), true);
+
+            // 13. Le service sauvegarde et met à jour le timestamp.
+            $this->serviceWorkflow->creerOuMettreAJourBrouillon($user['numero_utilisateur'], $data['metadonnees'], $data['sections']);
+
+            // 19. Réponse JSON
             $this->jsonResponse(['success' => true, 'message' => 'Brouillon sauvegardé.']);
         } catch (\Exception $e) {
             $this->jsonResponse(['success' => false, 'message' => $e->getMessage()], 500);
@@ -1387,21 +1802,50 @@ class RapportController extends BaseController
     }
 
     /**
-     * Soumet le rapport pour validation.
+     * Soumet le rapport final pour validation (appel AJAX).
      */
-    public function submitRapport(): void
+    public function submitRapport(string $idRapport): void
     {
-        $this->checkPermission('TRAIT_ETUDIANT_RAPPORT_SOUMETTRE');
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !$this->verifyCsrfToken($_POST['csrf_token'] ?? '')) {
-            $this->jsonResponse(['success' => false, 'message' => 'Requête invalide.'], 403);
+        // 14. Permission de soumission
+        $this->requirePermission('TRAIT_ETUDIANT_RAPPORT_SOUMETTRE');
+        if (!$this->isPostRequest()) {
+            $this->jsonResponse(['success' => false, 'message' => 'Méthode non autorisée.'], 405); return;
+        }
+
+        try {
+            $user = $this->securiteService->getUtilisateurConnecte();
+            // 15. Le service gère la vérification d'éligibilité.
+            $this->serviceWorkflow->soumettreRapport($idRapport, $user['numero_utilisateur']);
+            $this->jsonResponse(['success' => true, 'message' => 'Rapport soumis avec succès !', 'redirect' => '/etudiant/dashboard']);
+        } catch (\Exception $e) {
+            $this->jsonResponse(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Soumet les corrections demandées pour un rapport (appel AJAX).
+     */
+    public function submitCorrections(string $idRapport): void
+    {
+        // 17. Méthode dédiée pour les corrections.
+        $this->requirePermission('TRAIT_ETUDIANT_RAPPORT_SOUMETTRE');
+        if (!$this->isPostRequest()) {
+            $this->jsonResponse(['success' => false, 'message' => 'Méthode non autorisée.'], 405); return;
+        }
+
+        $data = $this->getPostData();
+
+        // 18. Validation de la note explicative
+        if (empty($data['note_explicative'])) {
+            $this->jsonResponse(['success' => false, 'message' => 'Une note expliquant les corrections est obligatoire.'], 422);
             return;
         }
 
-        $user = $this->serviceSecurite->getUtilisateurConnecte();
-        $idRapport = $_POST['id_rapport'];
         try {
-            $this->serviceWorkflow->soumettreRapport($idRapport, $user['numero_utilisateur']);
-            $this->jsonResponse(['success' => true, 'message' => 'Rapport soumis avec succès !', 'redirect' => '/etudiant/dashboard']);
+            $user = $this->securiteService->getUtilisateurConnecte();
+            // Le service gère la logique de mise à jour du contenu et du statut
+            $this->serviceWorkflow->soumettreCorrections($idRapport, $user['numero_utilisateur'], $data['sections'], $data['note_explicative']);
+            $this->jsonResponse(['success' => true, 'message' => 'Corrections soumises avec succès !', 'redirect' => '/etudiant/dashboard']);
         } catch (\Exception $e) {
             $this->jsonResponse(['success' => false, 'message' => $e->getMessage()], 500);
         }
@@ -1460,27 +1904,20 @@ class HomeController extends BaseController
 namespace App\Backend\Controller\PersonnelAdministratif;
 
 use App\Backend\Controller\BaseController;
+use App\Config\Container;
 use App\Backend\Service\WorkflowSoutenance\ServiceWorkflowSoutenanceInterface;
 use App\Backend\Service\Utilisateur\ServiceUtilisateurInterface;
-use App\Backend\Service\Securite\ServiceSecuriteInterface;
-use App\Backend\Service\Supervision\ServiceSupervisionInterface;
-use App\Backend\Util\FormValidator;
 
 class PersonnelDashboardController extends BaseController
 {
     private ServiceWorkflowSoutenanceInterface $serviceWorkflow;
     private ServiceUtilisateurInterface $serviceUtilisateur;
 
-    public function __construct(
-        ServiceSecuriteInterface $serviceSecurite,
-        ServiceSupervisionInterface $serviceSupervision,
-        FormValidator $formValidator,
-        ServiceWorkflowSoutenanceInterface $serviceWorkflow,
-        ServiceUtilisateurInterface $serviceUtilisateur
-    ) {
-        parent::__construct($serviceSecurite, $serviceSupervision, $formValidator);
-        $this->serviceWorkflow = $serviceWorkflow;
-        $this->serviceUtilisateur = $serviceUtilisateur;
+    public function __construct(Container $container)
+    {
+        parent::__construct($container);
+        $this->serviceWorkflow = $container->get(ServiceWorkflowSoutenanceInterface::class);
+        $this->serviceUtilisateur = $container->get(ServiceUtilisateurInterface::class);
     }
 
     /**
@@ -1489,24 +1926,35 @@ class PersonnelDashboardController extends BaseController
      */
     public function index(): void
     {
-        $this->checkPermission('TRAIT_PERS_ADMIN_DASHBOARD_ACCEDER');
-        $user = $this->serviceSecurite->getUtilisateurConnecte();
+        // 1. Permission d'accès commune
+        $this->requirePermission('TRAIT_PERS_ADMIN_DASHBOARD_ACCEDER');
+        $user = $this->securiteService->getUtilisateurConnecte();
+
         $data = ['title' => 'Tableau de Bord Administratif'];
 
         try {
+            // Logique adaptative en fonction du groupe de l'utilisateur
             if ($user['id_groupe_utilisateur'] === 'GRP_AGENT_CONFORMITE') {
+                // 2. Pour l'agent de conformité : rapports soumis
                 $data['rapportsEnAttente'] = $this->serviceWorkflow->listerRapports(['id_statut_rapport' => 'RAP_SOUMIS']);
-            } elseif ($user['id_groupe_utilisateur'] === 'GRP_RS') {
-                $data['etudiantsAActiver'] = $this->serviceUtilisateur->listerUtilisateursComplets(['statut_compte' => 'en_attente_activation']);
             }
-            $this->render('PersonnelAdministratif/dashboard_personnel.php', $data);
+            elseif ($user['id_groupe_utilisateur'] === 'GRP_RS') {
+                // 3. Pour le RS : étudiants sans compte utilisateur
+                $data['etudiantsSansCompte'] = $this->serviceUtilisateur->listerEntitesSansCompte('etudiant');
+                // 4. Pour le RS : réclamations ouvertes
+                $data['reclamationsOuvertes'] = $this->serviceWorkflow->listerReclamations(['id_statut_reclamation' => 'RECLA_OUVERTE']);
+                // Ajoutez ici d'autres données pour le RS si nécessaire (ex: stages à valider)
+            }
+
+            $this->render('PersonnelAdministratif/dashboard_personnel', $data);
+
         } catch (\Exception $e) {
-            $this->serviceSupervision->enregistrerAction($user['numero_utilisateur'], 'DASHBOARD_PERSONNEL_ERROR', null, null, ['error' => $e->getMessage()]);
-            $this->render('errors/500.php', ['error_message' => "Impossible de charger les données du tableau de bord."]);
+            // 5. Gestion des erreurs
+            error_log("Erreur PersonnelDashboardController::index : " . $e->getMessage());
+            $this->renderError(500, "ça ne marche pas");
         }
     }
 }
-
 
 /***********************************************************************************
  * Fichier: src/Backend/Controller\PersonnelAdministratif\ScolariteController.php
@@ -1518,98 +1966,225 @@ class PersonnelDashboardController extends BaseController
 namespace App\Backend\Controller\PersonnelAdministratif;
 
 use App\Backend\Controller\BaseController;
+use App\Config\Container;
 use App\Backend\Service\WorkflowSoutenance\ServiceWorkflowSoutenanceInterface;
 use App\Backend\Service\Utilisateur\ServiceUtilisateurInterface;
-use App\Backend\Service\Securite\ServiceSecuriteInterface;
-use App\Backend\Service\Supervision\ServiceSupervisionInterface;
+use App\Backend\Service\ParcoursAcademique\ServiceParcoursAcademiqueInterface;
+use App\Backend\Service\Systeme\ServiceSystemeInterface;
+use App\Backend\Service\Document\ServiceDocumentInterface;
 use App\Backend\Util\FormValidator;
 
 class ScolariteController extends BaseController
 {
     private ServiceWorkflowSoutenanceInterface $serviceWorkflow;
     private ServiceUtilisateurInterface $serviceUtilisateur;
+    private ServiceParcoursAcademiqueInterface $parcoursService;
+    private ServiceSystemeInterface $systemeService;
+    private ServiceDocumentInterface $documentService;
+    private FormValidator $validator;
 
-    public function __construct(
-        ServiceSecuriteInterface $serviceSecurite,
-        ServiceSupervisionInterface $serviceSupervision,
-        FormValidator $formValidator,
-        ServiceWorkflowSoutenanceInterface $serviceWorkflow,
-        ServiceUtilisateurInterface $serviceUtilisateur
-    ) {
-        parent::__construct($serviceSecurite, $serviceSupervision, $formValidator);
-        $this->serviceWorkflow = $serviceWorkflow;
-        $this->serviceUtilisateur = $serviceUtilisateur;
+    public function __construct(Container $container)
+    {
+        parent::__construct($container);
+        $this->serviceWorkflow = $container->get(ServiceWorkflowSoutenanceInterface::class);
+        $this->serviceUtilisateur = $container->get(ServiceUtilisateurInterface::class);
+        $this->parcoursService = $container->get(ServiceParcoursAcademiqueInterface::class);
+        $this->systemeService = $container->get(ServiceSystemeInterface::class);
+        $this->documentService = $container->get(ServiceDocumentInterface::class);
+        $this->validator = $container->get(FormValidator::class);
     }
+
+    // ========== PARTIE AGENT DE CONFORMITÉ ==========
 
     public function listConformiteQueue(): void
     {
-        $this->checkPermission('TRAIT_PERS_ADMIN_CONFORMITE_LISTER');
+        $this->requirePermission('TRAIT_PERS_ADMIN_CONFORMITE_LISTER');
         $rapports = $this->serviceWorkflow->listerRapports(['id_statut_rapport' => 'RAP_SOUMIS']);
-        $this->render('PersonnelAdministratif/gestion_conformite.php', [
+        $this->render('PersonnelAdministratif/gestion_conformite', [
             'title' => 'File de Vérification de Conformité',
             'rapports' => $rapports
         ]);
     }
 
-    public function showConformiteForm(string $id): void
+    public function showConformiteForm(string $idRapport): void
     {
-        $this->checkPermission('TRAIT_PERS_ADMIN_CONFORMITE_VERIFIER');
-        $rapport = $this->serviceWorkflow->lireRapportComplet($id);
-        if (!$rapport) {
-            $this->render('errors/404.php');
-            return;
-        }
-        $this->render('PersonnelAdministratif/form_conformite.php', [
-            'title' => 'Vérification du Rapport',
-            'rapport' => $rapport
+        $this->requirePermission('TRAIT_PERS_ADMIN_CONFORMITE_VERIFIER');
+        $rapport = $this->serviceWorkflow->lireRapportComplet($idRapport);
+        $checklist = $this->systemeService->gererReferentiel('list', 'critere_conformite_ref');
+
+        $this->render('PersonnelAdministratif/form_conformite', [
+            'title' => 'Vérification du Rapport ' . $idRapport,
+            'rapport' => $rapport,
+            'checklist' => $checklist
         ]);
     }
 
-    public function processConformite(string $id): void
+    public function processConformite(string $idRapport): void
     {
-        $this->checkPermission('TRAIT_PERS_ADMIN_CONFORMITE_VERIFIER');
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !$this->verifyCsrfToken($_POST['csrf_token'] ?? '')) {
-            $this->jsonResponse(['success' => false, 'message' => 'Requête invalide.'], 403);
+        $this->requirePermission('TRAIT_PERS_ADMIN_CONFORMITE_VERIFIER');
+        if (!$this->isPostRequest()) $this->redirect('/personnel/conformite');
+
+        $data = $this->getPostData();
+        if (empty($data['commentaire_general'])) {
+            $this->addFlashMessage('error', 'Un commentaire général est obligatoire pour toute décision.');
+            $this->redirect("/personnel/conformite/verifier/{$idRapport}");
             return;
         }
 
-        $user = $this->serviceSecurite->getUtilisateurConnecte();
         try {
-            $estConforme = ($_POST['decision_conformite'] === 'conforme');
-            $details = $_POST['checklist'] ?? [];
-            $commentaire = $_POST['commentaire_general'] ?? null;
-            $this->serviceWorkflow->traiterVerificationConformite($id, $user['numero_utilisateur'], $estConforme, $details, $commentaire);
-            $this->jsonResponse(['success' => true, 'message' => 'Vérification enregistrée.', 'redirect' => '/personnel/conformite']);
+            $user = $this->securiteService->getUtilisateurConnecte();
+            $this->serviceWorkflow->traiterVerificationConformite($idRapport, $user['numero_utilisateur'], ($data['decision_conformite'] === 'conforme'), $data['checklist'] ?? [], $data['commentaire_general']);
+            $this->addFlashMessage('success', 'La vérification de conformité a été enregistrée.');
         } catch (\Exception $e) {
-            $this->jsonResponse(['success' => false, 'message' => $e->getMessage()], 500);
+            $this->addFlashMessage('error', 'Erreur: ' . $e->getMessage());
         }
+        $this->redirect('/personnel/conformite');
     }
+
+    // ========== PARTIE RESPONSABLE SCOLARITÉ (RS) ==========
 
     public function listStudentRecords(): void
     {
-        $this->checkPermission('TRAIT_PERS_ADMIN_SCOLARITE_ACCEDER');
+        $this->requirePermission('TRAIT_PERS_ADMIN_SCOLARITE_ACCEDER');
         $etudiants = $this->serviceUtilisateur->listerUtilisateursComplets(['id_type_utilisateur' => 'TYPE_ETUD']);
-        $this->render('PersonnelAdministratif/gestion_scolarite.php', [
+
+        $this->render('PersonnelAdministratif/gestion_scolarite', [
             'title' => 'Gestion des Dossiers Étudiants',
             'etudiants' => $etudiants
         ]);
     }
 
-    public function activateStudentAccount(): void
+    public function showStudentDetails(string $idEtudiant): void
     {
-        $this->checkPermission('PERS_ADMIN_ACTIVATE_ACCOUNT');
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !$this->verifyCsrfToken($_POST['csrf_token'] ?? '')) {
-            $this->jsonResponse(['success' => false, 'message' => 'Requête invalide.'], 403);
-            return;
-        }
-
-        $numeroEtudiant = $_POST['numero_etudiant'];
+        $this->requirePermission('TRAIT_PERS_ADMIN_SCOLARITE_ACCEDER');
         try {
-// Le service doit vérifier les prérequis (paiement, stage) avant d'activer
-            $this->serviceUtilisateur->activerComptePourEntite($numeroEtudiant, $_POST, true);
-            $this->jsonResponse(['success' => true, 'message' => 'Compte étudiant activé avec succès.']);
+            $data = [
+                'profil' => $this->serviceUtilisateur->lireUtilisateurComplet($idEtudiant),
+                'inscriptions' => $this->parcoursService->listerInscriptions(['numero_carte_etudiant' => $idEtudiant]),
+                'notes' => $this->parcoursService->listerNotes(['numero_carte_etudiant' => $idEtudiant]),
+                'stages' => $this->parcoursService->listerStages(['numero_carte_etudiant' => $idEtudiant]),
+                'penalites' => $this->parcoursService->listerPenalites(['numero_carte_etudiant' => $idEtudiant]),
+                'reclamations' => $this->serviceWorkflow->listerReclamations(['numero_carte_etudiant' => $idEtudiant])
+            ];
+            // Pour une vue master-detail, on rendrait un "partial" ici, sans le layout complet.
+            $this->render('PersonnelAdministratif/_student_details_panel', $data, false);
         } catch (\Exception $e) {
-            $this->jsonResponse(['success' => false, 'message' => $e->getMessage()], 500);
+            http_response_code(500);
+            echo "Erreur lors du chargement des détails de l'étudiant : " . $e->getMessage();
+        }
+    }
+
+    public function handleInscriptionUpdate(): void
+    {
+        $this->requirePermission('TRAIT_PERS_ADMIN_SCOLARITE_ETUDIANT_GERER');
+        if (!$this->isPostRequest()) $this->redirect('/personnel/scolarite');
+
+        $data = $this->getPostData();
+        try {
+            // Logique simple de changement de statut.
+            $this->parcoursService->mettreAJourInscription($data['numero_etudiant'], $data['id_niveau'], $data['id_annee'], ['id_statut_paiement' => $data['statut']]);
+            $this->addFlashMessage('success', 'Statut de paiement mis à jour.');
+        } catch (\Exception $e) {
+            $this->addFlashMessage('error', 'Erreur: ' . $e->getMessage());
+        }
+        $this->redirect('/personnel/scolarite');
+    }
+
+    public function handleNoteEntry(): void
+    {
+        $this->requirePermission('TRAIT_PERS_ADMIN_SCOLARITE_ETUDIANT_GERER');
+        if (!$this->isPostRequest()) $this->redirect('/personnel/scolarite');
+
+        try {
+            // Saisie manuelle matière par matière
+            $this->parcoursService->creerOuMettreAJourNote($this->getPostData());
+            $this->addFlashMessage('success', 'Note enregistrée avec succès.');
+        } catch (\Exception $e) {
+            $this->addFlashMessage('error', 'Erreur: ' . $e->getMessage());
+        }
+        $this->redirect('/personnel/scolarite');
+    }
+
+    public function validerStage(string $numeroEtudiant, string $idEntreprise): void
+    {
+        $this->requirePermission('TRAIT_PERS_ADMIN_SCOLARITE_ETUDIANT_GERER');
+        if (!$this->isPostRequest()) $this->redirect('/personnel/scolarite');
+
+        try {
+            // Action simple
+            $this->parcoursService->validerStage($numeroEtudiant, $idEntreprise);
+            $this->addFlashMessage('success', 'Stage validé.');
+        } catch (\Exception $e) {
+            $this->addFlashMessage('error', 'Erreur: ' . $e->getMessage());
+        }
+        $this->redirect('/personnel/scolarite');
+    }
+
+    public function regulariserPenalite(string $idPenalite): void
+    {
+        $this->requirePermission('TRAIT_PERS_ADMIN_SCOLARITE_PENALITE_GERER');
+        if (!$this->isPostRequest()) $this->redirect('/personnel/scolarite');
+
+        try {
+            // Action simple
+            $user = $this->securiteService->getUtilisateurConnecte();
+            $this->parcoursService->regulariserPenalite($idPenalite, $user['numero_utilisateur']);
+            $this->addFlashMessage('success', 'Pénalité régularisée.');
+        } catch (\Exception $e) {
+            $this->addFlashMessage('error', 'Erreur: ' . $e->getMessage());
+        }
+        $this->redirect('/personnel/scolarite');
+    }
+
+    public function handleReponseReclamation(string $idReclamation): void
+    {
+        $this->requirePermission('TRAIT_PERS_ADMIN_RECLAMATIONS_GERER');
+        if (!$this->isPostRequest()) $this->redirect('/personnel/scolarite');
+
+        $data = $this->getPostData();
+        try {
+            $user = $this->securiteService->getUtilisateurConnecte();
+            // Action distincte pour répondre sans forcément résoudre
+            $this->serviceWorkflow->repondreAReclamation($idReclamation, $data['reponse'], $user['numero_utilisateur']);
+            $this->addFlashMessage('success', 'Réponse envoyée.');
+        } catch (\Exception $e) {
+            $this->addFlashMessage('error', 'Erreur: ' . $e->getMessage());
+        }
+        $this->redirect('/personnel/scolarite');
+    }
+
+    public function cloturerReclamation(string $idReclamation): void
+    {
+        $this->requirePermission('TRAIT_PERS_ADMIN_RECLAMATIONS_GERER');
+        if (!$this->isPostRequest()) $this->redirect('/personnel/scolarite');
+
+        try {
+            // Action distincte pour clôturer
+            $this->serviceWorkflow->traiterReclamation($idReclamation, "Réclamation résolue et clôturée.", $_SESSION['user_id']);
+            $this->addFlashMessage('success', 'Réclamation clôturée.');
+        } catch (\Exception $e) {
+            $this->addFlashMessage('error', 'Erreur: ' . $e->getMessage());
+        }
+        $this->redirect('/personnel/scolarite');
+    }
+
+    public function exportStudents(string $format): void
+    {
+        $this->requirePermission('TRAIT_PERS_ADMIN_SCOLARITE_ACCEDER');
+
+        try {
+            $etudiants = $this->serviceUtilisateur->listerUtilisateursComplets(['id_type_utilisateur' => 'TYPE_ETUD']);
+            $colonnes = ['numero_utilisateur' => 'Matricule', 'nom' => 'Nom', 'prenom' => 'Prénom', 'email_principal' => 'Email', 'statut_compte' => 'Statut'];
+
+            if ($format === 'pdf') {
+                $this->documentService->genererListePdf('Liste des Etudiants', $etudiants, $colonnes);
+            } elseif ($format === 'csv') {
+                $this->documentService->genererListeCsv('etudiants', $etudiants, $colonnes);
+            } else {
+                $this->renderError(400, 'Format d\'export non supporté.');
+            }
+        } catch (\Exception $e) {
+            $this->renderError(500, "Erreur lors de l'export : " . $e->getMessage());
         }
     }
 }

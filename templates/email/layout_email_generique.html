@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{sujet_email}}</title>
+    <style type="text/css">
+        /* Styles généraux pour la compatibilité */
+        body, html {
+            margin: 0;
+            padding: 0;
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: #333333;
+            background-color: #f4f4f4;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+        td, th {
+            padding: 0;
+        }
+        img {
+            max-width: 100%;
+            height: auto;
+            display: block;
+        }
+        a {
+            color: #4A90E2; /* Couleur primaire de votre thème */
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+
+        /* Conteneur principal de l'e-mail */
+        .email-container {
+            max-width: 600px;
+            margin: 20px auto;
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            overflow: hidden; /* Pour border-radius sur les enfants */
+        }
+
+        /* En-tête de l'e-mail */
+        .header {
+            background-color: #4A90E2; /* Couleur primaire */
+            padding: 20px;
+            text-align: center;
+            color: #ffffff;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: bold;
+        }
+        .header img {
+            max-width: 150px; /* Taille du logo */
+            margin: 0 auto 10px auto;
+        }
+
+        /* Corps du contenu */
+        .content {
+            padding: 30px;
+            word-wrap: break-word; /* Gérer les longs mots */
+        }
+        .content p {
+            margin-bottom: 15px;
+            font-size: 16px;
+        }
+        .content ul {
+            margin-bottom: 15px;
+            padding-left: 20px;
+        }
+        .content li {
+            margin-bottom: 5px;
+        }
+
+        /* Boutons */
+        .button-container {
+            text-align: center;
+            margin: 20px 0;
+        }
+        .button {
+            display: inline-block;
+            padding: 12px 25px;
+            background-color: #50C878; /* Couleur secondaire */
+            color: #ffffff;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: bold;
+            font-size: 16px;
+            border: 1px solid #50C878;
+        }
+        .button:hover {
+            background-color: #3BA05F; /* Couleur secondaire-focus */
+            border-color: #3BA05F;
+            text-decoration: none;
+        }
+
+        /* Pied de page */
+        .footer {
+            background-color: #f0f0f0;
+            padding: 20px 30px;
+            text-align: center;
+            font-size: 12px;
+            color: #777777;
+            border-top: 1px solid #e0e0e0;
+        }
+        .footer p {
+            margin: 0;
+            margin-bottom: 5px;
+        }
+        .footer a {
+            color: #777777;
+            text-decoration: underline;
+        }
+
+        /* Styles responsives */
+        @media only screen and (max-width: 600px) {
+            .email-container {
+                width: 100% !important;
+                margin: 0 auto !important;
+                border-radius: 0 !important;
+                box-shadow: none !important;
+            }
+            .content, .header, .footer {
+                padding: 20px !important;
+            }
+            .header h1 {
+                font-size: 20px !important;
+            }
+            .button {
+                padding: 10px 20px !important;
+                font-size: 14px !important;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="email-container">
+    <!-- En-tête -->
+    <div class="header">
+        <!-- Vous pouvez insérer un logo ici si vous en avez un -->
+        <!-- <img src="URL_DE_VOTRE_LOGO" alt="Logo GestionMySoutenance"> -->
+        <h1>GestionMySoutenance</h1>
+    </div>
+
+    <!-- Corps du contenu de l'e-mail -->
+    <div class="content">
+        <!-- Le contenu spécifique de chaque e-mail sera inséré ici -->
+        {{contenu_principal}}
+    </div>
+
+    <!-- Pied de page -->
+    <div class="footer">
+        <p>Ceci est un e-mail automatique, merci de ne pas y répondre directement.</p>
+        <p>© {{annee_courante}} GestionMySoutenance. Tous droits réservés.</p>
+        <p><a href="{{app_url}}/privacy-policy">Politique de confidentialité</a> | <a href="{{app_url}}/terms-of-service">Conditions d'utilisation</a></p>
+    </div>
+</div>
+</body>
+</html>

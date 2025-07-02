@@ -12,6 +12,10 @@ interface ServiceWorkflowSoutenanceInterface
     public function lireRapportComplet(string $idRapport): ?array;
     public function listerRapports(array $filtres = []): array;
     public function forcerChangementStatutRapport(string $idRapport, string $nouveauStatut, string $adminId, string $justification): bool;
+    public function lireRapportPourAnneeActive(string $numeroEtudiant): ?array; // Nouvelle méthode
+    public function getWorkflowStepsForRapport(?string $idRapport): array; // Nouvelle méthode
+    public function listerModelesRapportDisponibles(): array; // Nouvelle méthode
+    public function creerRapportDepuisModele(string $numeroEtudiant, string $idModele): string; // Nouvelle méthode
 
     // --- PHASE 2: VÉRIFICATION DE CONFORMITÉ PAR L'ADMINISTRATION ---
     public function traiterVerificationConformite(string $idRapport, string $numeroPersonnel, bool $estConforme, array $detailsChecklist, ?string $commentaireGeneral): bool;
@@ -41,6 +45,7 @@ interface ServiceWorkflowSoutenanceInterface
     public function soumettrePvPourApprobation(string $idCompteRendu): bool;
     public function approuverPv(string $idCompteRendu, string $idPresident): bool;
     public function forcerValidationPv(string $idCompteRendu, string $idPresident, string $justification): bool;
+    public function listerPvAApprouver(string $numeroUtilisateur): array; // Nouvelle méthode
 
     // --- PHASE 6: FINALISATION POST-VALIDATION (PRÉSIDENT) ---
     public function designerDirecteurMemoire(string $idRapport, string $numeroEnseignantDirecteur): bool;
@@ -50,4 +55,5 @@ interface ServiceWorkflowSoutenanceInterface
     public function listerReclamations(array $filtres = []): array;
     public function lireReclamation(string $idReclamation): ?array;
     public function traiterReclamation(string $idReclamation, string $reponse, string $numeroPersonnel): bool;
+    public function repondreAReclamation(string $idReclamation, string $reponse, string $numeroPersonnel): bool; // Nouvelle méthode
 }

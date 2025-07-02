@@ -3,35 +3,45 @@
 
 namespace App\Backend\Controller;
 
-use App\Config\Container;
 use App\Backend\Service\Securite\ServiceSecuriteInterface;
 use App\Backend\Service\Supervision\ServiceSupervisionInterface;
 use App\Backend\Exception\ElementNonTrouveException;
 use JetBrains\PhpStorm\NoReturn;
 use Random\RandomException;
+use Exception;
 
 abstract class BaseController
 {
-    protected Container $container;
     protected ServiceSecuriteInterface $securiteService;
     protected ServiceSupervisionInterface $supervisionService;
 
-    public function __construct(Container $container)
-    {
-        $this->container = $container;
-        $this->securiteService = $container->get(ServiceSecuriteInterface::class);
-        $this->supervisionService = $container->get(ServiceSupervisionInterface::class);
+    public function __construct(
+        ServiceSecuriteInterface $securiteService,
+        ServiceSupervisionInterface $supervisionService
+    ) {
+        $this->securiteService = $securiteService;
+        $this->supervisionService = $supervisionService;
 
         if (session_status() == PHP_SESSION_NONE) {
             session_start();
         }
 
+        // Mettre à jour l'activité de la session
         if (isset($_SESSION['user_id'])) {
             $_SESSION['last_activity'] = time();
         }
     }
 
-    protected function render(string $viewPath, array $data = [], string $layout = 'layout/app'): void
+    /**
+     * Rend une vue PHP avec les données fournies et un layout optionnel.
+     *
+     * @param string $viewPath Le chemin de la vue (ex: 'Auth/login').
+     * @param array $data Les données à passer à la vue.
+     * @param string $layout Le chemin du layout (ex: 'layout/app'). Si false, aucun layout n'est utilisé.
+     * @throws ElementNonTrouveException Si le fichier de vue ou de layout n'est pas trouvé.
+     * @throws Exception En cas d'erreur inattendue lors du rendu.
+     */
+    protected function render(string $viewPath, array $data = [], string|false $layout = 'layout/app'): void
     {
         $data['flash_messages'] = $_SESSION['flash_messages'] ?? [];
         unset($_SESSION['flash_messages']);
@@ -46,29 +56,51 @@ abstract class BaseController
             throw new ElementNonTrouveException("Fichier de vue non trouvé : " . $viewFullPath);
         }
 
-        extract($data);
+        extract($data); // Extrait les données dans le scope local pour la vue
 
-        ob_start();
-        require $viewFullPath;
-        $content = ob_get_clean();
+        ob_start(); // Commence la mise en tampon de la sortie
+        require $viewFullPath; // Inclut le fichier de vue
+        $content = ob_get_clean(); // Récupère le contenu et termine la mise en tampon
 
-        $layoutPath = ROOT_PATH . '/src/Frontend/views/' . $layout . '.php';
-        if (!file_exists($layoutPath)) {
-            throw new ElementNonTrouveException("Fichier de layout non trouvé : " . $layoutPath);
+        if ($layout) {
+            $layoutPath = ROOT_PATH . '/src/Frontend/views/' . $layout . '.php';
+            if (!file_exists($layoutPath)) {
+                throw new ElementNonTrouveException("Fichier de layout non trouvé : " . $layoutPath);
+            }
+            require_once $layoutPath; // Inclut le fichier de layout qui affichera $content
+        } else {
+            echo $content; // Si pas de layout, affiche directement le contenu de la vue
         }
-        require_once $layoutPath;
     }
 
+    /**
+     * Rend une page d'erreur HTTP et termine l'exécution.
+     *
+     * @param int $statusCode Le code de statut HTTP (ex: 403, 404, 500).
+     * @param string $message Le message d'erreur à afficher.
+     */
     #[NoReturn]
     public function renderError(int $statusCode, string $message = ''): void
     {
         http_response_code($statusCode);
         $viewPath = 'errors/' . $statusCode;
         $data = ['title' => "Erreur {$statusCode}", 'error_message' => $message];
-        $this->render($viewPath, $data, 'layout/layout_auth');
+        try {
+            // Tente de rendre la vue d'erreur avec le layout d'authentification
+            $this->render($viewPath, $data, 'layout/layout_auth');
+        } catch (Exception $e) {
+            // Fallback si la vue d'erreur elle-même ne peut pas être rendue
+            error_log("Erreur critique lors du rendu de la page d'erreur {$statusCode}: " . $e->getMessage());
+            echo "<h1>Erreur {$statusCode}</h1><p>{$message}</p><p>Une erreur est survenue lors de l'affichage de la page d'erreur.</p>";
+        }
         exit();
     }
 
+    /**
+     * Redirige l'utilisateur vers une URL donnée et termine l'exécution.
+     *
+     * @param string $url L'URL de destination.
+     */
     #[NoReturn]
     protected function redirect(string $url): void
     {
@@ -76,6 +108,12 @@ abstract class BaseController
         exit();
     }
 
+    /**
+     * Ajoute un message flash à la session pour affichage ultérieur.
+     *
+     * @param string $type Le type de message (ex: 'success', 'error', 'warning', 'info').
+     * @param string $message Le contenu du message.
+     */
     protected function addFlashMessage(string $type, string $message): void
     {
         if (!isset($_SESSION['flash_messages'])) {
@@ -84,36 +122,83 @@ abstract class BaseController
         $_SESSION['flash_messages'][] = ['type' => $type, 'message' => $message];
     }
 
+    /**
+     * Récupère et nettoie les données POST.
+     *
+     * @return array Les données POST nettoyées.
+     */
     protected function getPostData(): array
     {
+        // FILTER_SANITIZE_FULL_SPECIAL_CHARS est une bonne base, mais peut être affiné
+        // pour des champs spécifiques (ex: HTML pour les éditeurs WYSIWYG).
         return filter_input_array(INPUT_POST, FILTER_SANITIZE_FULL_SPECIAL_CHARS, true) ?? [];
     }
 
+    /**
+     * Récupère et nettoie les données GET.
+     *
+     * @return array Les données GET nettoyées.
+     */
     protected function getGetData(): array
     {
         return filter_input_array(INPUT_GET, FILTER_SANITIZE_FULL_SPECIAL_CHARS, true) ?? [];
     }
 
+    /**
+     * Récupère les données d'un fichier uploadé.
+     *
+     * @param string $fieldName Le nom du champ de fichier dans le formulaire.
+     * @return array|null Les données du fichier uploadé ou null si non présent.
+     */
     protected function getFileData(string $fieldName): ?array
     {
         return $_FILES[$fieldName] ?? null;
     }
 
+    /**
+     * Vérifie si la requête HTTP est de type POST.
+     *
+     * @return bool True si la requête est POST, false sinon.
+     */
     protected function isPostRequest(): bool
     {
         return $_SERVER['REQUEST_METHOD'] === 'POST';
     }
 
+    /**
+     * Vérifie si la requête HTTP est de type GET.
+     *
+     * @return bool True si la requête est GET, false sinon.
+     */
     protected function isGetRequest(): bool
     {
         return $_SERVER['REQUEST_METHOD'] === 'GET';
     }
 
+    /**
+     * Vérifie si l'utilisateur connecté possède une permission spécifique.
+     * Si la permission n'est pas accordée, une page d'erreur 403 est affichée.
+     *
+     * @param string $permissionCode Le code de la permission requise (ex: 'TRAIT_ADMIN_DASHBOARD_ACCEDER').
+     * @param string|null $contexteId L'ID de l'entité concernée par la permission (optionnel).
+     * @param string|null $contexteType Le type de l'entité concernée (optionnel).
+     */
     protected function requirePermission(string $permissionCode, ?string $contexteId = null, ?string $contexteType = null): void
     {
+        if (!$this->securiteService->estUtilisateurConnecte()) {
+            $this->supervisionService->enregistrerAction(
+                'ANONYMOUS',
+                'ACCES_REFUSE',
+                $contexteId,
+                $contexteType,
+                ['permission_requise' => $permissionCode, 'url' => $_SERVER['REQUEST_URI'], 'reason' => 'Non connecté']
+            );
+            $this->redirect('/login'); // Rediriger vers la page de connexion si non connecté
+        }
+
         if (!$this->securiteService->utilisateurPossedePermission($permissionCode, $contexteId, $contexteType)) {
             $this->supervisionService->enregistrerAction(
-                $_SESSION['user_id'] ?? 'ANONYMOUS',
+                $_SESSION['user_id'],
                 'ACCES_REFUSE',
                 $contexteId,
                 $contexteType,
@@ -123,6 +208,13 @@ abstract class BaseController
         }
     }
 
+    /**
+     * Génère un jeton CSRF unique pour un formulaire donné et le stocke en session.
+     *
+     * @param string $formName Le nom unique du formulaire.
+     * @return string Le jeton CSRF généré.
+     * @throws RandomException Si la génération de bytes aléatoires échoue.
+     */
     protected function generateCsrfToken(string $formName): string
     {
         try {
@@ -131,20 +223,47 @@ abstract class BaseController
             }
             return $_SESSION['csrf_tokens'][$formName];
         } catch (RandomException $e) {
-            error_log("Erreur de génération CSRF: " . $e->getMessage());
+            error_log("Erreur de génération CSRF pour le formulaire '{$formName}': " . $e->getMessage());
             $this->addFlashMessage('error', 'Une erreur de sécurité est survenue. Veuillez réessayer.');
             throw $e;
         }
     }
 
+    /**
+     * Valide un jeton CSRF soumis avec celui stocké en session.
+     * Le jeton est détruit après validation (même en cas d'échec) pour empêcher les attaques par rejeu.
+     *
+     * @param string $formName Le nom unique du formulaire.
+     * @param string $token Le jeton soumis par le formulaire.
+     * @return bool True si le jeton est valide, false sinon.
+     */
     protected function validateCsrfToken(string $formName, string $token): bool
     {
         if (!isset($_SESSION['csrf_tokens'][$formName]) || !hash_equals($_SESSION['csrf_tokens'][$formName], $token)) {
-            unset($_SESSION['csrf_tokens'][$formName]);
+            unset($_SESSION['csrf_tokens'][$formName]); // Détruire le token même en cas d'échec
             $this->addFlashMessage('error', 'Jeton de sécurité invalide. Veuillez réessayer.');
             return false;
         }
-        unset($_SESSION['csrf_tokens'][$formName]);
+        unset($_SESSION['csrf_tokens'][$formName]); // Détruire le token après succès
         return true;
+    }
+
+    /**
+     * Envoie une réponse au format JSON et termine l'exécution du script.
+     * Idéal pour les réponses aux requêtes AJAX.
+     *
+     * @param array $data Le tableau de données à encoder en JSON.
+     * @param int $statusCode Le code de statut HTTP à renvoyer (par défaut 200 OK).
+     */
+    #[NoReturn]
+    protected function jsonResponse(array $data, int $statusCode = 200): void
+    {
+        header_remove(); // Supprime les en-têtes précédents pour éviter les conflits
+        header('Content-Type: application/json');
+        http_response_code($statusCode);
+
+        echo json_encode($data);
+
+        exit();
     }
 }

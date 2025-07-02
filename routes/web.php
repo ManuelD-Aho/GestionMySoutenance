@@ -1,121 +1,131 @@
 <?php
 // routes/web.php
 
-use App\Config\Router;
-use App\Config\Container;
-use App\Backend\Controller\BaseController;
-use App\Backend\Service\Securite\ServiceSecuriteInterface;
+use App\Backend\Controller\Administration\AdminDashboardController;
+use App\Backend\Controller\Administration\ConfigurationController;
+use App\Backend\Controller\Administration\SupervisionController;
+use App\Backend\Controller\Administration\UtilisateurController;
+use App\Backend\Controller\AssetController;
+use App\Backend\Controller\AuthentificationController;
+use App\Backend\Controller\Commission\CommissionDashboardController;
+use App\Backend\Controller\Commission\WorkflowCommissionController;
+use App\Backend\Controller\DashboardController;
+use App\Backend\Controller\Etudiant\EtudiantDashboardController;
+use App\Backend\Controller\Etudiant\ProfilEtudiantController;
+use App\Backend\Controller\Etudiant\RapportController;
+use App\Backend\Controller\HomeController;
+use App\Backend\Controller\PersonnelAdministratif\PersonnelDashboardController;
+use App\Backend\Controller\PersonnelAdministratif\ScolariteController;
+use FastRoute\RouteCollector;
 
-// Import des classes de contrôleurs
-use App\Backend\Controller\{
-    HomeController, AuthentificationController, DashboardController, AssetController
-};
-use App\Backend\Controller\Administration\{
-    AdminDashboardController, ConfigurationController, SupervisionController, UtilisateurController
-};
-use App\Backend\Controller\Commission\{
-    CommissionDashboardController, WorkflowCommissionController
-};
-use App\Backend\Controller\Etudiant\{
-    EtudiantDashboardController, ProfilEtudiantController, RapportController
-};
-use App\Backend\Controller\PersonnelAdministratif\{
-    PersonnelDashboardController, ScolariteController
-};
+/**
+ * Définit toutes les routes de l'application.
+ * Ce fichier retourne une closure qui sera utilisée par le Router pour construire la collection de routes.
+ *
+ * @param RouteCollector $router L'instance du collecteur de routes de FastRoute.
+ */
+return function(RouteCollector $router) {
+    // --- Routes Publiques et Authentification ---
+    $router->addRoute('GET', '/', [HomeController::class, 'index']);
+    $router->addRoute('GET', '/login', [AuthentificationController::class, 'showLoginForm']);
+    $router->addRoute('POST', '/login', [AuthentificationController::class, 'login']); // Renommée de handleLogin
+    $router->addRoute('GET', '/logout', [AuthentificationController::class, 'logout']);
+    $router->addRoute('GET', '/forgot-password', [AuthentificationController::class, 'showForgotPasswordForm']);
+    $router->addRoute('POST', '/forgot-password', [AuthentificationController::class, 'handleForgotPassword']);
+    $router->addRoute('GET', '/reset-password/{token}', [AuthentificationController::class, 'showResetPasswordForm']);
+    $router->addRoute('POST', '/reset-password/{token}', [AuthentificationController::class, 'handleResetPassword']);
+    $router->addRoute('GET', '/validate-email/{token}', [AuthentificationController::class, 'validateEmail']);
+    $router->addRoute('GET', '/2fa', [AuthentificationController::class, 'show2faForm']);
+    $router->addRoute('POST', '/2fa', [AuthentificationController::class, 'handle2faVerification']);
 
-// --- Définition des Middlewares ---
 
-Router::middleware('auth', function(Container $container) {
-    /** @var ServiceSecuriteInterface $securiteService */
-    $securiteService = $container->get(ServiceSecuriteInterface::class);
-    if (!$securiteService->estUtilisateurConnecte()) {
-        $container->get(BaseController::class)->addFlashMessage('warning', 'Veuillez vous connecter pour accéder à cette page.');
-        $container->get(BaseController::class)->redirect('/login');
-    }
-});
+    // --- Routes Protégées (nécessitent une connexion) ---
 
-Router::middleware('admin', function(Container $container) {
-    /** @var ServiceSecuriteInterface $securiteService */
-    $securiteService = $container->get(ServiceSecuriteInterface::class);
-    if (!$securiteService->utilisateurPossedePermission('TRAIT_ADMIN_DASHBOARD_ACCEDER')) {
-        $container->get(BaseController::class)->renderError(403, 'Accès refusé. Vous n\'avez pas les droits d\'administrateur.');
-    }
-});
+    // Dashboard principal (point d'entrée après connexion)
+    $router->addRoute('GET', '/dashboard', [DashboardController::class, 'index']);
 
-Router::middleware('etudiant', function(Container $container) {
-    /** @var ServiceSecuriteInterface $securiteService */
-    $securiteService = $container->get(ServiceSecuriteInterface::class);
-    $user = $securiteService->getUtilisateurConnecte();
-    if (!$user || $user['id_groupe_utilisateur'] !== 'GRP_ETUDIANT') {
-        $container->get(BaseController::class)->renderError(403, 'Accès refusé. Cette section est réservée aux étudiants.');
-    }
-});
+    // --- Section Administration ---
+    $router->addGroup('/admin', function (RouteCollector $r) {
+        $r->addRoute('GET', '/dashboard', [AdminDashboardController::class, 'index']);
 
-Router::middleware('personnel', function(Container $container) {
-    /** @var ServiceSecuriteInterface $securiteService */
-    $securiteService = $container->get(ServiceSecuriteInterface::class);
-    $user = $securiteService->getUtilisateurConnecte();
-    if (!$user || !in_array($user['id_groupe_utilisateur'], ['GRP_PERS_ADMIN', 'GRP_RS', 'GRP_AGENT_CONFORMITE'])) {
-        $container->get(BaseController::class)->renderError(403, 'Accès refusé. Cette section est réservée au personnel administratif.');
-    }
-});
+        // Gestion des utilisateurs
+        $r->addRoute('GET', '/utilisateurs', [UtilisateurController::class, 'list']); // Renommée de listUsers
+        $r->addRoute('GET', '/utilisateurs/creer', [UtilisateurController::class, 'showCreateUserForm']); // Formulaire de création
+        $r->addRoute('POST', '/utilisateurs/creer', [UtilisateurController::class, 'create']); // Renommée de handleCreateUser
+        $r->addRoute('GET', '/utilisateurs/{id}', [UtilisateurController::class, 'show']); // Renommée de showEditUserForm
+        $r->addRoute('POST', '/utilisateurs/{id}/modifier', [UtilisateurController::class, 'update']); // Renommée de handleEditUser
+        $r->addRoute('POST', '/utilisateurs/{id}/supprimer', [UtilisateurController::class, 'delete']); // Renommée de handleUserAction (delete)
 
-Router::middleware('commission', function(Container $container) {
-    /** @var ServiceSecuriteInterface $securiteService */
-    $securiteService = $container->get(ServiceSecuriteInterface::class);
-    $user = $securiteService->getUtilisateurConnecte();
-    if (!$user || !in_array($user['id_groupe_utilisateur'], ['GRP_COMMISSION', 'GRP_ENSEIGNANT'])) {
-        $container->get(BaseController::class)->renderError(403, 'Accès refusé. Cette section est réservée aux membres de la commission.');
-    }
-});
+        // Configuration
+        $r->addRoute('GET', '/configuration', [ConfigurationController::class, 'index']); // Renommée de showConfigurationPage
+        $r->addRoute('POST', '/configuration/parametres', [ConfigurationController::class, 'handleSystemParameters']);
+        $r->addRoute('POST', '/configuration/annees', [ConfigurationController::class, 'handleAcademicYearAction']);
+        $r->addRoute('POST', '/configuration/referentiels', [ConfigurationController::class, 'handleReferentialAction']);
+        $r->addRoute('GET', '/configuration/referentiels/{entityName}', [ConfigurationController::class, 'getReferentialDetails']); // AJAX
+        $r->addRoute('POST', '/configuration/documents', [ConfigurationController::class, 'handleDocumentModelAction']);
+        $r->addRoute('POST', '/configuration/notifications', [ConfigurationController::class, 'handleNotificationAction']);
+        $r->addRoute('POST', '/configuration/menus', [ConfigurationController::class, 'handleMenuOrder']);
+        $r->addRoute('POST', '/configuration/cache/clear', [ConfigurationController::class, 'clearCache']);
 
-// --- Définition des Routes ---
-
-// 1. Routes Publiques
-Router::get('/', [HomeController::class, 'index']);
-
-// 2. Routes d'Authentification
-Router::get('/login', [AuthentificationController::class, 'showLoginForm']);
-Router::post('/login', [AuthentificationController::class, 'handleLogin']);
-Router::post('/logout', [AuthentificationController::class, 'logout']);
-Router::get('/forgot-password', [AuthentificationController::class, 'showForgotPasswordForm']);
-Router::post('/forgot-password', [AuthentificationController::class, 'handleForgotPassword']);
-Router::get('/reset-password/{token}', [AuthentificationController::class, 'showResetPasswordForm']);
-Router::post('/reset-password', [AuthentificationController::class, 'handleResetPassword']);
-Router::get('/validate-email/{token}', [AuthentificationController::class, 'validateEmail']);
-Router::get('/2fa', [AuthentificationController::class, 'show2faForm']);
-Router::post('/2fa', [AuthentificationController::class, 'handle2faVerification']);
-
-// 3. Routes pour les Assets Protégés
-Router::get('/assets/protected/{type}/{filename}', [AssetController::class, 'serveProtectedFile']);
-
-// 4. Routes Protégées (nécessitent une authentification)
-Router::group(['middleware' => 'auth'], function() {
-
-    Router::get('/dashboard', [DashboardController::class, 'index']);
-
-    // 4.1. Routes du Module Étudiant
-    Router::group(['middleware' => 'etudiant'], function() {
-        Router::get('/etudiant/dashboard', [EtudiantDashboardController::class, 'index']);
-        // ...
+        // Supervision
+        $r->addRoute('GET', '/supervision', [SupervisionController::class, 'index']); // Renommée de showAuditLogs
+        $r->addRoute('GET', '/supervision/logs/{id}', [SupervisionController::class, 'getAuditLogDetails']); // AJAX
+        $r->addRoute('POST', '/supervision/logs/purge', [SupervisionController::class, 'purgeAuditLogs']);
+        $r->addRoute('POST', '/supervision/tasks/{idTache}', [SupervisionController::class, 'handleTaskAction']);
     });
 
-    // 4.2. Routes du Module Personnel Administratif
-    Router::group(['middleware' => 'personnel'], function() {
-        Router::get('/personnel/dashboard', [PersonnelDashboardController::class, 'index']);
-        // ...
+    // --- Section Étudiant ---
+    $router->addGroup('/etudiant', function (RouteCollector $r) {
+        $r->addRoute('GET', '/dashboard', [EtudiantDashboardController::class, 'index']);
+        $r->addRoute('GET', '/profil', [ProfilEtudiantController::class, 'show']); // Renommée de showProfile
+        $r->addRoute('POST', '/profil', [ProfilEtudiantController::class, 'update']); // Renommée de updateProfile
+        $r->addRoute('POST', '/profil/photo', [ProfilEtudiantController::class, 'handlePhotoUpload']);
+
+        // Rapports
+        $r->addRoute('GET', '/rapport/redaction', [RapportController::class, 'edit']); // Renommée de showChoiceOrRedirect
+        $r->addRoute('POST', '/rapport/creer-depuis-modele', [RapportController::class, 'create']); // Renommée de handleCreateFromTemplate
+        $r->addRoute('GET', '/rapport/redaction/{idRapport}', [RapportController::class, 'show']); // Renommée de showRapportForm
+        $r->addRoute('POST', '/rapport/sauvegarder/{idRapport}', [RapportController::class, 'save']); // Renommée de saveRapport
+        $r->addRoute('POST', '/rapport/soumettre/{idRapport}', [RapportController::class, 'submit']); // Renommée de submitRapport
+        $r->addRoute('POST', '/rapport/soumettre-corrections/{idRapport}', [RapportController::class, 'submitCorrections']);
     });
 
-    // 4.3. Routes du Module Commission
-    Router::group(['middleware' => 'commission'], function() {
-        Router::get('/commission/dashboard', [CommissionDashboardController::class, 'index']);
-        // ...
+    // --- Section Commission ---
+    $router->addGroup('/commission', function (RouteCollector $r) {
+        $r->addRoute('GET', '/dashboard', [CommissionDashboardController::class, 'index']);
+
+        // Workflow de session
+        $r->addRoute('GET', '/workflow', [WorkflowCommissionController::class, 'index']); // Renommée de listSessions
+        $r->addRoute('POST', '/workflow/sessions/creer', [WorkflowCommissionController::class, 'create']); // Renommée de createSession
+        $r->addRoute('POST', '/workflow/rapports/{idRapport}/voter', [WorkflowCommissionController::class, 'vote']); // Renommée de submitVote
+        $r->addRoute('POST', '/workflow/sessions/{idSession}/initier-pv', [WorkflowCommissionController::class, 'initierPv']);
+        $r->addRoute('POST', '/workflow/pv/{idCompteRendu}/approuver', [WorkflowCommissionController::class, 'approuverPv']);
+        $r->addRoute('POST', '/workflow/pv/{idCompteRendu}/forcer-validation', [WorkflowCommissionController::class, 'forcerValidationPv']);
     });
 
-    // 4.4. Routes du Module Administrateur Système
-    Router::group(['middleware' => 'admin'], function() {
-        Router::get('/admin/dashboard', [AdminDashboardController::class, 'index']);
-        Router::get('/admin/configuration', [ConfigurationController::class, 'showConfigurationPage']);
-        // ...
+    // --- Section Personnel Administratif ---
+    $router->addGroup('/personnel', function (RouteCollector $r) {
+        $r->addRoute('GET', '/dashboard', [PersonnelDashboardController::class, 'index']);
+
+        // Conformité
+        $r->addRoute('GET', '/conformite/queue', [ScolariteController::class, 'conformiteQueue']); // Renommée de listConformiteQueue
+        $r->addRoute('GET', '/conformite/verifier/{idRapport}', [ScolariteController::class, 'showConformite']); // Renommée de showConformiteForm
+        $r->addRoute('POST', '/conformite/process/{idRapport}', [ScolariteController::class, 'processConformite']);
+
+        // Scolarité
+        $r->addRoute('GET', '/scolarite/etudiants', [ScolariteController::class, 'index']); // Renommée de listStudentRecords
+        $r->addRoute('GET', '/scolarite/etudiants/{idEtudiant}', [ScolariteController::class, 'showStudent']); // Renommée de showStudentDetails
+        $r->addRoute('POST', '/scolarite/etudiants/activer-compte', [ScolariteController::class, 'activateAccount']);
+        $r->addRoute('POST', '/scolarite/etudiants/inscription', [ScolariteController::class, 'handleInscriptionUpdate']);
+        $r->addRoute('POST', '/scolarite/etudiants/note', [ScolariteController::class, 'handleNoteEntry']);
+        $r->addRoute('POST', '/scolarite/etudiants/{numeroEtudiant}/stage/{idEntreprise}/valider', [ScolariteController::class, 'validerStage']);
+        $r->addRoute('POST', '/scolarite/penalites/{idPenalite}/regulariser', [ScolariteController::class, 'regulariserPenalite']);
+        $r->addRoute('POST', '/scolarite/reclamations/{idReclamation}/repondre', [ScolariteController::class, 'handleReponseReclamation']);
+        $r->addRoute('POST', '/scolarite/reclamations/{idReclamation}/cloturer', [ScolariteController::class, 'cloturerReclamation']);
+        $r->addRoute('GET', '/scolarite/etudiants/export/{format}', [ScolariteController::class, 'exportStudents']);
     });
-});
+
+    // --- Route pour servir les assets (CSS, JS, images) ---
+    // Le pattern {filePath:.+} permet de capturer les chemins avec des sous-dossiers.
+    $router->addRoute('GET', '/assets/{filePath:.+}', [AssetController::class, 'serve']);
+};

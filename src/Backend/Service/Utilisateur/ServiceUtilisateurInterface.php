@@ -29,4 +29,5 @@ interface ServiceUtilisateurInterface
     // --- Processus Métier ---
     public function gererTransitionsRoles(string $departingUserId, string $newUserId): array;
     public function importerEtudiantsDepuisFichier(string $filePath, array $mapping): array;
+    public function listerEntitesSansCompte(string $typeEntite): array; // Nouvelle méthode
 }

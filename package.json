@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Dépendances et scripts pour le frontend de GestionMySoutenance",
   "scripts": {
-    "build": "postcss src/css/input.css -o Public/assets/css/app.css",
+    "build": "cross-env NODE_ENV=production postcss src/css/input.css -o Public/assets/css/app.css",
     "watch": "postcss src/css/input.css -o Public/assets/css/app.css --watch"
   },
   "author": "ManuelD-Aho",
@@ -14,7 +14,8 @@
     "postcss": "^8.4.38",
     "postcss-cli": "^11.0.0",
     "postcss-import": "^16.1.1",
-    "tailwindcss": "^3.4.3"
+    "tailwindcss": "^3.4.3",
+    "cross-env": "^7.0.3"
   },
   "dependencies": {
     "bulma": "^1.0.0",

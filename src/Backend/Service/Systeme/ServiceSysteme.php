@@ -19,7 +19,6 @@ class ServiceSysteme implements ServiceSystemeInterface
     private ServiceSupervisionInterface $supervisionService;
     private Container $container;
     private ?array $parametresCache = null;
-    private array $modelFactoryCache = [];
 
     public function __construct(
         PDO $db,
@@ -37,7 +36,6 @@ class ServiceSysteme implements ServiceSystemeInterface
         $this->container = $container;
     }
 
-    // --- Gestion des Identifiants ---
     public function genererIdentifiantUnique(string $prefixe): string
     {
         $this->db->beginTransaction();
@@ -47,35 +45,29 @@ class ServiceSysteme implements ServiceSystemeInterface
                 throw new OperationImpossibleException("Impossible de générer un ID : aucune année académique n'est active.");
             }
             $annee = (int) substr($anneeActive['libelle_annee_academique'], 0, 4);
+
             $stmt = $this->db->prepare("SELECT valeur_actuelle FROM sequences WHERE nom_sequence = :prefixe AND annee = :annee FOR UPDATE");
             $stmt->execute([':prefixe' => $prefixe, ':annee' => $annee]);
             $sequence = $stmt->fetch(PDO::FETCH_ASSOC);
 
             $nextValue = $sequence ? $sequence['valeur_actuelle'] + 1 : 1;
-            $sequencesModel = $this->container->getModelForTable('sequences', ['nom_sequence', 'annee']);
+
             if ($sequence) {
                 $updateStmt = $this->db->prepare("UPDATE sequences SET valeur_actuelle = :valeur WHERE nom_sequence = :prefixe AND annee = :annee");
                 $updateStmt->execute([':valeur' => $nextValue, ':prefixe' => $prefixe, ':annee' => $annee]);
             } else {
-                $sequencesModel->creer([
-                    'nom_sequence' => $prefixe,
-                    'annee' => $annee,
-                    'valeur_actuelle' => $nextValue
-                ]);
+                $this->sequencesModel->creer(['nom_sequence' => $prefixe, 'annee' => $annee, 'valeur_actuelle' => $nextValue]);
             }
 
             $this->db->commit();
-            $identifiant = sprintf('%s-%d-%04d', $prefixe, $annee, $nextValue);
-            $this->supervisionService->enregistrerAction('SYSTEM', 'GENERATION_ID_UNIQUE', null, $identifiant, 'Identifiant');
-            return $identifiant;
+            return sprintf('%s-%d-%04d', strtoupper($prefixe), $annee, $nextValue);
         } catch (\Exception $e) {
             $this->db->rollBack();
             $this->supervisionService->enregistrerAction('SYSTEM', 'ECHEC_GENERATION_ID_UNIQUE', null, $prefixe, 'Identifiant', ['error' => $e->getMessage()]);
-            throw new OperationImpossibleException("Échec de la génération de l'identifiant unique pour le préfixe '{$prefixe}'.", 0, $e);
+            throw new OperationImpossibleException("Échec de la génération de l'identifiant pour '{$prefixe}'.", 0, $e);
         }
     }
 
-    // --- Gestion des Paramètres et du Mode Maintenance ---
     public function getParametre(string $cle, mixed $defaut = null)
     {
         if ($this->parametresCache === null) {
@@ -101,7 +93,7 @@ class ServiceSysteme implements ServiceSystemeInterface
                 $this->parametresModel->mettreAJourParIdentifiant($cle, ['valeur' => (string) $valeur]);
             }
             $this->parametresModel->validerTransaction();
-            $this->parametresCache = null;
+            $this->parametresCache = null; // Invalider le cache
             $this->supervisionService->enregistrerAction($_SESSION['user_id'] ?? 'SYSTEM', 'MISE_AJOUR_PARAMETRES');
             return true;
         } catch (\Exception $e) {
@@ -110,12 +102,9 @@ class ServiceSysteme implements ServiceSystemeInterface
         }
     }
 
-    public function activerMaintenanceMode(bool $actif, string $message = "Le site est en cours de maintenance. Veuillez réessayer plus tard."): bool
+    public function activerMaintenanceMode(bool $actif, string $message = "Le site est en cours de maintenance."): bool
     {
-        return $this->setParametres([
-            'MAINTENANCE_MODE_ENABLED' => $actif ? '1' : '0',
-            'MAINTENANCE_MODE_MESSAGE' => $message
-        ]);
+        return $this->setParametres(['MAINTENANCE_MODE_ENABLED' => $actif ? '1' : '0', 'MAINTENANCE_MODE_MESSAGE' => $message]);
     }
 
     public function estEnMaintenance(): bool
@@ -123,20 +112,15 @@ class ServiceSysteme implements ServiceSystemeInterface
         return (bool) $this->getParametre('MAINTENANCE_MODE_ENABLED', false);
     }
 
-    // --- Gestion des Années Académiques ---
     public function creerAnneeAcademique(string $libelle, string $dateDebut, string $dateFin, bool $estActive = false): string
     {
         $idAnnee = "ANNEE-" . str_replace('/', '-', $libelle);
         $this->anneeAcademiqueModel->creer([
-            'id_annee_academique' => $idAnnee,
-            'libelle_annee_academique' => $libelle,
-            'date_debut' => $dateDebut,
-            'date_fin' => $dateFin,
-            'est_active' => $estActive ? 1 : 0
+            'id_annee_academique' => $idAnnee, 'libelle_annee_academique' => $libelle,
+            'date_debut' => $dateDebut, 'date_fin' => $dateFin, 'est_active' => $estActive ? 1 : 0
         ]);
-        if ($estActive) {
-            $this->setAnneeAcademiqueActive($idAnnee);
-        }
+        if ($estActive) $this->setAnneeAcademiqueActive($idAnnee);
+
         $this->supervisionService->enregistrerAction($_SESSION['user_id'], 'CREATE_ANNEE_ACADEMIQUE', $idAnnee, 'AnneeAcademique');
         return $idAnnee;
     }
@@ -153,11 +137,10 @@ class ServiceSysteme implements ServiceSystemeInterface
 
     public function supprimerAnneeAcademique(string $idAnneeAcademique): bool
     {
-        $inscriptionModel = $this->container->getModelForTable('inscrire', ['numero_carte_etudiant', 'id_niveau_etude', 'id_annee_academique']);
+        $inscriptionModel = $this->container->getModelForTable('inscrire');
         if ($inscriptionModel->trouverUnParCritere(['id_annee_academique' => $idAnneeAcademique])) {
             throw new OperationImpossibleException("Suppression impossible : des inscriptions sont liées à cette année académique.");
         }
-        // ... (Ajoutez ici les autres vérifications de dépendances comme pour les rapports, évaluations, etc.)
         return $this->anneeAcademiqueModel->supprimerParIdentifiant($idAnneeAcademique);
     }
 
@@ -173,76 +156,58 @@ class ServiceSysteme implements ServiceSystemeInterface
 
     public function setAnneeAcademiqueActive(string $idAnneeAcademique): bool
     {
-        $this->anneeAcademiqueModel->commencerTransaction();
+        $this->db->beginTransaction();
         try {
             $this->db->exec("UPDATE annee_academique SET est_active = 0 WHERE est_active = 1");
-            $success = $this->anneeAcademiqueModel->mettreAJourParIdentifiant($idAnneeAcademique, ['est_active' => 1]);
-            if (!$success) throw new OperationImpossibleException("Impossible d'activer l'année académique '{$idAnneeAcademique}'.");
-            $this->anneeAcademiqueModel->validerTransaction();
+            $this->anneeAcademiqueModel->mettreAJourParIdentifiant($idAnneeAcademique, ['est_active' => 1]);
+            $this->db->commit();
             $this->supervisionService->enregistrerAction($_SESSION['user_id'] ?? 'SYSTEM', 'CHANGEMENT_ANNEE_ACTIVE', $idAnneeAcademique, 'AnneeAcademique');
             return true;
         } catch (\Exception $e) {
-            $this->anneeAcademiqueModel->annulerTransaction();
+            $this->db->rollBack();
             throw $e;
         }
     }
 
-    // --- Gestion des Référentiels ---
     public function gererReferentiel(string $operation, string $nomReferentiel, ?string $id = null, ?array $donnees = null)
     {
         $model = $this->container->getModelForTable($nomReferentiel);
         switch (strtolower($operation)) {
-            case 'list':
-                return $model->trouverTout();
+            case 'list': return $model->trouverTout();
             case 'read':
                 if ($id === null) throw new \InvalidArgumentException("L'ID est requis pour l'opération 'read'.");
                 return $model->trouverParIdentifiant($id);
             case 'create':
-                if ($donnees === null) throw new \InvalidArgumentException("Les données sont requises pour l'opération 'create'.");
-                $result = $model->creer($donnees);
-                $this->supervisionService->enregistrerAction($_SESSION['user_id'] ?? 'SYSTEM', 'CREATE_REFERENTIEL', $id, $nomReferentiel, $donnees);
-                return $result;
+                if ($donnees === null) throw new \InvalidArgumentException("Les données sont requises pour 'create'.");
+                $this->supervisionService->enregistrerAction($_SESSION['user_id'] ?? 'SYSTEM', 'CREATE_REFERENTIEL', null, $nomReferentiel, $donnees);
+                return $model->creer($donnees);
             case 'update':
-                if ($id === null || $donnees === null) throw new \InvalidArgumentException("L'ID et les données sont requis pour l'opération 'update'.");
-                $result = $model->mettreAJourParIdentifiant($id, $donnees);
+                if ($id === null || $donnees === null) throw new \InvalidArgumentException("L'ID et les données sont requis pour 'update'.");
                 $this->supervisionService->enregistrerAction($_SESSION['user_id'] ?? 'SYSTEM', 'UPDATE_REFERENTIEL', $id, $nomReferentiel, $donnees);
-                return $result;
+                return $model->mettreAJourParIdentifiant($id, $donnees);
             case 'delete':
-                if ($id === null) throw new \InvalidArgumentException("L'ID est requis pour l'opération 'delete'.");
-                $result = $model->supprimerParIdentifiant($id);
+                if ($id === null) throw new \InvalidArgumentException("L'ID est requis pour 'delete'.");
                 $this->supervisionService->enregistrerAction($_SESSION['user_id'] ?? 'SYSTEM', 'DELETE_REFERENTIEL', $id, $nomReferentiel);
-                return $result;
+                return $model->supprimerParIdentifiant($id);
             default:
-                throw new \InvalidArgumentException("Opération '{$operation}' non reconnue sur le référentiel '{$nomReferentiel}'.");
+                throw new \InvalidArgumentException("Opération '{$operation}' non reconnue sur le référentiel.");
         }
     }
 
-    /**
-     * ✅ CORRECTION : Implémentation de la méthode manquante.
-     * Met à jour la structure (ordre et parenté) des éléments du menu.
-     * @param array $menuStructure La nouvelle structure du menu.
-     * @return bool True en cas de succès.
-     * @throws \Exception
-     */
     public function updateMenuStructure(array $menuStructure): bool
     {
         $traitementModel = $this->container->getModelForTable('traitement', 'id_traitement');
-
         $this->db->beginTransaction();
         try {
             foreach ($menuStructure as $item) {
                 if (!isset($item['id']) || !isset($item['ordre'])) {
                     throw new OperationImpossibleException("Structure de menu invalide : id ou ordre manquant.");
                 }
-
                 $dataToUpdate = [
                     'ordre_affichage' => (int) $item['ordre'],
                     'id_parent_traitement' => $item['parent'] ?? null
                 ];
-
-                $success = $traitementModel->mettreAJourParIdentifiant($item['id'], $dataToUpdate);
-
-                if (!$success) {
+                if (!$traitementModel->mettreAJourParIdentifiant($item['id'], $dataToUpdate)) {
                     throw new OperationImpossibleException("Échec de la mise à jour de l'élément de menu : " . $item['id']);
                 }
             }

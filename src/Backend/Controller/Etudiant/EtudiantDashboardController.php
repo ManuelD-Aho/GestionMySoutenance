@@ -5,43 +5,60 @@ namespace App\Backend\Controller\Etudiant;
 
 use App\Backend\Controller\BaseController;
 use App\Backend\Service\WorkflowSoutenance\ServiceWorkflowSoutenanceInterface;
-use App\Backend\Service\Securite\ServiceSecuriteInterface;
-use App\Backend\Service\Supervision\ServiceSupervisionInterface;
-use App\Backend\Util\FormValidator;
+use App\Backend\Service\ParcoursAcademique\ServiceParcoursAcademiqueInterface;
+use App\Backend\Service\Securite\ServiceSecuriteInterface; // Ajout de la dépendance
+use App\Backend\Service\Supervision\ServiceSupervisionInterface; // Ajout de la dépendance
+use Exception;
 
+/**
+ * Gère l'affichage du tableau de bord principal de l'étudiant.
+ */
 class EtudiantDashboardController extends BaseController
 {
     private ServiceWorkflowSoutenanceInterface $serviceWorkflow;
+    private ServiceParcoursAcademiqueInterface $parcoursAcademiqueService;
 
     public function __construct(
-        ServiceSecuriteInterface $serviceSecurite,
-        ServiceSupervisionInterface $serviceSupervision,
-        FormValidator $formValidator,
-        ServiceWorkflowSoutenanceInterface $serviceWorkflow
+        ServiceWorkflowSoutenanceInterface $serviceWorkflow,
+        ServiceParcoursAcademiqueInterface $parcoursAcademiqueService,
+        ServiceSecuriteInterface $securiteService, // Injecté pour BaseController
+        ServiceSupervisionInterface $supervisionService // Injecté pour BaseController
     ) {
-        parent::__construct($serviceSecurite, $serviceSupervision, $formValidator);
+        parent::__construct($securiteService, $supervisionService);
         $this->serviceWorkflow = $serviceWorkflow;
+        $this->parcoursAcademiqueService = $parcoursAcademiqueService;
     }
 
     /**
-     * Affiche le tableau de bord de l'étudiant.
+     * Affiche le tableau de bord avec le statut du rapport et les alertes.
      */
     public function index(): void
     {
-        $this->checkPermission('TRAIT_ETUDIANT_DASHBOARD_ACCEDER');
-        $user = $this->serviceSecurite->getUtilisateurConnecte();
+        // 1. Permission d'accès
+        $this->requirePermission('TRAIT_ETUDIANT_DASHBOARD_ACCEDER');
+        $user = $this->securiteService->getUtilisateurConnecte();
 
         try {
-            $rapports = $this->serviceWorkflow->listerRapports(['numero_carte_etudiant' => $user['numero_utilisateur']]);
-            $rapportActif = !empty($rapports) ? $rapports[0] : null;
+            // 2. Récupérer le rapport de l'année académique active
+            $rapportActif = $this->serviceWorkflow->lireRapportPourAnneeActive($user['numero_utilisateur']);
 
-            $this->render('Etudiant/dashboard_etudiant.php', [
+            // 3. Obtenir les données structurées pour le "stepper"
+            $workflowSteps = $this->serviceWorkflow->getWorkflowStepsForRapport($rapportActif ? $rapportActif['id_rapport_etudiant'] : null);
+
+            // 4. Vérifier l'éligibilité pour afficher les alertes
+            $eligibilite = $this->parcoursAcademiqueService->estEtudiantEligibleSoumission($user['numero_utilisateur']);
+
+            $this->render('Etudiant/dashboard_etudiant', [
                 'title' => 'Mon Tableau de Bord',
-                'rapportActif' => $rapportActif
+                'rapportActif' => $rapportActif,
+                'workflowSteps' => $workflowSteps,
+                'estEligible' => $eligibilite
             ]);
-        } catch (\Exception $e) {
-            $this->serviceSupervision->enregistrerAction($user['numero_utilisateur'], 'DASHBOARD_ETUDIANT_ERROR', null, null, ['error' => $e->getMessage()]);
-            $this->render('errors/500.php', ['error_message' => "Impossible de charger les données de votre tableau de bord."]);
+
+        } catch (Exception $e) {
+            // 5. Gestion des erreurs
+            error_log("Erreur EtudiantDashboardController::index : " . $e->getMessage());
+            $this->renderError(500, "Une erreur est survenue lors du chargement de votre tableau de bord.");
         }
     }
 }

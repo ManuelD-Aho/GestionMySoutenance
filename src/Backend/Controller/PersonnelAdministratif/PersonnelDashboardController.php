@@ -6,9 +6,9 @@ namespace App\Backend\Controller\PersonnelAdministratif;
 use App\Backend\Controller\BaseController;
 use App\Backend\Service\WorkflowSoutenance\ServiceWorkflowSoutenanceInterface;
 use App\Backend\Service\Utilisateur\ServiceUtilisateurInterface;
-use App\Backend\Service\Securite\ServiceSecuriteInterface;
-use App\Backend\Service\Supervision\ServiceSupervisionInterface;
-use App\Backend\Util\FormValidator;
+use App\Backend\Service\Securite\ServiceSecuriteInterface; // Ajout de la dépendance
+use App\Backend\Service\Supervision\ServiceSupervisionInterface; // Ajout de la dépendance
+use Exception;
 
 class PersonnelDashboardController extends BaseController
 {
@@ -16,13 +16,12 @@ class PersonnelDashboardController extends BaseController
     private ServiceUtilisateurInterface $serviceUtilisateur;
 
     public function __construct(
-        ServiceSecuriteInterface $serviceSecurite,
-        ServiceSupervisionInterface $serviceSupervision,
-        FormValidator $formValidator,
         ServiceWorkflowSoutenanceInterface $serviceWorkflow,
-        ServiceUtilisateurInterface $serviceUtilisateur
+        ServiceUtilisateurInterface $serviceUtilisateur,
+        ServiceSecuriteInterface $securiteService, // Injecté pour BaseController
+        ServiceSupervisionInterface $supervisionService // Injecté pour BaseController
     ) {
-        parent::__construct($serviceSecurite, $serviceSupervision, $formValidator);
+        parent::__construct($securiteService, $supervisionService);
         $this->serviceWorkflow = $serviceWorkflow;
         $this->serviceUtilisateur = $serviceUtilisateur;
     }
@@ -33,20 +32,32 @@ class PersonnelDashboardController extends BaseController
      */
     public function index(): void
     {
-        $this->checkPermission('TRAIT_PERS_ADMIN_DASHBOARD_ACCEDER');
-        $user = $this->serviceSecurite->getUtilisateurConnecte();
+        // 1. Permission d'accès commune
+        $this->requirePermission('TRAIT_PERS_ADMIN_DASHBOARD_ACCEDER');
+        $user = $this->securiteService->getUtilisateurConnecte();
+
         $data = ['title' => 'Tableau de Bord Administratif'];
 
         try {
+            // Logique adaptative en fonction du groupe de l'utilisateur
             if ($user['id_groupe_utilisateur'] === 'GRP_AGENT_CONFORMITE') {
+                // 2. Pour l'agent de conformité : rapports soumis
                 $data['rapportsEnAttente'] = $this->serviceWorkflow->listerRapports(['id_statut_rapport' => 'RAP_SOUMIS']);
-            } elseif ($user['id_groupe_utilisateur'] === 'GRP_RS') {
-                $data['etudiantsAActiver'] = $this->serviceUtilisateur->listerUtilisateursComplets(['statut_compte' => 'en_attente_activation']);
             }
-            $this->render('PersonnelAdministratif/dashboard_personnel.php', $data);
-        } catch (\Exception $e) {
-            $this->serviceSupervision->enregistrerAction($user['numero_utilisateur'], 'DASHBOARD_PERSONNEL_ERROR', null, null, ['error' => $e->getMessage()]);
-            $this->render('errors/500.php', ['error_message' => "Impossible de charger les données du tableau de bord."]);
+            elseif ($user['id_groupe_utilisateur'] === 'GRP_RS') {
+                // 3. Pour le RS : étudiants sans compte utilisateur
+                $data['etudiantsSansCompte'] = $this->serviceUtilisateur->listerEntitesSansCompte('etudiant');
+                // 4. Pour le RS : réclamations ouvertes
+                $data['reclamationsOuvertes'] = $this->serviceWorkflow->listerReclamations(['id_statut_reclamation' => 'RECLA_OUVERTE']);
+                // Ajoutez ici d'autres données pour le RS si nécessaire (ex: stages à valider)
+            }
+
+            $this->render('PersonnelAdministratif/dashboard_personnel', $data);
+
+        } catch (Exception $e) {
+            // 5. Gestion des erreurs
+            error_log("Erreur PersonnelDashboardController::index : " . $e->getMessage());
+            $this->renderError(500, "Une erreur est survenue lors du chargement du tableau de bord.");
         }
     }
 }

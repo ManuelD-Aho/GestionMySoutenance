@@ -8,437 +8,362 @@ use App\Config\Container;
 use App\Backend\Service\Systeme\ServiceSystemeInterface;
 use App\Backend\Service\Document\ServiceDocumentInterface;
 use App\Backend\Service\Communication\ServiceCommunicationInterface;
-use App\Backend\Exception\{ElementNonTrouveException, OperationImpossibleException, ValidationException, DoublonException};
+use App\Backend\Service\Securite\ServiceSecuriteInterface; // Ajout de la dépendance
+use App\Backend\Service\Supervision\ServiceSupervisionInterface; // Ajout de la dépendance
+use App\Backend\Exception\{OperationImpossibleException, ValidationException};
+use Exception;
 
+/**
+ * Gère l'ensemble des configurations de l'application.
+ * Ce contrôleur centralise toutes les actions de l'administrateur liées aux paramètres,
+ * aux années académiques, aux référentiels, aux modèles de documents, aux notifications et aux menus.
+ * Il est structuré avec des méthodes spécifiques pour chaque action pour une clarté maximale.
+ */
 class ConfigurationController extends BaseController
 {
     private ServiceSystemeInterface $systemeService;
     private ServiceDocumentInterface $documentService;
     private ServiceCommunicationInterface $communicationService;
+    private Container $container; // Ajout du container pour getModelForTable
 
-    public function __construct(Container $container)
-    {
-        parent::__construct($container);
-        $this->systemeService = $container->get(ServiceSystemeInterface::class);
-        $this->documentService = $container->get(ServiceDocumentInterface::class);
-        $this->communicationService = $container->get(ServiceCommunicationInterface::class);
+    public function __construct(
+        ServiceSystemeInterface $systemeService,
+        ServiceDocumentInterface $documentService,
+        ServiceCommunicationInterface $communicationService,
+        ServiceSecuriteInterface $securiteService, // Injecté pour BaseController
+        ServiceSupervisionInterface $supervisionService, // Injecté pour BaseController
+        Container $container // Injecté pour getModelForTable
+    ) {
+        parent::__construct($securiteService, $supervisionService);
+        $this->systemeService = $systemeService;
+        $this->documentService = $documentService;
+        $this->communicationService = $communicationService;
+        $this->container = $container;
     }
 
+    /**
+     * Point d'entrée principal pour la page de configuration.
+     * Affiche la page principale de configuration avec tous ses onglets.
+     * Charge les données nécessaires à l'affichage initial de l'interface.
+     */
+    public function index(): void
+    {
+        $this->showConfigurationPage();
+    }
 
-    public function showConfigurationPage(): void
+    // ===================================================================
+    // PARTIE 1 : AFFICHAGE & DONNÉES DYNAMIQUES (AJAX)
+    // ===================================================================
+
+    /**
+     * Affiche la page principale de configuration avec tous ses onglets.
+     * Charge les données nécessaires à l'affichage initial de l'interface.
+     */
+    private function showConfigurationPage(): void
     {
         $this->requirePermission('TRAIT_ADMIN_CONFIG_ACCEDER');
-
         try {
-            $systemParameters = $this->systemeService->getAllParametres();
-            $academicYears = $this->systemeService->listerAnneesAcademiques();
-            $activeYear = $this->systemeService->getAnneeAcademiqueActive();
-
-            $referentials = [
-                'action' => $this->systemeService->gererReferentiel('list', 'action'),
-                'critere_conformite_ref' => $this->systemeService->gererReferentiel('list', 'critere_conformite_ref'),
-                'decision_passage_ref' => $this->systemeService->gererReferentiel('list', 'decision_passage_ref'),
-                'decision_validation_pv_ref' => $this->systemeService->gererReferentiel('list', 'decision_validation_pv_ref'),
-                'decision_vote_ref' => $this->systemeService->gererReferentiel('list', 'decision_vote_ref'),
-                'ecue' => $this->systemeService->gererReferentiel('list', 'ecue'),
-                'entreprise' => $this->systemeService->gererReferentiel('list', 'entreprise'),
-                'fonction' => $this->systemeService->gererReferentiel('list', 'fonction'),
-                'grade' => $this->systemeService->gererReferentiel('list', 'grade'),
-                'groupe_utilisateur' => $this->systemeService->gererReferentiel('list', 'groupe_utilisateur'),
-                'niveau_acces_donne' => $this->systemeService->gererReferentiel('list', 'niveau_acces_donne'),
-                'niveau_etude' => $this->systemeService->gererReferentiel('list', 'niveau_etude'),
-                'specialite' => $this->systemeService->gererReferentiel('list', 'specialite'),
-                'statut_conformite_ref' => $this->systemeService->gererReferentiel('list', 'statut_conformite_ref'),
-                'statut_jury' => $this->systemeService->gererReferentiel('list', 'statut_jury'),
-                'statut_paiement_ref' => $this->systemeService->gererReferentiel('list', 'statut_paiement_ref'),
-                'statut_penalite_ref' => $this->systemeService->gererReferentiel('list', 'statut_penalite_ref'),
-                'statut_pv_ref' => $this->systemeService->gererReferentiel('list', 'statut_pv_ref'),
-                'statut_rapport_ref' => $this->systemeService->gererReferentiel('list', 'statut_rapport_ref'),
-                'statut_reclamation_ref' => $this->systemeService->gererReferentiel('list', 'statut_reclamation_ref'),
-                'traitement' => $this->systemeService->gererReferentiel('list', 'traitement'),
-                'type_document_ref' => $this->systemeService->gererReferentiel('list', 'type_document_ref'),
-                'type_utilisateur' => $this->systemeService->gererReferentiel('list', 'type_utilisateur'),
-                'ue' => $this->systemeService->gererReferentiel('list', 'ue'),
-                // Tables de liaison pour les référentiels
-                'acquerir' => $this->systemeService->gererReferentiel('list', 'acquerir'),
-                'attribuer' => $this->systemeService->gererReferentiel('list', 'attribuer'),
-                'occuper' => $this->systemeService->gererReferentiel('list', 'occuper'),
-                'rapport_modele_assignation' => $this->systemeService->gererReferentiel('list', 'rapport_modele_assignation'),
-                'rattacher' => $this->systemeService->gererReferentiel('list', 'rattacher'),
-                'pv_session_rapport' => $this->systemeService->gererReferentiel('list', 'pv_session_rapport'),
-                'session_rapport' => $this->systemeService->gererReferentiel('list', 'session_rapport'),
-                'validation_pv' => $this->systemeService->gererReferentiel('list', 'validation_pv'),
-                'vote_commission' => $this->systemeService->gererReferentiel('list', 'vote_commission'),
-            ];
-
-            $documentModels = $this->documentService->listerModelesDocument();
-            $notificationTemplates = $this->communicationService->listerModelesNotification();
-            $notificationRules = $this->communicationService->listerReglesMatrice();
-
             $data = [
-                'title' => 'Configuration Système',
-                'system_parameters' => $systemParameters,
-                'academic_years' => $academicYears,
-                'active_year' => $activeYear,
-                'referentials' => $referentials,
-                'document_models' => $documentModels,
-                'notification_templates' => $notificationTemplates,
-                'notification_rules' => $notificationRules,
-                'csrf_token_params' => $this->generateCsrfToken('system_params_form'),
-                'csrf_token_academic_years' => $this->generateCsrfToken('academic_years_form'),
-                'csrf_token_referentials' => $this->generateCsrfToken('referentials_form'),
-                'csrf_token_document_models' => $this->generateCsrfToken('document_models_form'),
-                'csrf_token_notifications' => $this->generateCsrfToken('notifications_form'),
-                'csrf_token_menu_order' => $this->generateCsrfToken('menu_order_form'),
+                'title' => 'Configuration du Système',
+                'system_parameters' => $this->systemeService->getAllParametres(),
+                'academic_years' => $this->systemeService->listerAnneesAcademiques(),
+                'referentials' => $this->getReferentialList(),
+                'document_models' => $this->documentService->listerModelesDocument(),
+                'notification_templates' => $this->communicationService->listerModelesNotification(),
+                'notification_rules' => $this->communicationService->listerReglesMatrice(),
+                'all_actions' => $this->systemeService->gererReferentiel('list', 'action'),
+                'all_user_groups' => $this->systemeService->gererReferentiel('list', 'groupe_utilisateur'),
+                'csrf_tokens' => [ // Centralisation des tokens pour la vue
+                    'params' => $this->generateCsrfToken('params_form'),
+                    'years' => $this->generateCsrfToken('years_form'),
+                    'refs' => $this->generateCsrfToken('refs_form'),
+                    'docs' => $this->generateCsrfToken('docs_form'),
+                    'notifs' => $this->generateCsrfToken('notifs_form'),
+                    'menus' => $this->generateCsrfToken('menus_form'),
+                    'cache' => $this->generateCsrfToken('cache_form'),
+                ]
             ];
-
-            $this->render('Administration/gestion_referentiels', $data);
-
-        } catch (ElementNonTrouveException $e) {
-            $this->addFlashMessage('error', 'Erreur: ' . $e->getMessage());
-            $this->renderError(404, 'Ressource non trouvée.');
-        } catch (OperationImpossibleException $e) {
-            $this->addFlashMessage('error', 'Opération impossible: ' . $e->getMessage());
-            $this->renderError(500, 'Erreur interne du serveur.');
-        } catch (\Exception $e) {
-            $this->addFlashMessage('error', 'Une erreur inattendue est survenue: ' . $e->getMessage());
-            $this->renderError(500, 'Erreur interne du serveur.');
+            $this->render('Administration/gestion_configuration', $data);
+        } catch (Exception $e) {
+            $this->addFlashMessage('error', 'Erreur de chargement de la page de configuration : ' . $e->getMessage());
+            $this->redirect('/admin/dashboard');
         }
     }
 
+    /**
+     * Récupère le panneau de détails pour un référentiel (appel AJAX).
+     * Permet une interface master-detail réactive.
+     */
+    public function getReferentialDetails(string $entityName): void
+    {
+        $this->requirePermission('TRAIT_ADMIN_CONFIG_REFERENTIELS_GERER');
+        try {
+            $entries = $this->systemeService->gererReferentiel('list', $entityName);
+            $this->render('Administration/_referential_details_panel', [
+                'entityName' => $entityName,
+                'entries' => $entries,
+                'csrf_token_refs' => $this->generateCsrfToken('refs_form'),
+            ], false); // Ne pas utiliser le layout principal
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo "Erreur: " . htmlspecialchars($e->getMessage());
+        }
+    }
+
+    // ===================================================================
+    // PARTIE 2 : GESTIONNAIRES D'ACTIONS (POST)
+    // ===================================================================
+
+    /**
+     * Traite la mise à jour des paramètres système.
+     */
     public function handleSystemParameters(): void
     {
         $this->requirePermission('TRAIT_ADMIN_CONFIG_PARAMETRES_GERER');
-
-        if (!$this->isPostRequest()) {
+        if (!$this->isPostRequest() || !$this->validateCsrfToken('params_form', $_POST['csrf_token'] ?? '')) {
             $this->redirect('/admin/configuration');
-        }
-
-        $data = $this->getPostData();
-
-        if (!$this->validateCsrfToken('system_params_form', $data['csrf_token_params'] ?? '')) {
-            $this->redirect('/admin/configuration');
+            return;
         }
 
         try {
-            $paramsToUpdate = [];
-            foreach ($data as $key => $value) {
-                if (str_starts_with($key, 'param_')) {
-                    $paramName = substr($key, 6);
-                    $paramsToUpdate[$paramName] = $value;
-                }
-            }
-            $this->systemeService->setParametres($paramsToUpdate);
+            $data = $this->getPostData();
+            unset($data['csrf_token']);
+            $this->systemeService->setParametres($data);
             $this->addFlashMessage('success', 'Paramètres système mis à jour avec succès.');
-        } catch (ValidationException $e) {
-            $this->addFlashMessage('error', 'Erreur de validation: ' . implode(', ', $e->getErrors()));
-        } catch (OperationImpossibleException $e) {
-            $this->addFlashMessage('error', 'Opération impossible: ' . $e->getMessage());
-        } catch (\Exception $e) {
-            $this->addFlashMessage('error', 'Une erreur inattendue est survenue: ' . $e->getMessage());
+        } catch (Exception $e) {
+            $this->addFlashMessage('error', 'Erreur lors de la mise à jour des paramètres : ' . $e->getMessage());
         }
         $this->redirect('/admin/configuration');
     }
 
-    public function addAcademicYear(): void
+    /**
+     * Traite les actions CRUD sur les années académiques.
+     */
+    public function handleAcademicYearAction(): void
     {
         $this->requirePermission('TRAIT_ADMIN_CONFIG_ANNEES_GERER');
-
-        if (!$this->isPostRequest()) {
-            $this->redirect('/admin/configuration');
+        if (!$this->isPostRequest() || !$this->validateCsrfToken('years_form', $_POST['csrf_token'] ?? '')) {
+            $this->redirect('/admin/configuration#years-tab');
+            return;
         }
 
         $data = $this->getPostData();
-
-        if (!$this->validateCsrfToken('academic_years_form', $data['csrf_token_academic_years'] ?? '')) {
-            $this->redirect('/admin/configuration');
-        }
-
-        try {
-            $libelle = $data['libelle_annee_academique'] ?? '';
-            $dateDebut = $data['date_debut'] ?? '';
-            $dateFin = $data['date_fin'] ?? '';
-            $estActive = isset($data['est_active']);
-
-            $this->systemeService->creerAnneeAcademique($libelle, $dateDebut, $dateFin, $estActive);
-            $this->addFlashMessage('success', 'Année académique ajoutée avec succès.');
-        } catch (DoublonException $e) {
-            $this->addFlashMessage('error', 'Erreur: ' . $e->getMessage());
-        } catch (ValidationException $e) {
-            $this->addFlashMessage('error', 'Erreur de validation: ' . implode(', ', $e->getErrors()));
-        } catch (OperationImpossibleException $e) {
-            $this->addFlashMessage('error', 'Opération impossible: ' . $e->getMessage());
-        } catch (\Exception $e) {
-            $this->addFlashMessage('error', 'Une erreur inattendue est survenue: ' . $e->getMessage());
-        }
-        $this->redirect('/admin/configuration');
-    }
-
-    public function updateAcademicYear(string $id): void
-    {
-        $this->requirePermission('TRAIT_ADMIN_CONFIG_ANNEES_GERER');
-
-        if (!$this->isPostRequest()) {
-            $this->redirect('/admin/configuration');
-        }
-
-        $data = $this->getPostData();
-
-        if (!$this->validateCsrfToken('academic_years_form', $data['csrf_token_academic_years'] ?? '')) {
-            $this->redirect('/admin/configuration');
-        }
-
-        try {
-            $donnees = [
-                'libelle_annee_academique' => $data['libelle_annee_academique'] ?? '',
-                'date_debut' => $data['date_debut'] ?? '',
-                'date_fin' => $data['date_fin'] ?? '',
-                'est_active' => isset($data['est_active']) ? 1 : 0,
-            ];
-            $this->systemeService->mettreAJourAnneeAcademique($id, $donnees);
-            $this->addFlashMessage('success', 'Année académique mise à jour avec succès.');
-        } catch (ElementNonTrouveException $e) {
-            $this->addFlashMessage('error', 'Erreur: ' . $e->getMessage());
-        } catch (ValidationException $e) {
-            $this->addFlashMessage('error', 'Erreur de validation: ' . implode(', ', $e->getErrors()));
-        } catch (OperationImpossibleException $e) {
-            $this->addFlashMessage('error', 'Opération impossible: ' . $e->getMessage());
-        } catch (\Exception $e) {
-            $this->addFlashMessage('error', 'Une erreur inattendue est survenue: ' . $e->getMessage());
-        }
-        $this->redirect('/admin/configuration');
-    }
-
-    public function deleteAcademicYear(string $id): void
-    {
-        $this->requirePermission('TRAIT_ADMIN_CONFIG_ANNEES_GERER');
-
-        if (!$this->isPostRequest()) {
-            $this->redirect('/admin/configuration');
-        }
-
-        $data = $this->getPostData(); // Pour récupérer le CSRF token
-
-        if (!$this->validateCsrfToken('academic_years_form', $data['csrf_token_academic_years'] ?? '')) {
-            $this->redirect('/admin/configuration');
-        }
-
-        try {
-            $this->systemeService->supprimerAnneeAcademique($id);
-            $this->addFlashMessage('success', 'Année académique supprimée avec succès.');
-        } catch (OperationImpossibleException $e) {
-            $this->addFlashMessage('error', 'Suppression impossible: ' . $e->getMessage());
-        } catch (\Exception $e) {
-            $this->addFlashMessage('error', 'Une erreur inattendue est survenue: ' . $e->getMessage());
-        }
-        $this->redirect('/admin/configuration');
-    }
-
-    public function setActiveAcademicYear(string $id): void
-    {
-        $this->requirePermission('TRAIT_ADMIN_CONFIG_ANNEES_GERER');
-
-        if (!$this->isPostRequest()) {
-            $this->redirect('/admin/configuration');
-        }
-
-        $data = $this->getPostData(); // Pour récupérer le CSRF token
-
-        if (!$this->validateCsrfToken('academic_years_form', $data['csrf_token_academic_years'] ?? '')) {
-            $this->redirect('/admin/configuration');
-        }
-
-        try {
-            $this->systemeService->setAnneeAcademiqueActive($id);
-            $this->addFlashMessage('success', 'Année académique active définie avec succès.');
-        } catch (ElementNonTrouveException $e) {
-            $this->addFlashMessage('error', 'Erreur: ' . $e->getMessage());
-        } catch (OperationImpossibleException $e) {
-            $this->addFlashMessage('error', 'Opération impossible: ' . $e->getMessage());
-        } catch (\Exception $e) {
-            $this->addFlashMessage('error', 'Une erreur inattendue est survenue: ' . $e->getMessage());
-        }
-        $this->redirect('/admin/configuration');
-    }
-
-    public function handleReferential(string $entityName, ?string $id = null): void
-    {
-        $this->requirePermission('TRAIT_ADMIN_CONFIG_REFERENTIELS_GERER');
-
-        if (!$this->isPostRequest()) {
-            $this->redirect('/admin/configuration');
-        }
-
-        $data = $this->getPostData();
-
-        if (!$this->validateCsrfToken('referentials_form', $data['csrf_token_referentials'] ?? '')) {
-            $this->redirect('/admin/configuration');
-        }
-
         $action = $data['action'] ?? '';
-        unset($data['action'], $data['csrf_token_referentials']); // Nettoyer les données pour le service
+        $id = $data['id'] ?? null;
 
         try {
             switch ($action) {
                 case 'create':
-                    $this->systemeService->gererReferentiel('create', $entityName, null, $data);
-                    $this->addFlashMessage('success', 'Entrée de référentiel ajoutée avec succès.');
+                    $this->systemeService->creerAnneeAcademique($data['libelle_annee_academique'], $data['date_debut'], $data['date_fin'], isset($data['est_active']));
+                    $this->addFlashMessage('success', "L'année académique '{$data['libelle_annee_academique']}' a été créée.");
                     break;
                 case 'update':
-                    if (!$id) throw new ValidationException("ID manquant pour la mise à jour.");
-                    $this->systemeService->gererReferentiel('update', $entityName, $id, $data);
-                    $this->addFlashMessage('success', 'Entrée de référentiel mise à jour avec succès.');
+                    $this->systemeService->mettreAJourAnneeAcademique($id, $data);
+                    $this->addFlashMessage('success', "L'année académique '{$id}' a été mise à jour.");
                     break;
                 case 'delete':
-                    if (!$id) throw new ValidationException("ID manquant pour la suppression.");
-                    $this->systemeService->gererReferentiel('delete', $entityName, $id);
-                    $this->addFlashMessage('success', 'Entrée de référentiel supprimée avec succès.');
+                    $this->systemeService->supprimerAnneeAcademique($id);
+                    $this->addFlashMessage('success', "L'année académique '{$id}' a été supprimée.");
+                    break;
+                case 'set_active':
+                    $this->systemeService->setAnneeAcademiqueActive($id);
+                    $this->addFlashMessage('success', "L'année académique '{$id}' est maintenant active.");
                     break;
                 default:
-                    throw new ValidationException("Action non reconnue pour le référentiel.");
+                    $this->addFlashMessage('error', 'Action non reconnue pour les années académiques.');
+                    break;
             }
-        } catch (DoublonException $e) {
-            $this->addFlashMessage('error', 'Erreur: ' . $e->getMessage());
-        } catch (ValidationException $e) {
-            $this->addFlashMessage('error', 'Erreur de validation: ' . $e->getMessage());
-        } catch (ElementNonTrouveException $e) {
-            $this->addFlashMessage('error', 'Erreur: ' . $e->getMessage());
+        } catch (Exception $e) {
+            $this->addFlashMessage('error', 'Erreur sur les années académiques : ' . $e->getMessage());
+        }
+        $this->redirect('/admin/configuration#years-tab');
+    }
+
+    /**
+     * Traite les actions CRUD sur un référentiel.
+     */
+    public function handleReferentialAction(): void
+    {
+        $this->requirePermission('TRAIT_ADMIN_CONFIG_REFERENTIELS_GERER');
+        if (!$this->isPostRequest() || !$this->validateCsrfToken('refs_form', $_POST['csrf_token'] ?? '')) {
+            $this->redirect('/admin/configuration#referentials-tab');
+            return;
+        }
+
+        $data = $this->getPostData();
+        $action = $data['action'] ?? '';
+        $entityName = $data['entity_name'] ?? '';
+        $id = $data['id'] ?? null;
+        $libelle = $data['libelle'] ?? 'N/A';
+
+        try {
+            switch ($action) {
+                case 'create':
+                    $model = $this->container->getModelForTable($entityName);
+                    $idKey = is_array($model->getClePrimaire()) ? $model->getClePrimaire()[0] : $model->getClePrimaire();
+                    $data[$idKey] = $this->_generateIdFromLabel($entityName, $libelle);
+                    $this->systemeService->gererReferentiel('create', $entityName, null, $data);
+                    $this->addFlashMessage('success', "L'entrée '{$libelle}' a été ajoutée au référentiel '{$entityName}'.");
+                    break;
+                case 'update':
+                    $this->systemeService->gererReferentiel('update', $entityName, $id, $data);
+                    $this->addFlashMessage('success', "L'entrée '{$id}' a été mise à jour dans le référentiel '{$entityName}'.");
+                    break;
+                case 'delete':
+                    $this->systemeService->gererReferentiel('delete', $entityName, $id);
+                    $this->addFlashMessage('success', "L'entrée '{$id}' a été supprimée du référentiel '{$entityName}'.");
+                    break;
+                default:
+                    $this->addFlashMessage('error', 'Action non reconnue pour les référentiels.');
+                    break;
+            }
         } catch (OperationImpossibleException $e) {
-            $this->addFlashMessage('error', 'Opération impossible: ' . $e->getMessage());
-        } catch (\Exception $e) {
-            $this->addFlashMessage('error', 'Une erreur inattendue est survenue: ' . $e->getMessage());
+            $this->addFlashMessage('error', $e->getMessage());
+        } catch (Exception $e) {
+            $this->addFlashMessage('error', "Erreur sur le référentiel '{$entityName}' : " . $e->getMessage());
         }
         $this->redirect('/admin/configuration#referentials-tab');
     }
 
-    public function handleDocumentModel(?string $id = null): void
+    /**
+     * Gère les actions CRUD sur les modèles de documents.
+     */
+    public function handleDocumentModelAction(): void
     {
         $this->requirePermission('TRAIT_ADMIN_CONFIG_MODELES_DOC_GERER');
+        if (!$this->isPostRequest() || !$this->validateCsrfToken('docs_form', $_POST['csrf_token'] ?? '')) {
+            $this->redirect('/admin/configuration#docs-tab');
+            return;
+        }
 
-        if (!$this->isPostRequest()) {
-            $this->redirect('/admin/configuration');
+        $action = $_POST['action'] ?? '';
+        $id = $_POST['id_modele'] ?? null;
+        try {
+            switch ($action) {
+                case 'import':
+                    $file = $this->getFileData('word_file');
+                    if (!$file || $file['error'] !== UPLOAD_ERR_OK) throw new ValidationException("Erreur de téléversement du fichier.");
+                    $this->documentService->importerModeleDocumentWord($file);
+                    $this->addFlashMessage('success', 'Modèle importé avec succès.');
+                    break;
+                case 'update':
+                    $this->documentService->mettreAJourModeleDocument($id, $_POST['nom_modele'], $_POST['contenu_html']);
+                    $this->addFlashMessage('success', "Le modèle '{$_POST['nom_modele']}' a été mis à jour.");
+                    break;
+                case 'delete':
+                    $this->documentService->supprimerModeleDocument($id);
+                    $this->addFlashMessage('success', "Le modèle '{$id}' a été supprimé.");
+                    break;
+                default:
+                    $this->addFlashMessage('error', 'Action non reconnue pour les modèles de documents.');
+                    break;
+            }
+        } catch (Exception $e) {
+            // Correction du message d'erreur générique
+            $this->addFlashMessage('error', "Erreur lors de l'opération sur le modèle de document : " . $e->getMessage());
+        }
+        $this->redirect('/admin/configuration#docs-tab');
+    }
+
+    /**
+     * Gère les actions sur les règles et modèles de notification.
+     */
+    public function handleNotificationAction(): void
+    {
+        $this->requirePermission('TRAIT_ADMIN_CONFIG_NOTIFS_GERER');
+        if (!$this->isPostRequest() || !$this->validateCsrfToken('notifs_form', $_POST['csrf_token'] ?? '')) {
+            $this->redirect('/admin/configuration#notifications-tab');
+            return;
         }
 
         $data = $this->getPostData();
-        $fileData = $this->getFileData('word_file');
-
-        if (!$this->validateCsrfToken('document_models_form', $data['csrf_token_document_models'] ?? '')) {
-            $this->redirect('/admin/configuration');
-        }
-
         $action = $data['action'] ?? '';
-        unset($data['action'], $data['csrf_token_document_models']);
 
         try {
             switch ($action) {
-                case 'create':
-                    if ($fileData && $fileData['error'] === UPLOAD_ERR_OK) {
-                        $this->documentService->importerModeleDocumentWord($fileData);
-                        $this->addFlashMessage('success', 'Modèle de document Word importé et créé avec succès.');
-                    } else {
-                        $this->documentService->creerModeleDocument($data['nom_modele'] ?? '', $data['contenu_html'] ?? '');
-                        $this->addFlashMessage('success', 'Modèle de document créé avec succès.');
-                    }
+                case 'update_rule':
+                    $this->communicationService->mettreAJourRegleMatrice($data['id_regle'], $data['canal'], isset($data['est_active']));
+                    $this->addFlashMessage('success', "La règle de notification '{$data['id_regle']}' a été mise à jour.");
                     break;
-                case 'update':
-                    if (!$id) throw new ValidationException("ID manquant pour la mise à jour.");
-                    $this->documentService->mettreAJourModeleDocument($id, $data['nom_modele'] ?? '', $data['contenu_html'] ?? '');
-                    $this->addFlashMessage('success', 'Modèle de document mis à jour avec succès.');
-                    break;
-                case 'delete':
-                    if (!$id) throw new ValidationException("ID manquant pour la suppression.");
-                    $this->documentService->supprimerModeleDocument($id);
-                    $this->addFlashMessage('success', 'Modèle de document supprimé avec succès.');
+                case 'update_template':
+                    $this->communicationService->mettreAJourModeleNotification($data['id'], $data['libelle'], $data['contenu']);
+                    $this->addFlashMessage('success', "Le modèle de notification '{$data['id']}' a été mis à jour.");
                     break;
                 default:
-                    throw new ValidationException("Action non reconnue pour le modèle de document.");
-            }
-        } catch (ValidationException $e) {
-            $this->addFlashMessage('error', 'Erreur de validation: ' . $e->getMessage());
-        } catch (ElementNonTrouveException $e) {
-            $this->addFlashMessage('error', 'Erreur: ' . $e->getMessage());
-        } catch (OperationImpossibleException $e) {
-            $this->addFlashMessage('error', 'Opération impossible: ' . $e->getMessage());
-        } catch (\Exception $e) {
-            $this->addFlashMessage('error', 'Une erreur inattendue est survenue: ' . $e->getMessage());
-        }
-        $this->redirect('/admin/configuration#document-models-tab');
-    }
-
-    public function handleNotificationSettings(): void
-    {
-        $this->requirePermission('TRAIT_ADMIN_CONFIG_NOTIFS_GERER');
-
-        if (!$this->isPostRequest()) {
-            $this->redirect('/admin/configuration');
-        }
-
-        $data = $this->getPostData();
-
-        if (!$this->validateCsrfToken('notifications_form', $data['csrf_token_notifications'] ?? '')) {
-            $this->redirect('/admin/configuration');
-        }
-
-        $type = $data['type'] ?? '';
-        unset($data['type'], $data['csrf_token_notifications']);
-
-        try {
-            switch ($type) {
-                case 'template_update':
-                    $this->communicationService->mettreAJourModeleNotification($data['id'] ?? '', $data['libelle'] ?? '', $data['contenu'] ?? '');
-                    $this->addFlashMessage('success', 'Modèle de notification mis à jour avec succès.');
+                    $this->addFlashMessage('error', 'Action non reconnue pour les notifications.');
                     break;
-                case 'rule_update':
-                    $this->communicationService->mettreAJourRegleMatrice($data['id'] ?? '', $data['canal'] ?? '', isset($data['est_active']));
-                    $this->addFlashMessage('success', 'Règle de matrice de notification mise à jour avec succès.');
-                    break;
-                default:
-                    throw new ValidationException("Type d'action non reconnu pour les notifications.");
             }
-        } catch (ValidationException $e) {
-            $this->addFlashMessage('error', 'Erreur de validation: ' . $e->getMessage());
-        } catch (ElementNonTrouveException $e) {
-            $this->addFlashMessage('error', 'Erreur: ' . $e->getMessage());
-        } catch (OperationImpossibleException $e) {
-            $this->addFlashMessage('error', 'Opération impossible: ' . $e->getMessage());
-        } catch (\Exception $e) {
-            $this->addFlashMessage('error', 'Une erreur inattendue est survenue: ' . $e->getMessage());
+        } catch (Exception $e) {
+            $this->addFlashMessage('error', "Erreur sur les notifications : " . $e->getMessage());
         }
         $this->redirect('/admin/configuration#notifications-tab');
     }
 
+    /**
+     * Traite la mise à jour de la structure des menus.
+     */
     public function handleMenuOrder(): void
     {
         $this->requirePermission('TRAIT_ADMIN_CONFIG_MENUS_GERER');
-
-        if (!$this->isPostRequest()) {
-            $this->redirect('/admin/configuration');
-        }
-
-        $data = $this->getPostData();
-
-        if (!$this->validateCsrfToken('menu_order_form', $data['csrf_token_menu_order'] ?? '')) {
-            $this->redirect('/admin/configuration');
+        if (!$this->isPostRequest() || !$this->validateCsrfToken('menus_form', $_POST['csrf_token'] ?? '')) {
+            $this->redirect('/admin/configuration#menus-tab');
+            return;
         }
 
         try {
-            // Récupère la chaîne JSON et la décode en tableau PHP
-            $menuStructure = json_decode($data['menu_structure'] ?? '[]', true);
-
-            if (!is_array($menuStructure) || empty($menuStructure)) {
-                throw new ValidationException("Structure de menu invalide ou vide.");
-            }
-
-            // Appel au service pour mettre à jour la base de données
-            $this->securiteService->updateMenuStructure($menuStructure);
-            $this->addFlashMessage('success', 'Ordre des menus mis à jour avec succès.');
-        } catch (ValidationException $e) {
-            $this->addFlashMessage('error', 'Erreur de validation: ' . $e->getMessage());
-        } catch (OperationImpossibleException $e) {
-            $this->addFlashMessage('error', 'Opération impossible: ' . $e->getMessage());
-        } catch (\Exception $e) {
-            $this->addFlashMessage('error', 'Une erreur inattendue est survenue: ' . $e->getMessage());
+            $menuStructure = json_decode($_POST['menu_structure'] ?? '[]', true);
+            if (!is_array($menuStructure)) throw new ValidationException("Structure de menu invalide.");
+            $this->systemeService->updateMenuStructure($menuStructure);
+            $this->addFlashMessage('success', "La structure du menu a été sauvegardée.");
+        } catch (Exception $e) {
+            $this->addFlashMessage('error', 'Erreur lors de la sauvegarde du menu : ' . $e->getMessage());
         }
         $this->redirect('/admin/configuration#menus-tab');
+    }
+
+    /**
+     * Vide les caches de l'application.
+     */
+    public function clearCache(): void
+    {
+        $this->requirePermission('TRAIT_ADMIN_CONFIG_ACCEDER');
+        if (!$this->isPostRequest() || !$this->validateCsrfToken('cache_form', $_POST['csrf_token'] ?? '')) {
+            $this->redirect('/admin/configuration');
+            return;
+        }
+
+        unset($_SESSION['admin_dashboard_stats']);
+        $this->addFlashMessage('success', 'Les caches de l\'application ont été vidés.');
+        $this->redirect('/admin/configuration');
+    }
+
+    // ===================================================================
+    // PARTIE 3 : MÉTHODES PRIVÉES UTILITAIRES
+    // ===================================================================
+
+    private function _generateIdFromLabel(string $entityName, string $label): string
+    {
+        $prefix = strtoupper(substr($entityName, 0, 4));
+        $cleanLabel = iconv('UTF-8', 'ASCII//TRANSLIT', $label);
+        $cleanLabel = strtoupper(trim($cleanLabel));
+        $slug = preg_replace('/[^A-Z0-9]+/', '_', $cleanLabel);
+        return rtrim($prefix, '_') . '_' . trim($slug, '_');
+    }
+
+    private function getReferentialList(): array
+    {
+        $referentialKeys = [
+            'grade', 'fonction', 'specialite', 'niveau_etude', 'statut_rapport_ref',
+            'statut_pv_ref', 'statut_paiement_ref', 'decision_vote_ref', 'statut_conformite_ref',
+            'statut_reclamation_ref', 'type_document_ref', 'statut_jury', 'action', 'groupe_utilisateur',
+            'critere_conformite_ref', 'decision_passage_ref', 'decision_validation_pv_ref',
+            'niveau_acces_donne', 'type_utilisateur', 'ue', 'ecue', 'entreprise'
+        ];
+        $list = [];
+        foreach ($referentialKeys as $key) {
+            $list[$key] = ucwords(str_replace(['_', ' ref'], [' ', ''], $key));
+        }
+        asort($list);
+        return $list;
     }
 }

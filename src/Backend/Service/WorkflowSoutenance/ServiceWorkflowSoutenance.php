@@ -89,9 +89,11 @@ class ServiceWorkflowSoutenance implements ServiceWorkflowSoutenanceInterface
                 $this->rapportModel->creer($metadonnees);
             }
 
+            // Supprimer les sections existantes pour ce rapport avant de les recréer/mettre à jour
+            $this->sectionRapportModel->supprimerParCles(['id_rapport_etudiant' => $idRapport]);
+
             foreach ($sections as $titre => $contenu) {
-                $this->sectionRapportModel->mettreAJourParCles(['id_rapport_etudiant' => $idRapport, 'titre_section' => $titre], ['contenu_section' => $contenu])
-                || $this->sectionRapportModel->creer(['id_rapport_etudiant' => $idRapport, 'titre_section' => $titre, 'contenu_section' => $contenu]);
+                $this->sectionRapportModel->creer(['id_rapport_etudiant' => $idRapport, 'titre_section' => $titre, 'contenu_section' => $contenu]);
             }
 
             $this->db->commit();
@@ -130,7 +132,7 @@ class ServiceWorkflowSoutenance implements ServiceWorkflowSoutenanceInterface
     {
         $rapport = $this->rapportModel->trouverParIdentifiant($idRapport);
         if (!$rapport) return null;
-        $rapport['sections'] = $this->sectionRapportModel->trouverParCritere(['id_rapport_etudiant' => $idRapport]);
+        $rapport['sections'] = $this->sectionRapportModel->trouverParCritere(['id_rapport_etudiant' => $idRapport], ['*'], 'AND', 'ordre ASC');
         $rapport['conformite_details'] = $this->conformiteDetailsModel->trouverParCritere(['id_rapport_etudiant' => $idRapport]);
         $rapport['votes'] = $this->voteModel->trouverParCritere(['id_rapport_etudiant' => $idRapport]);
         return $rapport;
@@ -151,9 +153,126 @@ class ServiceWorkflowSoutenance implements ServiceWorkflowSoutenanceInterface
         if ($success) {
             $this->supervisionService->enregistrerAction($adminId, 'FORCER_CHANGEMENT_STATUT_RAPPORT', $idRapport, 'RapportEtudiant', ['ancien_statut' => $rapport['id_statut_rapport'], 'nouveau_statut' => $nouveauStatut, 'justification' => $justification]);
             // Notifier l'étudiant du changement de statut forcé
-            $this->communicationService->envoyerNotificationInterne($rapport['numero_carte_etudiant'], 'STATUT_RAPPORT_FORCE', "Le statut de votre rapport a été modifié manuellement par l'administration : {$nouveauStatut}. Justification : {$justification}");
+            $this->communicationService->envoyerNotificationInterne($rapport['numero_carte_etudiant'], 'STATUT_RAPPORT_FORCE', ['id_rapport' => $idRapport, 'nouveau_statut' => $nouveauStatut, 'justification' => $justification]);
         }
         return $success;
+    }
+
+    /**
+     * Lit le rapport de l'étudiant pour l'année académique active.
+     * @param string $numeroEtudiant
+     * @return array|null
+     */
+    public function lireRapportPourAnneeActive(string $numeroEtudiant): ?array
+    {
+        $anneeActive = $this->systemeService->getAnneeAcademiqueActive();
+        if (!$anneeActive) {
+            return null; // Aucune année académique active définie
+        }
+
+        // On cherche le rapport le plus récent de l'étudiant pour l'année active
+        // ou un rapport en brouillon/correction s'il existe
+        $rapport = $this->rapportModel->trouverUnParCritere(
+            [
+                'numero_carte_etudiant' => $numeroEtudiant,
+                'id_statut_rapport' => ['operator' => 'IN', 'value' => ['RAP_BROUILLON', 'RAP_SOUMIS', 'RAP_NON_CONF', 'RAP_CONF', 'RAP_EN_COMMISSION', 'RAP_CORRECT', 'RAP_VALID', 'RAP_REFUSE']]
+            ],
+            ['*'],
+            'AND',
+            'date_derniere_modif DESC'
+        );
+
+        // Si un rapport est trouvé, on vérifie s'il est lié à l'année active ou s'il est en cours de traitement
+        // Pour simplifier, on suppose que le rapport le plus récent est celui pertinent pour l'année active
+        // Une logique plus complexe pourrait lier les rapports aux inscriptions par année académique
+        return $rapport;
+    }
+
+    /**
+     * Retourne les étapes du workflow pour un rapport donné, avec leur statut.
+     * @param string|null $idRapport
+     * @return array
+     */
+    public function getWorkflowStepsForRapport(?string $idRapport): array
+    {
+        $steps = $this->systemeService->gererReferentiel('list', 'statut_rapport_ref');
+        $currentRapportStatus = null;
+        if ($idRapport) {
+            $rapport = $this->rapportModel->trouverParIdentifiant($idRapport);
+            $currentRapportStatus = $rapport['id_statut_rapport'] ?? null;
+        }
+
+        $workflow = [];
+        foreach ($steps as $step) {
+            // Filtrer les statuts qui ne sont pas des étapes de workflow visibles pour l'étudiant
+            if (str_starts_with($step['id_statut_rapport'], 'RAP_') && $step['etape_workflow'] !== null) {
+                $workflow[$step['etape_workflow']] = [
+                    'id' => $step['id_statut_rapport'],
+                    'label' => $step['libelle_statut_rapport'],
+                    'completed' => false,
+                    'current' => false
+                ];
+            }
+        }
+
+        ksort($workflow); // Trier par ordre d'étape
+
+        $completed = true;
+        foreach ($workflow as $key => &$step) {
+            if ($step['id'] === $currentRapportStatus) {
+                $step['current'] = true;
+                $completed = false; // Les étapes suivantes ne sont pas complétées
+            }
+            if ($completed) {
+                $step['completed'] = true;
+            }
+        }
+        unset($step); // Rompre la référence
+
+        return array_values($workflow); // Retourner un tableau indexé numériquement
+    }
+
+    /**
+     * Liste les modèles de rapport disponibles pour la création.
+     * @return array
+     */
+    public function listerModelesRapportDisponibles(): array
+    {
+        // Pour l'instant, on liste tous les modèles publiés.
+        // On pourrait ajouter une logique pour filtrer par niveau d'étude de l'étudiant.
+        return $this->systemeService->gererReferentiel('list', 'rapport_modele');
+    }
+
+    /**
+     * Crée un nouveau rapport pour un étudiant à partir d'un modèle.
+     * @param string $numeroEtudiant
+     * @param string $idModele
+     * @return string L'ID du nouveau rapport créé.
+     * @throws ElementNonTrouveException
+     * @throws OperationImpossibleException
+     */
+    public function creerRapportDepuisModele(string $numeroEtudiant, string $idModele): string
+    {
+        $modele = $this->systemeService->gererReferentiel('read', 'rapport_modele', $idModele);
+        if (!$modele) {
+            throw new ElementNonTrouveException("Modèle de rapport '{$idModele}' non trouvé.");
+        }
+
+        $sectionsModele = $this->systemeService->gererReferentiel('list', 'rapport_modele_section', ['id_modele' => $idModele]);
+
+        $metadonnees = [
+            'libelle_rapport_etudiant' => "Nouveau rapport basé sur le modèle : " . $modele['nom_modele'],
+            'theme' => 'Thème à définir',
+            'resume' => '<p>Résumé du rapport...</p>',
+            'nombre_pages' => 0
+        ];
+
+        $sections = [];
+        foreach ($sectionsModele as $section) {
+            $sections[$section['titre_section']] = $section['contenu_par_defaut'] ?? '';
+        }
+
+        return $this->creerOuMettreAJourBrouillon($numeroEtudiant, $metadonnees, $sections);
     }
 
     // ====================================================================
@@ -164,6 +283,9 @@ class ServiceWorkflowSoutenance implements ServiceWorkflowSoutenanceInterface
     {
         $this->db->beginTransaction();
         try {
+            // Supprimer les anciens détails de conformité pour ce rapport avant de les recréer
+            $this->conformiteDetailsModel->supprimerParCles(['id_rapport_etudiant' => $idRapport]);
+
             $this->approuverModel->creer([
                 'numero_personnel_administratif' => $numeroPersonnel,
                 'id_rapport_etudiant' => $idRapport,
@@ -272,7 +394,15 @@ class ServiceWorkflowSoutenance implements ServiceWorkflowSoutenanceInterface
     {
         $session = $this->sessionValidationModel->trouverParIdentifiant($idSession);
         if (!$session) return null;
-        $session['rapports'] = $this->listerRapports(['id_session' => $idSession]); // Suppose une jointure
+        // Jointure pour récupérer les rapports associés à cette session
+        $sql = "SELECT sr.*, r.libelle_rapport_etudiant, r.numero_carte_etudiant, r.id_statut_rapport, e.nom, e.prenom
+                FROM session_rapport sr
+                JOIN rapport_etudiant r ON sr.id_rapport_etudiant = r.id_rapport_etudiant
+                JOIN etudiant e ON r.numero_carte_etudiant = e.numero_carte_etudiant
+                WHERE sr.id_session = :id_session";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([':id_session' => $idSession]);
+        $session['rapports'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
         return $session;
     }
 
@@ -280,6 +410,17 @@ class ServiceWorkflowSoutenance implements ServiceWorkflowSoutenanceInterface
     {
         // Cette logique dépend de la structure de votre table 'affecter' ou d'une nouvelle table 'rapporteur_rapport'
         // Pour l'exemple, nous allons supposer que 'affecter' peut être utilisée avec un statut spécifique.
+        // On vérifie si l'affectation existe déjà pour éviter les doublons
+        $existing = $this->affecterModel->trouverUnParCritere([
+            'numero_enseignant' => $numeroEnseignantRapporteur,
+            'id_rapport_etudiant' => $idRapport,
+            'id_statut_jury' => 'JURY_RAPPORTEUR'
+        ]);
+
+        if ($existing) {
+            return true; // Déjà désigné
+        }
+
         return (bool) $this->affecterModel->creer([
             'numero_enseignant' => $numeroEnseignantRapporteur,
             'id_rapport_etudiant' => $idRapport,
@@ -310,23 +451,49 @@ class ServiceWorkflowSoutenance implements ServiceWorkflowSoutenanceInterface
 
     public function enregistrerVote(string $idRapport, string $idSession, string $numeroEnseignant, string $decision, ?string $commentaire): bool
     {
-        $idVote = $this->systemeService->genererIdentifiantUnique('VOTE');
-        $tour = $this->voteModel->trouverUnParCritere(['id_rapport_etudiant' => $idRapport], ['MAX(tour_vote) as max_tour'])['max_tour'] ?? 1;
+        $this->db->beginTransaction();
+        try {
+            // Vérifier si l'utilisateur a déjà voté pour ce rapport dans ce tour
+            $currentTour = $this->voteModel->trouverUnParCritere(['id_rapport_etudiant' => $idRapport], ['MAX(tour_vote) as max_tour'])['max_tour'] ?? 1;
+            $existingVote = $this->voteModel->trouverUnParCritere([
+                'id_rapport_etudiant' => $idRapport,
+                'numero_enseignant' => $numeroEnseignant,
+                'tour_vote' => $currentTour
+            ]);
 
-        $success = (bool) $this->voteModel->creer([
-            'id_vote' => $idVote,
-            'id_session' => $idSession,
-            'id_rapport_etudiant' => $idRapport,
-            'numero_enseignant' => $numeroEnseignant,
-            'id_decision_vote' => $decision,
-            'commentaire_vote' => $commentaire,
-            'tour_vote' => $tour
-        ]);
+            if ($existingVote) {
+                // Mettre à jour le vote existant
+                $success = $this->voteModel->mettreAJourParIdentifiant($existingVote['id_vote'], [
+                    'id_decision_vote' => $decision,
+                    'commentaire_vote' => $commentaire,
+                    'date_vote' => date('Y-m-d H:i:s')
+                ]);
+            } else {
+                // Créer un nouveau vote
+                $idVote = $this->systemeService->genererIdentifiantUnique('VOTE');
+                $success = (bool) $this->voteModel->creer([
+                    'id_vote' => $idVote,
+                    'id_session' => $idSession,
+                    'id_rapport_etudiant' => $idRapport,
+                    'numero_enseignant' => $numeroEnseignant,
+                    'id_decision_vote' => $decision,
+                    'commentaire_vote' => $commentaire,
+                    'tour_vote' => $currentTour
+                ]);
+            }
 
-        if ($success) {
-            $this->verifierEtFinaliserVote($idRapport, $idSession);
+            if ($success) {
+                $this->db->commit();
+                $this->verifierEtFinaliserVote($idRapport, $idSession);
+                $this->supervisionService->enregistrerAction($numeroEnseignant, 'ENREGISTREMENT_VOTE', $idRapport, 'RapportEtudiant', ['decision' => $decision, 'session' => $idSession, 'tour' => $currentTour]);
+            } else {
+                $this->db->rollBack();
+            }
+            return $success;
+        } catch (\Exception $e) {
+            $this->db->rollBack();
+            throw $e;
         }
-        return $success;
     }
 
     public function lancerNouveauTourDeVote(string $idRapport, string $idSession): bool
@@ -336,6 +503,8 @@ class ServiceWorkflowSoutenance implements ServiceWorkflowSoutenanceInterface
 
         // Logique pour notifier les membres qu'un nouveau tour a commencé
         $this->supervisionService->enregistrerAction($_SESSION['user_id'], 'NOUVEAU_TOUR_VOTE', $idRapport, 'RapportEtudiant', ['session' => $idSession, 'tour' => $nouveauTour]);
+        // Le statut du rapport pourrait être mis à jour pour indiquer qu'il est en attente d'un nouveau tour de vote
+        // $this->changerStatutRapport($idRapport, 'RAP_EN_COMMISSION', 'GRP_COMMISSION', 'NOUVEAU_TOUR_VOTE');
         return true; // L'action est conceptuelle, elle ne modifie pas les anciens votes.
     }
 
@@ -391,12 +560,43 @@ class ServiceWorkflowSoutenance implements ServiceWorkflowSoutenanceInterface
         return $this->compteRenduModel->mettreAJourParIdentifiant($idCompteRendu, ['id_statut_pv' => 'PV_VALIDE']);
     }
 
+    /**
+     * Liste les PV en attente d'approbation pour un utilisateur donné.
+     * @param string $numeroUtilisateur
+     * @return array
+     */
+    public function listerPvAApprouver(string $numeroUtilisateur): array
+    {
+        // On suppose que seuls les membres de la commission peuvent approuver les PV
+        // et que le statut est 'PV_ATTENTE_APPROBATION'
+        $sql = "SELECT cr.*, sv.nom_session
+                FROM compte_rendu cr
+                JOIN session_validation sv ON cr.libelle_compte_rendu LIKE CONCAT('%', sv.id_session, '%')
+                WHERE cr.id_statut_pv = 'PV_ATTENTE_APPROBATION'
+                AND cr.id_redacteur != :user_id"; // Exclure le rédacteur lui-même s'il ne doit pas approuver son propre PV
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([':user_id' => $numeroUtilisateur]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
     // ====================================================================
     // PHASE 6: FINALISATION POST-VALIDATION
     // ====================================================================
 
     public function designerDirecteurMemoire(string $idRapport, string $numeroEnseignantDirecteur): bool
     {
+        // On vérifie si l'affectation existe déjà pour éviter les doublons
+        $existing = $this->affecterModel->trouverUnParCritere([
+            'numero_enseignant' => $numeroEnseignantDirecteur,
+            'id_rapport_etudiant' => $idRapport,
+            'directeur_memoire' => 1
+        ]);
+
+        if ($existing) {
+            return true; // Déjà désigné
+        }
+
         return (bool) $this->affecterModel->creer([
             'numero_enseignant' => $numeroEnseignantDirecteur,
             'id_rapport_etudiant' => $idRapport,
@@ -419,6 +619,7 @@ class ServiceWorkflowSoutenance implements ServiceWorkflowSoutenanceInterface
             'description_reclamation' => $description,
             'id_statut_reclamation' => 'RECLA_OUVERTE'
         ]);
+        $this->communicationService->envoyerNotificationGroupe('GRP_RS', 'NOUVELLE_RECLAMATION', ['sujet_reclamation' => $sujet]);
         return $idReclamation;
     }
 
@@ -434,12 +635,39 @@ class ServiceWorkflowSoutenance implements ServiceWorkflowSoutenanceInterface
 
     public function traiterReclamation(string $idReclamation, string $reponse, string $numeroPersonnel): bool
     {
-        return $this->reclamationModel->mettreAJourParIdentifiant($idReclamation, [
+        $success = $this->reclamationModel->mettreAJourParIdentifiant($idReclamation, [
             'reponse_reclamation' => $reponse,
             'date_reponse' => date('Y-m-d H:i:s'),
             'numero_personnel_traitant' => $numeroPersonnel,
             'id_statut_reclamation' => 'RECLA_RESOLUE'
         ]);
+        if ($success) {
+            $reclamation = $this->reclamationModel->trouverParIdentifiant($idReclamation);
+            $this->communicationService->envoyerNotificationInterne($reclamation['numero_carte_etudiant'], 'RECLAMATION_REPONDU', ['sujet_reclamation' => $reclamation['sujet_reclamation']]);
+        }
+        return $success;
+    }
+
+    /**
+     * Permet de répondre à une réclamation sans forcément la clôturer.
+     * @param string $idReclamation
+     * @param string $reponse
+     * @param string $numeroPersonnel
+     * @return bool
+     */
+    public function repondreAReclamation(string $idReclamation, string $reponse, string $numeroPersonnel): bool
+    {
+        $success = $this->reclamationModel->mettreAJourParIdentifiant($idReclamation, [
+            'reponse_reclamation' => $reponse,
+            'date_reponse' => date('Y-m-d H:i:s'),
+            'numero_personnel_traitant' => $numeroPersonnel,
+            'id_statut_reclamation' => 'RECLA_EN_COURS' // Statut mis à jour pour indiquer que la réclamation est en cours de traitement
+        ]);
+        if ($success) {
+            $reclamation = $this->reclamationModel->trouverParIdentifiant($idReclamation);
+            $this->communicationService->envoyerNotificationInterne($reclamation['numero_carte_etudiant'], 'RECLAMATION_REPONDU', ['sujet_reclamation' => $reclamation['sujet_reclamation']]);
+        }
+        return $success;
     }
 
     // --- Méthode privée utilitaire ---
@@ -453,10 +681,10 @@ class ServiceWorkflowSoutenance implements ServiceWorkflowSoutenanceInterface
         if ($success) {
             $this->supervisionService->enregistrerAction($_SESSION['user_id'] ?? 'SYSTEM', 'CHANGEMENT_STATUT_RAPPORT', $idRapport, 'RapportEtudiant', ['nouveau_statut' => $nouveauStatut]);
 
-            $this->communicationService->envoyerNotificationInterne($rapport['numero_carte_etudiant'], 'STATUT_RAPPORT_MAJ', "Le statut de votre rapport est passé à : {$nouveauStatut}");
+            $this->communicationService->envoyerNotificationInterne($rapport['numero_carte_etudiant'], 'STATUT_RAPPORT_MAJ', ['nouveau_statut' => $nouveauStatut]);
 
             if ($groupeANotifier && $templateNotification) {
-                $this->communicationService->envoyerNotificationGroupe($groupeANotifier, $templateNotification, "Le rapport {$idRapport} nécessite votre attention.");
+                $this->communicationService->envoyerNotificationGroupe($groupeANotifier, $templateNotification, ['id_rapport' => $idRapport]);
             }
         }
         return $success;
