@@ -45,6 +45,24 @@ CREATE TABLE `action` (
                           `categorie_action` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+INSERT INTO `action` (`id_action`, `libelle_action`, `categorie_action`) VALUES
+                                                                             ('COMPTE_BLOQUE', 'Compte Bloqué', 'Sécurité'),
+                                                                             ('NOUVEAU_RAPPORT_A_VERIFIER', 'Nouveau Rapport à Vérifier', 'Workflow'),
+                                                                             ('RAPPORT_CONFORME_A_EVALUER', 'Rapport Conforme à Évaluer', 'Workflow'),
+                                                                             ('NOUVELLE_DELEGATION', 'Nouvelle Délégation', 'Gestion Utilisateur'),
+                                                                             ('COMPTE_VALIDE', 'Compte Validé', 'Gestion Utilisateur'),
+                                                                             ('CORRECTIONS_REQUISES', 'Corrections Requises', 'Workflow'),
+                                                                             ('PAIEMENT_INSCRIPTION_ATTENTE', 'Paiement Inscription en Attente', 'Scolarité'),
+                                                                             ('PV_APPROUVE_DIFFUSE', 'PV Approuvé et Diffusé', 'Workflow'),
+                                                                             ('RAPPORT_REFUSE', 'Rapport Refusé', 'Workflow'),
+                                                                             ('RAPPORT_SOUMIS_SUCCES', 'Rapport Soumis avec Succès', 'Workflow'),
+                                                                             ('RAPPORT_VALID', 'Rapport Validé', 'Workflow'),
+                                                                             ('RECLAMATION_REPONDU', 'Réclamation Répondu', 'Communication'),
+                                                                             ('STATUT_RAPPORT_FORCE', 'Statut Rapport Forcé', 'Workflow'),
+                                                                             ('STATUT_RAPPORT_MAJ', 'Statut Rapport Mis à Jour', 'Workflow'),
+                                                                             ('NOUVEAU_STAGE_VALIDE', 'Nouveau Stage Validé', 'Parcours Académique'),
+                                                                             ('NOUVELLE_RECLAMATION', 'Nouvelle Réclamation', 'Communication');
+
 --
 -- Déchargement des données de la table `action`
 --

@@ -55,6 +55,8 @@ session_set_save_handler($sessionHandler, true);
 
 // Démarrer la session. Doit être fait après avoir défini le handler.
 session_start();
+error_log("Requête URI: " . $_SERVER['REQUEST_URI'] . " Méthode: " . $_SERVER['REQUEST_METHOD'] . " ID de Session: " . session_id());
+error_log("Données de session dans index.php (avant dispatch): " . json_encode($_SESSION));
 
 // --- 6. Routage et Dispatching de la Requête ---
 

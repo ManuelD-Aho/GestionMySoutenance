@@ -21,7 +21,11 @@ class DashboardController extends BaseController
      */
     public function index(): void
     {
+        error_log("DEBUG DashboardController: Accès au tableau de bord. ID de Session actuel: " . session_id());
+        error_log("DEBUG DashboardController: Données de session à l'accès du tableau de bord: " . json_encode($_SESSION));
+
         if (!$this->securiteService->estUtilisateurConnecte()) {
+            error_log("DEBUG DashboardController: Utilisateur NON connecté, redirection vers la connexion. ID de Session: " . session_id());
             $this->redirect('/login');
             return; // Suppression de l'instruction inaccessible
         }

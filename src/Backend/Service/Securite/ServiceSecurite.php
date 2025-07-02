@@ -70,24 +70,24 @@ class ServiceSecurite implements ServiceSecuriteInterface
             if ($utilisateur) {
                 $this->traiterTentativeEchouee($utilisateur['numero_utilisateur']);
             }
-            $this->supervisionService->enregistrerAction($identifiant, 'ECHEC_LOGIN', null, null, ['reason' => 'Identifiants invalides']);
+//            $this->supervisionService->enregistrerAction($identifiant, 'ECHEC_LOGIN', null, null, ['reason' => 'Identifiants invalides']);
             throw new IdentifiantsInvalidesException("Le login ou le mot de passe est incorrect.");
         }
 
         $numeroUtilisateur = $utilisateur['numero_utilisateur'];
 
         if ($this->estCompteBloque($utilisateur)) {
-            $this->supervisionService->enregistrerAction($numeroUtilisateur, 'ECHEC_LOGIN', null, null, ['reason' => 'Compte bloqué']);
+//            $this->supervisionService->enregistrerAction($numeroUtilisateur, 'ECHEC_LOGIN', null, null, ['reason' => 'Compte bloqué']);
             throw new CompteBloqueException("Votre compte est temporairement bloqué. Veuillez réessayer plus tard.");
         }
 
         if ($utilisateur['statut_compte'] !== 'actif' || !$utilisateur['email_valide']) {
-            $this->supervisionService->enregistrerAction($numeroUtilisateur, 'ECHEC_LOGIN', null, null, ['reason' => 'Compte non actif ou email non validé']);
+//            $this->supervisionService->enregistrerAction($numeroUtilisateur, 'ECHEC_LOGIN', null, null, ['reason' => 'Compte non actif ou email non validé']);
             throw new CompteNonValideException("Votre compte n'est pas actif ou votre email n'a pas été validé.");
         }
 
         $this->reinitialiserTentativesConnexion($numeroUtilisateur);
-        $this->supervisionService->enregistrerAction($numeroUtilisateur, 'SUCCES_LOGIN');
+//        $this->supervisionService->enregistrerAction($numeroUtilisateur, 'SUCCES_LOGIN');
 
         if ($utilisateur['preferences_2fa_active']) {
             $_SESSION['2fa_user_id'] = $numeroUtilisateur;
@@ -101,12 +101,16 @@ class ServiceSecurite implements ServiceSecuriteInterface
 
     public function demarrerSessionUtilisateur(string $numeroUtilisateur): void
     {
+        error_log("DEBUG SecuriteService: Début de la session pour l'utilisateur: " . $numeroUtilisateur);
         session_regenerate_id(true);
+        error_log("DEBUG SecuriteService: Nouvel ID de session après régénération: " . session_id());
         $_SESSION['user_id'] = $numeroUtilisateur;
         $_SESSION['last_activity'] = time();
+        error_log("DEBUG SecuriteService: _SESSION['user_id'] défini à: " . $_SESSION['user_id']);
 
         $user = $this->utilisateurModel->trouverParIdentifiant($numeroUtilisateur);
         if (!$user) {
+            error_log("ERROR SecuriteService: Données utilisateur non trouvées pour le démarrage de session ID: " . $numeroUtilisateur);
             throw new ElementNonTrouveException("Impossible de démarrer la session pour un utilisateur inexistant.");
         }
 
@@ -119,12 +123,14 @@ class ServiceSecurite implements ServiceSecuriteInterface
 
         unset($_SESSION['2fa_pending'], $_SESSION['2fa_user_id']);
         $this->utilisateurModel->mettreAJourParIdentifiant($numeroUtilisateur, ['derniere_connexion' => date('Y-m-d H:i:s')]);
+        error_log("DEBUG SecuriteService: Session entièrement peuplée pour l'utilisateur: " . ($_SESSION['user_id'] ?? 'N/A'));
+        error_log("DEBUG SecuriteService: Données de session complètes: " . json_encode($_SESSION));
     }
 
     public function logout(): void
     {
         $numeroUtilisateur = $_SESSION['user_id'] ?? 'ANONYMOUS';
-        $this->supervisionService->enregistrerAction($numeroUtilisateur, 'LOGOUT');
+//        $this->supervisionService->enregistrerAction($numeroUtilisateur, 'LOGOUT');
 
         $_SESSION = [];
         if (ini_get("session.use_cookies")) {
@@ -202,7 +208,7 @@ class ServiceSecurite implements ServiceSecuriteInterface
 
         $qrCodeUrl = $tfa->getQRCodeImageAsDataUri($utilisateur['email_principal'], $secret);
         $this->utilisateurModel->mettreAJourParIdentifiant($numeroUtilisateur, ['secret_2fa' => $secret]);
-        $this->supervisionService->enregistrerAction($numeroUtilisateur, 'GENERATION_2FA_SECRET');
+//        $this->supervisionService->enregistrerAction($numeroUtilisateur, 'GENERATION_2FA_SECRET');
 
         return ['secret' => $secret, 'qr_code_url' => $qrCodeUrl];
     }
@@ -213,12 +219,12 @@ class ServiceSecurite implements ServiceSecuriteInterface
         if (!$utilisateur || empty($utilisateur['secret_2fa'])) throw new OperationImpossibleException("Impossible d'activer la 2FA : aucun secret n'est généré.");
 
         if (!$this->verifierCodeAuthentificationDeuxFacteurs($numeroUtilisateur, $codeTOTP, $utilisateur['secret_2fa'])) {
-            $this->supervisionService->enregistrerAction($numeroUtilisateur, 'ECHEC_ACTIVATION_2FA', null, null, ['reason' => 'Code invalide']);
+//            $this->supervisionService->enregistrerAction($numeroUtilisateur, 'ECHEC_ACTIVATION_2FA', null, null, ['reason' => 'Code invalide']);
             throw new IdentifiantsInvalidesException("Le code de vérification est incorrect.");
         }
 
         $success = $this->utilisateurModel->mettreAJourParIdentifiant($numeroUtilisateur, ['preferences_2fa_active' => 1]);
-        if ($success) $this->supervisionService->enregistrerAction($numeroUtilisateur, 'ACTIVATION_2FA');
+//        if ($success) $this->supervisionService->enregistrerAction($numeroUtilisateur, 'ACTIVATION_2FA');
         return $success;
     }
 
@@ -228,7 +234,7 @@ class ServiceSecurite implements ServiceSecuriteInterface
         if (!$utilisateur || !password_verify($motDePasseClair, $utilisateur['mot_de_passe'])) throw new MotDePasseInvalideException("Le mot de passe est incorrect.");
 
         $success = $this->utilisateurModel->mettreAJourParIdentifiant($numeroUtilisateur, ['preferences_2fa_active' => 0, 'secret_2fa' => null]);
-        if ($success) $this->supervisionService->enregistrerAction($numeroUtilisateur, 'DESACTIVATION_2FA');
+//        if ($success) $this->supervisionService->enregistrerAction($numeroUtilisateur, 'DESACTIVATION_2FA');
         return $success;
     }
 
@@ -505,7 +511,7 @@ class ServiceSecurite implements ServiceSecuriteInterface
                 'date_changement' => date('Y-m-d H:i:s')
             ]);
             $this->utilisateurModel->validerTransaction();
-            $this->supervisionService->enregistrerAction($numeroUtilisateur, 'CHANGEMENT_MDP');
+//            $this->supervisionService->enregistrerAction($numeroUtilisateur, 'CHANGEMENT_MDP');
             return true;
         } catch (\Exception $e) {
             $this->utilisateurModel->annulerTransaction();

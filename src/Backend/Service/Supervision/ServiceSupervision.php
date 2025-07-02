@@ -88,6 +88,11 @@ class ServiceSupervision implements ServiceSupervisionInterface
                 'session_id_utilisateur' => session_id() ?: null
             ];
 
+            // Log l'ID généré et les données pour l'insertion
+            error_log("DEBUG ServiceSupervision: Tentative d'insertion dans 'enregistrer' avec id_enregistrement: " . $idEnregistrement . " et numero_utilisateur: " . $numeroUtilisateur);
+            error_log("DEBUG ServiceSupervision: Données complètes pour 'enregistrer': " . json_encode($data));
+
+
             $result = $this->enregistrerModel->creer($data);
             $this->db->commit();
             return (bool) $result;

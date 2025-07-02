@@ -104,9 +104,13 @@ abstract class BaseModel
             }
             return false;
         } catch (\PDOException $e) {
-            if ($e->getCode() == 23000) {
+            if ($e->getCode() === '23000') {
+                $backtrace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 10); // Récupère la pile d'appels
+                $caller = $backtrace[1] ?? ['function' => 'unknown', 'class' => 'unknown', 'file' => 'unknown', 'line' => 'unknown'];
+                error_log("Doublon détecté lors de la création dans {$this->table} (appelé par {$caller['class']}::{$caller['function']} à {$caller['file']}:{$caller['line']}): " . $e->getMessage());
                 throw new DoublonException("Une entrée avec des attributs uniques similaires existe déjà.");
             }
+            error_log("Erreur PDO lors de la création dans {$this->table}: " . $e->getMessage());
             throw $e;
         }
     }
