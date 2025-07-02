@@ -32,6 +32,7 @@ $content = $content ?? '';
         /* Ces styles sont maintenant gérés par Tailwind ou déplacés dans input.css */
         /* Ils sont laissés ici pour référence si vous aviez des styles inline critiques */
         body {
+
             font-family: 'Poppins', sans-serif;
             overflow: hidden;
         }

@@ -3673,7 +3673,6 @@ html:has(.drawer-toggle:checked) {
 }
 
 body {
-    display: flex;
     flex-direction: row;
     min-height: 100vh;
     max-width: 100vw;

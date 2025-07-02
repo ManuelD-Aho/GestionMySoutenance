@@ -147,27 +147,29 @@ class AuthentificationController extends BaseController
         ], 'layout/layout_auth');
     }
 
-    public function handleResetPassword(): void
+    public function handleResetPassword(string $token): void // <--- MODIFIEZ CETTE LIGNE (ajoutez "string $token")
     {
         if (!$this->isPostRequest()) {
             $this->redirect('/login');
-            return; // Suppression de l'instruction inaccessible
+            return;
         }
 
-        $data = $this->getPostData();
-        $token = $data['token'] ?? '';
+        $data = $this->getPostData(); // Gardez cette ligne pour récupérer les autres données du formulaire
+
         if (!$this->validateCsrfToken('reset_password_form', $data['csrf_token'] ?? '')) {
-            $this->redirect('/reset-password/' . $token);
-            return; // Suppression de l'instruction inaccessible
+            $this->addFlashMessage('error', 'Token CSRF invalide.');
+            $this->redirect('/reset-password/' . $token); // Utilisez $token de l'argument
+            return;
         }
 
         if (($data['nouveau_mot_de_passe'] ?? '') !== ($data['confirmation_mot_de_passe'] ?? '')) {
             $this->addFlashMessage('error', 'Les mots de passe ne correspondent pas.');
-            $this->redirect('/reset-password/' . $token);
-            return; // Suppression de l'instruction inaccessible
+            $this->redirect('/reset-password/' . $token); // Utilisez $token de l'argument
+            return;
         }
 
         try {
+            // Le $token vient maintenant directement de l'argument de la fonction
             $this->securiteService->reinitialiserMotDePasseViaToken($token, $data['nouveau_mot_de_passe']);
             $this->addFlashMessage('success', 'Votre mot de passe a été réinitialisé. Vous pouvez vous connecter.');
             $this->redirect('/login');
@@ -176,11 +178,11 @@ class AuthentificationController extends BaseController
             $this->redirect('/forgot-password');
         } catch (MotDePasseInvalideException $e) {
             $this->addFlashMessage('error', $e->getMessage());
-            $this->redirect('/reset-password/' . $token);
+            $this->redirect('/reset-password/' . $token); // Utilisez $token de l'argument
         } catch (Exception $e) {
             $this->addFlashMessage('error', 'Une erreur inattendue est survenue.');
             error_log("Erreur réinitialisation MDP: " . $e->getMessage());
-            $this->redirect('/reset-password/' . $token);
+            $this->redirect('/reset-password/' . $token); // Utilisez $token de l'argument
         }
     }
 
