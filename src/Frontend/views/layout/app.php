@@ -1,132 +1,339 @@
 <?php
-// src/Frontend/views/layout/app.php
+/**
+ * Layout principal modernisé - GestionMySoutenance
+ * Version mise à jour avec le nouveau système CSS/JS
+ */
 
-// Les variables essentielles passées par BaseController::render()
-// $title, $content (maintenant le chemin du fichier de vue), $flash_messages, $user, $is_impersonating, $impersonator_data, $menu_items
-// sont disponibles dans ce scope grâce à extract($data) dans BaseController.
+// Fonction d'échappement HTML, au cas où elle ne serait pas déjà définie globalement
+if (!function_exists('e')) {
+    function e($value) {
+        return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
+    }
+}
 
-$title = $title ?? 'GestionMySoutenance'; // Titre par défaut
+// $pageTitle doit être défini par le contrôleur de la vue spécifique chargée
+$pageTitle = $pageTitle ?? 'GestionMySoutenance - Tableau de Bord';
 
-// Récupérer l'URL courante pour que le menu puisse marquer l'élément actif
+// Démarrer la session si ce n'est pas déjà fait
+if (session_status() == PHP_SESSION_NONE) {
+    session_start();
+}
+
+// Gestion des messages flash modernisée
+$flash_messages = $_SESSION['flash_messages'] ?? [];
+$has_flash_messages = !empty(array_filter($flash_messages));
+
+// Récupérer l'URL courante pour le menu actif
 $current_url = $_SERVER['REQUEST_URI'];
 $current_url = strtok($current_url, '?'); // Nettoyer les paramètres GET
+
+// Déterminer si on est sur une page admin
+$is_admin_page = strpos($current_url, '/admin') === 0 ||
+    (isset($_SESSION['user_role']) && $_SESSION['user_role'] === 'admin');
+
+// Déterminer le type d'utilisateur pour les assets
+$user_role = $_SESSION['user_role'] ?? 'guest';
+$current_user = $current_user ?? null;
+
+// Classes CSS pour le body
+$body_classes = ['sidebar-open'];
+if ($is_admin_page) {
+    $body_classes[] = 'admin-layout';
+}
+if (isset($body_class)) {
+    $body_classes[] = $body_class;
+}
+
+// Version des assets (pour le cache)
+$asset_version = defined('ASSET_VERSION') ? ASSET_VERSION : '1.0.0';
+$is_development = ($_ENV['APP_ENV'] ?? 'production') === 'development';
+$cache_buster = $is_development ? '?v=' . time() : '?v=' . $asset_version;
 ?>
 <!DOCTYPE html>
-<html lang="fr" data-theme="mytheme">
+<html lang="fr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?= htmlspecialchars($title) ?></title>
-    <link rel="icon" href="/assets/favicon.ico">
+    <meta name="description" content="Système de gestion MySoutenance - Plateforme de gestion académique">
+    <meta name="author" content="GestionMySoutenance">
+    <meta name="robots" content="noindex, nofollow">
 
-    <link rel="stylesheet" href="/assets/css/app.css">
-    <link rel="stylesheet" href="/assets/css/root.css">
-    <link rel="stylesheet" href="/assets/css/style.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Montserrat:wght@400;600;700&display=swap" rel="stylesheet">
+    <title><?= e($pageTitle); ?></title>
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="/assets/images/favicon.ico">
+
+    <!-- CSS Principal - Ordre d'importance -->
+    <link rel="stylesheet" href="/assets/css/root.css<?= $cache_buster ?>">
+    <link rel="stylesheet" href="/assets/css/style.css<?= $cache_buster ?>">
+    <link rel="stylesheet" href="/assets/css/components.css<?= $cache_buster ?>">
+
+    <!-- CSS Admin (si nécessaire) -->
+    <?php if ($is_admin_page): ?>
+        <link rel="stylesheet" href="/assets/css/admin-enhanced.css<?= $cache_buster ?>">
+    <?php endif; ?>
+
+    <!-- CSS Legacy (conservation compatibilité) -->
+    <link rel="stylesheet" href="/assets/css/gestionsoutenance-dashboard.css<?= $cache_buster ?>">
+
+    <!-- CSS Utilitaires (toujours en dernier) -->
+    <link rel="stylesheet" href="/assets/css/utilities.css<?= $cache_buster ?>">
+
+    <!-- Google Fonts & Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 
-    <script src="https://unpkg.com/gsap@3.12.5/dist/gsap.min.js" defer></script>
-    <script src="https://unpkg.com/gsap@3.12.5/dist/ScrollTrigger.min.js" defer></script>
+    <!-- CSS spécifiques à la page -->
+    <?php if (isset($page_css) && is_array($page_css)): ?>
+        <?php foreach ($page_css as $css): ?>
+            <link rel="stylesheet" href="<?= $css ?><?= $cache_buster ?>">
+        <?php endforeach; ?>
+    <?php endif; ?>
 
-    <script src="/assets/js/app.js" defer></script>
-    <script src="/assets/js/main.js" defer></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Meta tags pour PWA (futur) -->
+    <meta name="theme-color" content="#28b707">
+    <meta name="msapplication-navbutton-color" content="#28b707">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+    <!-- Preload des ressources critiques -->
+    <link rel="preload" href="/assets/js/main.js" as="script">
+    <?php if ($is_admin_page): ?>
+        <link rel="preload" href="/assets/js/admin.js" as="script">
+    <?php endif; ?>
 </head>
-<body class="font-poppins antialiased bg-base-200 text-base-content">
+<body class="<?= implode(' ', $body_classes); ?>" data-user-role="<?= e($user_role); ?>">
 
-<div class="drawer lg:drawer-open">
-    <input id="my-drawer-2" type="checkbox" class="drawer-toggle" />
-    <div class="drawer-content flex flex-col min-h-screen">
-        <?php
-        // Inclusion du header
-        // Les variables comme $user, $is_impersonating, etc. sont disponibles via le scope global ici.
-        require_once __DIR__ . '/common/header.php';
-        ?>
-
-        <div class="p-6 pt-4">
-            <?php if (!empty($flash_messages)): ?>
-                <div class="space-y-3">
-                    <?php foreach ($flash_messages as $msg): ?>
-                        <div class="alert alert-<?= htmlspecialchars($msg['type']) ?> shadow-lg rounded-lg animate-fade-in-up">
-                            <div>
-                                <i class="fas fa-<?= $msg['type'] === 'success' ? 'check-circle' : ($msg['type'] === 'error' ? 'times-circle' : ($msg['type'] === 'warning' ? 'exclamation-triangle' : 'info-circle')) ?> text-xl"></i>
-                                <span class="font-medium"><?= htmlspecialchars($msg['message']) ?></span>
-                            </div>
-                        </div>
-                    <?php endforeach; ?>
-                </div>
-            <?php endif; ?>
-        </div>
-
-        <main class="flex-grow p-6 bg-base-200">
-            <?php
-            // Cette variable $content est maintenant le chemin absolu vers la vue spécifique (ex: dashboard_admin.php)
-            if (isset($content) && file_exists($content)) {
-                require_once $content; // Inclut le contenu de la vue spécifique ici
-            } else {
-                echo '<div class="admin-module-container admin-card text-center mt-xl">';
-                echo '<h2>Contenu de la page non chargé.</h2>';
-                echo '<p class="text-muted">Le fichier de vue spécifié n\'existe pas ou $content n\'est pas défini.</p>';
-                echo '</div>';
-            }
-            ?>
-        </main>
-
-        <footer class="footer footer-center p-4 bg-base-100 text-base-content border-t border-base-200 shadow-inner">
-            <aside>
-                <p class="text-sm">Copyright © <?= date('Y') ?> - Tous droits réservés par <span class="font-semibold text-primary">GestionMySoutenance</span></p>
-            </aside>
-        </footer>
+<!-- Loading Screen (optionnel) -->
+<div id="app-loading" class="d-none">
+    <div class="admin-loading">
+        <div class="admin-spinner"></div>
+        <span>Chargement...</span>
     </div>
+</div>
+
+<!-- Mobile Sidebar Toggle -->
+<button class="mobile-sidebar-toggle d-md-none" onclick="window.GestionMySoutenance?.toggleMobileSidebar()">
+    <span class="material-icons">menu</span>
+</button>
+
+<div class="app-layout">
 
     <?php
     // Inclusion du menu latéral
-    // Les variables comme $menu_items, $current_url sont disponibles via le scope global ici.
-    require_once __DIR__ . '/common/menu.php';
-    ?>
+    $menu_data = [
+        'current_url' => $current_url,
+        'user_role' => $user_role,
+        'user_permissions' => $_SESSION['user_permissions'] ?? [],
+        'is_admin_page' => $is_admin_page
+    ];
 
-    <div id="notifications-panel" class="fixed inset-y-0 right-0 w-80 bg-base-100 shadow-2xl z-50 transform translate-x-full transition-transform duration-300 ease-in-out p-6 border-l border-base-200">
-        <div class="flex justify-between items-center mb-6 border-b pb-4 border-base-200">
-            <h3 class="text-2xl font-bold text-primary font-montserrat">Notifications</h3>
-            <button class="btn btn-sm btn-ghost text-base-content/70 hover:text-primary transition-colors duration-200" id="close-notifications" aria-label="Fermer le panneau de notifications">
-                <i class="fas fa-times text-xl"></i>
-            </button>
-        </div>
-        <div class="space-y-4 overflow-y-auto h-[calc(100vh-120px)] pr-2">
-            <div class="alert alert-info shadow-md rounded-lg animate-fade-in-right">
-                <div>
-                    <i class="fas fa-info-circle text-xl"></i>
-                    <span class="font-medium">Bienvenue sur votre tableau de bord !</span>
+    // Le menu n'est affiché que si l'utilisateur est connecté
+    if (isset($_SESSION['user_id'])):
+        require_once __DIR__ . '/../common/menu.php';
+    endif;
+    ?>
+    <div>
+        <?php
+        // Inclusion du header
+        $header_data = [
+            'pageTitle' => $pageTitle,
+            'current_user' => $current_user,
+            'is_admin_page' => $is_admin_page,
+            'notifications_count' => $_SESSION['notifications_count'] ?? 0
+        ];
+
+        // Le header n'est affiché que si l'utilisateur est connecté
+        if (isset($_SESSION['user_id'])):
+            require_once __DIR__ . '/../common/header.php';
+        endif;
+        ?>
+
+
+
+        <!-- Zone de contenu principal -->
+        <main class="main-content-area<?= isset($_SESSION['user_id']) ? '' : ' no-sidebar' ?>" id="mainContentArea">
+
+            <!-- Breadcrumb (si défini) -->
+            <?php if (isset($breadcrumb) && is_array($breadcrumb)): ?>
+                <div class="breadcrumb-container">
+                    <nav class="breadcrumb">
+                        <?php foreach ($breadcrumb as $index => $item): ?>
+                            <?php if ($index > 0): ?>
+                                <span class="breadcrumb-separator">
+                                    <span class="material-icons">chevron_right</span>
+                                </span>
+                            <?php endif; ?>
+
+                            <?php if (isset($item['url']) && $index < count($breadcrumb) - 1): ?>
+                                <a href="<?= e($item['url']) ?>" class="breadcrumb-item">
+                                    <?= e($item['label']) ?>
+                                </a>
+                            <?php else: ?>
+                                <span class="breadcrumb-item active"><?= e($item['label']) ?></span>
+                            <?php endif; ?>
+                        <?php endforeach; ?>
+                    </nav>
                 </div>
-                <div class="text-xs text-base-content/60 mt-1">Il y a 5 minutes</div>
-            </div>
-            <div class="alert alert-warning shadow-md rounded-lg animate-fade-in-right">
-                <div>
-                    <i class="fas fa-exclamation-triangle text-xl"></i>
-                    <span class="font-medium">Votre email n'est pas validé. Veuillez vérifier votre boîte de réception.</span>
+            <?php endif; ?>
+
+            <!-- Messages d'alerte système (si définis) -->
+            <?php if (isset($system_alerts) && is_array($system_alerts)): ?>
+                <?php foreach ($system_alerts as $alert): ?>
+                    <div class="admin-alert <?= e($alert['type']) ?> mb-4">
+                        <span class="material-icons"><?= e($alert['icon'] ?? 'info') ?></span>
+                        <div class="admin-alert-content">
+                            <?php if (isset($alert['title'])): ?>
+                                <div class="admin-alert-title"><?= e($alert['title']) ?></div>
+                            <?php endif; ?>
+                            <div class="admin-alert-text"><?= e($alert['message']) ?></div>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            <?php endif; ?>
+
+            <!-- Contenu de la page -->
+            <?php if (isset($content)): ?>
+                <?php echo $content; ?>
+            <?php elseif (isset($view_content)): ?>
+                <!-- Alternative si le contenu est passé directement -->
+                <?= $view_content ?>
+            <?php else: ?>
+                <!-- Fallback en cas de problème -->
+                <div class="admin-module-container">
+                    <div class="admin-card text-center">
+                        <div class="empty-state">
+                            <div class="empty-state-icon">
+                                <span class="material-icons">error_outline</span>
+                            </div>
+                            <h2 class="empty-state-title">Contenu non trouvé</h2>
+                            <p class="empty-state-description">
+                                Le contenu de cette page n'a pas pu être chargé.
+                                Veuillez vérifier le routeur ou contacter l'administrateur.
+                            </p>
+                            <button class="empty-state-action" onclick="location.reload()">
+                                <span class="material-icons">refresh</span>
+                                Actualiser la page
+                            </button>
+                        </div>
+                    </div>
                 </div>
-                <div class="text-xs text-base-content/60 mt-1">Il y a 2 heures</div>
-            </div>
-            <div class="alert alert-success shadow-md rounded-lg animate-fade-in-right">
-                <div>
-                    <i class="fas fa-check-circle text-xl"></i>
-                    <span class="font-medium">Votre rapport a été validé avec succès !</span>
-                </div>
-                <div class="text-xs text-base-content/60 mt-1">Hier</div>
-            </div>
-            <div class="alert alert-error shadow-md rounded-lg animate-fade-in-right">
-                <div>
-                    <i class="fas fa-times-circle text-xl"></i>
-                    <span class="font-medium">Erreur lors de la soumission de votre rapport.</span>
-                </div>
-                <div class="text-xs text-base-content/60 mt-1">Il y a 3 jours</div>
-            </div>
-        </div>
-        <div class="absolute bottom-0 left-0 w-full p-4 bg-base-100 border-t border-base-200">
-            <button class="btn btn-sm btn-block btn-outline btn-primary">Voir toutes les notifications</button>
-        </div>
+            <?php endif; ?>
+        </main>
     </div>
 </div>
+
+<!-- Scripts JavaScript - Ordre d'importance -->
+<script src="/assets/js/main.js<?= $cache_buster ?>"></script>
+
+<!-- Scripts Admin (si nécessaire) -->
+<?php if ($is_admin_page): ?>
+    <script src="/assets/js/admin.js<?= $cache_buster ?>"></script>
+<?php endif; ?>
+
+<!-- Scripts Chart.js (si nécessaire) -->
+<?php if (isset($include_charts) && $include_charts): ?>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<?php endif; ?>
+
+<!-- Scripts spécifiques à la page -->
+<?php if (isset($page_js) && is_array($page_js)): ?>
+    <?php foreach ($page_js as $js): ?>
+        <script src="<?= $js ?><?= $cache_buster ?>"></script>
+    <?php endforeach; ?>
+<?php endif; ?>
+
+<!-- Initialisation des messages flash -->
+<?php if ($has_flash_messages): ?>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            <?php foreach ($flash_messages as $type => $message): ?>
+            <?php if (!empty($message)): ?>
+            <?php if (is_array($message)): ?>
+            window.GestionMySoutenance?.showFlashMessage(
+                '<?= e($type) ?>',
+                '<?= e($message['message'] ?? '') ?>',
+                '<?= e($message['title'] ?? '') ?>'
+            );
+            <?php else: ?>
+            window.GestionMySoutenance?.showFlashMessage('<?= e($type) ?>', '<?= e($message) ?>');
+            <?php endif; ?>
+            <?php endif; ?>
+            <?php endforeach; ?>
+        });
+    </script>
+<?php endif; ?>
+
+<!-- Configuration globale JavaScript -->
+<script>
+    window.AppConfig = {
+        baseUrl: '<?= rtrim(dirname($_SERVER['SCRIPT_NAME']), '/') ?>',
+        csrfToken: '<?= $_SESSION['csrf_token'] ?? '' ?>',
+        userId: <?= isset($_SESSION['user_id']) ? (int)$_SESSION['user_id'] : 'null' ?>,
+        userRole: '<?= e($user_role) ?>',
+        isAdmin: <?= $is_admin_page ? 'true' : 'false' ?>,
+        isDevelopment: <?= $is_development ? 'true' : 'false' ?>,
+        version: '<?= $asset_version ?>'
+    };
+</script>
+
+<!-- Scripts d'initialisation -->
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialiser le titre de la page dans le header
+        const pageTitle = <?= json_encode($pageTitle) ?>;
+
+        // Marquer la page comme chargée
+        document.body.classList.add('page-loaded');
+
+        // Masquer le loading screen s'il était affiché
+        const loadingScreen = document.getElementById('app-loading');
+        if (loadingScreen) {
+            loadingScreen.classList.add('d-none');
+        }
+
+        // Initialiser les tooltips
+        if (window.GestionMySoutenance?.initTooltips) {
+            window.GestionMySoutenance.initTooltips();
+        }
+
+        // Event personnalisé pour signaler que l'app est prête
+        window.dispatchEvent(new CustomEvent('app:ready', {
+            detail: {
+                pageTitle: pageTitle,
+                userRole: '<?= e($user_role) ?>',
+                isAdmin: <?= $is_admin_page ? 'true' : 'false' ?>
+            }
+        }));
+
+        // Debug info en développement
+        <?php if ($is_development): ?>
+        console.log('🚀 GestionMySoutenance initialisé', {
+            pageTitle: pageTitle,
+            userRole: '<?= e($user_role) ?>',
+            isAdmin: <?= $is_admin_page ? 'true' : 'false' ?>,
+            version: '<?= $asset_version ?>'
+        });
+        <?php endif; ?>
+    });
+
+    // Gestion des erreurs globales
+    window.addEventListener('error', function(e) {
+        console.error('Erreur JavaScript:', e.error);
+        <?php if (!$is_development): ?>
+        // En production, on peut envoyer l'erreur au serveur
+        // fetch('/api/log-error', { method: 'POST', body: JSON.stringify({...}) });
+        <?php endif; ?>
+    });
+
+    // Gestion des promesses rejetées
+    window.addEventListener('unhandledrejection', function(e) {
+        console.error('Promesse rejetée:', e.reason);
+    });
+</script>
+
+<?php
+// Nettoyer les messages flash après affichage
+unset($_SESSION['flash_messages']);
+?>
 </body>
 </html>

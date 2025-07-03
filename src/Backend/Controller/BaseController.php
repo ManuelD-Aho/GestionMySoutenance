@@ -63,8 +63,13 @@ abstract class BaseController
 
         extract($data); // Extrait les données dans le scope local pour la vue et le layout
 
-        // ATTENTION : $content devient maintenant le chemin vers le fichier de vue, PAS son contenu HTML.
-        $content = $viewFullPath;
+        // **************************************************************************
+        // CHANGEMENT IMPORTANT ICI : Capture le contenu HTML de la vue dans $content
+        // **************************************************************************
+        ob_start(); // Démarre la mise en mémoire tampon de sortie
+        require $viewFullPath; // Exécute le fichier de vue. Son output est capturé, pas affiché directement.
+        $content = ob_get_clean(); // Récupère le contenu généré et le stocke dans $content, puis vide le tampon.
+        // MAINTENANT, $content est le contenu HTML de la vue (une chaîne), PAS son chemin.
 
         if ($layout) {
             $layoutPath = ROOT_PATH . '/src/Frontend/views/' . $layout . '.php';
@@ -91,7 +96,7 @@ abstract class BaseController
         $viewPath = 'errors/' . $statusCode;
         $data = ['title' => "Erreur {$statusCode}", 'error_message' => $message];
         try {
-            $this->render($viewPath, $data, 'layout/layout_auth');
+            $this->render($viewPath, $data, 'Auth/layout_auth');
         } catch (Exception $e) {
             error_log("Erreur critique lors du rendu de la page d'erreur {$statusCode}: " . $e->getMessage());
             echo "<h1>Erreur {$statusCode}</h1><p>{$message}</p><p>Une erreur est survenue lors de l'affichage de la page d'erreur.</p>";
