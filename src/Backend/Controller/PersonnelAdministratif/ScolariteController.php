@@ -11,7 +11,7 @@ use App\Backend\Service\Systeme\ServiceSystemeInterface;
 use App\Backend\Service\Document\ServiceDocumentInterface;
 use App\Backend\Service\Securite\ServiceSecuriteInterface;
 use App\Backend\Service\Supervision\ServiceSupervisionInterface;
-use App\Backend\Util\FormValidator; // Garder l'import pour le constructeur
+use App\Backend\Util\FormValidator;
 use Exception;
 
 class ScolariteController extends BaseController
@@ -21,8 +21,6 @@ class ScolariteController extends BaseController
     private ServiceParcoursAcademiqueInterface $parcoursService;
     private ServiceSystemeInterface $systemeService;
     private ServiceDocumentInterface $documentService;
-    // Suppression de la déclaration de propriété $validator
-    // car elle est déjà disponible via BaseController::$validator (si BaseController l'injecte)
 
     public function __construct(
         ServiceWorkflowSoutenanceInterface $serviceWorkflow,
@@ -30,17 +28,16 @@ class ScolariteController extends BaseController
         ServiceParcoursAcademiqueInterface $parcoursService,
         ServiceSystemeInterface $systemeService,
         ServiceDocumentInterface $documentService,
-        FormValidator $validator, // Injecté pour BaseController
-        ServiceSecuriteInterface $securiteService, // Injecté pour BaseController
-        ServiceSupervisionInterface $supervisionService // Injecté pour BaseController
+        FormValidator $validator,
+        ServiceSecuriteInterface $securiteService,
+        ServiceSupervisionInterface $supervisionService
     ) {
-        parent::__construct($securiteService, $supervisionService);
+        parent::__construct($securiteService, $supervisionService, $validator); // Passer $validator au parent
         $this->serviceWorkflow = $serviceWorkflow;
         $this->serviceUtilisateur = $serviceUtilisateur;
         $this->parcoursService = $parcoursService;
         $this->systemeService = $systemeService;
         $this->documentService = $documentService;
-        // Pas besoin de réassigner $this->validator ici si BaseController le fait
     }
 
     // ========== PARTIE AGENT DE CONFORMITÉ ==========
@@ -57,7 +54,7 @@ class ScolariteController extends BaseController
         } catch (Exception $e) {
             $this->addFlashMessage('error', 'Erreur lors du chargement de la file de conformité : ' . $e->getMessage());
             $this->redirect('/personnel/dashboard');
-            return; // Suppression de l'instruction inaccessible
+            return;
         }
     }
 
@@ -80,7 +77,7 @@ class ScolariteController extends BaseController
         } catch (Exception $e) {
             $this->addFlashMessage('error', 'Erreur lors du chargement du formulaire de conformité : ' . $e->getMessage());
             $this->redirect('/personnel/conformite/queue');
-            return; // Suppression de l'instruction inaccessible
+            return;
         }
     }
 
@@ -89,14 +86,14 @@ class ScolariteController extends BaseController
         $this->requirePermission('TRAIT_PERS_ADMIN_CONFORMITE_VERIFIER');
         if (!$this->isPostRequest() || !$this->validateCsrfToken('conformite_form', $_POST['csrf_token'] ?? '')) {
             $this->redirect('/personnel/conformite/queue');
-            return; // Suppression de l'instruction inaccessible
+            return;
         }
 
         $data = $this->getPostData();
         if (empty($data['commentaire_general'])) {
             $this->addFlashMessage('error', 'Un commentaire général est obligatoire pour toute décision.');
             $this->redirect("/personnel/conformite/verifier/{$idRapport}");
-            return; // Suppression de l'instruction inaccessible
+            return;
         }
 
         try {
@@ -131,7 +128,7 @@ class ScolariteController extends BaseController
         } catch (Exception $e) {
             $this->addFlashMessage('error', 'Erreur lors du chargement des dossiers étudiants : ' . $e->getMessage());
             $this->redirect('/personnel/dashboard');
-            return; // Suppression de l'instruction inaccessible
+            return;
         }
     }
 
@@ -143,7 +140,7 @@ class ScolariteController extends BaseController
                 'profil' => $this->serviceUtilisateur->lireUtilisateurComplet($idEtudiant),
                 'inscriptions' => $this->parcoursService->listerInscriptions(['numero_carte_etudiant' => $idEtudiant]),
                 'notes' => $this->parcoursService->listerNotes(['numero_carte_etudiant' => $idEtudiant]),
-                'stages' => $this->parcoursService->listerStages(['numero_carte_etudiant' => $idEtudiant]), // Cette méthode est maintenant dans l'interface
+                'stages' => $this->parcoursService->listerStages(['numero_carte_etudiant' => $idEtudiant]),
                 'penalites' => $this->parcoursService->listerPenalites(['numero_carte_etudiant' => $idEtudiant]),
                 'reclamations' => $this->serviceWorkflow->listerReclamations(['numero_carte_etudiant' => $idEtudiant])
             ];
@@ -159,7 +156,7 @@ class ScolariteController extends BaseController
         $this->requirePermission('TRAIT_PERS_ADMIN_SCOLARITE_ETUDIANT_GERER');
         if (!$this->isPostRequest() || !$this->validateCsrfToken('activate_account_form', $_POST['csrf_token'] ?? '')) {
             $this->redirect('/personnel/scolarite');
-            return; // Suppression de l'instruction inaccessible
+            return;
         }
 
         $data = $this->getPostData();
@@ -171,7 +168,7 @@ class ScolariteController extends BaseController
         if (empty($numeroEtudiant) || empty($login) || empty($email) || empty($password)) {
             $this->addFlashMessage('error', 'Tous les champs sont requis pour activer le compte.');
             $this->redirect('/personnel/scolarite');
-            return; // Suppression de l'instruction inaccessible
+            return;
         }
 
         try {
@@ -195,7 +192,7 @@ class ScolariteController extends BaseController
         $this->requirePermission('TRAIT_PERS_ADMIN_SCOLARITE_ETUDIANT_GERER');
         if (!$this->isPostRequest() || !$this->validateCsrfToken('inscription_form', $_POST['csrf_token'] ?? '')) {
             $this->redirect('/personnel/scolarite');
-            return; // Suppression de l'instruction inaccessible
+            return;
         }
 
         $data = $this->getPostData();
@@ -213,7 +210,7 @@ class ScolariteController extends BaseController
         $this->requirePermission('TRAIT_PERS_ADMIN_SCOLARITE_ETUDIANT_GERER');
         if (!$this->isPostRequest() || !$this->validateCsrfToken('note_form', $_POST['csrf_token'] ?? '')) {
             $this->redirect('/personnel/scolarite');
-            return; // Suppression de l'instruction inaccessible
+            return;
         }
 
         try {
@@ -230,7 +227,7 @@ class ScolariteController extends BaseController
         $this->requirePermission('TRAIT_PERS_ADMIN_SCOLARITE_ETUDIANT_GERER');
         if (!$this->isPostRequest() || !$this->validateCsrfToken('stage_form', $_POST['csrf_token'] ?? '')) {
             $this->redirect('/personnel/scolarite');
-            return; // Suppression de l'instruction inaccessible
+            return;
         }
 
         try {
@@ -247,7 +244,7 @@ class ScolariteController extends BaseController
         $this->requirePermission('TRAIT_PERS_ADMIN_SCOLARITE_PENALITE_GERER');
         if (!$this->isPostRequest() || !$this->validateCsrfToken('penalite_form', $_POST['csrf_token'] ?? '')) {
             $this->redirect('/personnel/scolarite');
-            return; // Suppression de l'instruction inaccessible
+            return;
         }
 
         try {
@@ -265,7 +262,7 @@ class ScolariteController extends BaseController
         $this->requirePermission('TRAIT_PERS_ADMIN_RECLAMATIONS_GERER');
         if (!$this->isPostRequest() || !$this->validateCsrfToken('reclamation_form', $_POST['csrf_token'] ?? '')) {
             $this->redirect('/personnel/scolarite');
-            return; // Suppression de l'instruction inaccessible
+            return;
         }
 
         $data = $this->getPostData();
@@ -284,7 +281,7 @@ class ScolariteController extends BaseController
         $this->requirePermission('TRAIT_PERS_ADMIN_RECLAMATIONS_GERER');
         if (!$this->isPostRequest() || !$this->validateCsrfToken('reclamation_form', $_POST['csrf_token'] ?? '')) {
             $this->redirect('/personnel/scolarite');
-            return; // Suppression de l'instruction inaccessible
+            return;
         }
 
         try {

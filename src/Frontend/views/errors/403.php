@@ -1,32 +1,43 @@
+<?php
+// src/Frontend/views/errors/403.php
+
+// Fonction d'échappement HTML
+if (!function_exists('e')) {
+    function e($value) {
+        return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
+    }
+}
+
+// Variables pour le contenu (peuvent être passées par un contrôleur d'erreurs)
+$pageTitle = $data['pageTitle'] ?? 'Accès Interdit (403)';
+$errorMessage = $data['errorMessage'] ?? 'Vous n\'avez pas la permission d\'accéder à cette page.';
+$homeLink = $data['homeLink'] ?? '/dashboard'; // Lien vers le tableau de bord ou la page d'accueil
+?>
 <!DOCTYPE html>
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>403 - Accès Refusé</title>
-    <link href="https://fonts.googleapis.com/css2?family=Lora:wght@400;700&family=Open+Sans:wght@400;600&display=swap" rel="stylesheet">
-    <style>
-        body { font-family: 'Open Sans', sans-serif; background-color: #f4f7f9; color: #333; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
-        .error-container { text-align: center; background-color: #fff; padding: 50px; border-radius: 8px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08); max-width: 600px; border-top: 5px solid #c0392b; }
-        .error-code { font-family: 'Lora', serif; font-size: 8rem; font-weight: 700; color: #c0392b; margin: 0; line-height: 1; }
-        .error-title { font-family: 'Lora', serif; font-size: 2rem; font-weight: 700; color: #2c3e50; margin: 10px 0; }
-        .error-message { font-size: 1.1rem; color: #555; margin-bottom: 30px; }
-        .error-details { font-size: 0.9rem; color: #7f8c8d; background-color: #f8f9fa; border: 1px solid #e9ecef; padding: 10px; border-radius: 4px; margin-top: 15px; }
-        .home-link { display: inline-block; margin-top: 30px; padding: 12px 25px; background-color: #2c3e50; color: #fff; text-decoration: none; border-radius: 5px; font-weight: 600; transition: background-color 0.3s; }
-        .home-link:hover { background-color: #34495e; }
-    </style>
+    <title><?= e($pageTitle) ?> - GestionMySoutenance</title>
+    <link rel="stylesheet" href="/assets/css/root.css">
+    <link rel="stylesheet" href="/assets/css/style.css"> <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 </head>
 <body>
+
 <div class="error-container">
-    <div class="error-code">403</div>
-    <div class="error-title">Accès Refusé</div>
-    <p class="error-message">Vous n'avez pas les autorisations nécessaires pour accéder à cette page ou à cette ressource.</p>
-    <?php if (isset($error_message) && !empty($error_message)): ?>
-        <div class="error-details">
-            <strong>Détail :</strong> <?= htmlspecialchars($error_message) ?>
+    <div class="error-card">
+        <div class="error-header">
+            <span class="material-icons error-icon">lock</span>
+            <h1>403</h1>
         </div>
-    <?php endif; ?>
-    <a href="/dashboard" class="home-link">Retour au Tableau de Bord</a>
+        <h2 class="error-title"><?= e($pageTitle); ?></h2>
+        <p class="error-message"><?= e($errorMessage); ?></p>
+        <p class="error-suggestion">Il semblerait que vous n'ayez pas les droits nécessaires pour consulter cette ressource.</p>
+        <a href="<?= e($homeLink); ?>" class="btn btn-primary-blue error-link">
+            <span class="material-icons">arrow_back</span> Retour au Tableau de Bord
+        </a>
+    </div>
 </div>
+
 </body>
 </html>

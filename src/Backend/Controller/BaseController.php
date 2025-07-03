@@ -5,6 +5,7 @@ namespace App\Backend\Controller;
 
 use App\Backend\Service\Securite\ServiceSecuriteInterface;
 use App\Backend\Service\Supervision\ServiceSupervisionInterface;
+use App\Backend\Util\FormValidator;
 use App\Backend\Exception\ElementNonTrouveException;
 use JetBrains\PhpStorm\NoReturn;
 use Random\RandomException;
@@ -14,13 +15,16 @@ abstract class BaseController
 {
     protected ServiceSecuriteInterface $securiteService;
     protected ServiceSupervisionInterface $supervisionService;
+    protected FormValidator $validator;
 
     public function __construct(
         ServiceSecuriteInterface $securiteService,
-        ServiceSupervisionInterface $supervisionService
+        ServiceSupervisionInterface $supervisionService,
+        FormValidator $validator
     ) {
         $this->securiteService = $securiteService;
         $this->supervisionService = $supervisionService;
+        $this->validator = $validator;
 
         if (session_status() == PHP_SESSION_NONE) {
             session_start();
@@ -33,7 +37,7 @@ abstract class BaseController
     }
 
     /**
-     * Rend une vue PHP avec les données fournies et un layout optionnel.
+     * Rends une vue PHP avec les données fournies et un layout optionnel.
      *
      * @param string $viewPath Le chemin de la vue (ex: 'Auth/login').
      * @param array $data Les données à passer à la vue.
@@ -51,25 +55,26 @@ abstract class BaseController
         $data['impersonator_data'] = $this->securiteService->getImpersonatorData();
         $data['menu_items'] = $this->securiteService->construireMenuPourUtilisateurConnecte();
 
+        // Le chemin complet de la vue spécifique (ex: dashboard_admin.php)
         $viewFullPath = ROOT_PATH . '/src/Frontend/views/' . $viewPath . '.php';
         if (!file_exists($viewFullPath)) {
             throw new ElementNonTrouveException("Fichier de vue non trouvé : " . $viewFullPath);
         }
 
-        extract($data); // Extrait les données dans le scope local pour la vue
+        extract($data); // Extrait les données dans le scope local pour la vue et le layout
 
-        ob_start(); // Commence la mise en tampon de la sortie
-        require $viewFullPath; // Inclut le fichier de vue
-        $content = ob_get_clean(); // Récupère le contenu et termine la mise en tampon
+        // ATTENTION : $content devient maintenant le chemin vers le fichier de vue, PAS son contenu HTML.
+        $content = $viewFullPath;
 
         if ($layout) {
             $layoutPath = ROOT_PATH . '/src/Frontend/views/' . $layout . '.php';
             if (!file_exists($layoutPath)) {
                 throw new ElementNonTrouveException("Fichier de layout non trouvé : " . $layoutPath);
             }
-            require_once $layoutPath; // Inclut le fichier de layout qui affichera $content
+            require_once $layoutPath; // Inclut le fichier de layout (app.php), qui va ensuite inclure $content
         } else {
-            echo $content; // Si pas de layout, affiche directement le contenu de la vue
+            // Si aucun layout, inclut directement la vue
+            require_once $viewFullPath;
         }
     }
 
@@ -86,10 +91,8 @@ abstract class BaseController
         $viewPath = 'errors/' . $statusCode;
         $data = ['title' => "Erreur {$statusCode}", 'error_message' => $message];
         try {
-            // Tente de rendre la vue d'erreur avec le layout d'authentification
             $this->render($viewPath, $data, 'layout/layout_auth');
         } catch (Exception $e) {
-            // Fallback si la vue d'erreur elle-même ne peut pas être rendue
             error_log("Erreur critique lors du rendu de la page d'erreur {$statusCode}: " . $e->getMessage());
             echo "<h1>Erreur {$statusCode}</h1><p>{$message}</p><p>Une erreur est survenue lors de l'affichage de la page d'erreur.</p>";
         }
@@ -129,8 +132,6 @@ abstract class BaseController
      */
     protected function getPostData(): array
     {
-        // FILTER_SANITIZE_FULL_SPECIAL_CHARS est une bonne base, mais peut être affiné
-        // pour des champs spécifiques (ex: HTML pour les éditeurs WYSIWYG).
         return filter_input_array(INPUT_POST, FILTER_SANITIZE_FULL_SPECIAL_CHARS, true) ?? [];
     }
 
@@ -258,7 +259,7 @@ abstract class BaseController
     #[NoReturn]
     protected function jsonResponse(array $data, int $statusCode = 200): void
     {
-        header_remove(); // Supprime les en-têtes précédents pour éviter les conflits
+        header_remove();
         header('Content-Type: application/json');
         http_response_code($statusCode);
 
