@@ -40,7 +40,7 @@ class HomeController extends BaseController
             }
 
             // Affiche la page d'accueil pour les utilisateurs non connectés
-            $this->render('home/index', ['title' => 'Bienvenue sur GestionMySoutenance'], 'layout/layout_auth');
+            $this->render('home/index', ['title' => 'Bienvenue sur GestionMySoutenance'], 'Auth/layout_auth');
 
         } catch (Exception $e) {
             // Log l'erreur pour le débogage
@@ -54,6 +54,6 @@ class HomeController extends BaseController
     {
         // Cette méthode n'a pas de logique de redirection ou d'erreur spécifique dans les logs fournis,
         // donc elle reste simple.
-        $this->render('home/about', ['title' => 'À propos de nous'], 'layout/layout_auth');
+        $this->render('home/about', ['title' => 'À propos de nous'], 'Auth/layout_auth');
     }
 }
