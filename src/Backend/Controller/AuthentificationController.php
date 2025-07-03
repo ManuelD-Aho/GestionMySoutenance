@@ -128,7 +128,7 @@ class AuthentificationController extends BaseController
             return;
         }
         try {
-            $this->securiteService->demanderReinitialisationMotDePasse($_POST['email'] ?? '', $this->communicationService);
+            $this->securiteService->demanderReinitialisationMotDePasse($_POST['email_principal'] ?? '', $this->communicationService);
             $this->addFlashMessage('success', 'Si votre email est enregistré, un lien de réinitialisation a été envoyé.');
         } catch (Exception $e) {
             $this->addFlashMessage('error', 'Une erreur est survenue lors de la demande.');
