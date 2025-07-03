@@ -7,7 +7,8 @@ use App\Backend\Controller\BaseController;
 use App\Backend\Service\WorkflowSoutenance\ServiceWorkflowSoutenanceInterface;
 use App\Backend\Service\ParcoursAcademique\ServiceParcoursAcademiqueInterface;
 use App\Backend\Service\Securite\ServiceSecuriteInterface; // Ajout de la dépendance
-use App\Backend\Service\Supervision\ServiceSupervisionInterface; // Ajout de la dépendance
+use App\Backend\Service\Supervision\ServiceSupervisionInterface;
+use App\Backend\Util\FormValidator; // Assurez-vous que cette ligne est présente// Ajout de la dépendance
 use Exception;
 
 /**
@@ -22,9 +23,10 @@ class EtudiantDashboardController extends BaseController
         ServiceWorkflowSoutenanceInterface $serviceWorkflow,
         ServiceParcoursAcademiqueInterface $parcoursAcademiqueService,
         ServiceSecuriteInterface $securiteService, // Injecté pour BaseController
-        ServiceSupervisionInterface $supervisionService // Injecté pour BaseController
+        ServiceSupervisionInterface $supervisionService, // Injecté pour BaseController
+        FormValidator $validator // Ajout du FormValidator ici
     ) {
-        parent::__construct($securiteService, $supervisionService);
+        parent::__construct($securiteService, $supervisionService, $validator);
         $this->serviceWorkflow = $serviceWorkflow;
         $this->parcoursAcademiqueService = $parcoursAcademiqueService;
     }

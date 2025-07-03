@@ -287,7 +287,8 @@ class Container
         $this->set(HomeController::class, fn($c) => new HomeController(
             $c->get(ServiceSystemeInterface::class),
             $c->get(ServiceSecuriteInterface::class),
-            $c->get(ServiceSupervisionInterface::class)
+            $c->get(ServiceSupervisionInterface::class),
+            $c->get(FormValidator::class)
         ));
         $this->set(AuthentificationController::class, fn($c) => new AuthentificationController(
             $c->get(ServiceSecuriteInterface::class),
@@ -297,12 +298,14 @@ class Container
         ));
         $this->set(DashboardController::class, fn($c) => new DashboardController(
             $c->get(ServiceSecuriteInterface::class),
-            $c->get(ServiceSupervisionInterface::class)
+            $c->get(ServiceSupervisionInterface::class),
+            $c->get(FormValidator::class)
         ));
         $this->set(AssetController::class, fn($c) => new AssetController(
             $c->get(ServiceDocumentInterface::class),
             $c->get(ServiceSecuriteInterface::class),
-            $c->get(ServiceSupervisionInterface::class)
+            $c->get(ServiceSupervisionInterface::class),
+            $c->get(FormValidator::class)
         ));
 
         // Contrôleurs d'Administration
@@ -310,7 +313,7 @@ class Container
             $c->get(ServiceSupervisionInterface::class),
             $c->get(ServiceSystemeInterface::class),
             $c->get(ServiceSecuriteInterface::class),
-            $c->get(ServiceSupervisionInterface::class) // BaseController
+            $c->get(FormValidator::class) // BaseController
         ));
         $this->set(ConfigurationController::class, fn($c) => new ConfigurationController(
             $c->get(ServiceSystemeInterface::class),
@@ -318,12 +321,13 @@ class Container
             $c->get(ServiceCommunicationInterface::class),
             $c->get(ServiceSecuriteInterface::class),
             $c->get(ServiceSupervisionInterface::class),
-            $c // Pour getModelForTable dans ConfigurationController
+            $c->get(Container::class),
+            $c->get(FormValidator::class)// Pour getModelForTable dans ConfigurationController
         ));
         $this->set(SupervisionController::class, fn($c) => new SupervisionController(
             $c->get(ServiceSupervisionInterface::class),
             $c->get(ServiceSecuriteInterface::class),
-            $c->get(ServiceSupervisionInterface::class) // BaseController
+            $c->get(FormValidator::class) // BaseController
         ));
         $this->set(UtilisateurController::class, fn($c) => new UtilisateurController(
             $c->get(ServiceUtilisateurInterface::class),
@@ -337,7 +341,8 @@ class Container
         $this->set(CommissionDashboardController::class, fn($c) => new CommissionDashboardController(
             $c->get(ServiceWorkflowSoutenanceInterface::class),
             $c->get(ServiceSecuriteInterface::class),
-            $c->get(ServiceSupervisionInterface::class) // BaseController
+            $c->get(ServiceSupervisionInterface::class),
+            $c->get(FormValidator::class) // BaseController
         ));
         $this->set(WorkflowCommissionController::class, fn($c) => new WorkflowCommissionController(
             $c->get(ServiceWorkflowSoutenanceInterface::class),
@@ -351,7 +356,8 @@ class Container
             $c->get(ServiceWorkflowSoutenanceInterface::class),
             $c->get(ServiceParcoursAcademiqueInterface::class),
             $c->get(ServiceSecuriteInterface::class),
-            $c->get(ServiceSupervisionInterface::class) // BaseController
+            $c->get(ServiceSupervisionInterface::class),
+            $c->get(FormValidator::class) // BaseController
         ));
         $this->set(ProfilEtudiantController::class, fn($c) => new ProfilEtudiantController(
             $c->get(ServiceUtilisateurInterface::class),
@@ -371,7 +377,8 @@ class Container
             $c->get(ServiceWorkflowSoutenanceInterface::class),
             $c->get(ServiceUtilisateurInterface::class),
             $c->get(ServiceSecuriteInterface::class),
-            $c->get(ServiceSupervisionInterface::class) // BaseController
+            $c->get(ServiceSupervisionInterface::class),
+            $c->get(FormValidator::class) // BaseController
         ));
         $this->set(ScolariteController::class, fn($c) => new ScolariteController(
             $c->get(ServiceWorkflowSoutenanceInterface::class),

@@ -8,7 +8,7 @@ use App\Backend\Service\Utilisateur\ServiceUtilisateurInterface;
 use App\Backend\Service\Systeme\ServiceSystemeInterface;
 use App\Backend\Service\Securite\ServiceSecuriteInterface;
 use App\Backend\Service\Supervision\ServiceSupervisionInterface;
-use App\Backend\Util\FormValidator; // Garder l'import pour le constructeur
+use App\Backend\Util\FormValidator;
 use App\Backend\Exception\ElementNonTrouveException;
 use App\Backend\Exception\OperationImpossibleException;
 use App\Backend\Exception\DoublonException;
@@ -23,20 +23,17 @@ class UtilisateurController extends BaseController
 {
     private ServiceUtilisateurInterface $serviceUtilisateur;
     private ServiceSystemeInterface $serviceSysteme;
-    // Suppression de la déclaration de propriété $validator
-    // car elle est déjà disponible via BaseController::$validator (si BaseController l'injecte)
 
     public function __construct(
         ServiceUtilisateurInterface $serviceUtilisateur,
         ServiceSystemeInterface $serviceSysteme,
-        FormValidator $validator, // Injecté pour BaseController
+        FormValidator $validator,
         ServiceSecuriteInterface $securiteService,
         ServiceSupervisionInterface $supervisionService
     ) {
-        parent::__construct($securiteService, $supervisionService);
+        parent::__construct($securiteService, $supervisionService, $validator); // Passer $validator au parent
         $this->serviceUtilisateur = $serviceUtilisateur;
         $this->serviceSysteme = $serviceSysteme;
-        // Pas besoin de réassigner $this->validator ici si BaseController le fait
     }
 
     /**
@@ -50,9 +47,9 @@ class UtilisateurController extends BaseController
             $filters = $this->getGetData();
             $users = $this->serviceUtilisateur->listerUtilisateursComplets($filters);
 
-            $groupes = $this->serviceSysteme->gererReferentiel('list', 'groupe_utilisateur');
+            $groupes = $this->systemeService->gererReferentiel('list', 'groupe_utilisateur');
             $statuts = ['actif', 'inactif', 'bloque', 'en_attente_validation', 'archive'];
-            $types = $this->serviceSysteme->gererReferentiel('list', 'type_utilisateur');
+            $types = $this->systemeService->gererReferentiel('list', 'type_utilisateur');
 
             $this->render('Administration/gestion_utilisateurs', [
                 'title' => 'Gestion des Utilisateurs',
@@ -66,7 +63,6 @@ class UtilisateurController extends BaseController
         } catch (Exception $e) {
             $this->addFlashMessage('error', "Une erreur est survenue lors du chargement des utilisateurs : " . $e->getMessage());
             $this->redirect('/admin/dashboard');
-            return; // Suppression de l'instruction inaccessible
         }
     }
 
@@ -80,9 +76,9 @@ class UtilisateurController extends BaseController
             $this->render('Administration/form_utilisateur', [
                 'title' => 'Créer un Nouvel Utilisateur',
                 'user' => null,
-                'groupes' => $this->serviceSysteme->gererReferentiel('list', 'groupe_utilisateur'),
-                'types' => $this->serviceSysteme->gererReferentiel('list', 'type_utilisateur'),
-                'niveauxAcces' => $this->serviceSysteme->gererReferentiel('list', 'niveau_acces_donne'),
+                'groupes' => $this->systemeService->gererReferentiel('list', 'groupe_utilisateur'),
+                'types' => $this->systemeService->gererReferentiel('list', 'type_utilisateur'),
+                'niveauxAcces' => $this->systemeService->gererReferentiel('list', 'niveau_acces_donne'),
                 'action_url' => '/admin/utilisateurs/creer',
                 'csrf_token' => $this->generateCsrfToken('user_form'),
                 'form_errors' => $_SESSION['form_errors'] ?? [],
@@ -92,7 +88,6 @@ class UtilisateurController extends BaseController
         } catch (Exception $e) {
             $this->addFlashMessage('error', 'Impossible de charger le formulaire de création : ' . $e->getMessage());
             $this->redirect('/admin/utilisateurs');
-            return; // Suppression de l'instruction inaccessible
         }
     }
 
@@ -105,7 +100,7 @@ class UtilisateurController extends BaseController
 
         if (!$this->isPostRequest() || !$this->validateCsrfToken('user_form', $_POST['csrf_token'] ?? '')) {
             $this->redirect('/admin/utilisateurs');
-            return; // Suppression de l'instruction inaccessible
+            return;
         }
 
         $data = $this->getPostData();
@@ -124,7 +119,7 @@ class UtilisateurController extends BaseController
             $_SESSION['form_errors'] = $this->validator->getErrors();
             $_SESSION['form_data'] = $data;
             $this->redirect('/admin/utilisateurs/creer');
-            return; // Suppression de l'instruction inaccessible
+            return;
         }
 
         try {
@@ -150,7 +145,7 @@ class UtilisateurController extends BaseController
             $this->addFlashMessage('error', 'Erreur de création : ' . $e->getMessage());
             $_SESSION['form_data'] = $data;
             $this->redirect('/admin/utilisateurs/creer');
-            return; // Suppression de l'instruction inaccessible
+            return;
         } catch (Exception $e) {
             $this->addFlashMessage('error', 'Une erreur inattendue est survenue lors de la création.');
             error_log("Erreur UtilisateurController::create: " . $e->getMessage());
@@ -172,9 +167,9 @@ class UtilisateurController extends BaseController
             $this->render('Administration/form_utilisateur', [
                 'title' => "Modifier l'Utilisateur : " . htmlspecialchars($user['prenom'] . ' ' . $user['nom']),
                 'user' => $user,
-                'groupes' => $this->serviceSysteme->gererReferentiel('list', 'groupe_utilisateur'),
-                'types' => $this->serviceSysteme->gererReferentiel('list', 'type_utilisateur'),
-                'niveauxAcces' => $this->serviceSysteme->gererReferentiel('list', 'niveau_acces_donne'),
+                'groupes' => $this->systemeService->gererReferentiel('list', 'groupe_utilisateur'),
+                'types' => $this->systemeService->gererReferentiel('list', 'type_utilisateur'),
+                'niveauxAcces' => $this->systemeService->gererReferentiel('list', 'niveau_acces_donne'),
                 'action_url' => "/admin/utilisateurs/{$id}/modifier",
                 'csrf_token' => $this->generateCsrfToken('user_form'),
                 'form_errors' => $_SESSION['form_errors'] ?? [],
@@ -184,7 +179,6 @@ class UtilisateurController extends BaseController
         } catch (Exception $e) {
             $this->addFlashMessage('error', 'Impossible de charger le formulaire de modification : ' . $e->getMessage());
             $this->redirect('/admin/utilisateurs');
-            return; // Suppression de l'instruction inaccessible
         }
     }
 
@@ -197,7 +191,7 @@ class UtilisateurController extends BaseController
 
         if (!$this->isPostRequest() || !$this->validateCsrfToken('user_form', $_POST['csrf_token'] ?? '')) {
             $this->redirect('/admin/utilisateurs');
-            return; // Suppression de l'instruction inaccessible
+            return;
         }
 
         $data = $this->getPostData();
@@ -213,7 +207,7 @@ class UtilisateurController extends BaseController
             $_SESSION['form_errors'] = $this->validator->getErrors();
             $_SESSION['form_data'] = $data;
             $this->redirect("/admin/utilisateurs/{$id}");
-            return; // Suppression de l'instruction inaccessible
+            return;
         }
 
         try {
@@ -239,7 +233,6 @@ class UtilisateurController extends BaseController
             $this->addFlashMessage('error', "Échec de la mise à jour : " . $e->getMessage());
             $_SESSION['form_data'] = $data;
             $this->redirect("/admin/utilisateurs/{$id}");
-            return; // Suppression de l'instruction inaccessible
         }
 
         $this->redirect('/admin/utilisateurs');
@@ -252,7 +245,7 @@ class UtilisateurController extends BaseController
     {
         if (!$this->isPostRequest() || !$this->validateCsrfToken('user_actions_form', $_POST['csrf_token'] ?? '')) {
             $this->redirect('/admin/utilisateurs');
-            return; // Suppression de l'instruction inaccessible
+            return;
         }
 
         $action = $_POST['action'] ?? '';
@@ -276,7 +269,7 @@ class UtilisateurController extends BaseController
                     $this->securiteService->demarrerImpersonation($adminId, $id);
                     $this->addFlashMessage('info', "Vous impersonnalisez maintenant l'utilisateur {$id}.");
                     $this->redirect('/dashboard');
-                    return; // Suppression de l'instruction inaccessible
+                    return;
 
                 case 'delete':
                     $this->requirePermission('TRAIT_ADMIN_GERER_UTILISATEURS_DELETE');
@@ -305,7 +298,7 @@ class UtilisateurController extends BaseController
 
         if (!$this->isPostRequest() || !$this->validateCsrfToken('user_actions_form', $_POST['csrf_token'] ?? '')) {
             $this->redirect('/admin/utilisateurs');
-            return; // Suppression de l'instruction inaccessible
+            return;
         }
 
         try {

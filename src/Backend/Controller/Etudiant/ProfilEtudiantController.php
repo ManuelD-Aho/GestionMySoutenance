@@ -7,7 +7,7 @@ use App\Backend\Controller\BaseController;
 use App\Backend\Service\Utilisateur\ServiceUtilisateurInterface;
 use App\Backend\Service\Securite\ServiceSecuriteInterface;
 use App\Backend\Service\Supervision\ServiceSupervisionInterface;
-use App\Backend\Util\FormValidator; // Garder l'import pour le constructeur
+use App\Backend\Util\FormValidator;
 use Exception;
 
 /**
@@ -16,18 +16,15 @@ use Exception;
 class ProfilEtudiantController extends BaseController
 {
     private ServiceUtilisateurInterface $serviceUtilisateur;
-    // Suppression de la déclaration de propriété $validator
-    // car elle est déjà disponible via BaseController::$validator (si BaseController l'injecte)
 
     public function __construct(
         ServiceUtilisateurInterface $serviceUtilisateur,
-        FormValidator $validator, // Injecté pour BaseController
-        ServiceSecuriteInterface $securiteService, // Injecté pour BaseController
-        ServiceSupervisionInterface $supervisionService // Injecté pour BaseController
+        FormValidator $validator,
+        ServiceSecuriteInterface $securiteService,
+        ServiceSupervisionInterface $supervisionService
     ) {
-        parent::__construct($securiteService, $supervisionService);
+        parent::__construct($securiteService, $supervisionService, $validator); // Passer $validator au parent
         $this->serviceUtilisateur = $serviceUtilisateur;
-        // Pas besoin de réassigner $this->validator ici si BaseController le fait
     }
 
     /**
@@ -40,7 +37,7 @@ class ProfilEtudiantController extends BaseController
         $user = $this->securiteService->getUtilisateurConnecte();
         if (!$user) {
             $this->redirect('/login');
-            return; // Suppression de l'instruction inaccessible
+            return;
         }
 
         try {
@@ -70,7 +67,7 @@ class ProfilEtudiantController extends BaseController
 
         if (!$this->isPostRequest() || !$this->validateCsrfToken('profile_form', $_POST['csrf_token'] ?? '')) {
             $this->redirect('/etudiant/profil');
-            return; // Suppression de l'instruction inaccessible
+            return;
         }
 
         $rules = [
@@ -119,7 +116,7 @@ class ProfilEtudiantController extends BaseController
 
         if (!$this->isPostRequest() || !$this->validateCsrfToken('photo_form', $_POST['csrf_token'] ?? '')) {
             $this->redirect('/etudiant/profil');
-            return; // Suppression de l'instruction inaccessible
+            return;
         }
 
         $fileData = $this->getFileData('photo_profil_file');

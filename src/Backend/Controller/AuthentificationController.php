@@ -28,7 +28,7 @@ class AuthentificationController extends BaseController
         FormValidator $formValidator,
         ServiceSupervisionInterface $supervisionService
     ) {
-        parent::__construct($securiteService, $supervisionService, $formValidator);
+        parent::__construct($securiteService, $supervisionService, $formValidator); // Passer $formValidator au parent
         $this->communicationService = $communicationService;
     }
 
@@ -48,7 +48,7 @@ class AuthentificationController extends BaseController
     {
         if (!$this->isPostRequest() || !$this->validateCsrfToken('login_form', $_POST['csrf_token'] ?? '')) {
             $this->redirect('/login');
-            return; // Suppression de l'instruction inaccessible
+            return;
         }
 
         try {
@@ -86,7 +86,7 @@ class AuthentificationController extends BaseController
     {
         if (!$this->isPostRequest() || !isset($_SESSION['2fa_user_id']) || !$this->validateCsrfToken('2fa_form', $_POST['csrf_token'] ?? '')) {
             $this->redirect('/login');
-            return; // Suppression de l'instruction inaccessible
+            return;
         }
 
         try {
@@ -125,7 +125,7 @@ class AuthentificationController extends BaseController
     {
         if (!$this->isPostRequest() || !$this->validateCsrfToken('forgot_password_form', $_POST['csrf_token'] ?? '')) {
             $this->redirect('/forgot-password');
-            return; // Suppression de l'instruction inaccessible
+            return;
         }
         try {
             $this->securiteService->demanderReinitialisationMotDePasse($_POST['email'] ?? '', $this->communicationService);
@@ -147,29 +147,28 @@ class AuthentificationController extends BaseController
         ], 'layout/layout_auth');
     }
 
-    public function handleResetPassword(string $token): void // <--- MODIFIEZ CETTE LIGNE (ajoutez "string $token")
+    public function handleResetPassword(string $token): void
     {
         if (!$this->isPostRequest()) {
             $this->redirect('/login');
             return;
         }
 
-        $data = $this->getPostData(); // Gardez cette ligne pour récupérer les autres données du formulaire
+        $data = $this->getPostData();
 
         if (!$this->validateCsrfToken('reset_password_form', $data['csrf_token'] ?? '')) {
             $this->addFlashMessage('error', 'Token CSRF invalide.');
-            $this->redirect('/reset-password/' . $token); // Utilisez $token de l'argument
+            $this->redirect('/reset-password/' . $token);
             return;
         }
 
         if (($data['nouveau_mot_de_passe'] ?? '') !== ($data['confirmation_mot_de_passe'] ?? '')) {
             $this->addFlashMessage('error', 'Les mots de passe ne correspondent pas.');
-            $this->redirect('/reset-password/' . $token); // Utilisez $token de l'argument
+            $this->redirect('/reset-password/' . $token);
             return;
         }
 
         try {
-            // Le $token vient maintenant directement de l'argument de la fonction
             $this->securiteService->reinitialiserMotDePasseViaToken($token, $data['nouveau_mot_de_passe']);
             $this->addFlashMessage('success', 'Votre mot de passe a été réinitialisé. Vous pouvez vous connecter.');
             $this->redirect('/login');
@@ -178,11 +177,11 @@ class AuthentificationController extends BaseController
             $this->redirect('/forgot-password');
         } catch (MotDePasseInvalideException $e) {
             $this->addFlashMessage('error', $e->getMessage());
-            $this->redirect('/reset-password/' . $token); // Utilisez $token de l'argument
+            $this->redirect('/reset-password/' . $token);
         } catch (Exception $e) {
             $this->addFlashMessage('error', 'Une erreur inattendue est survenue.');
             error_log("Erreur réinitialisation MDP: " . $e->getMessage());
-            $this->redirect('/reset-password/' . $token); // Utilisez $token de l'argument
+            $this->redirect('/reset-password/' . $token);
         }
     }
 

@@ -6,6 +6,7 @@ namespace App\Backend\Controller\Administration;
 use App\Backend\Controller\BaseController;
 use App\Backend\Service\Supervision\ServiceSupervisionInterface;
 use App\Backend\Service\Securite\ServiceSecuriteInterface;
+use App\Backend\Util\FormValidator; // Assurez-vous que cette ligne est présente
 use Exception;
 
 class SupervisionController extends BaseController
@@ -15,9 +16,10 @@ class SupervisionController extends BaseController
 
     public function __construct(
         ServiceSupervisionInterface $supervisionService, // Injecté pour BaseController
-        ServiceSecuriteInterface $securiteService // Injecté pour BaseController
+        ServiceSecuriteInterface $securiteService, // Injecté pour BaseController
+        FormValidator $validator // Ajout du FormValidator ici
     ) {
-        parent::__construct($securiteService, $supervisionService);
+        parent::__construct($securiteService, $supervisionService, $validator);
         // Pas besoin de réassigner $this->supervisionService ici
     }
 

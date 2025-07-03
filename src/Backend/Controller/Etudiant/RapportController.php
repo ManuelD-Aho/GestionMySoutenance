@@ -7,7 +7,7 @@ use App\Backend\Controller\BaseController;
 use App\Backend\Service\WorkflowSoutenance\ServiceWorkflowSoutenanceInterface;
 use App\Backend\Service\Securite\ServiceSecuriteInterface;
 use App\Backend\Service\Supervision\ServiceSupervisionInterface;
-use App\Backend\Util\FormValidator; // Garder l'import pour le constructeur
+use App\Backend\Util\FormValidator;
 use Exception;
 
 /**
@@ -16,20 +16,15 @@ use Exception;
 class RapportController extends BaseController
 {
     private ServiceWorkflowSoutenanceInterface $serviceWorkflow;
-    // Suppression de la déclaration de propriété $validator
-    // car elle est déjà disponible via BaseController::$validator (si BaseController l'injecte)
-    // Ou si FormValidator est utilisé directement dans les méthodes de cette classe, il faut la déclarer ici.
-    // Pour l'instant, je suppose qu'il est utilisé via BaseController.
 
     public function __construct(
         ServiceWorkflowSoutenanceInterface $serviceWorkflow,
-        FormValidator $validator, // Injecté pour BaseController
-        ServiceSecuriteInterface $securiteService, // Injecté pour BaseController
-        ServiceSupervisionInterface $supervisionService // Injecté pour BaseController
+        FormValidator $validator,
+        ServiceSecuriteInterface $securiteService,
+        ServiceSupervisionInterface $supervisionService
     ) {
-        parent::__construct($securiteService, $supervisionService);
+        parent::__construct($securiteService, $supervisionService, $validator); // Passer $validator au parent
         $this->serviceWorkflow = $serviceWorkflow;
-        // Pas besoin de réassigner $this->validator ici si BaseController le fait
     }
 
     /**
@@ -45,7 +40,7 @@ class RapportController extends BaseController
 
             if ($rapport) {
                 $this->redirect('/etudiant/rapport/redaction/' . $rapport['id_rapport_etudiant']);
-                return; // Suppression de l'instruction inaccessible
+                return;
             } else {
                 $modeles = $this->serviceWorkflow->listerModelesRapportDisponibles();
                 $this->render('Etudiant/choix_modele', [
@@ -56,7 +51,7 @@ class RapportController extends BaseController
             }
         } catch (Exception $e) {
             $this->addFlashMessage('error', 'Erreur lors du chargement de la page de rédaction : ' . $e->getMessage());
-            $this->redirect('/etudiant/dashboard'); // Redirection vers le dashboard en cas d'erreur
+            $this->redirect('/etudiant/dashboard');
         }
     }
 
@@ -68,7 +63,7 @@ class RapportController extends BaseController
         $this->requirePermission('TRAIT_ETUDIANT_RAPPORT_SOUMETTRE');
         if (!$this->isPostRequest() || !$this->validateCsrfToken('choix_modele_form', $_POST['csrf_token'] ?? '')) {
             $this->redirect('/etudiant/rapport/redaction');
-            return; // Suppression de l'instruction inaccessible
+            return;
         }
 
         try {
@@ -82,7 +77,6 @@ class RapportController extends BaseController
         } catch (Exception $e) {
             $this->addFlashMessage('error', "Impossible d'initialiser le rapport : " . $e->getMessage());
             $this->redirect('/etudiant/rapport/redaction');
-            return; // Suppression de l'instruction inaccessible
         }
     }
 
@@ -98,7 +92,7 @@ class RapportController extends BaseController
 
             if (!$rapport || $rapport['numero_carte_etudiant'] !== $user['numero_utilisateur']) {
                 $this->renderError(403, "Vous n'êtes pas autorisé à accéder à ce rapport.");
-                return; // Suppression de l'instruction inaccessible
+                return;
             }
 
             $isLocked = !in_array($rapport['id_statut_rapport'], ['RAP_BROUILLON', 'RAP_CORRECT']);
@@ -113,7 +107,7 @@ class RapportController extends BaseController
             ]);
         } catch (Exception $e) {
             $this->addFlashMessage('error', 'Erreur lors du chargement du rapport : ' . $e->getMessage());
-            $this->redirect('/etudiant/dashboard'); // Redirection vers le dashboard en cas d'erreur
+            $this->redirect('/etudiant/dashboard');
         }
     }
 
@@ -125,7 +119,7 @@ class RapportController extends BaseController
         $this->requirePermission('TRAIT_ETUDIANT_RAPPORT_SUIVRE');
         if (!$this->isPostRequest()) {
             $this->jsonResponse(['success' => false, 'message' => 'Méthode non autorisée.'], 405);
-            return; // Suppression de l'instruction inaccessible
+            return;
         }
 
         try {
@@ -148,7 +142,7 @@ class RapportController extends BaseController
         $this->requirePermission('TRAIT_ETUDIANT_RAPPORT_SOUMETTRE');
         if (!$this->isPostRequest()) {
             $this->jsonResponse(['success' => false, 'message' => 'Méthode non autorisée.'], 405);
-            return; // Suppression de l'instruction inaccessible
+            return;
         }
 
         $data = $this->getPostData();
@@ -156,7 +150,7 @@ class RapportController extends BaseController
 
         if (!$this->validateCsrfToken('submit_rapport_form', $data['csrf_token'] ?? '')) {
             $this->jsonResponse(['success' => false, 'message' => 'Jeton de sécurité invalide.'], 403);
-            return; // Suppression de l'instruction inaccessible
+            return;
         }
 
         try {
@@ -176,7 +170,7 @@ class RapportController extends BaseController
         $this->requirePermission('TRAIT_ETUDIANT_RAPPORT_SOUMETTRE');
         if (!$this->isPostRequest()) {
             $this->jsonResponse(['success' => false, 'message' => 'Méthode non autorisée.'], 405);
-            return; // Suppression de l'instruction inaccessible
+            return;
         }
 
         $data = json_decode(file_get_contents('php://input'), true);
@@ -185,12 +179,12 @@ class RapportController extends BaseController
 
         if (!$this->validateCsrfToken('submit_corrections_form', $data['csrf_token'] ?? '')) {
             $this->jsonResponse(['success' => false, 'message' => 'Jeton de sécurité invalide.'], 403);
-            return; // Suppression de l'instruction inaccessible
+            return;
         }
 
         if (empty($noteExplicative)) {
             $this->jsonResponse(['success' => false, 'message' => 'Une note expliquant les corrections est obligatoire.'], 422);
-            return; // Suppression de l'instruction inaccessible
+            return;
         }
 
         try {

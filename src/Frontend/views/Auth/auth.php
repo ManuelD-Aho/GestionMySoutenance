@@ -1,129 +1,138 @@
-<?php
-// src/Frontend/views/Auth/auth.php
-
-$form = $form ?? 'login';
-$csrf_token = $csrf_token ?? '';
-$flash_messages = $flash_messages ?? [];
-$token = $token ?? '';
-?>
-<div class="card w-full max-w-md bg-base-100 shadow-2xl rounded-xl p-6 lg:p-8 transform transition-all duration-300 ease-in-out hover:scale-[1.01]">
-    <div class="card-body p-0">
-        <div class="text-center mb-6">
-            <h1 class="text-4xl font-extrabold text-primary mb-2 font-montserrat">GestionMySoutenance</h1>
-            <p class="text-base-content/80 text-lg">
-                <?php
-                echo [
-                    'login' => 'Connectez-vous à votre espace sécurisé',
-                    '2fa' => 'Vérification à deux facteurs requise',
-                    'forgot_password' => 'Récupération de votre mot de passe',
-                    'reset_password' => 'Définissez un nouveau mot de passe'
-                ][$form] ?? 'Authentification';
-                ?>
-            </p>
-        </div>
-
-        <!-- Zone pour les messages flash (erreurs, succès) -->
-        <?php if (!empty($flash_messages)): ?>
-            <div id="global-alerts" class="space-y-3 mb-6">
-                <?php foreach ($flash_messages as $msg): ?>
-                    <div role="alert" class="alert alert-<?= htmlspecialchars($msg['type']) ?> shadow-md rounded-lg animate-fade-in">
-                        <i class="fas fa-<?= $msg['type'] === 'error' ? 'times-circle' : ($msg['type'] === 'success' ? 'check-circle' : ($msg['type'] === 'warning' ? 'exclamation-triangle' : 'info-circle')) ?> text-xl"></i>
-                        <span class="font-medium"><?= htmlspecialchars($msg['message']) ?></span>
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Authentification - GestionMySoutenance</title>
+    <link rel="stylesheet" href="/assets/css/root.css">
+    <link rel="stylesheet" href="/assets/css/auth.css">
+</head>
+<body>
+<div class="auth-container">
+    <!-- Carrousel d'images - Côté gauche -->
+    <div class="carousel-section">
+        <div class="carousel-wrapper">
+            <div class="carousel-container">
+                <div class="carousel-slide active">
+                    <img src="/assets/img/ufhb.jpeg" alt="Étudiant présentant sa soutenance">
+                    <div class="slide-content">
+                        <h3>Excellence Académique</h3>
+                        <p>Accompagnez vos étudiants vers la réussite de leurs soutenances</p>
                     </div>
-                <?php endforeach; ?>
+                </div>
+                <div class="carousel-slide">
+                    <img src="/assets/img/student2.jpg" alt="Jury de soutenance">
+                    <div class="slide-content">
+                        <h3>Gestion Simplifiée</h3>
+                        <p>Organisez efficacement vos soutenances et jurys</p>
+                    </div>
+                </div>
+                <div class="carousel-slide">
+                    <img src="/assets/img/student3.jpg" alt="Étudiant travaillant">
+                    <div class="slide-content">
+                        <h3>Suivi Personnalisé</h3>
+                        <p>Suivez le progrès de chaque étudiant en temps réel</p>
+                    </div>
+                </div>
+                <div class="carousel-indicators">
+                    <button class="indicator active" data-slide="0"></button>
+                    <button class="indicator" data-slide="1"></button>
+                    <button class="indicator" data-slide="2"></button>
+                </div>
             </div>
-        <?php endif; ?>
 
-        <!-- Zone pour les retours dynamiques du JS (ex: validation côté client) -->
-        <div id="form-feedback" class="hidden mt-4"></div>
+        </div>
+    </div>
 
-        <?php // =================== FORMULAIRE DE CONNEXION =================== ?>
-        <?php if ($form === 'login'): ?>
-            <form id="login-form" action="/login" method="POST" class="space-y-5">
-                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf_token) ?>">
-                <div class="form-control">
-                    <label class="label" for="identifiant"><span class="label-text text-base font-medium">Identifiant ou Email</span></label>
-                    <input type="text" id="identifiant" name="identifiant" placeholder="Votre identifiant ou email" class="input input-bordered input-primary w-full text-base focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-200" required autocomplete="username">
+    <!-- Section des formulaires - Côté droit -->
+    <div class="forms-section">
+        <div class="form-container">
+            <!-- Header avec logo -->
+            <div class="form-header">
+                <div class="logo">
+                    <h1>GestionMySoutenance</h1>
+                    <p>Plateforme de gestion des soutenances</p>
                 </div>
-                <div class="form-control">
-                    <label class="label" for="mot_de_passe"><span class="label-text text-base font-medium">Mot de passe</span></label>
-                    <div class="relative w-full">
-                        <input type="password" id="mot_de_passe" name="mot_de_passe" placeholder="Votre mot de passe" class="input input-bordered input-primary w-full pr-12 text-base focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-200" required autocomplete="current-password">
-                        <button type="button" data-toggle-password="mot_de_passe" class="absolute inset-y-0 right-0 px-3 flex items-center text-gray-400 hover:text-primary transition-colors duration-200" aria-label="Afficher/Masquer le mot de passe">
-                            <i class="fas fa-eye-slash password-toggle-icon"></i>
-                        </button>
-                    </div>
-                    <label class="label"><a href="/forgot-password" class="label-text-alt link link-hover text-sm text-primary hover:text-primary-focus transition-colors duration-200">Mot de passe oublié ?</a></label>
+            </div>
+
+            <!-- Formulaire de connexion -->
+            <form id="loginForm" class="auth-form active" method="POST" action="/login">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf_token ?? '', ENT_QUOTES, 'UTF-8') ?>">
+
+                <h2>Connexion</h2>
+                <div class="form-group">
+                    <label for="login_email">Login ou Email :</label>
+                    <input type="text" id="login_email" name="login_email" required>
                 </div>
-                <div class="form-control mt-7">
-                    <button type="submit" class="btn btn-primary w-full text-lg font-semibold py-3 rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 ease-in-out transform hover:-translate-y-0.5">
-                        <span class="loading loading-spinner loading-sm hidden"></span><span class="button-text">Connexion</span>
-                    </button>
+                <div class="form-group">
+                    <label for="password">Mot de passe</label>
+                    <input type="password" id="password" name="password" required>
+                </div>
+                <div class="form-options">
+                    <label class="checkbox-container">
+                        <input type="checkbox" name="remember_me">
+                        <span class="checkmark"></span>
+                        Se souvenir de moi
+                    </label>
+                    <a href="#" class="forgot-link" onclick="showForm('forgotForm')">Mot de passe oublié ?</a>
+                </div>
+                <button type="submit" class="btn-primary">Se connecter</button>
+            </form>
+
+            <!-- Formulaire mot de passe oublié -->
+            <form id="forgotForm" class="auth-form" method="POST" action="/forgot_password">
+                <h2>Mot de passe oublié</h2>
+                <p class="form-description">Entrez votre email pour recevoir un lien de réinitialisation</p>
+                <div class="form-group">
+                    <label for="email_principal">Email</label>
+                    <input type="email" id="email_principal" name="email_principal" required>
+                </div>
+                <button type="submit" class="btn-primary">Envoyer le lien</button>
+                <div class="form-footer">
+                    <p><a href="#" onclick="showForm('loginForm')">← Retour à la connexion</a></p>
                 </div>
             </form>
 
-            <?php // =================== FORMULAIRE 2FA =================== ?>
-        <?php elseif ($form === '2fa'): ?>
-            <form id="2fa-form" action="/2fa" method="POST" class="space-y-5">
-                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf_token) ?>">
-                <p class="text-center text-base text-base-content/80">Saisissez le code à 6 chiffres de votre application d'authentification.</p>
-                <div class="form-control">
-                    <label class="label" for="code_totp"><span class="label-text text-base font-medium">Code de vérification</span></label>
-                    <input type="text" id="code_totp" name="code_totp" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" placeholder="XXXXXX" class="input input-bordered input-primary w-full text-center text-2xl tracking-[0.5em] font-mono focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-200" required>
+            <!-- Formulaire réinitialisation mot de passe -->
+            <form id="resetForm" class="auth-form" method="POST" action="/reset_password">
+                <h2>Nouveau mot de passe</h2>
+                <p class="form-description">Choisissez un nouveau mot de passe sécurisé</p>
+                <input type="hidden" name="token" id="reset_token">
+                <div class="form-group">
+                    <label for="new_password">Nouveau mot de passe</label>
+                    <input type="password" id="new_password" name="new_password" required>
                 </div>
-                <div class="form-control mt-7">
-                    <button type="submit" class="btn btn-primary w-full text-lg font-semibold py-3 rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 ease-in-out transform hover:-translate-y-0.5">
-                        <span class="loading loading-spinner loading-sm hidden"></span><span class="button-text">Vérifier</span>
-                    </button>
+                <div class="form-group">
+                    <label for="confirm_password">Confirmer le mot de passe</label>
+                    <input type="password" id="confirm_password" name="confirm_password" required>
+                </div>
+                <button type="submit" class="btn-primary">Réinitialiser</button>
+                <div class="form-footer">
+                    <p><a href="#" onclick="showForm('loginForm')">← Retour à la connexion</a></p>
                 </div>
             </form>
 
-            <?php // =================== FORMULAIRE MOT DE PASSE OUBLIÉ =================== ?>
-        <?php elseif ($form === 'forgot_password'): ?>
-            <form id="forgot-password-form" action="/forgot-password" method="POST" class="space-y-5">
-                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf_token) ?>">
-                <p class="text-center text-base text-base-content/80">Saisissez votre adresse email pour recevoir un lien de réinitialisation.</p>
-                <div class="form-control">
-                    <label class="label" for="email"><span class="label-text text-base font-medium">Adresse Email</span></label>
-                    <input type="email" id="email" name="email" placeholder="votre.email@exemple.com" class="input input-bordered input-primary w-full text-base focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-200" required autocomplete="email">
+            <!-- Formulaire 2FA -->
+            <form id="twoFactorForm" class="auth-form" method="POST" action="/2fa">
+                <h2>Authentification à deux facteurs</h2>
+                <p class="form-description">Entrez le code de vérification envoyé sur votre téléphone</p>
+                <div class="form-group">
+                    <label for="verification_code">Code de vérification</label>
+                    <input type="text" id="code_2fa" name="code_2fa" maxlength="6" required>
                 </div>
-                <div class="form-control mt-7">
-                    <button type="submit" class="btn btn-primary w-full text-lg font-semibold py-3 rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 ease-in-out transform hover:-translate-y-0.5">
-                        <span class="loading loading-spinner loading-sm hidden"></span><span class="button-text">Envoyer le lien</span>
-                    </button>
+                <button type="submit" class="btn-primary">Vérifier</button>
+                <div class="form-footer">
+                    <p><a href="#" onclick="showForm('loginForm')">← Retour à la connexion</a></p>
+                    <p><a href="#" onclick="resend2FA()">Renvoyer le code</a></p>
                 </div>
-                <div class="text-center mt-5"><a href="/login" class="link link-hover text-primary hover:text-primary-focus transition-colors duration-200">Retour à la connexion</a></div>
             </form>
 
-            <?php // =================== FORMULAIRE DE RÉINITIALISATION DE MOT DE PASSE =================== ?>
-        <?php elseif ($form === 'reset_password'): ?>
-            <form id="reset-password-form" action="/reset-password/<?= htmlspecialchars($token) ?>" method="POST" class="space-y-5">
-                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf_token) ?>">
-                <input type="hidden" name="token" value="<?= htmlspecialchars($token) ?>">
-                <div class="form-control">
-                    <label class="label" for="nouveau_mot_de_passe"><span class="label-text text-base font-medium">Nouveau mot de passe</span></label>
-                    <div class="relative w-full">
-                        <input type="password" id="nouveau_mot_de_passe" name="nouveau_mot_de_passe" placeholder="Minimum 8 caractères, maj/min/chiffre" class="input input-bordered input-primary w-full pr-12 text-base focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-200" required autocomplete="new-password">
-                        <button type="button" data-toggle-password="nouveau_mot_de_passe" class="absolute inset-y-0 right-0 px-3 flex items-center text-gray-400 hover:text-primary transition-colors duration-200" aria-label="Afficher/Masquer le mot de passe">
-                            <i class="fas fa-eye-slash password-toggle-icon"></i>
-                        </button>
-                    </div>
-                </div>
-                <div class="form-control">
-                    <label class="label" for="confirmation_mot_de_passe"><span class="label-text text-base font-medium">Confirmer le mot de passe</span></label>
-                    <div class="relative w-full">
-                        <input type="password" id="confirmation_mot_de_passe" name="confirmation_mot_de_passe" placeholder="Confirmez votre nouveau mot de passe" class="input input-bordered input-primary w-full pr-12 text-base focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-200" required autocomplete="new-password">
-                        <button type="button" data-toggle-password="confirmation_mot_de_passe" class="absolute inset-y-0 right-0 px-3 flex items-center text-gray-400 hover:text-primary transition-colors duration-200" aria-label="Afficher/Masquer le mot de passe">
-                            <i class="fas fa-eye-slash password-toggle-icon"></i>
-                        </button>
-                    </div>
-                </div>
-                <div class="form-control mt-7">
-                    <button type="submit" class="btn btn-primary w-full text-lg font-semibold py-3 rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 ease-in-out transform hover:-translate-y-0.5">
-                        <span class="loading loading-spinner loading-sm hidden"></span><span class="button-text">Réinitialiser</span>
-                    </button>
-                </div>
-            </form>
-        <?php endif; ?>
+            <!-- Messages d'erreur/succès -->
+            <div id="message" class="message"></div>
+        </div>
     </div>
 </div>
+
+<script src="/assets/js/auth.js"></script>
+</body>
+</html>

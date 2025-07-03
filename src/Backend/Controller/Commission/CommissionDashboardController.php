@@ -7,6 +7,7 @@ use App\Backend\Controller\BaseController;
 use App\Backend\Service\WorkflowSoutenance\ServiceWorkflowSoutenanceInterface;
 use App\Backend\Service\Securite\ServiceSecuriteInterface;
 use App\Backend\Service\Supervision\ServiceSupervisionInterface;
+use App\Backend\Util\FormValidator; // Assurez-vous que cette ligne est présente
 use Exception;
 
 /**
@@ -19,9 +20,10 @@ class CommissionDashboardController extends BaseController
     public function __construct(
         ServiceWorkflowSoutenanceInterface $serviceWorkflow,
         ServiceSecuriteInterface $securiteService,
-        ServiceSupervisionInterface $supervisionService
+        ServiceSupervisionInterface $supervisionService,
+        FormValidator $validator // Ajout du FormValidator ici
     ) {
-        parent::__construct($securiteService, $supervisionService);
+        parent::__construct($securiteService, $supervisionService, $validator);
         $this->serviceWorkflow = $serviceWorkflow;
     }
 

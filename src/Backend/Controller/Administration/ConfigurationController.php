@@ -11,6 +11,7 @@ use App\Backend\Service\Communication\ServiceCommunicationInterface;
 use App\Backend\Service\Securite\ServiceSecuriteInterface;
 use App\Backend\Service\Supervision\ServiceSupervisionInterface;
 use App\Backend\Exception\{OperationImpossibleException, ValidationException};
+use App\Backend\Util\FormValidator; // Assurez-vous que cette ligne est présente
 use Exception;
 
 /**
@@ -32,9 +33,10 @@ class ConfigurationController extends BaseController
         ServiceCommunicationInterface $communicationService,
         ServiceSecuriteInterface $securiteService,
         ServiceSupervisionInterface $supervisionService,
-        Container $container
+        Container $container,
+        FormValidator $validator // Ajout du FormValidator ici
     ) {
-        parent::__construct($securiteService, $supervisionService);
+        parent::__construct($securiteService, $supervisionService, $validator);
         $this->systemeService = $systemeService;
         $this->documentService = $documentService;
         $this->communicationService = $communicationService;

@@ -8,6 +8,7 @@ use App\Backend\Service\Securite\ServiceSecuriteInterface;
 use App\Backend\Service\Supervision\ServiceSupervisionInterface;
 use App\Backend\Exception\ElementNonTrouveException;
 use App\Backend\Exception\PermissionException;
+use App\Backend\Util\FormValidator; // Assurez-vous que cette ligne est présente
 use Exception;
 
 class AssetController extends BaseController
@@ -17,9 +18,10 @@ class AssetController extends BaseController
     public function __construct(
         ServiceDocumentInterface $documentService,
         ServiceSecuriteInterface $securiteService,
-        ServiceSupervisionInterface $supervisionService
+        ServiceSupervisionInterface $supervisionService,
+        FormValidator $validator // Ajout du FormValidator ici
     ) {
-        parent::__construct($securiteService, $supervisionService, );
+        parent::__construct($securiteService, $supervisionService, $validator);
         $this->documentService = $documentService;
     }
 

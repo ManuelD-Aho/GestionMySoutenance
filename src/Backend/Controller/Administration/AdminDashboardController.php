@@ -23,9 +23,10 @@ class AdminDashboardController extends BaseController
     public function __construct(
         ServiceSupervisionInterface $supervisionService, // Injecté pour BaseController
         ServiceSystemeInterface $systemeService,
-        ServiceSecuriteInterface $securiteService // Injecté pour BaseController
+        ServiceSecuriteInterface $securiteService, // Injecté pour BaseController
+        FormValidator $validator // Ajout du FormValidator ici
     ) {
-        parent::__construct($securiteService, $supervisionService,);
+        parent::__construct($securiteService, $supervisionService, $validator);
         $this->systemeService = $systemeService;
     }
 
@@ -56,7 +57,8 @@ class AdminDashboardController extends BaseController
                 'stats' => $stats,
                 'alerts' => $alerts,
             ];
-            $this->render('Administration/dashboard_admin', $data);
+            // C'EST CETTE LIGNE QUI DOIT ÊTRE MODIFIÉE !
+            $this->render('/Administration/dashboard_admin', $data); // Changement de 'admin_dashboard' à 'dashboard_admin'
 
         } catch (Exception $e) {
             error_log("Erreur inattendue dans AdminDashboardController::index: " . $e->getMessage());

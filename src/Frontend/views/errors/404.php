@@ -1,26 +1,43 @@
+<?php
+// src/Frontend/views/errors/404.php
+
+// Fonction d'échappement HTML
+if (!function_exists('e')) {
+    function e($value) {
+        return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
+    }
+}
+
+// Variables pour le contenu (peuvent être passées par un contrôleur d'erreurs)
+$pageTitle = $data['pageTitle'] ?? 'Page Non Trouvée (404)';
+$errorMessage = $data['errorMessage'] ?? 'La page que vous recherchez n\'existe pas.';
+$homeLink = $data['homeLink'] ?? '/dashboard'; // Lien vers le tableau de bord ou la page d'accueil
+?>
 <!DOCTYPE html>
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>404 - Page Introuvable</title>
-    <link href="https://fonts.googleapis.com/css2?family=Lora:wght@400;700&family=Open+Sans:wght@400;600&display=swap" rel="stylesheet">
-    <style>
-        body { font-family: 'Open Sans', sans-serif; background-color: #f4f7f9; color: #333; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
-        .error-container { text-align: center; background-color: #fff; padding: 50px; border-radius: 8px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08); max-width: 600px; border-top: 5px solid #3498db; }
-        .error-code { font-family: 'Lora', serif; font-size: 8rem; font-weight: 700; color: #3498db; margin: 0; line-height: 1; }
-        .error-title { font-family: 'Lora', serif; font-size: 2rem; font-weight: 700; color: #2c3e50; margin: 10px 0; }
-        .error-message { font-size: 1.1rem; color: #555; margin-bottom: 30px; }
-        .home-link { display: inline-block; margin-top: 30px; padding: 12px 25px; background-color: #2c3e50; color: #fff; text-decoration: none; border-radius: 5px; font-weight: 600; transition: background-color 0.3s; }
-        .home-link:hover { background-color: #34495e; }
-    </style>
+    <title><?= e($pageTitle) ?> - GestionMySoutenance</title>
+    <link rel="stylesheet" href="/assets/css/root.css">
+    <link rel="stylesheet" href="/assets/css/style.css"> <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 </head>
 <body>
+
 <div class="error-container">
-    <div class="error-code">404</div>
-    <div class="error-title">Page Introuvable</div>
-    <p class="error-message">Désolé, la page que vous recherchez n'existe pas ou a été déplacée.</p>
-    <a href="/" class="home-link">Retour à l'Accueil</a>
+    <div class="error-card">
+        <div class="error-header">
+            <span class="material-icons error-icon">sentiment_dissatisfied</span>
+            <h1>404</h1>
+        </div>
+        <h2 class="error-title"><?= e($pageTitle); ?></h2>
+        <p class="error-message"><?= e($errorMessage); ?></p>
+        <p class="error-suggestion">Veuillez vérifier l'URL ou retourner à la page précédente.</p>
+        <a href="<?= e($homeLink); ?>" class="btn btn-primary-blue error-link">
+            <span class="material-icons">arrow_back</span> Retour au Tableau de Bord
+        </a>
+    </div>
 </div>
+
 </body>
 </html>

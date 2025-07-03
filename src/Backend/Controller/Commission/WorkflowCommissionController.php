@@ -16,18 +16,15 @@ use Exception;
 class WorkflowCommissionController extends BaseController
 {
     private ServiceWorkflowSoutenanceInterface $serviceWorkflow;
-    // Suppression de la déclaration de propriété $validator
-    // car elle est déjà disponible via BaseController::$validator (si BaseController l'injecte)
 
     public function __construct(
         ServiceWorkflowSoutenanceInterface $serviceWorkflow,
-        FormValidator $validator, // Injecté pour BaseController
+        FormValidator $validator,
         ServiceSecuriteInterface $securiteService,
         ServiceSupervisionInterface $supervisionService
     ) {
-        parent::__construct($securiteService, $supervisionService);
+        parent::__construct($securiteService, $supervisionService, $validator); // Passer $validator au parent
         $this->serviceWorkflow = $serviceWorkflow;
-        // Pas besoin de réassigner $this->validator ici si BaseController le fait
     }
 
     /**
@@ -45,7 +42,7 @@ class WorkflowCommissionController extends BaseController
             ]);
         } catch (Exception $e) {
             $this->addFlashMessage('error', 'Erreur lors du chargement des sessions : ' . $e->getMessage());
-            $this->redirect('/commission/dashboard'); // Redirection vers le dashboard en cas d'erreur
+            $this->redirect('/commission/dashboard');
         }
     }
 
@@ -58,7 +55,7 @@ class WorkflowCommissionController extends BaseController
 
         if (!$this->isPostRequest() || !$this->validateCsrfToken('session_form', $_POST['csrf_token'] ?? '')) {
             $this->redirect('/commission/workflow');
-            return; // Suppression de l'instruction inaccessible
+            return;
         }
 
         $rules = [
@@ -71,7 +68,7 @@ class WorkflowCommissionController extends BaseController
         if (!$this->validator->validate($_POST, $rules)) {
             $this->addFlashMessage('error', 'Formulaire invalide : ' . implode(', ', $this->validator->getErrors()));
             $this->redirect('/commission/workflow');
-            return; // Suppression de l'instruction inaccessible
+            return;
         }
 
         try {
@@ -94,7 +91,7 @@ class WorkflowCommissionController extends BaseController
 
         if (!$this->isPostRequest() || !$this->validateCsrfToken('vote_form', $_POST['csrf_token'] ?? '')) {
             $this->jsonResponse(['success' => false, 'message' => 'Requête invalide.'], 403);
-            return; // Suppression de l'instruction inaccessible
+            return;
         }
 
         $data = $this->getPostData();
@@ -105,7 +102,7 @@ class WorkflowCommissionController extends BaseController
 
         if ($decision !== 'VOTE_APPROUVE' && empty($commentaire)) {
             $this->jsonResponse(['success' => false, 'message' => 'Un commentaire est requis pour cette décision.'], 422);
-            return; // Suppression de l'instruction inaccessible
+            return;
         }
 
         try {
@@ -133,7 +130,6 @@ class WorkflowCommissionController extends BaseController
         } catch (Exception $e) {
             $this->addFlashMessage('error', $e->getMessage());
             $this->redirect("/commission/workflow");
-            return; // Suppression de l'instruction inaccessible
         }
     }
 
@@ -162,14 +158,14 @@ class WorkflowCommissionController extends BaseController
 
         if (!$this->isPostRequest() || !$this->validateCsrfToken('force_pv_form', $_POST['csrf_token'] ?? '')) {
             $this->redirect('/commission/dashboard');
-            return; // Suppression de l'instruction inaccessible
+            return;
         }
 
         $justification = $_POST['justification'] ?? '';
         if(empty($justification)){
             $this->addFlashMessage('error', 'Une justification est obligatoire pour forcer la validation.');
             $this->redirect('/commission/dashboard');
-            return; // Suppression de l'instruction inaccessible
+            return;
         }
 
         try {
