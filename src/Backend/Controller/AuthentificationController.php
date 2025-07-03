@@ -46,6 +46,11 @@ class AuthentificationController extends BaseController
 
     public function login(): void
     {
+        // À ajouter au tout début de votre méthode de connexion
+        error_log("=== DÉBUT CONNEXION ===");
+        error_log("POST data: " . json_encode($_POST));
+        error_log("Session avant: " . json_encode($_SESSION));
+
         if (!$this->isPostRequest() || !$this->validateCsrfToken('login_form', $_POST['csrf_token'] ?? '')) {
             $this->redirect('/login');
             return;
@@ -68,6 +73,10 @@ class AuthentificationController extends BaseController
             error_log("Erreur de connexion: " . $e->getMessage());
             $this->redirect('/login');
         }
+
+        // À ajouter à la fin de votre méthode de connexion (avant toute redirection)
+        error_log("Session après: " . json_encode($_SESSION));
+        error_log("=== FIN CONNEXION ===");
     }
 
     public function show2faForm(): void

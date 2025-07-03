@@ -64,9 +64,12 @@ class ServiceSecurite implements ServiceSecuriteInterface
 
     public function tenterConnexion(string $identifiant, string $motDePasseClair): array
     {
+        error_log("DEBUG ServiceSecurite: Tentative de connexion pour: " . $identifiant);
+
         $utilisateur = $this->utilisateurModel->trouverParLoginOuEmailPrincipal($identifiant);
 
         if (!$utilisateur || !password_verify($motDePasseClair, $utilisateur['mot_de_passe'])) {
+            error_log("DEBUG ServiceSecurite: Échec de connexion - identifiants invalides");
             if ($utilisateur) {
                 $this->traiterTentativeEchouee($utilisateur['numero_utilisateur']);
             }
@@ -95,7 +98,11 @@ class ServiceSecurite implements ServiceSecuriteInterface
             return ['status' => '2fa_required'];
         }
 
+        error_log("DEBUG ServiceSecurite: Toutes les vérifications passées, appel à demarrerSessionUtilisateur");
+
         $this->demarrerSessionUtilisateur($numeroUtilisateur);
+
+        error_log("DEBUG ServiceSecurite: Session créée, retour de tenterConnexion avec status=success");
         return ['status' => 'success'];
     }
 

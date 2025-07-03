@@ -1,12 +1,21 @@
 <?php
 /**
  * Menu latéral modernisé - GestionMySoutenance
- * Navigation principale avec permissions et rôles
+ * Navigation principale avec données de la base de données
  */
 
-// Récupération des données utilisateur et permissions
-$user_role = $user_role ?? $_SESSION['user_role'] ?? 'guest';
-$user_permissions = $user_permissions ?? $_SESSION['user_permissions'] ?? [];
+// Fonction d'échappement HTML
+if (!function_exists('e')) {
+    function e($value) {
+        return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
+    }
+}
+
+// Récupération des données depuis le contrôleur
+$menu_items = $menu_items ?? $data['menu_items'] ?? [];
+$user_permissions = $user_permissions ?? $data['user_permissions'] ?? $_SESSION['user_group_permissions'] ?? [];
+$user_role = $user_role ?? $data['user_role'] ?? 'guest';
+$current_user = $current_user ?? $data['user'] ?? $_SESSION['user_data'] ?? null;
 $current_url = $current_url ?? $_SERVER['REQUEST_URI'];
 
 // Fonction helper pour vérifier les permissions
@@ -14,12 +23,9 @@ function hasPermission($permission, $user_permissions) {
     return in_array($permission, $user_permissions) || in_array('*', $user_permissions);
 }
 
-function hasRole($role, $user_role) {
-    return $user_role === $role || $user_role === 'admin';
-}
-
 function isActive($url, $current_url) {
-    // Nettoyage des URLs pour comparaison
+    if (empty($url)) return false;
+
     $url = rtrim($url, '/');
     $current = rtrim(strtok($current_url, '?'), '/');
 
@@ -30,192 +36,49 @@ function isActive($url, $current_url) {
     return strpos($current, $url) === 0;
 }
 
-// Configuration du menu selon le rôle
-$menu_items = [];
-
-// Menu pour tous les utilisateurs connectés
-if ($user_role !== 'guest') {
-    $menu_items['dashboard'] = [
-        'label' => 'Tableau de Bord',
-        'url' => '/',
-        'icon' => 'dashboard',
-        'permission' => null,
-        'active' => isActive('/', $current_url)
+// Fonction pour convertir l'icône Font Awesome en Material Icons
+function convertIconToMaterial($faIcon) {
+    $iconMap = [
+        'fas fa-tachometer-alt' => 'dashboard',
+        'fas fa-user-graduate' => 'school',
+        'fas fa-gavel' => 'gavel',
+        'fas fa-user-tie' => 'work',
+        'fas fa-cogs' => 'settings',
+        'fas fa-users' => 'people',
+        'fas fa-file-alt' => 'description',
+        'fas fa-chart-bar' => 'assessment',
+        'fas fa-shield-alt' => 'security',
+        'fas fa-wrench' => 'build',
+        'fas fa-eye' => 'visibility'
     ];
+
+    return $iconMap[$faIcon] ?? 'circle';
 }
 
-// Menu Étudiant
-if (hasRole('etudiant', $user_role)) {
-    $menu_items['student'] = [
-        'label' => 'Mon Espace Étudiant',
-        'icon' => 'school',
-        'children' => [
-            [
-                'label' => 'Mes Cours',
-                'url' => '/student/courses',
-                'icon' => 'book',
-                'active' => isActive('/student/courses', $current_url)
-            ],
-            [
-                'label' => 'Mes Notes',
-                'url' => '/student/grades',
-                'icon' => 'grade',
-                'active' => isActive('/student/grades', $current_url)
-            ],
-            [
-                'label' => 'Planning',
-                'url' => '/student/schedule',
-                'icon' => 'event',
-                'active' => isActive('/student/schedule', $current_url)
-            ],
-            [
-                'label' => 'Documents',
-                'url' => '/student/documents',
-                'icon' => 'description',
-                'active' => isActive('/student/documents', $current_url)
-            ]
-        ]
-    ];
-}
-
-// Menu Enseignant
-if (hasRole('enseignant', $user_role)) {
-    $menu_items['teacher'] = [
-        'label' => 'Espace Enseignant',
-        'icon' => 'person',
-        'children' => [
-            [
-                'label' => 'Mes Cours',
-                'url' => '/teacher/courses',
-                'icon' => 'class',
-                'active' => isActive('/teacher/courses', $current_url)
-            ],
-            [
-                'label' => 'Évaluations',
-                'url' => '/teacher/evaluations',
-                'icon' => 'quiz',
-                'active' => isActive('/teacher/evaluations', $current_url)
-            ],
-            [
-                'label' => 'Étudiants',
-                'url' => '/teacher/students',
-                'icon' => 'groups',
-                'active' => isActive('/teacher/students', $current_url)
-            ],
-            [
-                'label' => 'Planning',
-                'url' => '/teacher/schedule',
-                'icon' => 'event',
-                'active' => isActive('/teacher/schedule', $current_url)
-            ]
-        ]
-    ];
-}
-
-// Menu Administration
-if (hasRole('admin', $user_role) || hasPermission('admin_access', $user_permissions)) {
-    $menu_items['admin'] = [
-        'label' => 'Administration',
-        'icon' => 'admin_panel_settings',
-        'children' => [
-            [
-                'label' => 'Gestion Utilisateurs',
-                'url' => '/admin/users',
-                'icon' => 'people',
-                'active' => isActive('/admin/users', $current_url),
-                'permission' => 'manage_users'
-            ],
-            [
-                'label' => 'Gestion Académique',
-                'url' => '/admin/gestion-acad',
-                'icon' => 'school',
-                'active' => isActive('/admin/gestion-acad', $current_url),
-                'permission' => 'manage_academic'
-            ],
-            [
-                'label' => 'Cours & Programmes',
-                'url' => '/admin/courses',
-                'icon' => 'menu_book',
-                'active' => isActive('/admin/courses', $current_url),
-                'permission' => 'manage_courses'
-            ],
-            [
-                'label' => 'Examens',
-                'url' => '/admin/exams',
-                'icon' => 'quiz',
-                'active' => isActive('/admin/exams', $current_url),
-                'permission' => 'manage_exams'
-            ]
-        ]
+// Fonction pour générer l'URL basée sur l'ID du traitement
+function generateUrl($id_traitement) {
+    $urlMap = [
+        'MENU_DASHBOARDS' => '/dashboard',
+        'MENU_ETUDIANT' => '/etudiant',
+        'MENU_COMMISSION' => '/commission',
+        'MENU_PERSONNEL' => '/personnel',
+        'MENU_ADMINISTRATION' => '/admin',
+        'MENU_GESTION_COMPTES' => '/admin/utilisateurs',
+        'MENU_RAPPORT_ETUDIANT' => '/etudiant/rapports'
     ];
 
-    $menu_items['system'] = [
-        'label' => 'Système',
-        'icon' => 'settings',
-        'children' => [
-            [
-                'label' => 'Configuration',
-                'url' => '/admin/config',
-                'icon' => 'tune',
-                'active' => isActive('/admin/config', $current_url),
-                'permission' => 'system_config'
-            ],
-            [
-                'label' => 'Permissions',
-                'url' => '/admin/permissions',
-                'icon' => 'security',
-                'active' => isActive('/admin/permissions', $current_url),
-                'permission' => 'manage_permissions'
-            ],
-            [
-                'label' => 'Rapports',
-                'url' => '/admin/reports',
-                'icon' => 'assessment',
-                'active' => isActive('/admin/reports', $current_url),
-                'permission' => 'view_reports'
-            ],
-            [
-                'label' => 'Logs Système',
-                'url' => '/admin/logs',
-                'icon' => 'bug_report',
-                'active' => isActive('/admin/logs', $current_url),
-                'permission' => 'view_logs'
-            ]
-        ]
-    ];
-}
-
-// Menu Personnel/Scolarité
-if (hasRole('personnel', $user_role) || hasPermission('staff_access', $user_permissions)) {
-    $menu_items['staff'] = [
-        'label' => 'Scolarité',
-        'icon' => 'assignment',
-        'children' => [
-            [
-                'label' => 'Inscriptions',
-                'url' => '/staff/inscriptions',
-                'icon' => 'how_to_reg',
-                'active' => isActive('/staff/inscriptions', $current_url)
-            ],
-            [
-                'label' => 'Documents',
-                'url' => '/staff/documents',
-                'icon' => 'description',
-                'active' => isActive('/staff/documents', $current_url)
-            ],
-            [
-                'label' => 'Planning',
-                'url' => '/staff/planning',
-                'icon' => 'event',
-                'active' => isActive('/staff/planning', $current_url)
-            ]
-        ]
-    ];
+    return $urlMap[$id_traitement] ?? '#';
 }
 
 // Informations utilisateur pour la sidebar
-$current_user = $current_user ?? $_SESSION['user_data'] ?? null;
-$user_name = $current_user['nom'] ?? $current_user['name'] ?? 'Utilisateur';
+$user_name = '';
+if ($current_user) {
+    $user_name = trim(($current_user['nom'] ?? '') . ' ' . ($current_user['prenom'] ?? ''));
+    if (empty($user_name)) {
+        $user_name = $current_user['login_utilisateur'] ?? 'Utilisateur';
+    }
+}
+
 $user_initials = '';
 if (!empty($user_name)) {
     $name_parts = explode(' ', trim($user_name));
@@ -232,11 +95,14 @@ $role_display = [
     'personnel' => 'Personnel'
 ];
 $user_role_display = $role_display[$user_role] ?? ucfirst($user_role);
+
+// Debug pour voir les données
+error_log("DEBUG Menu: Menu items reçus: " . count($menu_items));
+error_log("DEBUG Menu: Permissions: " . count($user_permissions));
 ?>
 
 <aside class="gestionsoutenance-sidebar" id="sidebar">
     <div class="sidebar-content">
-
         <!-- Branding -->
         <div class="sidebar-brand">
             <div class="brand-logo">
@@ -246,491 +112,336 @@ $user_role_display = $role_display[$user_role] ?? ucfirst($user_role);
         </div>
 
         <!-- Informations utilisateur -->
-        <?php if ($user_role !== 'guest'): ?>
-            <div class="admin-info hide-when-collapsed">
-                <div class="admin-avatar" id="admin-avatar-initials">
+        <?php if ($user_role !== 'guest' && $current_user): ?>
+            <div class="user-info hide-when-collapsed">
+                <div class="user-avatar">
                     <?= e($user_initials) ?>
                 </div>
-                <div class="admin-details">
-                    <p class="admin-name" id="admin-name-display"><?= e($user_name) ?></p>
-                    <p class="admin-role" id="admin-role-display"><?= e($user_role_display) ?></p>
+                <div class="user-details">
+                    <p class="user-name"><?= e($user_name) ?></p>
+                    <p class="user-role"><?= e($user_role_display) ?></p>
+                    <?php if (!empty($current_user['email_principal'])): ?>
+                        <p class="user-email"><?= e($current_user['email_principal']) ?></p>
+                    <?php endif; ?>
                 </div>
             </div>
         <?php endif; ?>
 
         <!-- Navigation principale -->
         <nav class="sidebar-nav">
-            <?php foreach ($menu_items as $section_key => $section): ?>
+            <?php if (!empty($menu_items)): ?>
+                <?php foreach ($menu_items as $item): ?>
+                    <?php
+                    // Vérifier si l'utilisateur a la permission pour cet élément
+                    if (!hasPermission($item['id_traitement'], $user_permissions)) {
+                        continue;
+                    }
 
-                <?php if (isset($section['children'])): ?>
-                    <!-- Menu avec sous-éléments -->
-                    <div class="collapsible-menu <?= $section_key ?>-menu" data-section="<?= $section_key ?>">
-                        <div class="collapsible-header">
-                            <div class="nav-item-content">
-                                <span class="material-icons"><?= e($section['icon']) ?></span>
-                                <span class="hide-when-collapsed"><?= e($section['label']) ?></span>
+                    $url = !empty($item['url_associee']) ? $item['url_associee'] : generateUrl($item['id_traitement']);
+                    $icon = convertIconToMaterial($item['icone_class']);
+                    $label = $item['libelle_menu'];
+                    $isActive = isActive($url, $current_url);
+                    ?>
+
+                    <?php if (!empty($item['enfants'])): ?>
+                        <!-- Menu avec sous-éléments -->
+                        <div class="collapsible-menu" data-section="<?= e($item['id_traitement']) ?>">
+                            <div class="collapsible-header">
+                                <div class="nav-item-content">
+                                    <span class="material-icons"><?= e($icon) ?></span>
+                                    <span class="hide-when-collapsed"><?= e($label) ?></span>
+                                </div>
+                                <span class="material-icons expand-icon hide-when-collapsed">chevron_right</span>
                             </div>
-                            <span class="material-icons expand-icon hide-when-collapsed">chevron_right</span>
-                        </div>
 
-                        <div class="collapsible-content">
-                            <?php foreach ($section['children'] as $item): ?>
-                                <?php
-                                // Vérifier les permissions pour cet élément
-                                $can_access = true;
-                                if (isset($item['permission'])) {
-                                    $can_access = hasPermission($item['permission'], $user_permissions);
-                                }
-                                ?>
+                            <div class="collapsible-content">
+                                <?php foreach ($item['enfants'] as $child): ?>
+                                    <?php
+                                    // Vérifier les permissions pour l'enfant
+                                    if (!hasPermission($child['id_traitement'], $user_permissions)) {
+                                        continue;
+                                    }
 
-                                <?php if ($can_access): ?>
-                                    <a href="<?= e($item['url']) ?>"
-                                       class="nav-item <?= ($item['active'] ?? false) ? 'active' : '' ?>"
-                                       data-tooltip="<?= e($item['label']) ?>">
-                                        <span class="material-icons"><?= e($item['icon']) ?></span>
-                                        <span class="hide-when-collapsed"><?= e($item['label']) ?></span>
-
-                                        <?php if (isset($item['badge'])): ?>
-                                            <span class="nav-badge <?= e($item['badge']['type'] ?? '') ?>">
-                                            <?= e($item['badge']['count']) ?>
-                                        </span>
-                                        <?php endif; ?>
+                                    $childUrl = !empty($child['url_associee']) ? $child['url_associee'] : generateUrl($child['id_traitement']);
+                                    $childIcon = convertIconToMaterial($child['icone_class']);
+                                    $childLabel = $child['libelle_menu'];
+                                    $childIsActive = isActive($childUrl, $current_url);
+                                    ?>
+                                    <a href="<?= e($childUrl) ?>"
+                                       class="nav-item <?= $childIsActive ? 'active' : '' ?>">
+                                        <span class="material-icons"><?= e($childIcon) ?></span>
+                                        <span class="hide-when-collapsed"><?= e($childLabel) ?></span>
                                     </a>
-                                <?php endif; ?>
-                            <?php endforeach; ?>
+                                <?php endforeach; ?>
+                            </div>
                         </div>
-                    </div>
-
-                <?php else: ?>
-                    <!-- Menu simple -->
-                    <a href="<?= e($section['url']) ?>"
-                       class="nav-item <?= ($section['active'] ?? false) ? 'active' : '' ?>"
-                       data-tooltip="<?= e($section['label']) ?>">
-                        <span class="material-icons"><?= e($section['icon']) ?></span>
-                        <span class="hide-when-collapsed"><?= e($section['label']) ?></span>
-
-                        <?php if (isset($section['badge'])): ?>
-                            <span class="nav-badge <?= e($section['badge']['type'] ?? '') ?>">
-                                <?= e($section['badge']['count']) ?>
-                            </span>
-                        <?php endif; ?>
-                    </a>
-                <?php endif; ?>
-
-            <?php endforeach; ?>
-        </nav>
-    </div>
-
-    <!-- Footer de la sidebar -->
-    <div class="sidebar-footer">
-
-        <!-- Bouton de réduction -->
-        <button class="sidebar-collapse-btn" onclick="toggleSidebarCollapse()" data-tooltip="Réduire le menu">
-            <span class="material-icons">chevron_left</span>
-        </button>
-
-        <!-- Liens rapides (si non réduit) -->
-        <div class="sidebar-quick-links hide-when-collapsed">
-            <a href="/help" class="quick-link" data-tooltip="Aide">
-                <span class="material-icons">help</span>
-            </a>
-
-            <?php if (hasRole('admin', $user_role)): ?>
-                <a href="/admin/system-status" class="quick-link" data-tooltip="État du système">
-                    <span class="material-icons">monitor_heart</span>
-                </a>
+                    <?php else: ?>
+                        <!-- Menu simple -->
+                        <a href="<?= e($url) ?>"
+                           class="nav-item <?= $isActive ? 'active' : '' ?>">
+                            <span class="material-icons"><?= e($icon) ?></span>
+                            <span class="hide-when-collapsed"><?= e($label) ?></span>
+                        </a>
+                    <?php endif; ?>
+                <?php endforeach; ?>
+            <?php else: ?>
+                <!-- Message si aucun menu -->
+                <div class="no-menu-message">
+                    <p>Aucun menu disponible.</p>
+                    <small>Permissions: <?= count($user_permissions) ?> trouvées</small>
+                </div>
             <?php endif; ?>
+        </nav>
 
-            <a href="/settings" class="quick-link" data-tooltip="Paramètres">
-                <span class="material-icons">settings</span>
+        <!-- Section déconnexion -->
+        <div class="sidebar-footer">
+            <a href="/logout" class="nav-item logout-item">
+                <span class="material-icons">logout</span>
+                <span class="hide-when-collapsed">Déconnexion</span>
             </a>
-        </div>
-
-        <!-- Version de l'application -->
-        <div class="app-version hide-when-collapsed">
-            <small>v<?= defined('APP_VERSION') ? APP_VERSION : '1.0.0' ?></small>
         </div>
     </div>
 </aside>
 
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
-        initSidebarMenu();
-
-        // Restaurer l'état de la sidebar
-        const isCollapsed = localStorage.getItem('sidebar-collapsed') === 'true';
-        if (isCollapsed) {
-            document.body.classList.add('sidebar-collapsed');
-        }
-
-        // Restaurer l'état des menus pliables
-        restoreMenuStates();
-    });
-
-    function initSidebarMenu() {
-        // Gestion des menus pliables
-        document.querySelectorAll('.collapsible-header').forEach(header => {
-            header.addEventListener('click', function() {
-                const menu = this.closest('.collapsible-menu');
-                const isOpen = menu.classList.contains('open');
-
-                // Fermer tous les autres menus
-                document.querySelectorAll('.collapsible-menu').forEach(m => {
-                    if (m !== menu) {
-                        m.classList.remove('open');
-                    }
-                });
-
-                // Toggle le menu actuel
-                menu.classList.toggle('open', !isOpen);
-
-                // Sauvegarder l'état
-                saveMenuState(menu.dataset.section, !isOpen);
-            });
-        });
-
-        // Auto-ouvrir le menu contenant la page active
-        const activeItem = document.querySelector('.collapsible-content .nav-item.active');
-        if (activeItem) {
-            const parentMenu = activeItem.closest('.collapsible-menu');
-            if (parentMenu) {
-                parentMenu.classList.add('open');
-                saveMenuState(parentMenu.dataset.section, true);
-            }
-        }
-
-        // Gestion des tooltips pour la sidebar réduite
-        updateTooltips();
-    }
-
-    function toggleSidebarCollapse() {
-        const isCollapsed = document.body.classList.toggle('sidebar-collapsed');
-        localStorage.setItem('sidebar-collapsed', isCollapsed);
-
-        // Fermer tous les menus si on réduit
-        if (isCollapsed) {
-            document.querySelectorAll('.collapsible-menu').forEach(menu => {
-                menu.classList.remove('open');
-            });
-        }
-
-        // Mettre à jour les tooltips
-        setTimeout(updateTooltips, 300);
-
-        // Event personnalisé pour notifier le changement
-        window.dispatchEvent(new CustomEvent('sidebar:toggle', {
-            detail: { collapsed: isCollapsed }
-        }));
-    }
-
-    function saveMenuState(section, isOpen) {
-        const states = JSON.parse(localStorage.getItem('menu-states') || '{}');
-        states[section] = isOpen;
-        localStorage.setItem('menu-states', JSON.stringify(states));
-    }
-
-    function restoreMenuStates() {
-        const states = JSON.parse(localStorage.getItem('menu-states') || '{}');
-
-        Object.entries(states).forEach(([section, isOpen]) => {
-            const menu = document.querySelector(`[data-section="${section}"]`);
-            if (menu && isOpen) {
-                menu.classList.add('open');
-            }
-        });
-    }
-
-    function updateTooltips() {
-        const isCollapsed = document.body.classList.contains('sidebar-collapsed');
-
-        document.querySelectorAll('.nav-item, .quick-link').forEach(item => {
-            if (isCollapsed) {
-                const tooltip = item.getAttribute('data-tooltip');
-                if (tooltip) {
-                    item.title = tooltip;
-                }
-            } else {
-                item.removeAttribute('title');
-            }
-        });
-    }
-
-    // Gestion responsive
-    function handleResponsiveMenu() {
-        const isMobile = window.innerWidth <= 768;
-
-        if (isMobile) {
-            document.body.classList.remove('sidebar-collapsed');
-        }
-    }
-
-    // Écouter les changements de taille d'écran
-    window.addEventListener('resize', debounce(handleResponsiveMenu, 250));
-
-    // Fonction utilitaire debounce
-    function debounce(func, wait) {
-        let timeout;
-        return function executedFunction(...args) {
-            const later = () => {
-                clearTimeout(timeout);
-                func(...args);
-            };
-            clearTimeout(timeout);
-            timeout = setTimeout(later, wait);
-        };
-    }
-
-    // Fermer la sidebar mobile en cliquant sur le contenu principal
-    document.addEventListener('click', function(e) {
-        if (window.innerWidth <= 768 && !e.target.closest('.gestionsoutenance-sidebar') && !e.target.closest('.mobile-sidebar-toggle')) {
-            document.body.classList.remove('sidebar-mobile-open');
-        }
-    });
-
-    // API publique pour la sidebar
-    window.SidebarAPI = {
-        toggle: toggleSidebarCollapse,
-        collapse: () => {
-            document.body.classList.add('sidebar-collapsed');
-            localStorage.setItem('sidebar-collapsed', 'true');
-        },
-        expand: () => {
-            document.body.classList.remove('sidebar-collapsed');
-            localStorage.setItem('sidebar-collapsed', 'false');
-        },
-        openMenu: (section) => {
-            const menu = document.querySelector(`[data-section="${section}"]`);
-            if (menu) {
-                menu.classList.add('open');
-                saveMenuState(section, true);
-            }
-        },
-        closeMenu: (section) => {
-            const menu = document.querySelector(`[data-section="${section}"]`);
-            if (menu) {
-                menu.classList.remove('open');
-                saveMenuState(section, false);
-            }
-        }
-    };
-
-    // Compatibilité avec l'ancien système
-    window.toggleMobileSidebar = function() {
-        document.body.classList.toggle('sidebar-mobile-open');
-        const sidebar = document.getElementById('sidebar');
-        if (sidebar) {
-            sidebar.classList.toggle('open');
-        }
-    };
-</script>
-
 <style>
-    /* Styles spécifiques au menu */
+    /* Styles pour le menu */
+    .gestionsoutenance-sidebar {
+        width: 280px;
+        background: #ffffff;
+        border-right: 1px solid #e5e5e5;
+        height: 100vh;
+        position: fixed;
+        top: 0;
+        left: 0;
+        z-index: 1000;
+        transition: all 0.3s ease;
+        overflow-y: auto;
+    }
+
+    .sidebar-content {
+        padding: 20px;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .sidebar-brand {
+        display: flex;
+        align-items: center;
+        margin-bottom: 30px;
+        padding-bottom: 20px;
+        border-bottom: 1px solid #e5e5e5;
+    }
+
+    .brand-logo .material-icons {
+        font-size: 32px;
+        color: #007bff;
+        margin-right: 12px;
+    }
+
+    .brand-text {
+        font-size: 18px;
+        font-weight: 600;
+        color: #333;
+    }
+
+    .user-info {
+        background: #f8f9fa;
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+    }
+
+    .user-avatar {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: #007bff;
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+        margin-right: 12px;
+        font-size: 14px;
+    }
+
+    .user-details {
+        flex: 1;
+    }
+
+    .user-name {
+        font-weight: 600;
+        margin: 0 0 4px 0;
+        color: #333;
+        font-size: 14px;
+    }
+
+    .user-role {
+        font-size: 12px;
+        color: #666;
+        margin: 0 0 2px 0;
+    }
+
+    .user-email {
+        font-size: 11px;
+        color: #999;
+        margin: 0;
+    }
+
+    .sidebar-nav {
+        flex: 1;
+    }
+
     .collapsible-menu {
-        margin-bottom: var(--spacing-sm);
+        margin-bottom: 5px;
     }
 
     .collapsible-header {
         display: flex;
-        align-items: center;
         justify-content: space-between;
-        padding: var(--spacing-md) var(--spacing-lg);
+        align-items: center;
+        padding: 12px 16px;
         cursor: pointer;
-        border-radius: var(--border-radius-lg);
-        transition: all var(--transition-fast);
-        color: var(--sidebar-text);
+        border-radius: 6px;
+        transition: background-color 0.2s;
     }
 
     .collapsible-header:hover {
-        background: var(--sidebar-hover-bg);
+        background-color: #f8f9fa;
     }
 
     .nav-item-content {
         display: flex;
         align-items: center;
-        gap: var(--spacing-lg);
-        flex: 1;
+        gap: 12px;
     }
 
     .expand-icon {
-        transition: transform var(--transition-fast);
-        font-size: 1.25rem;
+        font-size: 18px;
+        transition: transform 0.2s;
     }
 
-    .collapsible-menu.open .expand-icon {
+    .collapsible-menu.expanded .expand-icon {
         transform: rotate(90deg);
     }
 
     .collapsible-content {
         max-height: 0;
         overflow: hidden;
-        transition: max-height var(--transition-normal);
-        padding-left: var(--spacing-lg);
+        transition: max-height 0.3s ease;
     }
 
-    .collapsible-menu.open .collapsible-content {
+    .collapsible-menu.expanded .collapsible-content {
         max-height: 500px;
     }
 
-    .nav-badge {
-        margin-left: auto;
-        font-size: var(--font-size-xs);
-        padding: 2px 6px;
-        border-radius: var(--border-radius-full);
-        background: var(--primary-accent);
+    .collapsible-content .nav-item {
+        padding-left: 52px;
+        border-radius: 6px;
+        margin: 2px 0;
+    }
+
+    .nav-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 16px;
+        text-decoration: none;
+        color: #333;
+        border-radius: 6px;
+        transition: all 0.2s;
+        font-size: 14px;
+    }
+
+    .nav-item:hover {
+        background-color: #f8f9fa;
+        color: #007bff;
+        text-decoration: none;
+    }
+
+    .nav-item.active {
+        background-color: #007bff;
         color: white;
-        font-weight: var(--font-weight-medium);
-        min-width: 18px;
+    }
+
+    .nav-item.active .material-icons {
+        color: white;
+    }
+
+    .nav-item .material-icons {
+        font-size: 20px;
+    }
+
+    .no-menu-message {
         text-align: center;
-    }
-
-    .nav-badge.warning {
-        background: var(--warning-accent);
-    }
-
-    .nav-badge.danger {
-        background: var(--danger-accent);
-    }
-
-    .nav-badge.info {
-        background: var(--info-accent);
+        padding: 20px;
+        color: #666;
+        background: #f8f9fa;
+        border-radius: 8px;
     }
 
     .sidebar-footer {
-        border-top: 1px solid rgba(255, 255, 255, 0.1);
-        padding: var(--spacing-lg);
         margin-top: auto;
+        padding-top: 20px;
+        border-top: 1px solid #e5e5e5;
     }
 
-    .sidebar-collapse-btn {
-        width: 100%;
-        padding: var(--spacing-md);
-        background: transparent;
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        border-radius: var(--border-radius-lg);
-        color: var(--sidebar-text);
-        cursor: pointer;
-        transition: all var(--transition-fast);
-        margin-bottom: var(--spacing-md);
+    .logout-item {
+        color: #dc3545;
     }
 
-    .sidebar-collapse-btn:hover {
-        background: var(--sidebar-hover-bg);
-        border-color: var(--primary-accent);
+    .logout-item:hover {
+        background-color: rgba(220, 53, 69, 0.1);
+        color: #dc3545;
     }
 
-    .sidebar-collapsed .sidebar-collapse-btn .material-icons {
-        transform: rotate(180deg);
-    }
-
-    .sidebar-quick-links {
-        display: flex;
-        gap: var(--spacing-sm);
-        justify-content: center;
-        margin-bottom: var(--spacing-md);
-    }
-
-    .quick-link {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        width: 36px;
-        height: 36px;
-        border-radius: var(--border-radius-lg);
-        color: var(--sidebar-text);
-        text-decoration: none;
-        transition: all var(--transition-fast);
-    }
-
-    .quick-link:hover {
-        background: var(--sidebar-hover-bg);
-        color: var(--primary-accent);
-        text-decoration: none;
-    }
-
-    .app-version {
-        text-align: center;
-        color: var(--sidebar-text-muted);
-        font-size: var(--font-size-xs);
-    }
-
-    /* États de la sidebar */
-    .sidebar-collapsed .hide-when-collapsed {
-        display: none;
-    }
-
-    .sidebar-collapsed .show-when-collapsed {
-        display: block;
-    }
-
-    .sidebar-collapsed .gestionsoutenance-sidebar {
-        width: 70px;
-        padding: var(--spacing-lg) var(--spacing-sm);
-    }
-
-    .sidebar-collapsed .nav-item {
-        justify-content: center;
-        padding: var(--spacing-md);
-    }
-
-    .sidebar-collapsed .collapsible-header {
-        justify-content: center;
-        padding: var(--spacing-md);
-    }
-
-    .sidebar-collapsed .admin-info {
-        text-align: center;
-    }
-
-    .sidebar-collapsed .admin-avatar {
-        margin: 0 auto;
-    }
-
-    /* Mobile */
+    /* Responsive */
     @media (max-width: 768px) {
         .gestionsoutenance-sidebar {
-            transform: translateX(-100%);
-            z-index: 1050;
+            width: 60px;
         }
 
-        .sidebar-mobile-open .gestionsoutenance-sidebar,
-        .gestionsoutenance-sidebar.open {
-            transform: translateX(0);
+        .hide-when-collapsed {
+            display: none;
         }
 
-        .sidebar-mobile-open::before {
-            content: '';
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.5);
-            z-index: 1040;
+        .user-info {
+            display: none;
         }
 
-        .main-content-area {
-            margin-left: 0 !important;
-        }
-
-        .no-sidebar {
-            margin-left: 0;
-        }
-    }
-
-    /* Animation d'entrée */
-    .nav-item {
-        animation: slideInLeft 0.3s ease-out;
-    }
-
-    @keyframes slideInLeft {
-        from {
-            opacity: 0;
-            transform: translateX(-20px);
-        }
-        to {
-            opacity: 1;
-            transform: translateX(0);
+        .sidebar-brand .brand-text {
+            display: none;
         }
     }
 </style>
+
+<script>
+    // JavaScript pour le menu collapsible
+    document.addEventListener('DOMContentLoaded', function() {
+        const collapsibleMenus = document.querySelectorAll('.collapsible-menu');
+
+        collapsibleMenus.forEach(menu => {
+            const header = menu.querySelector('.collapsible-header');
+
+            if (header) {
+                header.addEventListener('click', function() {
+                    menu.classList.toggle('expanded');
+                });
+            }
+        });
+
+        // Ouvrir automatiquement le menu contenant la page active
+        const activeItems = document.querySelectorAll('.nav-item.active');
+        activeItems.forEach(item => {
+            const parentMenu = item.closest('.collapsible-menu');
+            if (parentMenu) {
+                parentMenu.classList.add('expanded');
+            }
+        });
+
+        console.log('Menu initialisé avec', collapsibleMenus.length, 'menus collapsibles');
+    });
+</script>

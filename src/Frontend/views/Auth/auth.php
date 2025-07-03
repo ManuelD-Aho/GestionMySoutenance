@@ -62,11 +62,11 @@
                 <h2>Connexion</h2>
                 <div class="form-group">
                     <label for="login_email">Login ou Email :</label>
-                    <input type="text" id="login_email" name="login_email" required>
+                    <input type="text" id="login_email" name="identifiant" required>
                 </div>
                 <div class="form-group">
                     <label for="password">Mot de passe</label>
-                    <input type="password" id="password" name="password" required>
+                    <input type="password" id="password" name="mot_de_passe" required>
                 </div>
                 <div class="form-options">
                     <label class="checkbox-container">
