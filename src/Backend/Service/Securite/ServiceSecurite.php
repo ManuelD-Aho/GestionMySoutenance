@@ -101,6 +101,8 @@ class ServiceSecurite implements ServiceSecuriteInterface
 
     public function demarrerSessionUtilisateur(string $numeroUtilisateur): void
     {
+        error_log("DEBUG SecuriteService: Session entièrement peuplée pour l'utilisateur: " . ($_SESSION['user_id'] ?? 'N/A'));
+        error_log("DEBUG SecuriteService: Données de session complètes: " . json_encode($_SESSION));
         error_log("DEBUG SecuriteService: Début de la session pour l'utilisateur: " . $numeroUtilisateur);
         session_regenerate_id(true);
         error_log("DEBUG SecuriteService: Nouvel ID de session après régénération: " . session_id());
@@ -109,6 +111,8 @@ class ServiceSecurite implements ServiceSecuriteInterface
         error_log("DEBUG SecuriteService: _SESSION['user_id'] défini à: " . $_SESSION['user_id']);
 
         $user = $this->utilisateurModel->trouverParIdentifiant($numeroUtilisateur);
+        error_log("DEBUG SecuriteService: Contenu de \$user après trouverParIdentifiant: " . json_encode($user)); // <-- AJOUTEZ CE LOG
+
         if (!$user) {
             error_log("ERROR SecuriteService: Données utilisateur non trouvées pour le démarrage de session ID: " . $numeroUtilisateur);
             throw new ElementNonTrouveException("Impossible de démarrer la session pour un utilisateur inexistant.");

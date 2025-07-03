@@ -118,21 +118,6 @@ $cache_buster = $is_development ? '?v=' . time() : '?v=' . $asset_version;
 
 <div class="app-layout">
 
-    <?php
-    // Inclusion du menu latéral
-    $menu_data = [
-        'current_url' => $current_url,
-        'user_role' => $user_role,
-        'user_permissions' => $_SESSION['user_permissions'] ?? [],
-        'is_admin_page' => $is_admin_page
-    ];
-
-    // Le menu n'est affiché que si l'utilisateur est connecté
-    if (isset($_SESSION['user_id'])):
-        require_once __DIR__ . '/../common/menu.php';
-    endif;
-    ?>
-    <div>
         <?php
         // Inclusion du header
         $header_data = [
@@ -145,6 +130,21 @@ $cache_buster = $is_development ? '?v=' . time() : '?v=' . $asset_version;
         // Le header n'est affiché que si l'utilisateur est connecté
         if (isset($_SESSION['user_id'])):
             require_once __DIR__ . '/../common/header.php';
+        endif;
+        ?>
+
+        <?php
+        // Inclusion du menu latéral
+        $menu_data = [
+            'current_url' => $current_url,
+            'user_role' => $user_role,
+            'user_permissions' => $_SESSION['user_permissions'] ?? [],
+            'is_admin_page' => $is_admin_page
+        ];
+
+        // Le menu n'est affiché que si l'utilisateur est connecté
+        if (isset($_SESSION['user_id'])):
+            require_once __DIR__ . '/../common/menu.php';
         endif;
         ?>
 
@@ -219,7 +219,7 @@ $cache_buster = $is_development ? '?v=' . time() : '?v=' . $asset_version;
                 </div>
             <?php endif; ?>
         </main>
-    </div>
+
 </div>
 
 <!-- Scripts JavaScript - Ordre d'importance -->

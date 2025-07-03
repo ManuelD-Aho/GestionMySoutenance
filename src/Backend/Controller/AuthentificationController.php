@@ -90,7 +90,7 @@ class AuthentificationController extends BaseController
         }
 
         try {
-            if ($this->securiteService->verifierCodeAuthentificationDeuxFacteurs($_SESSION['2fa_user_id'], $_POST['code_totp'] ?? '')) {
+            if ($this->securiteService->verifierCodeAuthentificationDeuxFacteurs($_SESSION['2fa_user_id'], $_POST['code_2fa'] ?? '')) {
                 $this->securiteService->demarrerSessionUtilisateur($_SESSION['2fa_user_id']);
                 $this->addFlashMessage('success', 'Vérification 2FA réussie !');
                 $this->redirect('/dashboard');
@@ -162,14 +162,14 @@ class AuthentificationController extends BaseController
             return;
         }
 
-        if (($data['nouveau_mot_de_passe'] ?? '') !== ($data['confirmation_mot_de_passe'] ?? '')) {
+        if (($data['nouveau_mot_de_passe'] ?? '') !== ($data['confirm_password'] ?? '')) {
             $this->addFlashMessage('error', 'Les mots de passe ne correspondent pas.');
             $this->redirect('/reset-password/' . $token);
             return;
         }
 
         try {
-            $this->securiteService->reinitialiserMotDePasseViaToken($token, $data['nouveau_mot_de_passe']);
+            $this->securiteService->reinitialiserMotDePasseViaToken($token, $data['new_password']);
             $this->addFlashMessage('success', 'Votre mot de passe a été réinitialisé. Vous pouvez vous connecter.');
             $this->redirect('/login');
         } catch (TokenExpireException | TokenInvalideException $e) {

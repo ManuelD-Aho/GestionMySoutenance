@@ -2,22 +2,24 @@
 /**
  * Menu latéral modernisé - GestionMySoutenance
  * Navigation principale avec permissions et rôles
+ *
+ * Ce fichier charge les données de menu dynamiquement depuis la base de données.
  */
 
 // Récupération des données utilisateur et permissions
-$user_role = $user_role ?? $_SESSION['user_role'] ?? 'guest';
-$user_permissions = $user_permissions ?? $_SESSION['user_permissions'] ?? [];
-$current_url = $current_url ?? $_SERVER['REQUEST_URI'];
+// Assurez-vous que l'ID du groupe de l'utilisateur est accessible ici, par exemple via la session.
+$user_role = $_SESSION['user_role'] ?? 'guest'; // Ceci peut être le libellé du rôle (ex: 'admin', 'etudiant')
+$user_group_id = $_SESSION['user_group_id'] ?? null; // C'est l'ID du groupe ('ADMIN', 'ETUDIANT', etc.) depuis la BD
+$current_url = $_SERVER['REQUEST_URI'];
 
-// Fonction helper pour vérifier les permissions
-function hasPermission($permission, $user_permissions) {
-    return in_array($permission, $user_permissions) || in_array('*', $user_permissions);
+// Fonction helper pour échapper les sorties HTML (sécurité)
+if (!function_exists('e')) {
+    function e($text) {
+        return htmlspecialchars($text ?? '', ENT_QUOTES, 'UTF-8');
+    }
 }
 
-function hasRole($role, $user_role) {
-    return $user_role === $role || $user_role === 'admin';
-}
-
+// Fonction helper pour vérifier l'état actif de l'URL
 function isActive($url, $current_url) {
     // Nettoyage des URLs pour comparaison
     $url = rtrim($url, '/');
@@ -27,194 +29,189 @@ function isActive($url, $current_url) {
         return $current === '' || $current === '/';
     }
 
+    // Gère les cas où l'URL du menu est une base (ex: /admin/configuration) et l'URL actuelle est plus spécifique (ex: /admin/configuration/parametres)
     return strpos($current, $url) === 0;
 }
 
-// Configuration du menu selon le rôle
+// Initialisation du tableau des éléments de menu
 $menu_items = [];
 
-// Menu pour tous les utilisateurs connectés
-if ($user_role !== 'guest') {
-    $menu_items['dashboard'] = [
-        'label' => 'Tableau de Bord',
-        'url' => '/',
-        'icon' => 'dashboard',
-        'permission' => null,
-        'active' => isActive('/', $current_url)
-    ];
+// --- DÉBUT DE LA LOGIQUE DE CHARGEMENT DU MENU DEPUIS LA BASE DE DONNÉES ---
+
+if ($user_group_id) {
+    $raw_db_menu_data = []; // Ce tableau contiendra les données brutes de la base de données
+
+    try {
+        // C'est LA PARTIE QUE VOUS DEVEZ ADAPTER À VOTRE SYSTÈME D'ACCÈS À LA BASE DE DONNÉES.
+        // Si vous utilisez votre classe src/Config/Database.php et/ou vos Services (ex: ServiceSecurite):
+
+        // Exemple si vous avez un conteneur d'injection de dépendances (comme src/Config/Container.php)
+        // require_once __DIR__ . '/../../Config/Container.php';
+        // $container = new \src\Config\Container();
+        // $serviceSecurite = $container->get(\src\Backend\Service\Securite\ServiceSecurite::class);
+        // $raw_db_menu_data = $serviceSecurite->getAccessibleTraitementsForGroup($user_group_id);
+        // Assurez-vous que ServiceSecurite::getAccessibleTraitementsForGroup existe et exécute la requête SQL ci-dessous.
+
+        // Si vous travaillez avec PDO directement (moins recommandé pour une grande application):
+        // Assurez-vous que $pdo_connection est votre objet PDO global ou une connexion obtenue de votre classe Database.
+        // global $pdo_connection; // OU $db = new \src\Config\Database(); $pdo_connection = $db->getConnection();
+        // if ($pdo_connection) {
+        //     $stmt = $pdo_connection->prepare("
+        //         SELECT t.id_traitement, t.libelle_traitement, t.id_parent_traitement, t.icone_class, t.url_associee, t.ordre_affichage
+        //         FROM traitement t
+        //         JOIN groupe_traitement gt ON t.id_traitement = gt.id_traitement
+        //         WHERE gt.id_groupe_utilisateur = :user_group_id
+        //         ORDER BY t.ordre_affichage ASC
+        //     ");
+        //     $stmt->execute([':user_group_id' => $user_group_id]);
+        //     $raw_db_menu_data = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        // }
+
+        // --- DONNÉES D'EXEMPLE POUR LE DÉVELOPPEMENT (À SUPPRIMER EN PRODUCTION) ---
+        // Cette section simule ce que votre base de données devrait retourner.
+        // REMPLACEZ CELA PAR LE VRAI APPEL À VOTRE BASE DE DONNÉES !
+        $sample_db_data = [];
+        if ($user_group_id === 'ADMIN') {
+            $sample_db_data = [
+                ['id_traitement' => 'MENU_DASHBOARDS', 'libelle_traitement' => 'Tableaux de Bord', 'id_parent_traitement' => null, 'icone_class' => 'fas fa-tachometer-alt', 'url_associee' => null, 'ordre_affichage' => 10],
+                ['id_traitement' => 'TRAIT_ADMIN_DASHBOARD_ACCEDER', 'libelle_traitement' => 'Accéder Dashboard Admin', 'id_parent_traitement' => 'MENU_DASHBOARDS', 'icone_class' => 'fas fa-chart-line', 'url_associee' => '/../Administration/dashboard', 'ordre_affichage' => 11],
+                ['id_traitement' => 'MENU_ADMINISTRATION', 'libelle_traitement' => 'Administration', 'id_parent_traitement' => null, 'icone_class' => 'fas fa-cogs', 'url_associee' => null, 'ordre_affichage' => 40],
+                ['id_traitement' => 'MENU_GESTION_COMPTES', 'libelle_traitement' => 'Gestion des Comptes', 'id_parent_traitement' => 'MENU_ADMINISTRATION', 'icone_class' => 'fas fa-users', 'url_associee' => null, 'ordre_affichage' => 41],
+                ['id_traitement' => 'TRAIT_ADMIN_GERER_UTILISATEURS_LISTER', 'libelle_traitement' => 'Lister Utilisateurs', 'id_parent_traitement' => 'MENU_GESTION_COMPTES', 'icone_class' => 'fas fa-list', 'url_associee' => '/../Administration/utilisateurs/liste', 'ordre_affichage' => 410],
+                ['id_traitement' => 'TRAIT_ADMIN_GERER_UTILISATEURS_CREER', 'libelle_traitement' => 'Créer Utilisateur', 'id_parent_traitement' => 'MENU_GESTION_COMPTES', 'icone_class' => 'fas fa-user-plus', 'url_associee' => '/../Administration/utilisateurs/creer', 'ordre_affichage' => 411],
+                ['id_traitement' => 'TRAIT_ADMIN_CONFIG_ACCEDER', 'libelle_traitement' => 'Accéder Configuration', 'id_parent_traitement' => 'MENU_ADMINISTRATION', 'icone_class' => 'fas fa-sliders-h', 'url_associee' => '/../Administration/configuration', 'ordre_affichage' => 42],
+                ['id_traitement' => 'TRAIT_ADMIN_CONFIG_ANNEES_GERER', 'libelle_traitement' => 'Gérer Années Académiques', 'id_parent_traitement' => 'TRAIT_ADMIN_CONFIG_ACCEDER', 'icone_class' => null, 'url_associee' => null, 'ordre_affichage' => 0],
+                ['id_traitement' => 'TRAIT_ADMIN_ACCES_FICHIERS_PROTEGES', 'libelle_traitement' => 'Accéder Fichiers Protégés', 'id_parent_traitement' => null, 'icone_class' => null, 'url_associee' => null, 'ordre_affichage' => 0], // Exemple de traitement sans parent direct de type MENU
+            ];
+        } elseif ($user_group_id === 'ETUDIANT') {
+            $sample_db_data = [
+                ['id_traitement' => 'MENU_DASHBOARDS', 'libelle_traitement' => 'Tableaux de Bord', 'id_parent_traitement' => null, 'icone_class' => 'fas fa-tachometer-alt', 'url_associee' => null, 'ordre_affichage' => 10],
+                ['id_traitement' => 'TRAIT_ETUDIANT_DASHBOARD_ACCEDER', 'libelle_traitement' => 'Accéder Dashboard Étudiant', 'id_parent_traitement' => 'MENU_DASHBOARDS', 'icone_class' => 'fas fa-user-graduate', 'url_associee' => '/../Etudiant/dashboard', 'ordre_affichage' => 12],
+                ['id_traitement' => 'MENU_ETUDIANT', 'libelle_traitement' => 'Espace Étudiant', 'id_parent_traitement' => null, 'icone_class' => 'fas fa-user-graduate', 'url_associee' => null, 'ordre_affichage' => 20],
+                ['id_traitement' => 'TRAIT_ETUDIANT_PROFIL_GERER', 'libelle_traitement' => 'Gérer Profil Étudiant', 'id_parent_traitement' => 'MENU_ETUDIANT', 'icone_class' => 'fas fa-user-circle', 'url_associee' => '/../Etudiant/profil', 'ordre_affichage' => 20],
+                ['id_traitement' => 'MENU_RAPPORT_ETUDIANT', 'libelle_traitement' => 'Rapports Étudiant', 'id_parent_traitement' => 'MENU_ETUDIANT', 'icone_class' => 'fas fa-file-alt', 'url_associee' => null, 'ordre_affichage' => 21],
+                ['id_traitement' => 'TRAIT_ETUDIANT_RAPPORT_SOUMETTRE', 'libelle_traitement' => 'Soumettre Rapport', 'id_parent_traitement' => 'MENU_RAPPORT_ETUDIANT', 'icone_class' => 'fas fa-upload', 'url_associee' => '/../Etudiant/rapport/redaction', 211],
+                ['id_traitement' => 'TRAIT_ETUDIANT_RAPPORT_SUIVRE', 'libelle_traitement' => 'Suivre Rapport', 'id_parent_traitement' => 'MENU_RAPPORT_ETUDIANT', 'icone_class' => 'fas fa-eye', 'url_associee' => '/../Etudiant/rapport/suivi', 212],
+            ];
+        }
+        // TODO: Ajoutez ici les données d'exemple pour 'COMMISSION', 'PERSONNEL', 'ENSEIGNANT'
+        // en fonction de ce que vous attendez de la base de données.
+
+        $raw_db_menu_data = $sample_db_data; // REMPLACEZ CETTE LIGNE PAR VOTRE VRAI APPEL À LA DB !
+
+        // --- FIN DES DONNÉES D'EXEMPLE ---
+
+    } catch (Throwable $e) { // Utilisez Throwable pour attraper toutes les erreurs
+        error_log("Erreur de chargement du menu depuis la DB: " . $e->getMessage());
+        $raw_db_menu_data = []; // Assurez-vous que c'est vide en cas d'erreur
+    }
+
+    // Étape 2: Construire la structure hiérarchique du menu à partir des données brutes
+    $indexed_menu_items = [];
+    foreach ($raw_db_menu_data as $item) {
+        // Logique de mapping des icônes Font Awesome vers Material Icons
+        $icon_name = $item['icone_class'];
+        if ($icon_name && strpos($icon_name, 'fas fa-') === 0) {
+            $icon_key = str_replace('fas fa-', '', $icon_name);
+            $icon_mapping = [
+                'tachometer-alt' => 'dashboard',
+                'cogs' => 'settings',
+                'gavel' => 'gavel',
+                'user-graduate' => 'school', // Ou 'person_pin'
+                'users' => 'people',
+                'user-tie' => 'person',
+                'file-alt' => 'description',
+                'chart-line' => 'bar_chart',
+                'user-plus' => 'person_add',
+                'list' => 'list',
+                'clipboard-list' => 'assignment',
+                'user-circle' => 'account_circle',
+                'upload' => 'upload',
+                'eye' => 'visibility',
+                'clipboard-check' => 'check_circle',
+                'question-circle' => 'help',
+                'graduation-cap' => 'school',
+                'sliders-h' => 'tune',
+            ];
+            $icon_name = $icon_mapping[$icon_key] ?? $icon_key; // Utilise le nom Material Icons ou la clé brute si non trouvé
+        } else {
+            $icon_name = $icon_name ?: 'circle'; // Icône par défaut si non spécifiée ou mapping impossible
+        }
+
+        $indexed_menu_items[$item['id_traitement']] = [
+            'label' => $item['libelle_traitement'],
+            'url' => $item['url_associee'], // Peut être NULL
+            'icon' => $icon_name,
+            'id_traitement' => $item['id_traitement'], // Garder l'ID pour référence interne
+            'active' => isActive($item['url_associee'] ?? '', $current_url), // Gérer les URLs NULL
+            'id_parent_traitement' => $item['id_parent_traitement'],
+            'ordre_affichage' => $item['ordre_affichage'],
+            'children' => []
+        ];
+    }
+
+    $final_menu_tree = [];
+    foreach ($indexed_menu_items as $id => $item) {
+        if ($item['id_parent_traitement'] === null) {
+            // C'est un élément de menu de premier niveau
+            $final_menu_tree[$id] = $item;
+        } else {
+            // C'est un sous-élément, rattachez-le à son parent
+            if (isset($indexed_menu_items[$item['id_parent_traitement']])) {
+                // Ajouter l'enfant au parent, en conservant l'ID de l'enfant comme clé
+                $indexed_menu_items[$item['id_parent_traitement']]['children'][$id] = $item;
+            }
+            // Si le parent n'est pas dans les traitements accessibles à l'utilisateur,
+            // cet enfant ne sera pas inclus dans le menu final affiché.
+        }
+    }
+
+    // Triez les éléments de premier niveau par ordre_affichage
+    uasort($final_menu_tree, function($a, $b) {
+        return $a['ordre_affichage'] <=> $b['ordre_affichage'];
+    });
+
+    // Triez les enfants de chaque élément de menu
+    foreach ($final_menu_tree as $id => &$parent) { // Utilisez & pour modifier le tableau original
+        if (!empty($parent['children'])) {
+            uasort($parent['children'], function($a, $b) {
+                return $a['ordre_affichage'] <=> $b['ordre_affichage'];
+            });
+        }
+    }
+    unset($parent); // Supprime la référence après la boucle pour éviter des effets secondaires
+
+    $menu_items = $final_menu_tree; // Le tableau final $menu_items est maintenant rempli par la DB
+
+    // Vous pouvez toujours ajouter des éléments statiques pour tous les utilisateurs si nécessaire,
+    // qui ne sont pas gérés par la table `traitement` (ex: Déconnexion, Accueil si non géré par DB).
+    // Exemple pour un Dashboard principal qui serait toujours présent indépendamment de la BD.
+    if ($user_role !== 'guest' && !isset($menu_items['MENU_DASHBOARDS'])) {
+        $menu_items = ['HOME_DASHBOARD_COMMON' => [ // Utilisez un ID unique pour éviter les conflits
+                'label' => 'Tableau de Bord',
+                'url' => '/',
+                'icon' => 'dashboard',
+                'id_traitement' => 'HOME_DASHBOARD_COMMON',
+                'id_parent_traitement' => null,
+                'ordre_affichage' => 5, // Un ordre d'affichage très bas pour qu'il soit en haut
+                'active' => isActive('/', $current_url),
+                'children' => []
+            ]] + $menu_items; // Ajoute en tête du tableau
+        // Re-trier après ajout si l'ordre est important par rapport aux éléments existants.
+        uasort($menu_items, function($a, $b) {
+            return $a['ordre_affichage'] <=> $b['ordre_affichage'];
+        });
+    }
+
+} else {
+    // Si l'utilisateur n'est pas connecté ou n'a pas de groupe
+    $menu_items = []; // Pas de menu pour les invités, ou seulement un menu "login"
 }
 
-// Menu Étudiant
-if (hasRole('etudiant', $user_role)) {
-    $menu_items['student'] = [
-        'label' => 'Mon Espace Étudiant',
-        'icon' => 'school',
-        'children' => [
-            [
-                'label' => 'Mes Cours',
-                'url' => '/student/courses',
-                'icon' => 'book',
-                'active' => isActive('/student/courses', $current_url)
-            ],
-            [
-                'label' => 'Mes Notes',
-                'url' => '/student/grades',
-                'icon' => 'grade',
-                'active' => isActive('/student/grades', $current_url)
-            ],
-            [
-                'label' => 'Planning',
-                'url' => '/student/schedule',
-                'icon' => 'event',
-                'active' => isActive('/student/schedule', $current_url)
-            ],
-            [
-                'label' => 'Documents',
-                'url' => '/student/documents',
-                'icon' => 'description',
-                'active' => isActive('/student/documents', $current_url)
-            ]
-        ]
-    ];
-}
+// --- FIN DE LA LOGIQUE DE CHARGEMENT DU MENU DEPUIS LA BASE DE DONNÉES ---
 
-// Menu Enseignant
-if (hasRole('enseignant', $user_role)) {
-    $menu_items['teacher'] = [
-        'label' => 'Espace Enseignant',
-        'icon' => 'person',
-        'children' => [
-            [
-                'label' => 'Mes Cours',
-                'url' => '/teacher/courses',
-                'icon' => 'class',
-                'active' => isActive('/teacher/courses', $current_url)
-            ],
-            [
-                'label' => 'Évaluations',
-                'url' => '/teacher/evaluations',
-                'icon' => 'quiz',
-                'active' => isActive('/teacher/evaluations', $current_url)
-            ],
-            [
-                'label' => 'Étudiants',
-                'url' => '/teacher/students',
-                'icon' => 'groups',
-                'active' => isActive('/teacher/students', $current_url)
-            ],
-            [
-                'label' => 'Planning',
-                'url' => '/teacher/schedule',
-                'icon' => 'event',
-                'active' => isActive('/teacher/schedule', $current_url)
-            ]
-        ]
-    ];
-}
-
-// Menu Administration
-if (hasRole('admin', $user_role) || hasPermission('admin_access', $user_permissions)) {
-    $menu_items['admin'] = [
-        'label' => 'Administration',
-        'icon' => 'admin_panel_settings',
-        'children' => [
-            [
-                'label' => 'Gestion Utilisateurs',
-                'url' => '/admin/users',
-                'icon' => 'people',
-                'active' => isActive('/admin/users', $current_url),
-                'permission' => 'manage_users'
-            ],
-            [
-                'label' => 'Gestion Académique',
-                'url' => '/admin/gestion-acad',
-                'icon' => 'school',
-                'active' => isActive('/admin/gestion-acad', $current_url),
-                'permission' => 'manage_academic'
-            ],
-            [
-                'label' => 'Cours & Programmes',
-                'url' => '/admin/courses',
-                'icon' => 'menu_book',
-                'active' => isActive('/admin/courses', $current_url),
-                'permission' => 'manage_courses'
-            ],
-            [
-                'label' => 'Examens',
-                'url' => '/admin/exams',
-                'icon' => 'quiz',
-                'active' => isActive('/admin/exams', $current_url),
-                'permission' => 'manage_exams'
-            ]
-        ]
-    ];
-
-    $menu_items['system'] = [
-        'label' => 'Système',
-        'icon' => 'settings',
-        'children' => [
-            [
-                'label' => 'Configuration',
-                'url' => '/admin/config',
-                'icon' => 'tune',
-                'active' => isActive('/admin/config', $current_url),
-                'permission' => 'system_config'
-            ],
-            [
-                'label' => 'Permissions',
-                'url' => '/admin/permissions',
-                'icon' => 'security',
-                'active' => isActive('/admin/permissions', $current_url),
-                'permission' => 'manage_permissions'
-            ],
-            [
-                'label' => 'Rapports',
-                'url' => '/admin/reports',
-                'icon' => 'assessment',
-                'active' => isActive('/admin/reports', $current_url),
-                'permission' => 'view_reports'
-            ],
-            [
-                'label' => 'Logs Système',
-                'url' => '/admin/logs',
-                'icon' => 'bug_report',
-                'active' => isActive('/admin/logs', $current_url),
-                'permission' => 'view_logs'
-            ]
-        ]
-    ];
-}
-
-// Menu Personnel/Scolarité
-if (hasRole('personnel', $user_role) || hasPermission('staff_access', $user_permissions)) {
-    $menu_items['staff'] = [
-        'label' => 'Scolarité',
-        'icon' => 'assignment',
-        'children' => [
-            [
-                'label' => 'Inscriptions',
-                'url' => '/staff/inscriptions',
-                'icon' => 'how_to_reg',
-                'active' => isActive('/staff/inscriptions', $current_url)
-            ],
-            [
-                'label' => 'Documents',
-                'url' => '/staff/documents',
-                'icon' => 'description',
-                'active' => isActive('/staff/documents', $current_url)
-            ],
-            [
-                'label' => 'Planning',
-                'url' => '/staff/planning',
-                'icon' => 'event',
-                'active' => isActive('/staff/planning', $current_url)
-            ]
-        ]
-    ];
-}
-
-// Informations utilisateur pour la sidebar
-$current_user = $current_user ?? $_SESSION['user_data'] ?? null;
+// Les variables d'information utilisateur doivent être définies AVANT le bloc HTML
+$current_user = $_SESSION['user_data'] ?? null; // Assurez-vous que vos données utilisateur sont ici
 $user_name = $current_user['nom'] ?? $current_user['name'] ?? 'Utilisateur';
 $user_initials = '';
 if (!empty($user_name)) {
@@ -226,18 +223,22 @@ if (!empty($user_name)) {
 }
 
 $role_display = [
-    'admin' => 'Administrateur',
-    'enseignant' => 'Enseignant',
-    'etudiant' => 'Étudiant',
-    'personnel' => 'Personnel'
+    'ADMIN' => 'Administrateur',
+    'ETUDIANT' => 'Étudiant',
+    'ENSEIGNANT' => 'Enseignant',
+    'COMMISSION' => 'Commission',
+    'PERSONNEL' => 'Personnel Administratif'
 ];
-$user_role_display = $role_display[$user_role] ?? ucfirst($user_role);
+// Utilisez l'ID du groupe pour l'affichage précis du rôle
+$user_role_display = $role_display[$user_group_id] ?? ucfirst($user_role);
+
+error_log("DEBUG Menu: Contenu final du menu pour l'utilisateur: " . json_encode($menu_items));
+
 ?>
 
 <aside class="gestionsoutenance-sidebar" id="sidebar">
     <div class="sidebar-content">
 
-        <!-- Branding -->
         <div class="sidebar-brand">
             <div class="brand-logo">
                 <span class="material-icons">school</span>
@@ -245,7 +246,6 @@ $user_role_display = $role_display[$user_role] ?? ucfirst($user_role);
             <span class="brand-text hide-when-collapsed">GestionMySoutenance</span>
         </div>
 
-        <!-- Informations utilisateur -->
         <?php if ($user_role !== 'guest'): ?>
             <div class="admin-info hide-when-collapsed">
                 <div class="admin-avatar" id="admin-avatar-initials">
@@ -258,13 +258,16 @@ $user_role_display = $role_display[$user_role] ?? ucfirst($user_role);
             </div>
         <?php endif; ?>
 
-        <!-- Navigation principale -->
         <nav class="sidebar-nav">
             <?php foreach ($menu_items as $section_key => $section): ?>
 
-                <?php if (isset($section['children'])): ?>
-                    <!-- Menu avec sous-éléments -->
-                    <div class="collapsible-menu <?= $section_key ?>-menu" data-section="<?= $section_key ?>">
+                <?php
+                // Si l'élément de premier niveau n'a pas d'URL mais a des enfants, il est un menu déroulant
+                $is_collapsible_parent = empty($section['url']) && !empty($section['children']);
+                ?>
+
+                <?php if ($is_collapsible_parent): ?>
+                    <div class="collapsible-menu <?= e($section['id_traitement']) ?>-menu" data-section="<?= e($section['id_traitement']) ?>">
                         <div class="collapsible-header">
                             <div class="nav-item-content">
                                 <span class="material-icons"><?= e($section['icon']) ?></span>
@@ -274,35 +277,38 @@ $user_role_display = $role_display[$user_role] ?? ucfirst($user_role);
                         </div>
 
                         <div class="collapsible-content">
-                            <?php foreach ($section['children'] as $item): ?>
+                            <?php foreach ($section['children'] as $item_child): ?>
                                 <?php
-                                // Vérifier les permissions pour cet élément
-                                $can_access = true;
-                                if (isset($item['permission'])) {
-                                    $can_access = hasPermission($item['permission'], $user_permissions);
+                                // Vérifiez si l'enfant a une URL pour être affichable en tant que lien
+                                // Les traitements sans URL sont considérés comme de pures permissions ou sous-actions
+                                // et ne seront pas affichés comme des liens de menu ici.
+                                if (empty($item_child['url'])) {
+                                    continue; // Passez si l'élément enfant n'a pas d'URL navigable
                                 }
                                 ?>
+                                <a href="<?= e($item_child['url']) ?>"
+                                   class="nav-item <?= ($item_child['active'] ?? false) ? 'active' : '' ?>"
+                                   data-tooltip="<?= e($item_child['label']) ?>">
+                                    <span class="material-icons"><?= e($item_child['icon']) ?></span>
+                                    <span class="hide-when-collapsed"><?= e($item_child['label']) ?></span>
 
-                                <?php if ($can_access): ?>
-                                    <a href="<?= e($item['url']) ?>"
-                                       class="nav-item <?= ($item['active'] ?? false) ? 'active' : '' ?>"
-                                       data-tooltip="<?= e($item['label']) ?>">
-                                        <span class="material-icons"><?= e($item['icon']) ?></span>
-                                        <span class="hide-when-collapsed"><?= e($item['label']) ?></span>
-
-                                        <?php if (isset($item['badge'])): ?>
-                                            <span class="nav-badge <?= e($item['badge']['type'] ?? '') ?>">
-                                            <?= e($item['badge']['count']) ?>
-                                        </span>
-                                        <?php endif; ?>
-                                    </a>
-                                <?php endif; ?>
+                                    <?php if (isset($item_child['badge'])): ?>
+                                        <span class="nav-badge <?= e($item_child['badge']['type'] ?? '') ?>">
+                                        <?= e($item_child['badge']['count']) ?>
+                                    </span>
+                                    <?php endif; ?>
+                                </a>
                             <?php endforeach; ?>
                         </div>
                     </div>
 
                 <?php else: ?>
-                    <!-- Menu simple -->
+                    <?php
+                    // Assurez-vous que l'élément a une URL pour être affiché
+                    if (empty($section['url'])) {
+                        continue; // Passez si l'élément de premier niveau n'a pas d'URL navigable
+                    }
+                    ?>
                     <a href="<?= e($section['url']) ?>"
                        class="nav-item <?= ($section['active'] ?? false) ? 'active' : '' ?>"
                        data-tooltip="<?= e($section['label']) ?>">
@@ -321,21 +327,18 @@ $user_role_display = $role_display[$user_role] ?? ucfirst($user_role);
         </nav>
     </div>
 
-    <!-- Footer de la sidebar -->
     <div class="sidebar-footer">
 
-        <!-- Bouton de réduction -->
         <button class="sidebar-collapse-btn" onclick="toggleSidebarCollapse()" data-tooltip="Réduire le menu">
             <span class="material-icons">chevron_left</span>
         </button>
 
-        <!-- Liens rapides (si non réduit) -->
         <div class="sidebar-quick-links hide-when-collapsed">
             <a href="/help" class="quick-link" data-tooltip="Aide">
                 <span class="material-icons">help</span>
             </a>
 
-            <?php if (hasRole('admin', $user_role)): ?>
+            <?php if ($user_group_id === 'ADMIN'): ?>
                 <a href="/admin/system-status" class="quick-link" data-tooltip="État du système">
                     <span class="material-icons">monitor_heart</span>
                 </a>
@@ -346,7 +349,6 @@ $user_role_display = $role_display[$user_role] ?? ucfirst($user_role);
             </a>
         </div>
 
-        <!-- Version de l'application -->
         <div class="app-version hide-when-collapsed">
             <small>v<?= defined('APP_VERSION') ? APP_VERSION : '1.0.0' ?></small>
         </div>
@@ -525,7 +527,7 @@ $user_role_display = $role_display[$user_role] ?? ucfirst($user_role);
 </script>
 
 <style>
-    /* Styles spécifiques au menu */
+    /* Styles spécifiques au menu (inchangés) */
     .collapsible-menu {
         margin-bottom: var(--spacing-sm);
     }

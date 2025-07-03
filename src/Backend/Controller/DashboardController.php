@@ -5,14 +5,14 @@ namespace App\Backend\Controller;
 
 use App\Backend\Service\Securite\ServiceSecuriteInterface;
 use App\Backend\Service\Supervision\ServiceSupervisionInterface;
-use App\Backend\Util\FormValidator; // Assurez-vous que cette ligne est présente
+use App\Backend\Util\FormValidator;
 
 class DashboardController extends BaseController
 {
     public function __construct(
         ServiceSecuriteInterface $securiteService,
         ServiceSupervisionInterface $supervisionService,
-        FormValidator $validator // Ajout du FormValidator ici
+        FormValidator $validator
     ) {
         parent::__construct($securiteService, $supervisionService, $validator);
     }
@@ -29,11 +29,25 @@ class DashboardController extends BaseController
         if (!$this->securiteService->estUtilisateurConnecte()) {
             error_log("DEBUG DashboardController: Utilisateur NON connecté, redirection vers la connexion. ID de Session: " . session_id());
             $this->redirect('/login');
-            return; // Suppression de l'instruction inaccessible
+            return;
         }
 
         $user = $this->securiteService->getUtilisateurConnecte();
+
+        // --- CORRECTION MAJEURE ICI ---
+        // La clé pour l'ID de l'utilisateur dans le tableau $user est 'numero_utilisateur', pas 'id_utilisateur'.
+        // C'est pourquoi la vérification et les accès échouaient.
+        if (!is_array($user) || !isset($user['numero_utilisateur'])) { // <-- LIGNE CORRIGÉE
+            error_log("ERROR DashboardController: Données utilisateur en session incomplètes ou invalides. Clé 'numero_utilisateur' manquante.");
+            $this->addFlashMessage('error', 'Vos informations de session sont invalides. Veuillez vous reconnecter.');
+            $this->redirect('/login');
+            return;
+        }
+
         $dashboardUrl = null;
+
+        // Assurez-vous que toutes les utilisations de l'ID utilisateur utilisent 'numero_utilisateur'
+        $userIdForSupervision = $user['numero_utilisateur']; // <-- Utilisation cohérente
 
         switch ($user['id_groupe_utilisateur']) {
             case 'GRP_ADMIN_SYS':
@@ -54,19 +68,19 @@ class DashboardController extends BaseController
             default:
                 $this->addFlashMessage('error', 'Votre rôle ne vous donne pas accès à un tableau de bord spécifique.');
                 $this->supervisionService->enregistrerAction(
-                    $user['numero_utilisateur'],
+                    $userIdForSupervision, // <-- Utilisation cohérente
                     'ACCES_DASHBOARD_REFUSE',
                     null,
                     null,
                     ['reason' => 'Groupe utilisateur non géré', 'group' => $user['id_groupe_utilisateur']]
                 );
                 $this->renderError(403, 'Accès non autorisé à un tableau de bord.');
-                return; // Suppression de l'instruction inaccessible
+                return;
         }
 
         if ($dashboardUrl) {
             $this->supervisionService->enregistrerAction(
-                $user['numero_utilisateur'],
+                $userIdForSupervision, // <-- Utilisation cohérente
                 'ACCES_DASHBOARD_REUSSI',
                 null,
                 $dashboardUrl,
