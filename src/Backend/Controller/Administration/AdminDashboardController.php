@@ -65,4 +65,5 @@ class AdminDashboardController extends BaseController
             $this->renderError(500, 'Impossible de charger le tableau de bord administrateur.');
         }
     }
+
 }

@@ -47,6 +47,7 @@ return function(RouteCollector $router) {
     // --- Section Administration ---
     $router->addGroup('/admin', function (RouteCollector $r) {
         $r->addRoute('GET', '/dashboard', [AdminDashboardController::class, 'index']);
+        $r->addRoute('GET', '/reporting', [AdminDashboardController::class, 'index']);
 
         // Gestion des utilisateurs
         $r->addRoute('GET', '/utilisateurs', [UtilisateurController::class, 'list']); // Renommée de listUsers

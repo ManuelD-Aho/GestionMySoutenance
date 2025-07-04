@@ -122,6 +122,8 @@ class ServiceSecurite implements ServiceSecuriteInterface
         }
 
         $rattachements = $this->rattacherModel->trouverParCritere(['id_groupe_utilisateur' => $user['id_groupe_utilisateur']]);
+        error_log("DEBUG SecuriteService: Rattachements récupérés bruts pour le groupe " . ($user['id_groupe_utilisateur'] ?? 'N/A') . ": " . json_encode($rattachements));
+
         $_SESSION['user_group_permissions'] = array_column($rattachements, 'id_traitement');
         $_SESSION['user_delegations'] = $this->recupererDelegationsActivesPourUtilisateur($numeroUtilisateur);
 
@@ -389,8 +391,12 @@ class ServiceSecurite implements ServiceSecuriteInterface
                 ORDER BY ordre_affichage ASC, libelle_traitement ASC"; // Utiliser ordre_affichage ici
 
         $stmt = $this->db->prepare($sql);
+
+        error_log("DEBUG ServiceSecurite: Permissions utilisateur reçues pour menu: " . json_encode($permissionsUtilisateur));
+
         $stmt->execute($permissionsUtilisateur);
         $itemsMenu = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        error_log("DEBUG ServiceSecurite: Items menu récupérés de la DB: " . json_encode($itemsMenu));
 
         // 2. Construire l'arborescence
         $menuHierarchique = [];
@@ -402,6 +408,8 @@ class ServiceSecurite implements ServiceSecuriteInterface
             $itemsParId[$item['id_traitement']]['enfants'] = [];
         }
 
+        error_log("DEBUG ServiceSecurite: Items Par ID après indexation: " . json_encode($itemsParId));
+
         // Associer les enfants à leurs parents
         foreach ($itemsParId as $id => &$item) {
             if (!empty($item['id_parent_traitement']) && isset($itemsParId[$item['id_parent_traitement']])) {
@@ -410,12 +418,16 @@ class ServiceSecurite implements ServiceSecuriteInterface
         }
         unset($item); // Rompre la référence
 
+        error_log("DEBUG ServiceSecurite: Items Par ID après rattachement enfants: " . json_encode($itemsParId));
+
         // Récupérer uniquement les éléments de premier niveau (ceux sans parent ou dont le parent n'est pas dans la liste)
         foreach ($itemsParId as $id => $item) {
             if (empty($item['id_parent_traitement']) || !isset($itemsParId[$item['id_parent_traitement']])) {
                 $menuHierarchique[] = $item;
             }
         }
+
+        error_log("DEBUG ServiceSecurite: Menu hiérarchique final avant tri: " . json_encode($menuHierarchique));
 
         // Trier les éléments de premier niveau et leurs enfants par ordre_affichage
         usort($menuHierarchique, function($a, $b) {

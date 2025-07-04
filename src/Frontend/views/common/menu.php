@@ -29,11 +29,19 @@ function isActive($url, $current_url) {
     $url = rtrim($url, '/');
     $current = rtrim(strtok($current_url, '?'), '/');
 
+    // Gérer explicitement l'URL racine
     if ($url === '' || $url === '/') {
         return $current === '' || $current === '/';
     }
 
-    return strpos($current, $url) === 0;
+    // Pour une correspondance exacte, en particulier pour les pages feuille
+    if ($current === $url) {
+        return true;
+    }
+
+    // Pour une correspondance partielle (par exemple, un élément de menu parent)
+    // Assurez-vous qu'il correspond à un segment complet pour éviter les faux positifs (par exemple, /user correspondant à /users)
+    return strpos($current . '/', $url . '/') === 0;
 }
 
 // Fonction pour convertir l'icône Font Awesome en Material Icons
@@ -49,26 +57,59 @@ function convertIconToMaterial($faIcon) {
         'fas fa-chart-bar' => 'assessment',
         'fas fa-shield-alt' => 'security',
         'fas fa-wrench' => 'build',
-        'fas fa-eye' => 'visibility'
+        'fas fa-eye' => 'visibility',
+        // Ajoutez d'autres mappings si nécessaire en fonction de vos icônes de DB
+        'fas fa-chart-line' => 'show_chart', // Pour Reporting
+        'fas fa-calendar-alt' => 'event', // Pour Année Académique
+        'fas fa-bell' => 'notifications', // Pour Notifications
+        'fas fa-sliders-h' => 'tune', // Pour Paramètres Généraux
+        'fas fa-folder' => 'folder', // Pour Gestion Fichiers
+        'fas fa-list' => 'list', // Pour Lister Fichiers
+        'fas fa-upload' => 'cloud_upload', // Pour Uploader Fichier
+        'fas fa-graduation-cap' => 'school', // Pour Gestion Académique
+        'fas fa-book' => 'book', // Pour ECUEs
+        'fas fa-user-plus' => 'person_add', // Pour Inscriptions
+        'fas fa-clipboard-list' => 'assignment', // Pour Notes
+        'fas fa-briefcase' => 'business_center', // Pour Stages
+        'fas fa-university' => 'account_balance', // Pour UEs
+        'fas fa-chalkboard-teacher' => 'school', // Pour Carrières Enseignants
+        'fas fa-shield-alt' => 'security', // Pour Habilitations
+        'fas fa-users-cog' => 'people_alt', // Pour Gestion Groupes
+        'fas fa-lock' => 'lock', // Pour Niveaux Accès
+        'fas fa-link' => 'link', // Pour Gestion Rattachements
+        'fas fa-book-open' => 'menu_book', // Pour Référentiels
+        'fas fa-list-alt' => 'list_alt', // Pour Lister Référentiels
+        'fas fa-edit' => 'edit', // Pour CRUD Référentiel
+        'fas fa-history' => 'history', // Pour Journaux Audit
+        'fas fa-file-code' => 'code', // Pour Logs Système
+        'fas fa-tools' => 'handyman', // Pour Maintenance
+        'fas fa-tasks' => 'task', // Pour Queue Tâches
+        'fas fa-project-diagram' => 'account_tree', // Pour Suivi Workflows
+        'fas fa-exchange-alt' => 'swap_horiz', // Pour Transition de Rôle
+        'fas fa-user-tag' => 'label_important', // Pour Gestion Délégations
+        'fas fa-file-import' => 'upload_file', // Pour Import Étudiants
+        'fas fa-user-circle' => 'account_circle', // Mon Profil
+        'fas fa-file-upload' => 'upload_file', // Gestion Rapport
+        'fas fa-exclamation-triangle' => 'warning', // Gestion Réclamation
+        'fas fa-paper-plane' => 'send', // Soumettre Réclamation
+        'fas fa-check-circle' => 'check_circle', // Conformité
+        'fas fa-clipboard-check' => 'rule', // Rapports à Vérifier
+        'fas fa-check-double' => 'done_all', // Rapports Traités
+        'fas fa-file-invoice' => 'receipt_long', // Documents Admin
+        'fas fa-file-export' => 'download', // Génération Documents
+        'fas fa-balance-scale-right' => 'gavel', // Gestion Pénalités
+        'fas fa-vote-yea' => 'how_to_vote', // Interface Vote
+        'fas fa-pen' => 'edit', // Rédiger PV
+        'fas fa-search' => 'search', // Consulter PV
+        'fas fa-file-signature' => 'description', // Gestion PV
+        'fas fa-file-contract' => 'description', // Gestion Rapports
+        'fas fa-info-circle' => 'info' // Détails Rapport
     ];
 
     return $iconMap[$faIcon] ?? 'circle';
 }
 
-// Fonction pour générer l'URL basée sur l'ID du traitement
-function generateUrl($id_traitement) {
-    $urlMap = [
-        'MENU_DASHBOARDS' => '/dashboard',
-        'MENU_ETUDIANT' => '/etudiant',
-        'MENU_COMMISSION' => '/commission',
-        'MENU_PERSONNEL' => '/personnel',
-        'MENU_ADMINISTRATION' => '/admin',
-        'MENU_GESTION_COMPTES' => '/admin/utilisateurs',
-        'MENU_RAPPORT_ETUDIANT' => '/etudiant/rapports'
-    ];
-
-    return $urlMap[$id_traitement] ?? '#';
-}
+// Fonction generateUrl() et $urlMap ont été supprimées car les URLs viennent maintenant de la DB.
 
 // Informations utilisateur pour la sidebar
 $user_name = '';
@@ -96,14 +137,11 @@ $role_display = [
 ];
 $user_role_display = $role_display[$user_role] ?? ucfirst($user_role);
 
-// Debug pour voir les données
-error_log("DEBUG Menu: Menu items reçus: " . count($menu_items));
-error_log("DEBUG Menu: Permissions: " . count($user_permissions));
+// Les logs de debug ont été supprimés.
 ?>
 
 <aside class="gestionsoutenance-sidebar" id="sidebar">
     <div class="sidebar-content">
-        <!-- Branding -->
         <div class="sidebar-brand">
             <div class="brand-logo">
                 <span class="material-icons">school</span>
@@ -111,7 +149,6 @@ error_log("DEBUG Menu: Permissions: " . count($user_permissions));
             <span class="brand-text hide-when-collapsed">GestionMySoutenance</span>
         </div>
 
-        <!-- Informations utilisateur -->
         <?php if ($user_role !== 'guest' && $current_user): ?>
             <div class="user-info hide-when-collapsed">
                 <div class="user-avatar">
@@ -127,24 +164,24 @@ error_log("DEBUG Menu: Permissions: " . count($user_permissions));
             </div>
         <?php endif; ?>
 
-        <!-- Navigation principale -->
         <nav class="sidebar-nav">
             <?php if (!empty($menu_items)): ?>
                 <?php foreach ($menu_items as $item): ?>
                     <?php
                     // Vérifier si l'utilisateur a la permission pour cet élément
+                    // $user_permissions contient les id_traitement du groupe et des délégations
                     if (!hasPermission($item['id_traitement'], $user_permissions)) {
                         continue;
                     }
 
-                    $url = !empty($item['url_associee']) ? $item['url_associee'] : generateUrl($item['id_traitement']);
+                    // L'URL vient de la base de données via $item['url_associee']
+                    $url = $item['url_associee'];
                     $icon = convertIconToMaterial($item['icone_class']);
-                    $label = $item['libelle_menu'];
+                    $label = $item['libelle_menu']; // libelle_traitement est récupéré comme libelle_menu
                     $isActive = isActive($url, $current_url);
                     ?>
 
                     <?php if (!empty($item['enfants'])): ?>
-                        <!-- Menu avec sous-éléments -->
                         <div class="collapsible-menu" data-section="<?= e($item['id_traitement']) ?>">
                             <div class="collapsible-header">
                                 <div class="nav-item-content">
@@ -162,7 +199,8 @@ error_log("DEBUG Menu: Permissions: " . count($user_permissions));
                                         continue;
                                     }
 
-                                    $childUrl = !empty($child['url_associee']) ? $child['url_associee'] : generateUrl($child['id_traitement']);
+                                    // L'URL de l'enfant vient aussi de la base de données
+                                    $childUrl = $child['url_associee'];
                                     $childIcon = convertIconToMaterial($child['icone_class']);
                                     $childLabel = $child['libelle_menu'];
                                     $childIsActive = isActive($childUrl, $current_url);
@@ -176,7 +214,6 @@ error_log("DEBUG Menu: Permissions: " . count($user_permissions));
                             </div>
                         </div>
                     <?php else: ?>
-                        <!-- Menu simple -->
                         <a href="<?= e($url) ?>"
                            class="nav-item <?= $isActive ? 'active' : '' ?>">
                             <span class="material-icons"><?= e($icon) ?></span>
@@ -185,7 +222,6 @@ error_log("DEBUG Menu: Permissions: " . count($user_permissions));
                     <?php endif; ?>
                 <?php endforeach; ?>
             <?php else: ?>
-                <!-- Message si aucun menu -->
                 <div class="no-menu-message">
                     <p>Aucun menu disponible.</p>
                     <small>Permissions: <?= count($user_permissions) ?> trouvées</small>
@@ -193,7 +229,6 @@ error_log("DEBUG Menu: Permissions: " . count($user_permissions));
             <?php endif; ?>
         </nav>
 
-        <!-- Section déconnexion -->
         <div class="sidebar-footer">
             <a href="/logout" class="nav-item logout-item">
                 <span class="material-icons">logout</span>
