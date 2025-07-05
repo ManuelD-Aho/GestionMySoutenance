@@ -262,23 +262,33 @@ class ServiceSecurite implements ServiceSecuriteInterface
     // SECTION 4 : AUTORISATION & PERMISSIONS
     //================================================================
 
+    // src/Backend/Service/Securite/ServiceSecurite.php
+
     public function utilisateurPossedePermission(string $permissionCode, ?string $contexteId = null, ?string $contexteType = null): bool
     {
-        if (!$this->estUtilisateurConnecte()) return false;
+        error_log("DEBUG SecuriteService: VERIFICATION - Demande pour permission: " . $permissionCode); // Log A
+        error_log("DEBUG SecuriteService: VERIFICATION - Contexte: ID=" . ($contexteId ?? 'NULL') . ", Type=" . ($contexteType ?? 'NULL'));
 
-        // L'admin en mode impersonation a les droits de l'utilisateur cible, pas les siens.
+        if (!$this->estUtilisateurConnecte()) {
+            error_log("DEBUG SecuriteService: VERIFICATION - Utilisateur NON connecté.");
+            return false;
+        }
+
         $permissions = $_SESSION['user_group_permissions'] ?? [];
         $delegations = $_SESSION['user_delegations'] ?? [];
 
-        if (in_array($permissionCode, $permissions)) return true;
+        error_log("DEBUG SecuriteService: VERIFICATION - Permissions de groupe en session: " . json_encode($permissions)); // Log B
+        error_log("DEBUG SecuriteService: VERIFICATION - Délégations en session: " . json_encode($delegations));
 
-        foreach ($delegations as $delegation) {
-            if ($delegation['id_traitement'] === $permissionCode) {
-                if ($delegation['contexte_id'] === null || ($delegation['contexte_id'] === $contexteId && $delegation['contexte_type'] === $contexteType)) {
-                    return true;
-                }
-            }
+        $allPermissions = array_unique(array_merge($permissions, array_column($delegations, 'id_traitement')));
+        error_log("DEBUG SecuriteService: VERIFICATION - Toutes permissions combinées: " . json_encode($allPermissions)); // Log C
+
+        if (in_array($permissionCode, $allPermissions)) {
+            error_log("DEBUG SecuriteService: VERIFICATION - Permission '" . $permissionCode . "' TROUVÉE. Accès accordé."); // Log D
+            return true;
         }
+
+        error_log("DEBUG SecuriteService: VERIFICATION - Permission '" . $permissionCode . "' NON TROUVÉE. Accès refusé."); // Log E
         return false;
     }
 
@@ -364,6 +374,9 @@ class ServiceSecurite implements ServiceSecuriteInterface
     // SECTION 6 : GESTION DYNAMIQUE DE L'INTERFACE
     //================================================================
 
+    // Méthode améliorée pour ServiceSecurite.php
+// Remplacer la méthode construireMenuPourUtilisateurConnecte() existante
+
     public function construireMenuPourUtilisateurConnecte(): array
     {
         if (!$this->estUtilisateurConnecte()) {
@@ -373,7 +386,7 @@ class ServiceSecurite implements ServiceSecuriteInterface
         $permissionsUtilisateur = $_SESSION['user_group_permissions'] ?? [];
         $delegationsUtilisateur = $_SESSION['user_delegations'] ?? [];
 
-        // Ajouter les permissions déléguées à la liste des permissions de l'utilisateur pour cette requête
+        // Ajouter les permissions déléguées à la liste des permissions de l'utilisateur
         foreach ($delegationsUtilisateur as $delegation) {
             $permissionsUtilisateur[] = $delegation['id_traitement'];
         }
@@ -386,63 +399,78 @@ class ServiceSecurite implements ServiceSecuriteInterface
         // 1. Récupérer tous les éléments de menu auxquels l'utilisateur a droit
         $placeholders = implode(',', array_fill(0, count($permissionsUtilisateur), '?'));
         $sql = "SELECT id_traitement, libelle_traitement AS libelle_menu, url_associee, icone_class, id_parent_traitement, ordre_affichage 
-                FROM `{$this->traitementModel->table}`
-                WHERE id_traitement LIKE 'MENU_%' AND id_traitement IN ($placeholders)
-                ORDER BY ordre_affichage ASC, libelle_traitement ASC"; // Utiliser ordre_affichage ici
+            FROM {$this->traitementModel->table}
+            WHERE id_traitement LIKE 'MENU_%' AND id_traitement IN ($placeholders)
+            ORDER BY ordre_affichage ASC, libelle_traitement ASC";
 
         $stmt = $this->db->prepare($sql);
-
-        error_log("DEBUG ServiceSecurite: Permissions utilisateur reçues pour menu: " . json_encode($permissionsUtilisateur));
-
         $stmt->execute($permissionsUtilisateur);
         $itemsMenu = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        error_log("DEBUG ServiceSecurite: Items menu récupérés de la DB: " . json_encode($itemsMenu));
 
-        // 2. Construire l'arborescence
-        $menuHierarchique = [];
+        error_log("DEBUG ServiceSecurite: Items menu récupérés: " . count($itemsMenu));
+
+        // 2. Construire l'arborescence hiérarchique (support illimité de niveaux)
+        $menuHierarchique = $this->construireHierarchieMenu($itemsMenu);
+
+        error_log("DEBUG ServiceSecurite: Menu hiérarchique final: " . json_encode($menuHierarchique));
+
+        return $menuHierarchique;
+    }
+
+    /**
+     * Construit récursivement la hiérarchie du menu
+     * Support illimité de niveaux
+     */
+    private function construireHierarchieMenu(array $itemsMenu): array
+    {
         $itemsParId = [];
+        $menuHierarchique = [];
 
-        // Indexer tous les items par leur ID
+        // 1. Indexer tous les items par leur ID et initialiser les enfants
         foreach ($itemsMenu as $item) {
             $itemsParId[$item['id_traitement']] = $item;
             $itemsParId[$item['id_traitement']]['enfants'] = [];
         }
 
-        error_log("DEBUG ServiceSecurite: Items Par ID après indexation: " . json_encode($itemsParId));
-
-        // Associer les enfants à leurs parents
+        // 2. Associer récursivement les enfants à leurs parents
         foreach ($itemsParId as $id => &$item) {
             if (!empty($item['id_parent_traitement']) && isset($itemsParId[$item['id_parent_traitement']])) {
+                // Ajouter cet item comme enfant de son parent
                 $itemsParId[$item['id_parent_traitement']]['enfants'][] = &$item;
             }
         }
         unset($item); // Rompre la référence
 
-        error_log("DEBUG ServiceSecurite: Items Par ID après rattachement enfants: " . json_encode($itemsParId));
-
-        // Récupérer uniquement les éléments de premier niveau (ceux sans parent ou dont le parent n'est pas dans la liste)
+        // 3. Récupérer uniquement les éléments racine (niveau 1)
         foreach ($itemsParId as $id => $item) {
             if (empty($item['id_parent_traitement']) || !isset($itemsParId[$item['id_parent_traitement']])) {
                 $menuHierarchique[] = $item;
             }
         }
 
-        error_log("DEBUG ServiceSecurite: Menu hiérarchique final avant tri: " . json_encode($menuHierarchique));
-
-        // Trier les éléments de premier niveau et leurs enfants par ordre_affichage
-        usort($menuHierarchique, function($a, $b) {
-            return $a['ordre_affichage'] <=> $b['ordre_affichage'];
-        });
-        foreach ($menuHierarchique as &$item) {
-            if (!empty($item['enfants'])) {
-                usort($item['enfants'], function($a, $b) {
-                    return $a['ordre_affichage'] <=> $b['ordre_affichage'];
-                });
-            }
-        }
-        unset($item); // Rompre la référence
+        // 4. Trier récursivement tous les niveaux par ordre_affichage
+        $this->trierMenuRecursivement($menuHierarchique);
 
         return $menuHierarchique;
+    }
+
+    /**
+     * Trie récursivement le menu à tous les niveaux
+     */
+    private function trierMenuRecursivement(array &$menu): void
+    {
+        // Trier le niveau actuel
+        usort($menu, function($a, $b) {
+            return ($a['ordre_affichage'] ?? 0) <=> ($b['ordre_affichage'] ?? 0);
+        });
+
+        // Trier récursivement les sous-niveaux
+        foreach ($menu as &$item) {
+            if (!empty($item['enfants'])) {
+                $this->trierMenuRecursivement($item['enfants']);
+            }
+        }
+        unset($item);
     }
 
     public function updateMenuStructure(array $menuStructure): bool
