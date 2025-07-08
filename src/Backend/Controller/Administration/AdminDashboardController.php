@@ -1,5 +1,5 @@
 <?php
-// src/Backend/Controller/Administration/AdminDashboardController.php
+// Emplacement: src/Backend/Controller/Administration/AdminDashboardController.php
 
 namespace App\Backend\Controller\Administration;
 
@@ -10,21 +10,15 @@ use App\Backend\Service\Securite\ServiceSecuriteInterface;
 use App\Backend\Util\FormValidator;
 use Exception;
 
-/**
- * Gère l'affichage du tableau de bord principal de l'administrateur.
- * Fournit une vue d'ensemble de l'état du système avec des statistiques et des alertes.
- */
 class AdminDashboardController extends BaseController
 {
-    // Suppression de la déclaration de propriété $supervisionService
-    // car elle est déjà disponible via BaseController::$supervisionService
     private ServiceSystemeInterface $systemeService;
 
     public function __construct(
-        ServiceSupervisionInterface $supervisionService, // Injecté pour BaseController
+        ServiceSupervisionInterface $supervisionService,
         ServiceSystemeInterface $systemeService,
-        ServiceSecuriteInterface $securiteService, // Injecté pour BaseController
-        FormValidator $validator // Ajout du FormValidator ici
+        ServiceSecuriteInterface $securiteService,
+        FormValidator $validator
     ) {
         parent::__construct($securiteService, $supervisionService, $validator);
         $this->systemeService = $systemeService;
@@ -32,38 +26,65 @@ class AdminDashboardController extends BaseController
 
     public function index(): void
     {
-        $this->requirePermission('TRAIT_ADMIN_DASHBOARD_ACCEDER');
+        $this->requirePermission('TRAIT_ACCES_DASHBOARD_ADMIN');
 
         try {
-            $stats = null;
-            $cacheKey = 'admin_dashboard_stats';
-            $cacheDuration = 300; // 5 minutes
-
-            if (isset($_SESSION[$cacheKey]) && (time() - $_SESSION[$cacheKey]['timestamp']) < $cacheDuration) {
-                $stats = $_SESSION[$cacheKey]['data'];
-            } else {
-                $stats = $this->supervisionService->genererStatistiquesDashboardAdmin();
-                $_SESSION[$cacheKey] = ['timestamp' => time(), 'data' => $stats];
-            }
-
-            $failedJobsThreshold = (int) $this->systemeService->getParametre('ALERT_THRESHOLD_FAILED_JOBS', 5);
-            $alerts = [];
-            if (isset($stats['queue']['failed']) && $stats['queue']['failed'] > $failedJobsThreshold) {
-                $alerts[] = ['type' => 'error', 'message' => "Attention : {$stats['queue']['failed']} tâches asynchrones ont échoué, ce qui dépasse le seuil de {$failedJobsThreshold}."];
-            }
+            $stats = $this->getCachedDashboardStats();
+            $alerts = $this->generateSystemAlerts($stats);
 
             $data = [
                 'title' => 'Tableau de Bord Administrateur',
                 'stats' => $stats,
                 'alerts' => $alerts,
+                'shortcuts' => $this->getAdminShortcuts(),
+                'system_info' => [
+                    'version' => $this->systemeService->getParametre('APP_VERSION', '1.0.0'),
+                    'environment' => $this->systemeService->getParametre('APP_ENV', 'production'),
+                ]
             ];
-            // C'EST CETTE LIGNE QUI DOIT ÊTRE MODIFIÉE !
-            $this->render('/Administration/dashboard_admin', $data); // Changement de 'admin_dashboard' à 'dashboard_admin'
+
+            $this->render('Administration/dashboard_admin', $data);
 
         } catch (Exception $e) {
-            error_log("Erreur inattendue dans AdminDashboardController::index: " . $e->getMessage());
-            $this->renderError(500, 'Impossible de charger le tableau de bord administrateur.');
+            error_log("Erreur AdminDashboard: " . $e->getMessage());
+            $this->addFlashMessage('error', 'Impossible de charger le tableau de bord.');
+            $this->redirect('/dashboard');
         }
     }
 
+    private function getCachedDashboardStats(): array
+    {
+        $cacheKey = 'admin_dashboard_stats';
+        $cacheDuration = 300; // 5 minutes
+
+        if (isset($_SESSION[$cacheKey]) && (time() - $_SESSION[$cacheKey]['timestamp']) < $cacheDuration) {
+            return $_SESSION[$cacheKey]['data'];
+        }
+
+        $stats = $this->supervisionService->genererStatistiquesDashboardAdmin();
+        $_SESSION[$cacheKey] = ['timestamp' => time(), 'data' => $stats];
+        return $stats;
+    }
+
+    private function generateSystemAlerts(array $stats): array
+    {
+        $alerts = [];
+        if (($stats['utilisateurs']['bloque'] ?? 0) > 0) {
+            $alerts[] = ['type' => 'warning', 'message' => "{$stats['utilisateurs']['bloque']} utilisateur(s) bloqué(s).", 'action' => '/admin/utilisateurs?statut_compte=bloque'];
+        }
+        if (($stats['queue']['failed'] ?? 0) > 0) {
+            $alerts[] = ['type' => 'error', 'message' => "{$stats['queue']['failed']} tâche(s) en échec dans la file d'attente.", 'action' => '/admin/supervision#queue-tab'];
+        }
+        return $alerts;
+    }
+
+    private function getAdminShortcuts(): array
+    {
+        return [
+            ['title' => 'Gestion Utilisateurs', 'icon' => 'fas fa-users', 'url' => '/admin/utilisateurs'],
+            ['title' => 'Configuration', 'icon' => 'fas fa-cogs', 'url' => '/admin/configuration'],
+            ['title' => 'Supervision', 'icon' => 'fas fa-chart-line', 'url' => '/admin/supervision'],
+            ['title' => 'Reporting', 'icon' => 'fas fa-file-chart-pie', 'url' => '/admin/reporting'],
+        ];
+    }
 }

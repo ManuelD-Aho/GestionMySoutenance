@@ -1,5 +1,4 @@
 <?php
-// src/Backend/Service/Systeme/ServiceSysteme.php
 
 namespace App\Backend\Service\Systeme;
 
@@ -201,7 +200,7 @@ class ServiceSysteme implements ServiceSystemeInterface
         try {
             foreach ($menuStructure as $item) {
                 if (!isset($item['id']) || !isset($item['ordre'])) {
-                    throw new OperationImpossibleException("Structure de menu invalide : id ou ordre manquant.");
+                    throw new OperationImpossibleException("Structure de menu invalide: id ou ordre manquant.");
                 }
                 $dataToUpdate = [
                     'ordre_affichage' => (int) $item['ordre'],

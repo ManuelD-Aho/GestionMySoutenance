@@ -1,5 +1,4 @@
 <?php
-// src/Backend/Service/Utilisateur/ServiceUtilisateur.php
 
 namespace App\Backend\Service\Utilisateur;
 
@@ -16,11 +15,6 @@ use App\Backend\Exception\{ElementNonTrouveException, OperationImpossibleExcepti
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 
-/**
- * Service gérant la logique métier complexe liée aux utilisateurs et aux entités.
- * Implémente le cycle de vie complet : création de profil (entité), activation de compte (utilisateur),
- * mises à jour, délégations, et processus d'import/transition.
- */
 class ServiceUtilisateur implements ServiceUtilisateurInterface
 {
     private PDO $db;
@@ -154,7 +148,7 @@ class ServiceUtilisateur implements ServiceUtilisateurInterface
 
     public function listerUtilisateursComplets(array $filtres = []): array
     {
-        $sql = "SELECT u.*, g.libelle_groupe_utilisateur, t.libelle_type_utilisateur,
+        $sql = "SELECT u.*, g.libelle_groupe as libelle_groupe_utilisateur, t.libelle_type_utilisateur,
                 COALESCE(e.nom, en.nom, pa.nom) as nom,
                 COALESCE(e.prenom, en.prenom, pa.prenom) as prenom
                 FROM utilisateur u
@@ -164,7 +158,6 @@ class ServiceUtilisateur implements ServiceUtilisateurInterface
                 LEFT JOIN enseignant en ON u.numero_utilisateur = en.numero_enseignant
                 LEFT JOIN personnel_administratif pa ON u.numero_utilisateur = pa.numero_personnel_administratif";
 
-        // Construction dynamique de la clause WHERE pour les filtres
         $params = [];
         $whereParts = [];
         if (!empty($filtres)) {
@@ -174,7 +167,6 @@ class ServiceUtilisateur implements ServiceUtilisateurInterface
                     $whereParts[] = "(u.login_utilisateur LIKE :search OR u.email_principal LIKE :search OR e.nom LIKE :search OR e.prenom LIKE :search OR en.nom LIKE :search OR pa.nom LIKE :search)";
                     $params[':search'] = '%' . $value . '%';
                 } else {
-                    // Pour éviter les ambiguïtés avec les alias de table, spécifier la table pour les filtres sur 'u'
                     if (in_array($key, ['id_groupe_utilisateur', 'id_type_utilisateur', 'statut_compte'])) {
                         $whereParts[] = "u.`{$key}` = :{$key}";
                     } else {
@@ -452,10 +444,11 @@ class ServiceUtilisateur implements ServiceUtilisateurInterface
      * @param string $typeEntite Le type d'entité à lister ('etudiant', 'enseignant', 'personnel').
      * @return array La liste des entités sans compte.
      */
+
     public function listerEntitesSansCompte(string $typeEntite): array
     {
         $model = $this->getModelForType($typeEntite);
-        $pkCol = $model->getClePrimaire(); // Assurez-vous que getClePrimaire retourne la PK correcte
+        $pkCol = $model->getClePrimaire();
 
         $sql = "SELECT e.*
                 FROM `{$model->getTable()}` e
@@ -467,9 +460,6 @@ class ServiceUtilisateur implements ServiceUtilisateurInterface
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    /**
-     * Méthode privée pour obtenir le modèle approprié en fonction du type d'entité.
-     */
     private function getModelForType(string $type): GenericModel
     {
         return match (strtolower($type)) {

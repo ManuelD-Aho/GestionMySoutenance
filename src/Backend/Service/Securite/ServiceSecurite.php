@@ -1,5 +1,4 @@
 <?php
-// src/Backend/Service/Securite/ServiceSecurite.php
 
 namespace App\Backend\Service\Securite;
 
@@ -29,7 +28,7 @@ class ServiceSecurite implements ServiceSecuriteInterface
     private HistoriqueMotDePasse $historiqueMdpModel;
     private Sessions $sessionsModel;
     private GenericModel $rattacherModel;
-    private GenericModel $traitementModel; // Assurez-vous que ce modèle est bien injecté et représente la table 'traitement'
+    private GenericModel $traitementModel;
     private Delegation $delegationModel;
     private ServiceSupervisionInterface $supervisionService;
 
@@ -44,7 +43,7 @@ class ServiceSecurite implements ServiceSecuriteInterface
         HistoriqueMotDePasse $historiqueMdpModel,
         Sessions $sessionsModel,
         GenericModel $rattacherModel,
-        GenericModel $traitementModel, // Assurez-vous que ce modèle est bien injecté
+        GenericModel $traitementModel,
         Delegation $delegationModel,
         ServiceSupervisionInterface $supervisionService
     ) {
@@ -53,7 +52,7 @@ class ServiceSecurite implements ServiceSecuriteInterface
         $this->historiqueMdpModel = $historiqueMdpModel;
         $this->sessionsModel = $sessionsModel;
         $this->rattacherModel = $rattacherModel;
-        $this->traitementModel = $traitementModel; // Initialisation
+        $this->traitementModel = $traitementModel;
         $this->delegationModel = $delegationModel;
         $this->supervisionService = $supervisionService;
     }
@@ -386,7 +385,6 @@ class ServiceSecurite implements ServiceSecuriteInterface
         $permissionsUtilisateur = $_SESSION['user_group_permissions'] ?? [];
         $delegationsUtilisateur = $_SESSION['user_delegations'] ?? [];
 
-        // Ajouter les permissions déléguées à la liste des permissions de l'utilisateur
         foreach ($delegationsUtilisateur as $delegation) {
             $permissionsUtilisateur[] = $delegation['id_traitement'];
         }
@@ -396,10 +394,9 @@ class ServiceSecurite implements ServiceSecuriteInterface
             return [];
         }
 
-        // 1. Récupérer tous les éléments de menu auxquels l'utilisateur a droit
         $placeholders = implode(',', array_fill(0, count($permissionsUtilisateur), '?'));
         $sql = "SELECT id_traitement, libelle_traitement AS libelle_menu, url_associee, icone_class, id_parent_traitement, ordre_affichage 
-            FROM {$this->traitementModel->table}
+            FROM {$this->traitementModel->getTable()}
             WHERE id_traitement LIKE 'MENU_%' AND id_traitement IN ($placeholders)
             ORDER BY ordre_affichage ASC, libelle_traitement ASC";
 
@@ -407,100 +404,45 @@ class ServiceSecurite implements ServiceSecuriteInterface
         $stmt->execute($permissionsUtilisateur);
         $itemsMenu = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        error_log("DEBUG ServiceSecurite: Items menu récupérés: " . count($itemsMenu));
-
-        // 2. Construire l'arborescence hiérarchique (support illimité de niveaux)
-        $menuHierarchique = $this->construireHierarchieMenu($itemsMenu);
-
-        error_log("DEBUG ServiceSecurite: Menu hiérarchique final: " . json_encode($menuHierarchique));
-
-        return $menuHierarchique;
+        return $this->construireHierarchieMenu($itemsMenu);
     }
 
-    /**
-     * Construit récursivement la hiérarchie du menu
-     * Support illimité de niveaux
-     */
     private function construireHierarchieMenu(array $itemsMenu): array
     {
         $itemsParId = [];
         $menuHierarchique = [];
 
-        // 1. Indexer tous les items par leur ID et initialiser les enfants
         foreach ($itemsMenu as $item) {
             $itemsParId[$item['id_traitement']] = $item;
             $itemsParId[$item['id_traitement']]['enfants'] = [];
         }
 
-        // 2. Associer récursivement les enfants à leurs parents
         foreach ($itemsParId as $id => &$item) {
             if (!empty($item['id_parent_traitement']) && isset($itemsParId[$item['id_parent_traitement']])) {
-                // Ajouter cet item comme enfant de son parent
                 $itemsParId[$item['id_parent_traitement']]['enfants'][] = &$item;
             }
         }
-        unset($item); // Rompre la référence
+        unset($item);
 
-        // 3. Récupérer uniquement les éléments racine (niveau 1)
         foreach ($itemsParId as $id => $item) {
             if (empty($item['id_parent_traitement']) || !isset($itemsParId[$item['id_parent_traitement']])) {
                 $menuHierarchique[] = $item;
             }
         }
 
-        // 4. Trier récursivement tous les niveaux par ordre_affichage
         $this->trierMenuRecursivement($menuHierarchique);
-
         return $menuHierarchique;
     }
 
-    /**
-     * Trie récursivement le menu à tous les niveaux
-     */
     private function trierMenuRecursivement(array &$menu): void
     {
-        // Trier le niveau actuel
-        usort($menu, function($a, $b) {
-            return ($a['ordre_affichage'] ?? 0) <=> ($b['ordre_affichage'] ?? 0);
-        });
-
-        // Trier récursivement les sous-niveaux
+        usort($menu, fn($a, $b) => ($a['ordre_affichage'] ?? 0) <=> ($b['ordre_affichage'] ?? 0));
         foreach ($menu as &$item) {
             if (!empty($item['enfants'])) {
                 $this->trierMenuRecursivement($item['enfants']);
             }
         }
         unset($item);
-    }
-
-    public function updateMenuStructure(array $menuStructure): bool
-    {
-        $this->db->beginTransaction();
-        try {
-            foreach ($menuStructure as $item) {
-                // Valider les données de l'élément de menu
-                if (!isset($item['id_traitement']) || !isset($item['ordre_affichage'])) {
-                    throw new OperationImpossibleException("Structure de menu invalide: id_traitement ou ordre_affichage manquant.");
-                }
-
-                $dataToUpdate = [
-                    'ordre_affichage' => (int) $item['ordre_affichage'],
-                    'id_parent_traitement' => $item['id_parent_traitement'] ?? null // Peut être null pour les éléments racines
-                ];
-
-                $success = $this->traitementModel->mettreAJourParIdentifiant($item['id_traitement'], $dataToUpdate);
-
-                if (!$success) {
-                    throw new OperationImpossibleException("Échec de la mise à jour de l'élément de menu: " . $item['id_traitement']);
-                }
-            }
-            $this->db->commit();
-            $this->supervisionService->enregistrerAction($_SESSION['user_id'] ?? 'SYSTEM', 'UPDATE_MENU_STRUCTURE', null, 'Menu', ['structure' => $menuStructure]);
-            return true;
-        } catch (\Exception $e) {
-            $this->db->rollBack();
-            throw $e;
-        }
     }
 
     //================================================================
@@ -657,5 +599,53 @@ class ServiceSecurite implements ServiceSecuriteInterface
 
         // 6. Retourner les données de l'utilisateur pour confirmation ou redirection.
         return $utilisateur;
+    }
+
+    //================================================================
+    // SECTION 7 : GESTION DES HABILITATIONS (NOUVEAU)
+    //================================================================
+
+    public function getAllGroupes(): array
+    {
+        $groupeModel = new GenericModel($this->db, 'groupe_utilisateur', 'id_groupe_utilisateur');
+        return $groupeModel->trouverTout();
+    }
+
+    public function getAllTraitements(): array
+    {
+        return $this->traitementModel->trouverParCritere([], ['*'], 'AND', 'id_parent_traitement ASC, ordre_affichage ASC');
+    }
+
+    public function getAllRattachements(): array
+    {
+        return $this->rattacherModel->trouverTout();
+    }
+
+    public function updateRattachements(array $rattachements): bool
+    {
+        $this->db->beginTransaction();
+        try {
+            // 1. Supprimer tous les rattachements existants
+            $this->db->exec("DELETE FROM {$this->rattacherModel->getTable()}");
+
+            // 2. Insérer les nouveaux rattachements
+            $stmt = $this->db->prepare("INSERT INTO {$this->rattacherModel->getTable()} (id_groupe_utilisateur, id_traitement) VALUES (:id_groupe, :id_traitement)");
+
+            foreach ($rattachements as $idGroupe => $traitements) {
+                if (is_array($traitements)) {
+                    foreach ($traitements as $idTraitement) {
+                        $stmt->execute([':id_groupe' => $idGroupe, ':id_traitement' => $idTraitement]);
+                    }
+                }
+            }
+
+            $this->db->commit();
+            $this->supervisionService->enregistrerAction($_SESSION['user_id'] ?? 'SYSTEM', 'UPDATE_PERMISSIONS', null, 'Habilitations');
+            return true;
+        } catch (\Exception $e) {
+            $this->db->rollBack();
+            error_log("Erreur lors de la mise à jour des rattachements: " . $e->getMessage());
+            throw $e;
+        }
     }
 }

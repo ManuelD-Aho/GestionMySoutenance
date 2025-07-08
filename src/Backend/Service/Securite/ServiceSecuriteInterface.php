@@ -68,4 +68,36 @@ interface ServiceSecuriteInterface
      * @throws OperationImpossibleException Si l'email est déjà validé.
      */
     public function validateEmailToken(string $tokenClair): array;
+
+    //================================================================
+    // SECTION 7 : GESTION DES HABILITATIONS (NOUVEAU)
+    //================================================================
+
+    /**
+     * Récupère tous les groupes d'utilisateurs.
+     * @return array La liste des groupes.
+     */
+    public function getAllGroupes(): array;
+
+    /**
+     * Récupère tous les traitements (permissions) disponibles dans le système.
+     * @return array La liste des traitements.
+     */
+    public function getAllTraitements(): array;
+
+    /**
+     * Récupère tous les rattachements actuels entre les groupes et les traitements.
+     * @return array La liste des rattachements.
+     */
+    public function getAllRattachements(): array;
+
+    /**
+     * Met à jour l'ensemble des rattachements.
+     * Supprime les anciens et insère les nouveaux dans une transaction.
+     * @param array $rattachements Tableau associatif [id_groupe => [id_traitement1, id_traitement2]].
+     * @return bool True si la mise à jour est réussie.
+     */
+    public function updateRattachements(array $rattachements): bool;
+
+
 }
