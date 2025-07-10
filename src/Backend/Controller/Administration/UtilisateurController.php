@@ -41,7 +41,14 @@ class UtilisateurController extends BaseController
      */
     public function list(): void
     {
-        // MODIFICATION ICI : Aligner avec la permission de la DB
+        // === DEBUG ROUTING ===
+        error_log("=== ENTRÉE DANS UtilisateurController::list() ===");
+        error_log("URL actuelle: " . $_SERVER['REQUEST_URI']);
+        error_log("Méthode HTTP: " . $_SERVER['REQUEST_METHOD']);
+        error_log("User ID: " . ($_SESSION['user_id'] ?? 'NON DÉFINI'));
+        error_log("=== FIN DEBUG ROUTING ===");
+        // === FIN DEBUG ===
+
         $this->requirePermission('TRAIT_ADMIN_UTILISATEURS_LISTER_ACCES');
 
         try {
@@ -49,11 +56,11 @@ class UtilisateurController extends BaseController
             $filters = $this->getGetData();
             $users = $this->serviceUtilisateur->listerUtilisateursComplets($filters);
 
-            $groupes = $this->systemeService->gererReferentiel('list', 'groupe_utilisateur');
+            $groupes = $this->serviceSysteme->gererReferentiel('list', 'groupe_utilisateur');
             $statuts = ['actif', 'inactif', 'bloque', 'en_attente_validation', 'archive'];
-            $types = $this->systemeService->gererReferentiel('list', 'type_utilisateur');
+            $types = $this->serviceSysteme->gererReferentiel('list', 'type_utilisateur');
 
-            $this->render('/admin/utilisateurs', [
+            $this->render('/Administration/Utilisateurs/liste_utilisateurs', [
                 'title' => 'Gestion des Utilisateurs',
                 'users' => $users,
                 'groupes' => $groupes,
@@ -78,12 +85,12 @@ class UtilisateurController extends BaseController
         // 'TRAIT_ADMIN_GERER_UTILISATEURS_CREER' n'existe pas dans votre rattacher fourni
         $this->requirePermission('TRAIT_ADMIN_UTILISATEURS_FORM_GENERIC_ACCES');
         try {
-            $this->render('Administration/form_utilisateur', [
+            $this->render('Administration/Utilisateurs/form_utilisateur', [
                 'title' => 'Créer un Nouvel Utilisateur',
                 'user' => null,
-                'groupes' => $this->systemeService->gererReferentiel('list', 'groupe_utilisateur'),
-                'types' => $this->systemeService->gererReferentiel('list', 'type_utilisateur'),
-                'niveauxAcces' => $this->systemeService->gererReferentiel('list', 'niveau_acces_donne'),
+                'groupes' => $this->serviceSysteme->gererReferentiel('list', 'groupe_utilisateur'),
+                'types' => $this->serviceSysteme->gererReferentiel('list', 'type_utilisateur'),
+                'niveauxAcces' => $this->serviceSysteme->gererReferentiel('list', 'niveau_acces_donne'),
                 'action_url' => '/admin/utilisateurs/creer',
                 'csrf_token' => $this->generateCsrfToken('user_form'),
                 'form_errors' => $_SESSION['form_errors'] ?? [],
@@ -172,12 +179,12 @@ class UtilisateurController extends BaseController
             $user = $this->serviceUtilisateur->lireUtilisateurComplet($id);
             if (!$user) throw new ElementNonTrouveException("Utilisateur introuvable.");
 
-            $this->render('Administration/form_utilisateur', [
+            $this->render('Administration/Utilisateurs/form_utilisateur', [
                 'title' => "Modifier l'Utilisateur : " . htmlspecialchars($user['prenom'] . ' ' . $user['nom']),
                 'user' => $user,
-                'groupes' => $this->systemeService->gererReferentiel('list', 'groupe_utilisateur'),
-                'types' => $this->systemeService->gererReferentiel('list', 'type_utilisateur'),
-                'niveauxAcces' => $this->systemeService->gererReferentiel('list', 'niveau_acces_donne'),
+                'groupes' => $this->serviceSysteme->gererReferentiel('list', 'groupe_utilisateur'),
+                'types' => $this->serviceSysteme->gererReferentiel('list', 'type_utilisateur'),
+                'niveauxAcces' => $this->serviceSysteme->gererReferentiel('list', 'niveau_acces_donne'),
                 'action_url' => "/admin/utilisateurs/{$id}/modifier",
                 'csrf_token' => $this->generateCsrfToken('user_form'),
                 'form_errors' => $_SESSION['form_errors'] ?? [],

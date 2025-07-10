@@ -154,7 +154,7 @@ class ServiceUtilisateur implements ServiceUtilisateurInterface
 
     public function listerUtilisateursComplets(array $filtres = []): array
     {
-        $sql = "SELECT u.*, g.libelle_groupe_utilisateur, t.libelle_type_utilisateur,
+        $sql = "SELECT u.*, g.libelle_groupe, t.libelle_type_utilisateur,
                 COALESCE(e.nom, en.nom, pa.nom) as nom,
                 COALESCE(e.prenom, en.prenom, pa.prenom) as prenom
                 FROM utilisateur u

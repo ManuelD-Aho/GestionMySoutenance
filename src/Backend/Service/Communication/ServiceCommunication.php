@@ -235,7 +235,7 @@ class ServiceCommunication implements ServiceCommunicationInterface
     public function listerReglesMatrice(): array
     {
         // Requête enrichie pour l'affichage
-        $sql = "SELECT m.*, a.libelle_action, g.libelle_groupe_utilisateur 
+        $sql = "SELECT m.*, a.libelle_action, g.libelle_groupe 
                 FROM matrice_notification_regles m
                 JOIN action a ON m.id_action_declencheur = a.id_action
                 JOIN groupe_utilisateur g ON m.id_groupe_destinataire = g.id_groupe_utilisateur";
