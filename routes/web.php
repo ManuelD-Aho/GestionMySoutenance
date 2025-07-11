@@ -50,13 +50,36 @@ return function(RouteCollector $router) {
         $r->addRoute('GET', '/reporting', [AdminDashboardController::class, 'showReportingPage']); // Renommée de showReportingPage
 
         // Gestion des utilisateurs
-        $r->addRoute('GET', '/utilisateurs', [UtilisateurController::class, 'list']); // Renommée de listUsers
-        $r->addRoute('GET', '/utilisateurs/creer', [UtilisateurController::class, 'showCreateUserForm']); // Formulaire de création
-        $r->addRoute('POST', '/utilisateurs/creer', [UtilisateurController::class, 'create']); // Renommée de handleCreateUser
-        $r->addRoute('GET', '/utilisateurs/{id}', [UtilisateurController::class, 'show']); // Renommée de showEditUserForm
-        $r->addRoute('POST', '/utilisateurs/{id}/modifier', [UtilisateurController::class, 'update']); // Renommée de handleEditUser
-        $r->addRoute('POST', '/utilisateurs/{id}/supprimer', [UtilisateurController::class, 'delete']); // Renommée de handleUserAction (delete)
+        // Dans routes/web.php, section admin/utilisateurs
+        $r->addGroup('/utilisateurs', function (RouteCollector $r) {
+            // Liste des utilisateurs (MENU_ADMIN_UTILISATEURS_LISTER)
+            $r->get('', [UtilisateurController::class, 'list']);
 
+            // Formulaires selon l'existant en base
+            $r->get('/form', [UtilisateurController::class, 'showGenericForm']);
+            $r->post('/form', [UtilisateurController::class, 'showGenericForm']);
+
+            $r->get('/etudiant/form', [UtilisateurController::class, 'showEtudiantForm']);
+            $r->post('/etudiant/form', [UtilisateurController::class, 'showEtudiantForm']);
+
+            $r->get('/enseignant/form', [UtilisateurController::class, 'showEnseignantForm']);
+            $r->post('/enseignant/form', [UtilisateurController::class, 'showEnseignantForm']);
+
+            $r->get('/personnel/form', [UtilisateurController::class, 'showPersonnelForm']);
+            $r->post('/personnel/form', [UtilisateurController::class, 'showPersonnelForm']);
+
+            // Import étudiants (MENU_ADMIN_UTILISATEURS_IMPORT_ETUDIANTS)
+            $r->get('/import-etudiants', [UtilisateurController::class, 'importEtudiants']);
+            $r->post('/import-etudiants', [UtilisateurController::class, 'importEtudiants']);
+
+            // Modification
+            $r->get('/{id}/edit', [UtilisateurController::class, 'edit']);
+            $r->post('/{id}/edit', [UtilisateurController::class, 'edit']);
+
+            // Actions et suppressions
+            $r->post('/{id}/actions', [UtilisateurController::class, 'handleUserAction']);
+            $r->post('/{id}/delete', [UtilisateurController::class, 'delete']);
+        });
         // Configuration
         $r->addRoute('GET', '/configuration', [ConfigurationController::class, 'index']); // Renommée de showConfigurationPage
         $r->addRoute('POST', '/configuration/parametres', [ConfigurationController::class, 'handleSystemParameters']);

@@ -1,366 +1,296 @@
+<!-- src/Frontend/views/Administration/Utilisateurs/form_personnel.php -->
 <?php
-// src/Frontend/views/Administration/Utilisateurs/form_personnel.php
-
-// Fonction d'échappement HTML
-if (!function_exists('e')) {
-    function e($value) {
-        return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
-    }
-}
-
-// Données du personnel à modifier (si mode édition)
-// Ces données proviendraient du contrôleur UtilisateurController ou PersonnelController
-//
-//
-
-$personnel = $data['personnel'] ?? null;
-$is_edit_mode = (bool)$personnel;
-
-// Exemple de données pour les listes déroulantes
-$departements = $data['departements'] ?? [
-    ['id' => 1, 'nom' => 'Scolarité'],
-    ['id' => 2, 'nom' => 'Administration Générale'],
-    ['id' => 3, 'nom' => 'Informatique'],
-    ['id' => 4, 'nom' => 'Comptabilité'],
-];
-
-$fonctions = $data['fonctions'] ?? [
-    ['id' => 1, 'libelle' => 'Responsable Scolarité'],
-    ['id' => 2, 'libelle' => 'Agent de Contrôle de Conformité'],
-    ['id' => 3, 'libelle' => 'Secrétaire Administrative'],
-    ['id' => 4, 'libelle' => 'Assistant Informatique'],
-];
-
+$this->layout('layouts/layout_admin', ['title' => $title ?? 'Formulaire Personnel']);
+$isEdit = !empty($user);
 ?>
 
-<div class="admin-module-container">
-    <h1 class="admin-title"><?= $is_edit_mode ? 'Modifier le Personnel Administratif' : 'Ajouter un Nouveau Personnel Administratif'; ?></h1>
+<div class="page-header mb-4">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="/admin/dashboard">Administration</a></li>
+            <li class="breadcrumb-item"><a href="/admin/utilisateurs">Utilisateurs</a></li>
+            <li class="breadcrumb-item active"><?= $isEdit ? 'Modifier' : 'Créer' ?> Personnel</li>
+        </ol>
+    </nav>
 
-    <section class="section-form admin-card">
-        <h2 class="section-title">Informations du Personnel</h2>
-        <form id="formPersonnel" action="/admin/utilisateurs/personnel/<?= $is_edit_mode ? 'update/' . e($personnel['id']) : 'create'; ?>" method="POST">
-
-            <fieldset class="form-section">
-                <legend>Informations Personnelles</legend>
-                <div class="form-grid">
-                    <div class="form-group">
-                        <label for="nom">Nom :</label>
-                        <input type="text" id="nom" name="nom" value="<?= e($personnel['nom'] ?? ''); ?>" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="prenom">Prénom(s) :</label>
-                        <input type="text" id="prenom" name="prenom" value="<?= e($personnel['prenom'] ?? ''); ?>" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="email">Email :</label>
-                        <input type="email" id="email" name="email" value="<?= e($personnel['email'] ?? ''); ?>" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="telephone">Téléphone :</label>
-                        <input type="tel" id="telephone" name="telephone" value="<?= e($personnel['telephone'] ?? ''); ?>">
-                    </div>
-                    <div class="form-group">
-                        <label for="date_naissance">Date de Naissance :</label>
-                        <input type="date" id="date_naissance" name="date_naissance" value="<?= e($personnel['date_naissance'] ?? ''); ?>">
-                    </div>
-                    <div class="form-group">
-                        <label for="adresse">Adresse :</label>
-                        <input type="text" id="adresse" name="adresse" value="<?= e($personnel['adresse'] ?? ''); ?>">
-                    </div>
-                </div>
-            </fieldset>
-
-            <fieldset class="form-section mt-xl">
-                <legend>Informations Professionnelles</legend>
-                <div class="form-grid">
-                    <div class="form-group">
-                        <label for="code_personnel">Code Personnel :</label>
-                        <input type="text" id="code_personnel" name="code_personnel" value="<?= e($personnel['code_personnel'] ?? ''); ?>" required <?= $is_edit_mode ? 'readonly' : ''; ?>>
-                        <?php if ($is_edit_mode): ?>
-                            <small class="form-help">Le code personnel ne peut pas être modifié.</small>
-                        <?php endif; ?>
-                    </div>
-                    <div class="form-group">
-                        <label for="departement_id">Département d'Affectation :</label>
-                        <select id="departement_id" name="departement_id" required>
-                            <option value="">Sélectionner un département</option>
-                            <?php foreach ($departements as $departement): ?>
-                                <option value="<?= e($departement['id']); ?>"
-                                    <?= ($personnel['departement_id'] ?? '') == $departement['id'] ? 'selected' : ''; ?>>
-                                    <?= e($departement['nom']); ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="fonction_id">Fonction :</label>
-                        <select id="fonction_id" name="fonction_id" required>
-                            <option value="">Sélectionner une fonction</option>
-                            <?php foreach ($fonctions as $fonction): ?>
-                                <option value="<?= e($fonction['id']); ?>"
-                                    <?= ($personnel['fonction_id'] ?? '') == $fonction['id'] ? 'selected' : ''; ?>>
-                                    <?= e($fonction['libelle']); ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="date_embauche">Date d'Embauche :</label>
-                        <input type="date" id="date_embauche" name="date_embauche" value="<?= e($personnel['date_embauche'] ?? ''); ?>">
-                    </div>
-                </div>
-            </fieldset>
-
-            <?php if (!$is_edit_mode): ?>
-                <fieldset class="form-section mt-xl">
-                    <legend>Mot de Passe Initial</legend>
-                    <div class="form-grid">
-                        <div class="form-group">
-                            <label for="password">Mot de passe initial :</label>
-                            <input type="password" id="password" name="password" required>
-                            <small class="form-help">Le mot de passe temporaire pour la première connexion du personnel.</small>
-                        </div>
-                        <div class="form-group">
-                            <label for="confirm_password">Confirmer le mot de passe :</label>
-                            <input type="password" id="confirm_password" name="confirm_password" required>
-                        </div>
-                    </div>
-                </fieldset>
-            <?php endif; ?>
-
-            <div class="form-actions mt-xl">
-                <button type="submit" class="btn btn-primary-blue">
-                    <span class="material-icons"><?= $is_edit_mode ? 'save' : 'person_add'; ?></span>
-                    <?= $is_edit_mode ? 'Enregistrer les modifications' : 'Ajouter le personnel'; ?>
-                </button>
-                <a href="/admin/utilisateurs/personnel" class="btn btn-secondary-gray ml-md">
-                    <span class="material-icons">cancel</span> Annuler
-                </a>
-            </div>
-        </form>
-    </section>
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <h1>
+                <i class="fas fa-user-tie text-warning"></i>
+                <?= $isEdit ? 'Modifier un Personnel Administratif' : 'Créer un Personnel Administratif' ?>
+            </h1>
+            <p class="text-muted mb-0">
+                Formulaire pour la gestion des comptes du personnel administratif selon l'architecture RBAC
+            </p>
+        </div>
+        <a href="/admin/utilisateurs" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left"></i> Retour à la liste
+        </a>
+    </div>
 </div>
 
+<form method="POST" action="<?= htmlspecialchars($action_url) ?>" class="needs-validation" novalidate>
+    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf_token) ?>">
+
+    <div class="row">
+        <div class="col-lg-8">
+
+            <!-- Section Compte -->
+            <div class="card mb-4">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0"><i class="fas fa-user-circle"></i> Informations du Compte</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="numero_personnel" class="form-label required">Numéro personnel</label>
+                                <input type="text"
+                                       class="form-control"
+                                       id="numero_personnel"
+                                       name="numero_personnel"
+                                       value="<?= htmlspecialchars($form_data['numero_personnel'] ?? $user['numero_personnel'] ?? '') ?>"
+                                    <?= $isEdit ? 'readonly' : 'required' ?>
+                                       placeholder="ex: PERS-2024-001">
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="login_utilisateur" class="form-label required">Login utilisateur</label>
+                                <input type="text"
+                                       class="form-control"
+                                       id="login_utilisateur"
+                                       name="login_utilisateur"
+                                       value="<?= htmlspecialchars($form_data['login_utilisateur'] ?? $user['login_utilisateur'] ?? '') ?>"
+                                    <?= $isEdit ? 'readonly' : 'required' ?>>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="nom" class="form-label required">Nom</label>
+                                <input type="text" class="form-control" id="nom" name="nom"
+                                       value="<?= htmlspecialchars($form_data['nom'] ?? $user['nom'] ?? '') ?>" required>
+                            </div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="prenom" class="form-label required">Prénom</label>
+                                <input type="text" class="form-control" id="prenom" name="prenom"
+                                       value="<?= htmlspecialchars($form_data['prenom'] ?? $user['prenom'] ?? '') ?>" required>
+                            </div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="email_principal" class="form-label required">Email principal</label>
+                                <input type="email" class="form-control" id="email_principal" name="email_principal"
+                                       value="<?= htmlspecialchars($form_data['email_principal'] ?? $user['email_principal'] ?? '') ?>" required>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section Fonction et Responsabilités -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-briefcase"></i> Fonction et Responsabilités</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="id_fonction" class="form-label required">Fonction</label>
+                                <select class="form-select" id="id_fonction" name="id_fonction" required>
+                                    <option value="">Sélectionner une fonction</option>
+                                    <?php foreach ($fonctions ?? [] as $fonction): ?>
+                                        <option value="<?= htmlspecialchars($fonction['id_fonction']) ?>"
+                                            <?= ($form_data['id_fonction'] ?? $user['id_fonction'] ?? '') === $fonction['id_fonction'] ? 'selected' : '' ?>>
+                                            <?= htmlspecialchars($fonction['libelle_fonction'] ?? $fonction['id_fonction']) ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="date_embauche" class="form-label">Date d'embauche</label>
+                                <input type="date" class="form-control" id="date_embauche" name="date_embauche"
+                                       value="<?= htmlspecialchars($form_data['date_embauche'] ?? $user['date_embauche'] ?? '') ?>">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="telephone" class="form-label">Téléphone professionnel</label>
+                                <input type="tel" class="form-control" id="telephone" name="telephone"
+                                       value="<?= htmlspecialchars($form_data['telephone'] ?? $user['telephone'] ?? '') ?>">
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="email_professionnel" class="form-label">Email professionnel</label>
+                                <input type="email" class="form-control" id="email_professionnel" name="email_professionnel"
+                                       value="<?= htmlspecialchars($form_data['email_professionnel'] ?? $user['email_professionnel'] ?? '') ?>">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Colonne Latérale -->
+        <div class="col-lg-4">
+            <!-- Section RBAC -->
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-shield-alt"></i> Contrôle d'Accès (RBAC)</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="id_groupe_utilisateur" class="form-label required">Groupe/Rôle</label>
+                        <select class="form-select" id="id_groupe_utilisateur" name="id_groupe_utilisateur" required>
+                            <option value="">Sélectionner un rôle</option>
+
+                            <!-- Groupes spécifiques au personnel administratif -->
+                            <optgroup label="Personnel Administratif">
+                                <?php
+                                $groupesPersonnel = [
+                                    'GRP_RS' => 'Responsable Scolarité',
+                                    'GRP_AGENT_CONFORMITE' => 'Agent de Conformité',
+                                    'GRP_PERS_ADMIN' => 'Personnel Administratif',
+                                    'GRP_GESTIONNAIRE_SCOL' => 'Gestionnaire Scolarité'
+                                ];
+
+                                foreach ($groupesPersonnel as $id => $label): ?>
+                                    <option value="<?= $id ?>"
+                                        <?= ($form_data['id_groupe_utilisateur'] ?? $user['id_groupe_utilisateur'] ?? '') === $id ? 'selected' : '' ?>>
+                                        <?= $label ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </optgroup>
+
+                            <?php if ($isEdit): ?>
+                                <optgroup label="Autres Groupes">
+                                    <?php foreach ($groupes ?? [] as $groupe): ?>
+                                        <?php if (!array_key_exists($groupe['id_groupe_utilisateur'], $groupesPersonnel)): ?>
+                                            <option value="<?= htmlspecialchars($groupe['id_groupe_utilisateur']) ?>"
+                                                <?= ($form_data['id_groupe_utilisateur'] ?? $user['id_groupe_utilisateur'] ?? '') === $groupe['id_groupe_utilisateur'] ? 'selected' : '' ?>>
+                                                <?= htmlspecialchars($groupe['libelle_groupe_utilisateur'] ?? $groupe['id_groupe_utilisateur']) ?>
+                                            </option>
+                                        <?php endif; ?>
+                                    <?php endforeach; ?>
+                                </optgroup>
+                            <?php endif; ?>
+                        </select>
+                        <div class="form-text">Détermine les responsabilités et permissions dans l'application</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="id_niveau_acces_donne" class="form-label required">Niveau d'accès</label>
+                        <select class="form-select" id="id_niveau_acces_donne" name="id_niveau_acces_donne" required>
+                            <option value="">Sélectionner un niveau</option>
+                            <?php foreach ($niveauxAcces ?? [] as $niveau): ?>
+                                <option value="<?= htmlspecialchars($niveau['id_niveau_acces_donne']) ?>"
+                                    <?= ($form_data['id_niveau_acces_donne'] ?? $user['id_niveau_acces_donne'] ?? 'ACCES_DEPARTEMENT') === $niveau['id_niveau_acces_donne'] ? 'selected' : '' ?>>
+                                    <?= htmlspecialchars($niveau['libelle_niveau_acces_donne'] ?? $niveau['id_niveau_acces_donne']) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Responsabilités selon le rôle -->
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="fas fa-tasks"></i> Responsabilités Typiques</h6>
+                </div>
+                <div class="card-body">
+                    <div id="role-responsibilities">
+                        <small class="text-muted">
+                            Sélectionnez un groupe pour voir les responsabilités associées.
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Boutons d'action -->
+    <div class="card">
+        <div class="card-body">
+            <div class="d-flex justify-content-between">
+                <a href="/admin/utilisateurs" class="btn btn-secondary">
+                    <i class="fas fa-times"></i> Annuler
+                </a>
+
+                <button type="submit" class="btn btn-warning">
+                    <i class="fas fa-save"></i>
+                    <?= $isEdit ? 'Mettre à jour le personnel' : 'Créer le personnel' ?>
+                </button>
+            </div>
+        </div>
+    </div>
+</form>
+
 <script>
+    // Affichage des responsabilités selon le groupe sélectionné
+    document.getElementById('id_groupe_utilisateur').addEventListener('change', function() {
+        const responsibilitiesDiv = document.getElementById('role-responsibilities');
+        const selectedGroup = this.value;
+
+        const responsibilities = {
+            'GRP_RS': `
+            <strong>Responsable Scolarité :</strong>
+            <ul class="small">
+                <li>Activation des comptes étudiants</li>
+                <li>Gestion des inscriptions</li>
+                <li>Validation administrative</li>
+                <li>Gestion des pénalités</li>
+            </ul>
+        `,
+            'GRP_AGENT_CONFORMITE': `
+            <strong>Agent de Conformité :</strong>
+            <ul class="small">
+                <li>Vérification conformité des rapports</li>
+                <li>Contrôle qualité documentaire</li>
+                <li>Première validation technique</li>
+            </ul>
+        `,
+            'GRP_PERS_ADMIN': `
+            <strong>Personnel Administratif :</strong>
+            <ul class="small">
+                <li>Gestion administrative courante</li>
+                <li>Support aux étudiants</li>
+                <li>Traitement des dossiers</li>
+            </ul>
+        `,
+            'GRP_GESTIONNAIRE_SCOL': `
+            <strong>Gestionnaire Scolarité :</strong>
+            <ul class="small">
+                <li>Suivi académique</li>
+                <li>Gestion des notes</li>
+                <li>Édition de documents officiels</li>
+            </ul>
+        `
+        };
+
+        responsibilitiesDiv.innerHTML = responsibilities[selectedGroup] ||
+            '<small class="text-muted">Groupe sélectionné sans responsabilités définies.</small>';
+    });
+
+    // Déclencher l'affichage initial si un groupe est déjà sélectionné
     document.addEventListener('DOMContentLoaded', function() {
-        const form = document.getElementById('formPersonnel');
-        if (form) {
-            form.addEventListener('submit', function(event) {
-                // Validation des champs communs
-                const nom = document.getElementById('nom').value.trim();
-                const prenom = document.getElementById('prenom').value.trim();
-                const email = document.getElementById('email').value.trim();
-                const codePersonnel = document.getElementById('code_personnel').value.trim();
-                const departementId = document.getElementById('departement_id').value;
-                const fonctionId = document.getElementById('fonction_id').value;
-
-                if (!nom || !prenom || !email || !codePersonnel || !departementId || !fonctionId) {
-                    alert('Veuillez remplir tous les champs obligatoires (Nom, Prénom, Email, Code Personnel, Département, Fonction).');
-                    event.preventDefault();
-                    return;
-                }
-
-                // Validation de l'email
-                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-                if (!emailRegex.test(email)) {
-                    alert('Veuillez saisir une adresse email valide.');
-                    event.preventDefault();
-                    return;
-                }
-
-                // Validation spécifique au mode création (mots de passe)
-                <?php if (!$is_edit_mode): ?>
-                const password = document.getElementById('password').value;
-                const confirmPassword = document.getElementById('confirm_password').value;
-
-                if (!password || !confirmPassword) {
-                    alert('Veuillez définir et confirmer le mot de passe initial.');
-                    event.preventDefault();
-                    return;
-                }
-                if (password !== confirmPassword) {
-                    alert('Les mots de passe ne correspondent pas.');
-                    event.preventDefault();
-                    return;
-                }
-                // Validation de la complexité du mot de passe (peut être plus stricte)
-                const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+={}\[\]:;"'<>,.?\/\\-]).{8,}$/;
-                if (!passwordRegex.test(password)) {
-                    alert("Le mot de passe doit contenir au moins 8 caractères, incluant une majuscule, une minuscule, un chiffre et un caractère spécial.");
-                    event.preventDefault();
-                    return;
-                }
-                <?php endif; ?>
-
-                console.log("Formulaire Personnel soumis.");
-            });
-        }
-
-        // Gestion de l'affichage des messages flash
-        const flashMessage = "<?= $_SESSION['flash_message'] ?? ''; ?>";
-        if (flashMessage) {
-            console.log("Message Flash:", flashMessage);
-            <?php unset($_SESSION['flash_message']); ?>
-        }
+        document.getElementById('id_groupe_utilisateur').dispatchEvent(new Event('change'));
     });
 </script>
-
-<style>
-    /* Styles spécifiques pour form_personnel.php */
-    /* Réutilisation des classes de root.css et admin_module.css */
-
-    /* Conteneur et titres principaux - réutilisés */
-    .admin-module-container {
-        padding: var(--spacing-lg);
-        background-color: var(--bg-primary);
-        border-radius: var(--border-radius-md);
-        box-shadow: var(--shadow-sm);
-        max-width: 900px; /* Largeur adaptée au formulaire */
-        margin: var(--spacing-xl) auto;
-    }
-
-    .admin-title {
-        font-size: var(--font-size-2xl);
-        color: var(--text-primary);
-        margin-bottom: var(--spacing-xl);
-        text-align: center;
-        font-weight: var(--font-weight-semibold);
-        padding-bottom: var(--spacing-sm);
-        border-bottom: 1px solid var(--border-light);
-    }
-
-    .admin-card {
-        background-color: var(--bg-secondary);
-        border-radius: var(--border-radius-md);
-        box-shadow: var(--shadow-sm);
-        padding: var(--spacing-lg);
-        margin-bottom: var(--spacing-xl);
-    }
-
-    .section-title {
-        font-size: var(--font-size-xl);
-        color: var(--text-primary);
-        margin-bottom: var(--spacing-lg);
-        font-weight: var(--font-weight-medium);
-        border-bottom: 1px solid var(--border-medium);
-        padding-bottom: var(--spacing-sm);
-    }
-
-    /* Formulaires - réutilisation et adaptation */
-    .form-section {
-        border: 1px solid var(--border-light);
-        border-radius: var(--border-radius-md);
-        padding: var(--spacing-md);
-        margin-bottom: var(--spacing-lg);
-        background-color: var(--primary-white);
-    }
-
-    .form-section legend {
-        font-size: var(--font-size-lg);
-        color: var(--primary-blue-dark);
-        font-weight: var(--font-weight-semibold);
-        padding: 0 var(--spacing-xs);
-        margin-left: var(--spacing-sm);
-    }
-
-    .form-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-        gap: var(--spacing-md);
-    }
-
-    .form-group {
-        display: flex;
-        flex-direction: column;
-    }
-
-    .form-group label {
-        font-size: var(--font-size-sm);
-        color: var(--text-secondary);
-        margin-bottom: var(--spacing-xs);
-        font-weight: var(--font-weight-medium);
-    }
-
-    .form-group input[type="text"],
-    .form-group input[type="email"],
-    .form-group input[type="tel"],
-    .form-group input[type="date"],
-    .form-group input[type="password"],
-    .form-group select {
-        padding: var(--spacing-sm);
-        border: 1px solid var(--border-medium);
-        border-radius: var(--border-radius-sm);
-        font-size: var(--font-size-base);
-        color: var(--text-primary);
-        background-color: var(--primary-white);
-        transition: border-color var(--transition-fast);
-        width: 100%;
-    }
-
-    .form-group input:focus,
-    .form-group select:focus {
-        border-color: var(--primary-blue);
-        outline: none;
-        box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
-    }
-
-    .form-group input:disabled {
-        background-color: var(--primary-gray-light);
-        color: var(--text-light);
-        cursor: not-allowed;
-    }
-
-    .form-help {
-        font-size: var(--font-size-xs);
-        color: var(--text-light);
-        margin-top: var(--spacing-xs);
-    }
-
-    /* Actions du formulaire */
-    .form-actions {
-        display: flex;
-        justify-content: center;
-        gap: var(--spacing-md);
-        margin-top: var(--spacing-xl);
-    }
-
-    /* Boutons - réutilisation des styles existants */
-    .btn {
-        padding: var(--spacing-sm) var(--spacing-md);
-        font-size: var(--font-size-base);
-        font-weight: var(--font-weight-semibold);
-        border: none;
-        border-radius: var(--border-radius-sm);
-        cursor: pointer;
-        transition: background-color var(--transition-fast), box-shadow var(--transition-fast);
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: var(--spacing-xs);
-        text-decoration: none;
-    }
-
-    .btn-primary-blue {
-        color: var(--text-white);
-        background-color: var(--primary-blue);
-    }
-
-    .btn-primary-blue:hover {
-        background-color: var(--primary-blue-dark);
-        box-shadow: var(--shadow-sm);
-    }
-
-    .btn-secondary-gray {
-        color: var(--text-primary);
-        background-color: var(--primary-gray-light);
-        border: 1px solid var(--border-medium);
-    }
-
-    .btn-secondary-gray:hover {
-        background-color: var(--border-medium);
-        box-shadow: var(--shadow-sm);
-    }
-
-    .ml-md { margin-left: var(--spacing-md); }
-    .mt-xl { margin-top: var(--spacing-xl); }
-</style>

@@ -1,361 +1,454 @@
+<!-- src/Frontend/views/Administration/Utilisateurs/form_etudiant.php -->
 <?php
-// src/Frontend/views/Administration/Utilisateurs/form_etudiant.php
-
-// Fonction d'échappement HTML
-if (!function_exists('e')) {
-    function e($value) {
-        return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
-    }
-}
-
-// Données de l'étudiant à modifier (si mode édition)
-// Ces données proviendraient du contrôleur UtilisateurController ou EtudiantController
-//
-//
-
-$etudiant = $data['etudiant'] ?? null;
-$is_edit_mode = (bool)$etudiant;
-
-// Exemple de données pour les listes déroulantes
-$niveaux_etude = $data['niveaux_etude'] ?? [
-    ['id' => 1, 'libelle' => 'Licence 1'],
-    ['id' => 2, 'libelle' => 'Licence 2'],
-    ['id' => 3, 'libelle' => 'Licence 3'],
-    ['id' => 4, 'libelle' => 'Master 1'],
-    ['id' => 5, 'libelle' => 'Master 2'],
-];
-
-$specialites = $data['specialites'] ?? [
-    ['id' => 1, 'nom' => 'MIAGE'],
-    ['id' => 2, 'nom' => 'Informatique Scientifique'],
-    ['id' => 3, 'nom' => 'Cybersécurité'],
-];
-
+$this->layout('layouts/layout_admin', ['title' => $title ?? 'Formulaire Étudiant']);
+$isEdit = !empty($user);
 ?>
 
-<div class="admin-module-container">
-    <h1 class="admin-title"><?= $is_edit_mode ? 'Modifier l\'Étudiant' : 'Ajouter un Nouvel Étudiant'; ?></h1>
+<div class="page-header mb-4">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="/admin/dashboard">Administration</a></li>
+            <li class="breadcrumb-item"><a href="/admin/utilisateurs">Utilisateurs</a></li>
+            <li class="breadcrumb-item active"><?= $isEdit ? 'Modifier' : 'Créer' ?> Étudiant</li>
+        </ol>
+    </nav>
 
-    <section class="section-form admin-card">
-        <h2 class="section-title">Informations de l'Étudiant</h2>
-        <form id="formEtudiant" action="/admin/utilisateurs/etudiant/<?= $is_edit_mode ? 'update/' . e($etudiant['id']) : 'create'; ?>" method="POST">
-
-            <fieldset class="form-section">
-                <legend>Informations Personnelles</legend>
-                <div class="form-grid">
-                    <div class="form-group">
-                        <label for="nom">Nom :</label>
-                        <input type="text" id="nom" name="nom" value="<?= e($etudiant['nom'] ?? ''); ?>" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="prenom">Prénom(s) :</label>
-                        <input type="text" id="prenom" name="prenom" value="<?= e($etudiant['prenom'] ?? ''); ?>" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="email">Email :</label>
-                        <input type="email" id="email" name="email" value="<?= e($etudiant['email'] ?? ''); ?>" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="telephone">Téléphone :</label>
-                        <input type="tel" id="telephone" name="telephone" value="<?= e($etudiant['telephone'] ?? ''); ?>">
-                    </div>
-                    <div class="form-group">
-                        <label for="date_naissance">Date de Naissance :</label>
-                        <input type="date" id="date_naissance" name="date_naissance" value="<?= e($etudiant['date_naissance'] ?? ''); ?>">
-                    </div>
-                    <div class="form-group">
-                        <label for="adresse">Adresse :</label>
-                        <input type="text" id="adresse" name="adresse" value="<?= e($etudiant['adresse'] ?? ''); ?>">
-                    </div>
-                </div>
-            </fieldset>
-
-            <fieldset class="form-section mt-xl">
-                <legend>Informations Académiques</legend>
-                <div class="form-grid">
-                    <div class="form-group">
-                        <label for="matricule_etudiant">Matricule Étudiant :</label>
-                        <input type="text" id="matricule_etudiant" name="matricule_etudiant" value="<?= e($etudiant['matricule_etudiant'] ?? ''); ?>" required <?= $is_edit_mode ? 'readonly' : ''; ?>>
-                        <?php if ($is_edit_mode): ?>
-                            <small class="form-help">Le matricule ne peut pas être modifié.</small>
-                        <?php endif; ?>
-                    </div>
-                    <div class="form-group">
-                        <label for="niveau_etude_id">Niveau d'Étude :</label>
-                        <select id="niveau_etude_id" name="niveau_etude_id" required>
-                            <option value="">Sélectionner un niveau</option>
-                            <?php foreach ($niveaux_etude as $niveau): ?>
-                                <option value="<?= e($niveau['id']); ?>"
-                                    <?= ($etudiant['niveau_etude_id'] ?? '') == $niveau['id'] ? 'selected' : ''; ?>>
-                                    <?= e($niveau['libelle']); ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="specialite_id">Spécialité :</label>
-                        <select id="specialite_id" name="specialite_id">
-                            <option value="">Sélectionner une spécialité (facultatif)</option>
-                            <?php foreach ($specialites as $specialite): ?>
-                                <option value="<?= e($specialite['id']); ?>"
-                                    <?= ($etudiant['specialite_id'] ?? '') == $specialite['id'] ? 'selected' : ''; ?>>
-                                    <?= e($specialite['nom']); ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                </div>
-            </fieldset>
-
-            <?php if (!$is_edit_mode): ?>
-                <fieldset class="form-section mt-xl">
-                    <legend>Mot de Passe Initial</legend>
-                    <div class="form-grid">
-                        <div class="form-group">
-                            <label for="password">Mot de passe initial :</label>
-                            <input type="password" id="password" name="password" required>
-                            <small class="form-help">Le mot de passe temporaire pour la première connexion de l'étudiant.</small>
-                        </div>
-                        <div class="form-group">
-                            <label for="confirm_password">Confirmer le mot de passe :</label>
-                            <input type="password" id="confirm_password" name="confirm_password" required>
-                        </div>
-                    </div>
-                </fieldset>
-            <?php endif; ?>
-
-            <div class="form-actions mt-xl">
-                <button type="submit" class="btn btn-primary-blue">
-                    <span class="material-icons"><?= $is_edit_mode ? 'save' : 'person_add'; ?></span>
-                    <?= $is_edit_mode ? 'Enregistrer les modifications' : 'Ajouter l\'étudiant'; ?>
-                </button>
-                <a href="/admin/utilisateurs/etudiants" class="btn btn-secondary-gray ml-md">
-                    <span class="material-icons">cancel</span> Annuler
-                </a>
-            </div>
-        </form>
-    </section>
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <h1>
+                <i class="fas fa-user-graduate text-info"></i>
+                <?= $isEdit ? 'Modifier un Étudiant' : 'Créer un Étudiant' ?>
+            </h1>
+            <p class="text-muted mb-0">
+                Formulaire spécialisé pour la création/modification des comptes étudiants selon l'architecture RBAC
+            </p>
+        </div>
+        <a href="/admin/utilisateurs" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left"></i> Retour à la liste
+        </a>
+    </div>
 </div>
 
+<!-- Messages d'erreur globaux -->
+<?php if (!empty($form_errors)): ?>
+    <div class="alert alert-danger">
+        <h6><i class="fas fa-exclamation-triangle"></i> Erreurs de validation :</h6>
+        <ul class="mb-0">
+            <?php foreach ($form_errors as $field => $error): ?>
+                <li><?= htmlspecialchars($error) ?></li>
+            <?php endforeach; ?>
+        </ul>
+    </div>
+<?php endif; ?>
+
+<form method="POST" action="<?= htmlspecialchars($action_url) ?>" class="needs-validation" novalidate>
+    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf_token) ?>">
+
+    <div class="row">
+        <!-- Colonne Principale -->
+        <div class="col-lg-8">
+
+            <!-- Section Compte Utilisateur -->
+            <div class="card mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="fas fa-user-circle"></i> Informations du Compte</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="login_utilisateur" class="form-label required">Login utilisateur</label>
+                                <input type="text"
+                                       class="form-control <?= isset($form_errors['login_utilisateur']) ? 'is-invalid' : '' ?>"
+                                       id="login_utilisateur"
+                                       name="login_utilisateur"
+                                       value="<?= htmlspecialchars($form_data['login_utilisateur'] ?? $user['login_utilisateur'] ?? '') ?>"
+                                    <?= $isEdit ? 'readonly' : 'required' ?>
+                                       placeholder="ex: jean.dupont">
+                                <?php if (isset($form_errors['login_utilisateur'])): ?>
+                                    <div class="invalid-feedback"><?= htmlspecialchars($form_errors['login_utilisateur']) ?></div>
+                                <?php endif; ?>
+                                <div class="form-text">Identifiant unique de connexion</div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="numero_etudiant" class="form-label required">Numéro étudiant</label>
+                                <input type="text"
+                                       class="form-control <?= isset($form_errors['numero_etudiant']) ? 'is-invalid' : '' ?>"
+                                       id="numero_etudiant"
+                                       name="numero_etudiant"
+                                       value="<?= htmlspecialchars($form_data['numero_etudiant'] ?? $user['numero_etudiant'] ?? '') ?>"
+                                    <?= $isEdit ? 'readonly' : 'required' ?>
+                                       placeholder="ex: 20240001">
+                                <?php if (isset($form_errors['numero_etudiant'])): ?>
+                                    <div class="invalid-feedback"><?= htmlspecialchars($form_errors['numero_etudiant']) ?></div>
+                                <?php endif; ?>
+                                <div class="form-text">Identifiant unique généré automatiquement</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="email_principal" class="form-label required">Email principal</label>
+                                <input type="email"
+                                       class="form-control <?= isset($form_errors['email_principal']) ? 'is-invalid' : '' ?>"
+                                       id="email_principal"
+                                       name="email_principal"
+                                       value="<?= htmlspecialchars($form_data['email_principal'] ?? $user['email_principal'] ?? '') ?>"
+                                       required
+                                       placeholder="prenom.nom@email.com">
+                                <?php if (isset($form_errors['email_principal'])): ?>
+                                    <div class="invalid-feedback"><?= htmlspecialchars($form_errors['email_principal']) ?></div>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="mot_de_passe" class="form-label <?= $isEdit ? '' : 'required' ?>">
+                                    Mot de passe <?= $isEdit ? '(laisser vide pour ne pas changer)' : '' ?>
+                                </label>
+                                <input type="password"
+                                       class="form-control <?= isset($form_errors['mot_de_passe']) ? 'is-invalid' : '' ?>"
+                                       id="mot_de_passe"
+                                       name="mot_de_passe"
+                                    <?= $isEdit ? '' : 'required' ?>
+                                       minlength="8">
+                                <?php if (isset($form_errors['mot_de_passe'])): ?>
+                                    <div class="invalid-feedback"><?= htmlspecialchars($form_errors['mot_de_passe']) ?></div>
+                                <?php endif; ?>
+                                <div class="form-text">Minimum 8 caractères</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section Identité -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-id-card"></i> Identité Personnelle</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="nom" class="form-label required">Nom de famille</label>
+                                <input type="text"
+                                       class="form-control <?= isset($form_errors['nom']) ? 'is-invalid' : '' ?>"
+                                       id="nom"
+                                       name="nom"
+                                       value="<?= htmlspecialchars($form_data['nom'] ?? $user['nom'] ?? '') ?>"
+                                       required
+                                       placeholder="DUPONT">
+                                <?php if (isset($form_errors['nom'])): ?>
+                                    <div class="invalid-feedback"><?= htmlspecialchars($form_errors['nom']) ?></div>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="prenom" class="form-label required">Prénom(s)</label>
+                                <input type="text"
+                                       class="form-control <?= isset($form_errors['prenom']) ? 'is-invalid' : '' ?>"
+                                       id="prenom"
+                                       name="prenom"
+                                       value="<?= htmlspecialchars($form_data['prenom'] ?? $user['prenom'] ?? '') ?>"
+                                       required
+                                       placeholder="Jean">
+                                <?php if (isset($form_errors['prenom'])): ?>
+                                    <div class="invalid-feedback"><?= htmlspecialchars($form_errors['prenom']) ?></div>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="date_naissance" class="form-label">Date de naissance</label>
+                                <input type="date"
+                                       class="form-control"
+                                       id="date_naissance"
+                                       name="date_naissance"
+                                       value="<?= htmlspecialchars($form_data['date_naissance'] ?? $user['date_naissance'] ?? '') ?>">
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="telephone" class="form-label">Téléphone</label>
+                                <input type="tel"
+                                       class="form-control"
+                                       id="telephone"
+                                       name="telephone"
+                                       value="<?= htmlspecialchars($form_data['telephone'] ?? $user['telephone'] ?? '') ?>"
+                                       placeholder="+33 6 12 34 56 78">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section Informations Académiques -->
+            <div class="card mb-4">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0"><i class="fas fa-graduation-cap"></i> Informations Académiques</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="id_niveau_etude" class="form-label required">Niveau d'étude</label>
+                                <select class="form-select <?= isset($form_errors['id_niveau_etude']) ? 'is-invalid' : '' ?>"
+                                        id="id_niveau_etude"
+                                        name="id_niveau_etude"
+                                        required>
+                                    <option value="">Sélectionner un niveau</option>
+                                    <?php foreach ($niveaux_etude ?? [] as $niveau): ?>
+                                        <option value="<?= htmlspecialchars($niveau['id_niveau_etude']) ?>"
+                                            <?= ($form_data['id_niveau_etude'] ?? $user['id_niveau_etude'] ?? '') === $niveau['id_niveau_etude'] ? 'selected' : '' ?>>
+                                            <?= htmlspecialchars($niveau['libelle_niveau_etude'] ?? $niveau['id_niveau_etude']) ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <?php if (isset($form_errors['id_niveau_etude'])): ?>
+                                    <div class="invalid-feedback"><?= htmlspecialchars($form_errors['id_niveau_etude']) ?></div>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="annee_academique" class="form-label">Année académique</label>
+                                <select class="form-select" id="annee_academique" name="annee_academique">
+                                    <option value="">Sélectionner une année</option>
+                                    <?php foreach ($annees_academiques ?? [] as $annee): ?>
+                                        <option value="<?= htmlspecialchars($annee['id_annee_academique']) ?>"
+                                            <?= ($form_data['annee_academique'] ?? $user['annee_academique'] ?? '') === $annee['id_annee_academique'] ? 'selected' : '' ?>>
+                                            <?= htmlspecialchars($annee['libelle_annee_academique'] ?? $annee['id_annee_academique']) ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="email_professionnel" class="form-label">Email étudiant (optionnel)</label>
+                        <input type="email"
+                               class="form-control"
+                               id="email_professionnel"
+                               name="email_professionnel"
+                               value="<?= htmlspecialchars($form_data['email_professionnel'] ?? $user['email_professionnel'] ?? '') ?>"
+                               placeholder="prenom.nom@etu.universite.fr">
+                        <div class="form-text">Email institutionnel si différent de l'email principal</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Colonne Latérale -->
+        <div class="col-lg-4">
+
+            <!-- Section RBAC et Permissions -->
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-shield-alt"></i> Contrôle d'Accès (RBAC)</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="id_groupe_utilisateur" class="form-label required">Groupe d'utilisateur</label>
+                        <select class="form-select <?= isset($form_errors['id_groupe_utilisateur']) ? 'is-invalid' : '' ?>"
+                                id="id_groupe_utilisateur"
+                                name="id_groupe_utilisateur"
+                                required>
+                            <option value="">Sélectionner un groupe</option>
+                            <?php foreach ($groupes ?? [] as $groupe): ?>
+                                <?php
+                                // Filtrer pour ne montrer que les groupes étudiants par défaut
+                                if (stripos($groupe['id_groupe_utilisateur'], 'ETUDIANT') === false &&
+                                    !$isEdit &&
+                                    $groupe['id_groupe_utilisateur'] !== 'GRP_ETUDIANT') continue;
+                                ?>
+                                <option value="<?= htmlspecialchars($groupe['id_groupe_utilisateur']) ?>"
+                                    <?= ($form_data['id_groupe_utilisateur'] ?? $user['id_groupe_utilisateur'] ?? 'GRP_ETUDIANT') === $groupe['id_groupe_utilisateur'] ? 'selected' : '' ?>>
+                                    <?= htmlspecialchars($groupe['libelle_groupe_utilisateur'] ?? $groupe['id_groupe_utilisateur']) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <?php if (isset($form_errors['id_groupe_utilisateur'])): ?>
+                            <div class="invalid-feedback"><?= htmlspecialchars($form_errors['id_groupe_utilisateur']) ?></div>
+                        <?php endif; ?>
+                        <div class="form-text">Détermine les permissions et rôles dans l'application</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="id_niveau_acces_donne" class="form-label required">Niveau d'accès aux données</label>
+                        <select class="form-select <?= isset($form_errors['id_niveau_acces_donne']) ? 'is-invalid' : '' ?>"
+                                id="id_niveau_acces_donne"
+                                name="id_niveau_acces_donne"
+                                required>
+                            <option value="">Sélectionner un niveau</option>
+                            <?php foreach ($niveauxAcces ?? [] as $niveau): ?>
+                                <option value="<?= htmlspecialchars($niveau['id_niveau_acces_donne']) ?>"
+                                    <?= ($form_data['id_niveau_acces_donne'] ?? $user['id_niveau_acces_donne'] ?? 'ACCES_PERSONNEL') === $niveau['id_niveau_acces_donne'] ? 'selected' : '' ?>>
+                                    <?= htmlspecialchars($niveau['libelle_niveau_acces_donne'] ?? $niveau['id_niveau_acces_donne']) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <?php if (isset($form_errors['id_niveau_acces_donne'])): ?>
+                            <div class="invalid-feedback"><?= htmlspecialchars($form_errors['id_niveau_acces_donne']) ?></div>
+                        <?php endif; ?>
+                    </div>
+
+                    <?php if ($isEdit): ?>
+                        <div class="mb-3">
+                            <label for="statut_compte" class="form-label">Statut du compte</label>
+                            <select class="form-select" id="statut_compte" name="statut_compte">
+                                <?php
+                                $statuts = [
+                                    'actif' => 'Actif',
+                                    'inactif' => 'Inactif',
+                                    'bloque' => 'Bloqué',
+                                    'en_attente_validation' => 'En attente de validation',
+                                    'archive' => 'Archivé'
+                                ];
+                                foreach ($statuts as $value => $label):
+                                    ?>
+                                    <option value="<?= $value ?>"
+                                        <?= ($user['statut_compte'] ?? 'en_attente_validation') === $value ? 'selected' : '' ?>>
+                                        <?= $label ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+
+            <!-- Informations sur l'Architecture RBAC -->
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="fas fa-info-circle"></i> Architecture RBAC</h6>
+                </div>
+                <div class="card-body">
+                    <small class="text-muted">
+                        <p><strong>Type :</strong> TYPE_ETUDIANT</p>
+                        <p><strong>Rôle :</strong> Déterminé par le groupe sélectionné</p>
+                        <p><strong>Permissions :</strong> Définies via la table "rattacher"</p>
+                        <hr>
+                        <p class="mb-0">
+                            Le système RBAC dissocie les utilisateurs de leurs permissions
+                            en utilisant le groupe comme pivot central selon votre
+                            architecture documentée.
+                        </p>
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Boutons d'action -->
+    <div class="card">
+        <div class="card-body">
+            <div class="d-flex justify-content-between">
+                <a href="/admin/utilisateurs" class="btn btn-secondary">
+                    <i class="fas fa-times"></i> Annuler
+                </a>
+
+                <div>
+                    <?php if ($isEdit): ?>
+                        <button type="button" class="btn btn-warning me-2" onclick="generatePassword()">
+                            <i class="fas fa-random"></i> Générer mot de passe
+                        </button>
+                    <?php endif; ?>
+
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i>
+                        <?= $isEdit ? 'Mettre à jour l\'étudiant' : 'Créer l\'étudiant' ?>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+
 <script>
+    // Auto-génération du login basé sur nom/prénom
     document.addEventListener('DOMContentLoaded', function() {
-        const form = document.getElementById('formEtudiant');
-        if (form) {
-            form.addEventListener('submit', function(event) {
-                // Validation des champs communs
-                const nom = document.getElementById('nom').value.trim();
-                const prenom = document.getElementById('prenom').value.trim();
-                const email = document.getElementById('email').value.trim();
-                const matriculeEtudiant = document.getElementById('matricule_etudiant').value.trim();
-                const niveauEtudeId = document.getElementById('niveau_etude_id').value;
+        const nom = document.getElementById('nom');
+        const prenom = document.getElementById('prenom');
+        const login = document.getElementById('login_utilisateur');
 
-                if (!nom || !prenom || !email || !matriculeEtudiant || !niveauEtudeId) {
-                    alert('Veuillez remplir tous les champs obligatoires (Nom, Prénom, Email, Matricule Étudiant, Niveau d\'Étude).');
-                    event.preventDefault();
-                    return;
-                }
+        function generateLogin() {
+            if (login.readOnly) return;
 
-                // Validation de l'email
-                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-                if (!emailRegex.test(email)) {
-                    alert('Veuillez saisir une adresse email valide.');
-                    event.preventDefault();
-                    return;
-                }
+            const nomValue = nom.value.toLowerCase().trim();
+            const prenomValue = prenom.value.toLowerCase().trim();
 
-                // Validation spécifique au mode création (mots de passe)
-                <?php if (!$is_edit_mode): ?>
-                const password = document.getElementById('password').value;
-                const confirmPassword = document.getElementById('confirm_password').value;
-
-                if (!password || !confirmPassword) {
-                    alert('Veuillez définir et confirmer le mot de passe initial.');
-                    event.preventDefault();
-                    return;
-                }
-                if (password !== confirmPassword) {
-                    alert('Les mots de passe ne correspondent pas.');
-                    event.preventDefault();
-                    return;
-                }
-                // Validation de la complexité du mot de passe (peut être plus stricte)
-                const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+={}\[\]:;"'<>,.?\/\\-]).{8,}$/;
-                if (!passwordRegex.test(password)) {
-                    alert("Le mot de passe doit contenir au moins 8 caractères, incluant une majuscule, une minuscule, un chiffre et un caractère spécial.");
-                    event.preventDefault();
-                    return;
-                }
-                <?php endif; ?>
-
-                console.log("Formulaire Étudiant soumis.");
-            });
+            if (nomValue && prenomValue) {
+                login.value = prenomValue + '.' + nomValue;
+            }
         }
 
-        // Gestion de l'affichage des messages flash
-        const flashMessage = "<?= $_SESSION['flash_message'] ?? ''; ?>";
-        if (flashMessage) {
-            console.log("Message Flash:", flashMessage);
-            <?php unset($_SESSION['flash_message']); ?>
-        }
+        nom.addEventListener('input', generateLogin);
+        prenom.addEventListener('input', generateLogin);
     });
+
+    // Génération de mot de passe aléatoire
+    function generatePassword() {
+        const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%^&*';
+        let password = '';
+        for (let i = 0; i < 12; i++) {
+            password += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        document.getElementById('mot_de_passe').value = password;
+        alert('Mot de passe généré : ' + password + '\nN\'oubliez pas de le communiquer à l\'étudiant !');
+    }
+
+    // Validation côté client
+    (function() {
+        'use strict';
+        window.addEventListener('load', function() {
+            var forms = document.getElementsByClassName('needs-validation');
+            var validation = Array.prototype.filter.call(forms, function(form) {
+                form.addEventListener('submit', function(event) {
+                    if (form.checkValidity() === false) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                    }
+                    form.classList.add('was-validated');
+                }, false);
+            });
+        }, false);
+    })();
 </script>
 
 <style>
-    /* Styles spécifiques pour form_etudiant.php */
-    /* Réutilisation des classes de root.css et admin_module.css */
-
-    /* Conteneur et titres principaux - réutilisés */
-    .admin-module-container {
-        padding: var(--spacing-lg);
-        background-color: var(--bg-primary);
-        border-radius: var(--border-radius-md);
-        box-shadow: var(--shadow-sm);
-        max-width: 900px; /* Largeur adaptée au formulaire */
-        margin: var(--spacing-xl) auto;
+    .required::after {
+        content: " *";
+        color: red;
     }
 
-    .admin-title {
-        font-size: var(--font-size-2xl);
-        color: var(--text-primary);
-        margin-bottom: var(--spacing-xl);
-        text-align: center;
-        font-weight: var(--font-weight-semibold);
-        padding-bottom: var(--spacing-sm);
-        border-bottom: 1px solid var(--border-light);
+    .avatar-sm {
+        width: 40px;
+        height: 40px;
+        font-size: 14px;
     }
 
-    .admin-card {
-        background-color: var(--bg-secondary);
-        border-radius: var(--border-radius-md);
-        box-shadow: var(--shadow-sm);
-        padding: var(--spacing-lg);
-        margin-bottom: var(--spacing-xl);
+    .form-text {
+        font-size: 0.875em;
     }
 
-    .section-title {
-        font-size: var(--font-size-xl);
-        color: var(--text-primary);
-        margin-bottom: var(--spacing-lg);
-        font-weight: var(--font-weight-medium);
-        border-bottom: 1px solid var(--border-medium);
-        padding-bottom: var(--spacing-sm);
+    .card-header.bg-info,
+    .card-header.bg-primary,
+    .card-header.bg-warning {
+        border-bottom: 2px solid rgba(255,255,255,0.2);
     }
-
-    /* Formulaires - réutilisation et adaptation */
-    .form-section {
-        border: 1px solid var(--border-light);
-        border-radius: var(--border-radius-md);
-        padding: var(--spacing-md);
-        margin-bottom: var(--spacing-lg);
-        background-color: var(--primary-white);
-    }
-
-    .form-section legend {
-        font-size: var(--font-size-lg);
-        color: var(--primary-blue-dark);
-        font-weight: var(--font-weight-semibold);
-        padding: 0 var(--spacing-xs);
-        margin-left: var(--spacing-sm);
-    }
-
-    .form-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-        gap: var(--spacing-md);
-    }
-
-    .form-group {
-        display: flex;
-        flex-direction: column;
-    }
-
-    .form-group label {
-        font-size: var(--font-size-sm);
-        color: var(--text-secondary);
-        margin-bottom: var(--spacing-xs);
-        font-weight: var(--font-weight-medium);
-    }
-
-    .form-group input[type="text"],
-    .form-group input[type="email"],
-    .form-group input[type="tel"],
-    .form-group input[type="date"],
-    .form-group input[type="password"],
-    .form-group select {
-        padding: var(--spacing-sm);
-        border: 1px solid var(--border-medium);
-        border-radius: var(--border-radius-sm);
-        font-size: var(--font-size-base);
-        color: var(--text-primary);
-        background-color: var(--primary-white);
-        transition: border-color var(--transition-fast);
-        width: 100%;
-    }
-
-    .form-group input:focus,
-    .form-group select:focus {
-        border-color: var(--primary-blue);
-        outline: none;
-        box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
-    }
-
-    .form-group input:disabled {
-        background-color: var(--primary-gray-light);
-        color: var(--text-light);
-        cursor: not-allowed;
-    }
-
-    .form-help {
-        font-size: var(--font-size-xs);
-        color: var(--text-light);
-        margin-top: var(--spacing-xs);
-    }
-
-    /* Actions du formulaire */
-    .form-actions {
-        display: flex;
-        justify-content: center;
-        gap: var(--spacing-md);
-        margin-top: var(--spacing-xl);
-    }
-
-    /* Boutons - réutilisation des styles existants */
-    .btn {
-        padding: var(--spacing-sm) var(--spacing-md);
-        font-size: var(--font-size-base);
-        font-weight: var(--font-weight-semibold);
-        border: none;
-        border-radius: var(--border-radius-sm);
-        cursor: pointer;
-        transition: background-color var(--transition-fast), box-shadow var(--transition-fast);
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: var(--spacing-xs);
-        text-decoration: none;
-    }
-
-    .btn-primary-blue {
-        color: var(--text-white);
-        background-color: var(--primary-blue);
-    }
-
-    .btn-primary-blue:hover {
-        background-color: var(--primary-blue-dark);
-        box-shadow: var(--shadow-sm);
-    }
-
-    .btn-secondary-gray {
-        color: var(--text-primary);
-        background-color: var(--primary-gray-light);
-        border: 1px solid var(--border-medium);
-    }
-
-    .btn-secondary-gray:hover {
-        background-color: var(--border-medium);
-        box-shadow: var(--shadow-sm);
-    }
-
-    .ml-md { margin-left: var(--spacing-md); }
-    .mt-xl { margin-top: var(--spacing-xl); }
 </style>
