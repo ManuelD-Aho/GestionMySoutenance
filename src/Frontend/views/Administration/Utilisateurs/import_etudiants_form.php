@@ -1,5 +1,5 @@
 <!-- src/Frontend/views/Administration/Utilisateurs/import_etudiants.php -->
-<?php $this->layout('layouts/layout_admin', ['title' => $title ?? 'Import Étudiants']); ?>
+
 
 <div class="page-header mb-4">
     <nav aria-label="breadcrumb">

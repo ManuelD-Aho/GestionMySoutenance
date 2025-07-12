@@ -150,7 +150,7 @@ body {
 
 .main-content-area {
     flex: 1;
-    margin-left: 260px; /* Largeur de la sidebar */
+    margin-left: 320px; /* Largeur de la sidebar */
     padding: var(--spacing-xl);
     background-color: var(--body-bg);
     min-height: 100vh;

@@ -40,6 +40,7 @@ class UtilisateurController extends BaseController
     {
         // Utiliser la permission existante
         $this->requirePermission('TRAIT_ADMIN_UTILISATEURS_LISTER_ACCES');
+        error_log("DEBUG: Permission OK");
 
         try {
             $filters = $this->getGetData();
@@ -60,6 +61,8 @@ class UtilisateurController extends BaseController
             ]);
         } catch (Exception $e) {
             error_log("ERROR UtilisateurController: " . $e->getMessage());
+            error_log("ERROR UtilisateurController::list: " . $e->getMessage());
+            error_log("ERROR Stack trace: " . $e->getTraceAsString());
             $this->addFlashMessage('error', "Erreur lors du chargement des utilisateurs : " . $e->getMessage());
             $this->redirect('/admin/dashboard');
         }

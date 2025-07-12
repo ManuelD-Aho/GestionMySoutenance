@@ -1,6 +1,5 @@
 <!-- src/Frontend/views/Administration/Utilisateurs/form_personnel.php -->
 <?php
-$this->layout('layouts/layout_admin', ['title' => $title ?? 'Formulaire Personnel']);
 $isEdit = !empty($user);
 ?>
 

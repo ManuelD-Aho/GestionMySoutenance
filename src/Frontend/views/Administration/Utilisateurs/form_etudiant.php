@@ -1,6 +1,5 @@
 <!-- src/Frontend/views/Administration/Utilisateurs/form_etudiant.php -->
 <?php
-$this->layout('layouts/layout_admin', ['title' => $title ?? 'Formulaire Étudiant']);
 $isEdit = !empty($user);
 ?>
 
