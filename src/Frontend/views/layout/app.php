@@ -15,13 +15,16 @@ if (!function_exists('e')) {
 $pageTitle = $pageTitle ?? 'GestionMySoutenance - Tableau de Bord';
 
 // Démarrer la session si ce n'est pas déjà fait
+// Note: Le BaseController démarre déjà la session. Ce bloc peut être redondant ici.
 if (session_status() == PHP_SESSION_NONE) {
     session_start();
 }
 
-// Gestion des messages flash modernisée
-$flash_messages = $_SESSION['flash_messages'] ?? [];
-$has_flash_messages = !empty(array_filter($flash_messages));
+// Les flash messages sont maintenant passés via $data de render(),
+// donc ils sont disponibles directement comme $flash_messages dans ce scope.
+// La ligne suivante peut être supprimée si $flash_messages est toujours passé explicitement.
+// $flash_messages = $_SESSION['flash_messages'] ?? []; // Redondant si BaseController.php est à jour
+$has_flash_messages = !empty($flash_messages); // Utiliser directement $flash_messages reçu via extract($data)
 
 // Récupérer l'URL courante pour le menu actif
 $current_url = $_SERVER['REQUEST_URI'];
@@ -29,18 +32,18 @@ $current_url = strtok($current_url, '?'); // Nettoyer les paramètres GET
 
 // Déterminer si on est sur une page admin
 $is_admin_page = strpos($current_url, '/admin') === 0 ||
-    (isset($_SESSION['user_role']) && $_SESSION['user_role'] === 'admin');
+    (isset($_SESSION['user_role']) && $_SESSION['user_role'] === 'admin'); // Assurez-vous que user_role est défini
 
 // Déterminer le type d'utilisateur pour les assets
-$user_role = $_SESSION['user_role'] ?? 'guest';
-$current_user = $current_user ?? null;
+$user_role = $_SESSION['user_data']['id_type_utilisateur'] ?? 'guest'; // Utiliser l'ID du type d'utilisateur
+$current_user = $current_user ?? null; // current_user est passé via $data['user'] dans BaseController
 
 // Classes CSS pour le body
 $body_classes = ['sidebar-open'];
 if ($is_admin_page) {
     $body_classes[] = 'admin-layout';
 }
-if (isset($body_class)) {
+if (isset($body_class)) { // $body_class peut être défini par des vues spécifiques
     $body_classes[] = $body_class;
 }
 
@@ -60,50 +63,40 @@ $cache_buster = $is_development ? '?v=' . time() : '?v=' . $asset_version;
 
     <title><?= e($pageTitle); ?></title>
 
-    <!-- Favicon -->
     <link rel="icon" type="image/x-icon" href="/assets/images/favicon.ico">
 
-    <!-- CSS Principal - Ordre d'importance -->
     <link rel="stylesheet" href="/assets/css/root.css<?= $cache_buster ?>">
     <link rel="stylesheet" href="/assets/css/style.css<?= $cache_buster ?>">
     <link rel="stylesheet" href="/assets/css/components.css<?= $cache_buster ?>">
 
-    <!-- CSS Admin (si nécessaire) -->
     <?php if ($is_admin_page): ?>
         <link rel="stylesheet" href="/assets/css/admin-enhanced.css<?= $cache_buster ?>">
     <?php endif; ?>
 
-    <!-- CSS Legacy (conservation compatibilité) -->
     <link rel="stylesheet" href="/assets/css/gestionsoutenance-dashboard.css<?= $cache_buster ?>">
 
-    <!-- CSS Utilitaires (toujours en dernier) -->
     <link rel="stylesheet" href="/assets/css/utilities.css<?= $cache_buster ?>">
 
-    <!-- Google Fonts & Icons -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 
-    <!-- CSS spécifiques à la page -->
     <?php if (isset($page_css) && is_array($page_css)): ?>
         <?php foreach ($page_css as $css): ?>
-            <link rel="stylesheet" href="<?= $css ?><?= $cache_buster ?>">
+            <link rel="stylesheet" href="<?= e($css) ?><?= $cache_buster ?>">
         <?php endforeach; ?>
     <?php endif; ?>
 
-    <!-- Meta tags pour PWA (futur) -->
     <meta name="theme-color" content="#28b707">
     <meta name="msapplication-navbutton-color" content="#28b707">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
-    <!-- Preload des ressources critiques -->
     <link rel="preload" href="/assets/js/main.js" as="script">
     <?php if ($is_admin_page): ?>
         <link rel="preload" href="/assets/js/admin.js" as="script">
     <?php endif; ?>
 </head>
-<body class="<?= implode(' ', $body_classes); ?>" data-user-role="<?= e($user_role); ?>">
+<body class="<?= e(implode(' ', $body_classes)); ?>" data-user-role="<?= e($user_role); ?>">
 
-<!-- Loading Screen (optionnel) -->
 <div id="app-loading" class="d-none">
     <div class="admin-loading">
         <div class="admin-spinner"></div>
@@ -111,7 +104,6 @@ $cache_buster = $is_development ? '?v=' . time() : '?v=' . $asset_version;
     </div>
 </div>
 
-<!-- Mobile Sidebar Toggle -->
 <button class="mobile-sidebar-toggle d-md-none" onclick="window.GestionMySoutenance?.toggleMobileSidebar()">
     <span class="material-icons">menu</span>
 </button>
@@ -120,16 +112,18 @@ $cache_buster = $is_development ? '?v=' . time() : '?v=' . $asset_version;
 
     <?php
     // Inclusion du menu latéral
+    // BaseController passe déjà $data['menu_items']
     $menu_data = [
         'current_url' => $current_url,
         'user_role' => $user_role,
-        'user_permissions' => $_SESSION['user_permissions'] ?? [],
-        'is_admin_page' => $is_admin_page
+        // user_permissions n'est plus directement dans la session ici car il est combiné dans $menu_items
+        'is_admin_page' => $is_admin_page,
+        'menu_items' => $menu_items // Passer les items de menu déjà construits par SecuriteService
     ];
 
     // Le menu n'est affiché que si l'utilisateur est connecté
-    if (isset($_SESSION['user_id'])):
-        require_once __DIR__ . '/../common/menu.php';
+    if (isset($user['numero_utilisateur'])): // Utiliser $user de `extract($data)`
+        require_once __DIR__ . '/../common/menu.php'; // Ce fichier doit inclure les éléments de menu
     endif;
     ?>
     <div>
@@ -137,23 +131,19 @@ $cache_buster = $is_development ? '?v=' . time() : '?v=' . $asset_version;
         // Inclusion du header
         $header_data = [
             'pageTitle' => $pageTitle,
-            'current_user' => $current_user,
+            'current_user' => $user, // Passer l'objet user complet ici
             'is_admin_page' => $is_admin_page,
-            'notifications_count' => $_SESSION['notifications_count'] ?? 0
+            'notifications_count' => $_SESSION['notifications_count'] ?? 0 // Si toujours géré via session
         ];
 
         // Le header n'est affiché que si l'utilisateur est connecté
-        if (isset($_SESSION['user_id'])):
+        if (isset($user['numero_utilisateur'])): // Utiliser $user de `extract($data)`
             require_once __DIR__ . '/../common/header.php';
         endif;
         ?>
 
+        <main class="main-content-area<?= isset($user['numero_utilisateur']) ? '' : ' no-sidebar' ?>" id="mainContentArea">
 
-
-        <!-- Zone de contenu principal -->
-        <main class="main-content-area<?= isset($_SESSION['user_id']) ? '' : ' no-sidebar' ?>" id="mainContentArea">
-
-            <!-- Breadcrumb (si défini) -->
             <?php if (isset($breadcrumb) && is_array($breadcrumb)): ?>
                 <div class="breadcrumb-container">
                     <nav class="breadcrumb">
@@ -176,7 +166,6 @@ $cache_buster = $is_development ? '?v=' . time() : '?v=' . $asset_version;
                 </div>
             <?php endif; ?>
 
-            <!-- Messages d'alerte système (si définis) -->
             <?php if (isset($system_alerts) && is_array($system_alerts)): ?>
                 <?php foreach ($system_alerts as $alert): ?>
                     <div class="admin-alert <?= e($alert['type']) ?> mb-4">
@@ -191,14 +180,25 @@ $cache_buster = $is_development ? '?v=' . time() : '?v=' . $asset_version;
                 <?php endforeach; ?>
             <?php endif; ?>
 
-            <!-- Contenu de la page -->
+            <?php if (!empty($flash_messages)): ?>
+                <?php foreach ($flash_messages as $message_item): ?>
+                    <?php
+                    // Assurez-vous que chaque message_item est un tableau avec 'type' et 'message'
+                    $msg_type = $message_item['type'] ?? 'info';
+                    $msg_content = $message_item['message'] ?? 'Message inconnu.';
+                    ?>
+                    <div class="alert alert-<?= e($msg_type) ?> alert-dismissible fade show mb-4" role="alert">
+                        <?= e($msg_content) ?>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                <?php endforeach; ?>
+            <?php endif; ?>
+
             <?php if (isset($content)): ?>
                 <?php echo $content; ?>
-            <?php elseif (isset($view_content)): ?>
-                <!-- Alternative si le contenu est passé directement -->
+            <?php elseif (isset($view_content)): // Alternative si le contenu est passé directement (moins courant) ?>
                 <?= $view_content ?>
-            <?php else: ?>
-                <!-- Fallback en cas de problème -->
+            <?php else: // Fallback en cas de problème de contenu ?>
                 <div class="admin-module-container">
                     <div class="admin-card text-center">
                         <div class="empty-state">
@@ -222,65 +222,52 @@ $cache_buster = $is_development ? '?v=' . time() : '?v=' . $asset_version;
     </div>
 </div>
 
-<!-- Scripts JavaScript - Ordre d'importance -->
 <script src="/assets/js/main.js<?= $cache_buster ?>"></script>
 
-<!-- Scripts Admin (si nécessaire) -->
 <?php if ($is_admin_page): ?>
     <script src="/assets/js/admin.js<?= $cache_buster ?>"></script>
 <?php endif; ?>
 
-<!-- Scripts Chart.js (si nécessaire) -->
 <?php if (isset($include_charts) && $include_charts): ?>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <?php endif; ?>
 
-<!-- Scripts spécifiques à la page -->
 <?php if (isset($page_js) && is_array($page_js)): ?>
     <?php foreach ($page_js as $js): ?>
-        <script src="<?= $js ?><?= $cache_buster ?>"></script>
+        <script src="<?= e($js) ?><?= $cache_buster ?>"></script>
     <?php endforeach; ?>
 <?php endif; ?>
 
-<!-- Initialisation des messages flash -->
-<?php if ($has_flash_messages): ?>
+<?php if ($has_flash_messages): // $has_flash_messages est basé sur $flash_messages, qui a déjà été vidé de la session ?>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            <?php foreach ($flash_messages as $type => $message): ?>
-            <?php if (!empty($message)): ?>
-            <?php if (is_array($message)): ?>
+            <?php foreach ($flash_messages as $message_item): // Parcourir correctement le tableau de tableaux ?>
             window.GestionMySoutenance?.showFlashMessage(
-                '<?= e($type) ?>',
-                '<?= e($message['message'] ?? '') ?>',
-                '<?= e($message['title'] ?? '') ?>'
+                '<?= e($message_item['type'] ?? 'info') ?>', // Utiliser le type réel
+                '<?= e($message_item['message'] ?? 'Message flash vide.') ?>', // Utiliser le message réel
+                '<?= e($message_item['title'] ?? '') ?>' // Utiliser le titre si disponible
             );
-            <?php else: ?>
-            window.GestionMySoutenance?.showFlashMessage('<?= e($type) ?>', '<?= e($message) ?>');
-            <?php endif; ?>
-            <?php endif; ?>
             <?php endforeach; ?>
         });
     </script>
 <?php endif; ?>
 
-<!-- Configuration globale JavaScript -->
 <script>
     window.AppConfig = {
-        baseUrl: '<?= rtrim(dirname($_SERVER['SCRIPT_NAME']), '/') ?>',
-        csrfToken: '<?= $_SESSION['csrf_token'] ?? '' ?>',
-        userId: <?= isset($_SESSION['user_id']) ? (int)$_SESSION['user_id'] : 'null' ?>,
+        baseUrl: '<?= rtrim(dirname(e($_SERVER['SCRIPT_NAME'])), '/') ?>', // Correction: Échapper l'URL
+        csrfToken: '<?= e($_SESSION['csrf_token'] ?? '') ?>', // Correction: Échapper le token
+        userId: <?= isset($_SESSION['user_id']) ? json_encode(e($_SESSION['user_id'])) : 'null' ?>, // Correction: Échapper et encoder
         userRole: '<?= e($user_role) ?>',
         isAdmin: <?= $is_admin_page ? 'true' : 'false' ?>,
         isDevelopment: <?= $is_development ? 'true' : 'false' ?>,
-        version: '<?= $asset_version ?>'
+        version: '<?= e($asset_version) ?>'
     };
 </script>
 
-<!-- Scripts d'initialisation -->
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         // Initialiser le titre de la page dans le header
-        const pageTitle = <?= json_encode($pageTitle) ?>;
+        const pageTitle = <?= json_encode(e($pageTitle)) ?>; // Correction: Échapper et encoder
 
         // Marquer la page comme chargée
         document.body.classList.add('page-loaded');
@@ -311,7 +298,7 @@ $cache_buster = $is_development ? '?v=' . time() : '?v=' . $asset_version;
             pageTitle: pageTitle,
             userRole: '<?= e($user_role) ?>',
             isAdmin: <?= $is_admin_page ? 'true' : 'false' ?>,
-            version: '<?= $asset_version ?>'
+            version: '<?= e($asset_version) ?>'
         });
         <?php endif; ?>
     });
@@ -332,8 +319,9 @@ $cache_buster = $is_development ? '?v=' . time() : '?v=' . $asset_version;
 </script>
 
 <?php
-// Nettoyer les messages flash après affichage
-unset($_SESSION['flash_messages']);
+// CE UNSET EST MAINTENANT REDONDANT ET PEUT ÊTRE SUPPRIMÉ CAR BaseController::render le fait déjà.
+// Il ne fait pas de mal s'il est appelé après la page HTML rendue, mais il n'est pas nécessaire.
+// unset($_SESSION['flash_messages']);
 ?>
 </body>
 </html>

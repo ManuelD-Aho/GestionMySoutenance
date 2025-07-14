@@ -49,17 +49,17 @@ function getUserTypeInfo($user) {
             </button>
             <ul class="dropdown-menu">
                 <li><h6 class="dropdown-header">Types d'Utilisateurs</h6></li>
-                <li><a class="dropdown-item" href="/admin/utilisateurs/create/etudiant">
+                <li><a class="dropdown-item" href="/admin/utilisateurs/etudiant/form">
                         <i class="fas fa-user-graduate text-info"></i> Étudiant
                     </a></li>
-                <li><a class="dropdown-item" href="/admin/utilisateurs/create/enseignant">
+                <li><a class="dropdown-item" href="/admin/utilisateurs/enseignant/form">
                         <i class="fas fa-chalkboard-teacher text-success"></i> Enseignant
                     </a></li>
-                <li><a class="dropdown-item" href="/admin/utilisateurs/create/personnel">
+                <li><a class="dropdown-item" href="/admin/utilisateurs/personnel/form">
                         <i class="fas fa-user-tie text-warning"></i> Personnel Administratif
                     </a></li>
                 <li><hr class="dropdown-divider"></li>
-                <li><a class="dropdown-item" href="/admin/utilisateurs/create/generic">
+                <li><a class="dropdown-item" href="/admin/utilisateurs/form">
                         <i class="fas fa-user-edit text-secondary"></i> Formulaire Générique
                     </a></li>
             </ul>

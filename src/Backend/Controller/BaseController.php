@@ -47,9 +47,14 @@ abstract class BaseController
      */
     protected function render(string $viewPath, array $data = [], string|false $layout = 'layout/app'): void
     {
+        // 1. Récupérer les flash messages DE LA SESSION et les passer aux données de la vue.
+        // C'est la *seule* fois où ils sont pris de la session.
         $data['flash_messages'] = $_SESSION['flash_messages'] ?? [];
+        // 2. VIDER les flash messages de la session IMMÉDIATEMENT après les avoir récupérés.
+        // Cela garantit qu'ils ne sont affichés qu'une seule fois.
         unset($_SESSION['flash_messages']);
 
+        // Données utilisateur et menu (toujours présentes)
         $data['user'] = $this->securiteService->getUtilisateurConnecte();
         $data['is_impersonating'] = $this->securiteService->estEnModeImpersonation();
         $data['impersonator_data'] = $this->securiteService->getImpersonatorData();
@@ -58,28 +63,31 @@ abstract class BaseController
         // Le chemin complet de la vue spécifique (ex: dashboard_admin.php)
         $viewFullPath = ROOT_PATH . '/src/Frontend/views/' . $viewPath . '.php';
         if (!file_exists($viewFullPath)) {
+            // S'il y a une erreur de fichier de vue, on log et on lance une exception claire.
+            error_log("Fichier de vue non trouvé : " . $viewFullPath);
             throw new ElementNonTrouveException("Fichier de vue non trouvé : " . $viewFullPath);
         }
 
-        extract($data); // Extrait les données dans le scope local pour la vue et le layout
+        // Extrait les données dans le scope local pour la vue et le layout.
+        // IMPORTANT: La vue/layout doit lire `$flash_messages` et non `$_SESSION['flash_messages']`.
+        extract($data);
 
-        // **************************************************************************
-        // CHANGEMENT IMPORTANT ICI : Capture le contenu HTML de la vue dans $content
-        // **************************************************************************
+        // Capture le contenu HTML de la vue dans $content
         ob_start(); // Démarre la mise en mémoire tampon de sortie
-        require $viewFullPath; // Exécute le fichier de vue. Son output est capturé, pas affiché directement.
+        require $viewFullPath; // Exécute le fichier de vue. Son output est capturé.
         $content = ob_get_clean(); // Récupère le contenu généré et le stocke dans $content, puis vide le tampon.
-        // MAINTENANT, $content est le contenu HTML de la vue (une chaîne), PAS son chemin.
 
         if ($layout) {
-            $layoutPath = ROOT_PATH . '/src/Frontend/views/' . $layout . '.php';
-            if (!file_exists($layoutPath)) {
-                throw new ElementNonTrouveException("Fichier de layout non trouvé : " . $layoutPath);
-            }
-            require_once $layoutPath; // Inclut le fichier de layout (app.php), qui va ensuite inclure $content
+        $layoutPath = ROOT_PATH . '/src/Frontend/views/' . $layout . '.php';
+        if (!file_exists($layoutPath)) {
+            error_log("Fichier de layout non trouvé : " . $layoutPath);
+            throw new ElementNonTrouveException("Fichier de layout non trouvé : " . $layoutPath);
+        }
+        /* Le layout doit contenir une ligne comme `<?php echo $content;?>' là où le contenu de la vue doit être inséré.*/
+        require_once $layoutPath; // Inclut le fichier de layout (ex: app.php)
         } else {
-            // Si aucun layout, inclut directement la vue
-            require_once $viewFullPath;
+        // Si aucun layout, affiche directement le contenu de la vue capturé.
+        echo $content;
         }
     }
 
