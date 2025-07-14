@@ -1,43 +1,28 @@
 <?php
-// src/Frontend/views/errors/500.php
+// /src/Frontend/views/errors/500.php
 
-// Fonction d'échappement HTML
 if (!function_exists('e')) {
     function e($value) {
         return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
     }
 }
 
-// Variables pour le contenu (peuvent être passées par un contrôleur d'erreurs)
-$pageTitle = $data['pageTitle'] ?? 'Erreur Serveur Interne (500)';
-$errorMessage = $data['errorMessage'] ?? 'Une erreur inattendue est survenue sur le serveur.';
-$homeLink = $data['homeLink'] ?? '/dashboard'; // Lien vers le tableau de bord ou la page d'accueil
+$errorMessage = $error_message ?? "Une erreur inattendue est survenue de notre côté. Notre équipe technique a été notifiée.";
 ?>
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?= e($pageTitle) ?> - GestionMySoutenance</title>
-    <link rel="stylesheet" href="/assets/css/root.css">
-    <link rel="stylesheet" href="/assets/css/style.css"> <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-</head>
-<body>
 
-<div class="error-container">
-    <div class="error-card">
-        <div class="error-header">
-            <span class="material-icons error-icon">cloud_off</span>
-            <h1>500</h1>
-        </div>
-        <h2 class="error-title"><?= e($pageTitle); ?></h2>
-        <p class="error-message"><?= e($errorMessage); ?></p>
-        <p class="error-suggestion">Nous sommes désolés pour ce désagrément. Veuillez réessayer ultérieurement ou contacter l'administrateur du système.</p>
-        <a href="<?= e($homeLink); ?>" class="btn btn-primary-blue error-link">
-            <span class="material-icons">arrow_back</span> Retour au Tableau de Bord
-        </a>
+<div class="text-center">
+    <div class="mb-8">
+        <span class="material-icons text-error" style="font-size: 80px;">report_problem</span>
+    </div>
+    <h1 class="text-5xl font-extrabold text-error font-montserrat">500</h1>
+    <h2 class="text-2xl font-bold mt-4">Erreur Interne du Serveur</h2>
+    <p class="text-base-content/70 mt-4 max-w-md mx-auto">
+        <?= e($errorMessage) ?>
+    </p>
+    <div class="mt-8">
+        <button onclick="window.location.reload()" class="btn btn-primary">
+            <span class="material-icons mr-2">refresh</span>
+            Réessayer
+        </button>
     </div>
 </div>
-
-</body>
-</html>

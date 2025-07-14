@@ -1,5 +1,8 @@
 <?php
-// src/Frontend/views/home/index.php
+// /src/Frontend/views/home/index.php
+
+// Le layout `layout_auth.php` sera utilisé par le BaseController
+// La variable $pageTitle est également fournie par le contrôleur.
 
 if (!function_exists('e')) {
     function e($value) {
@@ -8,66 +11,36 @@ if (!function_exists('e')) {
 }
 ?>
 
-<div class="home-container">
-    <div class="welcome-section">
-        <h1>Bienvenue sur GestionMySoutenance</h1>
-        <p>Votre plateforme de gestion des soutenances et rapports.</p>
-
-        <div class="auth-actions">
-            <a href="/login" class="btn btn-primary">Se connecter</a>
+<div class="text-center">
+    <!-- Logo et Titre de l'application -->
+    <div class="mb-12">
+        <div class="inline-block p-4 bg-primary rounded-2xl shadow-lg">
+            <span class="material-icons text-primary-content" style="font-size: 48px;">school</span>
         </div>
+        <h1 class="text-4xl font-extrabold mt-4 font-montserrat">GestionMySoutenance</h1>
+        <p class="text-base-content/70 mt-2">Votre plateforme centralisée pour un suivi académique d'excellence.</p>
+    </div>
+
+    <!-- Message de bienvenue -->
+    <div class="prose lg:prose-lg mx-auto">
+        <p>
+            Bienvenue ! Connectez-vous pour accéder à votre tableau de bord, suivre l'avancement de votre rapport, collaborer avec votre commission et gérer l'ensemble de votre parcours de soutenance.
+        </p>
+    </div>
+
+    <!-- Actions principales -->
+    <div class="mt-8">
+        <a href="/login" class="btn btn-primary btn-lg w-full max-w-xs animate-pulse-slow">
+            <span class="material-icons mr-2">login</span>
+            Accéder à mon espace
+        </a>
+    </div>
+
+    <!-- Lien secondaire -->
+    <div class="mt-6 text-sm">
+        <p class="text-base-content/60">
+            Un problème pour vous connecter ?
+            <a href="/forgot-password" class="link link-hover text-primary">Récupérez votre mot de passe</a>.
+        </p>
     </div>
 </div>
-
-<style>
-    .home-container {
-        max-width: 800px;
-        margin: 0 auto;
-        padding: 2rem;
-        text-align: center;
-    }
-
-    .welcome-section h1 {
-        font-size: 2.5rem;
-        margin-bottom: 1rem;
-        color: #333;
-    }
-
-    .welcome-section p {
-        font-size: 1.2rem;
-        color: #666;
-        margin-bottom: 2rem;
-    }
-
-    .auth-actions {
-        display: flex;
-        gap: 1rem;
-        justify-content: center;
-    }
-
-    .btn {
-        padding: 0.75rem 1.5rem;
-        text-decoration: none;
-        border-radius: 0.375rem;
-        font-weight: 500;
-        transition: all 0.2s;
-    }
-
-    .btn-primary {
-        background-color: #3b82f6;
-        color: white;
-    }
-
-    .btn-primary:hover {
-        background-color: #2563eb;
-    }
-
-    .btn-secondary {
-        background-color: #6b7280;
-        color: white;
-    }
-
-    .btn-secondary:hover {
-        background-color: #4b5563;
-    }
-</style>
